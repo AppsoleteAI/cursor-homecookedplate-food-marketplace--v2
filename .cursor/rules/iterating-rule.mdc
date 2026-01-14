@@ -1,0 +1,9 @@
+Rule: "I am iterating. Do NOT refactor the app/ directory or change the android.package name com.rork.homecookedplate in app.json. Only add new screens to the existing navigation tree."
+---
+name: iterating-rule
+description: This is a new rule
+---
+
+# Overview
+
+Insert overview text here. The agent will only see this should they choose to apply the rule.
