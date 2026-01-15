@@ -3,7 +3,7 @@ create extension if not exists "uuid-ossp";
 
 -- Profiles table (extends Supabase auth.users)
 create table if not exists public.profiles (
-  id uuid references auth.users(id) primary key,
+  id uuid references auth.users(id) ON DELETE CASCADE primary key,
   username text unique not null,
   email text unique not null,
   role text not null check (role in ('platemaker', 'platetaker')),

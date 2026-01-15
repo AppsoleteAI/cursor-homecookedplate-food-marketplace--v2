@@ -5,7 +5,7 @@ import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { appRouter } from "./trpc/app-router";
 import { createContext } from "./trpc/create-context";
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from "./lib/supabase";
 
 type Bindings = {
   RATE_LIMIT_KV?: KVNamespace;
@@ -187,38 +187,27 @@ app.post("/webhook/stripe", async (c) => {
 
     console.log('[Stripe Webhook] Payment succeeded:', paymentIntentId);
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    const { data: orders, error: fetchError } = await supabase
+    // Use centralized admin client (supabaseAdmin) which uses Service Role Key
+    // Perform a single atomic update for all orders with this payment_intent_id
+    const { data: updatedOrders, error: updateError } = await supabaseAdmin
       .from('orders')
-      .select('*')
-      .eq('payment_intent_id', paymentIntentId);
+      .update({ 
+        paid: true, 
+        status: 'accepted',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('payment_intent_id', paymentIntentId)
+      .select();
 
-    if (fetchError) {
-      console.error('[Stripe Webhook] Error fetching orders:', fetchError);
+    if (updateError) {
+      console.error('[Stripe Webhook] Error updating orders:', updateError);
       return c.json({ error: 'Database error' }, 500);
     }
 
-    if (!orders || orders.length === 0) {
+    if (!updatedOrders || updatedOrders.length === 0) {
       console.warn('[Stripe Webhook] No orders found for payment intent:', paymentIntentId);
-      return c.json({ received: true });
-    }
-
-    for (const order of orders) {
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update({ 
-          paid: true, 
-          status: 'accepted',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', order.id);
-
-      if (updateError) {
-        console.error('[Stripe Webhook] Error updating order:', order.id, updateError);
-      } else {
-        console.log('[Stripe Webhook] Order updated successfully:', order.id);
-      }
+    } else {
+      console.log('[Stripe Webhook] Updated', updatedOrders.length, 'order(s) successfully');
     }
   }
 

@@ -1,6 +1,7 @@
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
-import { createServerSupabaseClient } from "../../../../lib/supabase";
+import { createServerSupabaseClient, supabaseAdmin } from "../../../../lib/supabase";
+import { TRPCError } from "@trpc/server";
 
 async function sendWelcomeEmail(email: string, username: string) {
   try {
@@ -18,10 +19,11 @@ export const signupProcedure = publicProcedure
       password: z.string().min(6),
     })
   )
-  .mutation(async ({ input, ctx }) => {
+  .mutation(async ({ input }) => {
     console.log('[Signup] Starting signup for:', input.email);
     
-    const { data: authData, error: authError } = await ctx.supabase.auth.signUp({
+    // Use admin client for signup (bypasses RLS)
+    const { data: authData, error: authError } = await supabaseAdmin.auth.signUp({
       email: input.email,
       password: input.password,
       options: {
@@ -34,7 +36,10 @@ export const signupProcedure = publicProcedure
 
     if (authError || !authData.user) {
       console.error('[Signup] Auth error:', authError);
-      throw new Error(authError?.message || 'Failed to create account');
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: authError?.message || 'Failed to create account',
+      });
     }
 
     console.log('[Signup] User created:', authData.user.id);
@@ -42,64 +47,52 @@ export const signupProcedure = publicProcedure
 
     if (!authData.session) {
       console.log('[Signup] No session - email confirmation required');
-      throw new Error('Please check your email to confirm your account before logging in');
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Please check your email to confirm your account before logging in',
+      });
     }
 
-    const authenticatedSupabase = createServerSupabaseClient(authData.session.access_token);
-
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    const { data: profile, error: profileError } = await authenticatedSupabase
+    // Immediately create profile using admin client (bypasses RLS)
+    // Don't wait for trigger - use admin client to ensure it works
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('*')
-      .eq('id', authData.user.id)
+      .insert({
+        id: authData.user.id,
+        username: input.username,
+        email: input.email,
+        role: 'platetaker',
+      })
+      .select()
       .single();
 
+    // Cleanup on failure - delete auth user if profile creation fails
     if (profileError || !profile) {
-      console.error('[Signup] Profile not found after trigger:', profileError);
+      console.error('[Signup] Profile creation failed:', profileError);
       console.error('[Signup] User ID:', authData.user.id);
       
-      const { data: manualProfile, error: manualError } = await authenticatedSupabase
-        .from('profiles')
-        .insert({
-          id: authData.user.id,
-          username: input.username,
-          email: input.email,
-          role: 'platetaker',
-        })
-        .select()
-        .single();
-
-      if (manualError) {
-        console.error('[Signup] Manual profile creation also failed:', manualError);
-        if (manualError.code === '23505') {
-          throw new Error('Username or email already exists');
-        }
-        throw new Error(`Failed to create profile: ${manualError.message || manualError.code || 'Unknown error'}`);
+      // Attempt to clean up the auth user
+      try {
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+        console.log('[Signup] Cleaned up auth user after profile creation failure');
+      } catch (cleanupError) {
+        console.error('[Signup] Failed to cleanup auth user:', cleanupError);
       }
 
-      console.log('[Signup] Manual profile created successfully');
-      await sendWelcomeEmail(input.email, input.username);
+      if (profileError?.code === '23505') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Username or email already exists',
+        });
+      }
 
-      return {
-        user: {
-          id: manualProfile.id,
-          username: manualProfile.username,
-          email: manualProfile.email,
-          role: manualProfile.role as 'platemaker' | 'platetaker',
-          isAdmin: manualProfile.is_admin || false,
-          phone: manualProfile.phone,
-          bio: manualProfile.bio,
-          profileImage: manualProfile.profile_image,
-          createdAt: new Date(manualProfile.created_at),
-          isPaused: manualProfile.is_paused,
-          twoFactorEnabled: manualProfile.two_factor_enabled,
-        },
-        session: authData.session,
-      };
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: `Failed to create profile: ${profileError?.message || profileError?.code || 'Unknown error'}`,
+      });
     }
 
-    console.log('[Signup] Profile retrieved successfully from trigger');
+    console.log('[Signup] Profile created successfully with admin client');
     await sendWelcomeEmail(input.email, input.username);
 
     return {
