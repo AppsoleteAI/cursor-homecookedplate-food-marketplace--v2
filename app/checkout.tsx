@@ -204,6 +204,7 @@ export default function CheckoutScreen() {
   
   const createPaymentIntent = trpc.payments.createPaymentIntent.useMutation();
   const createOrder = trpc.orders.create.useMutation();
+  const updatePaymentIntent = trpc.orders.updatePaymentIntent.useMutation();
 
   const confettiKey = useRef<number>(0);
 
@@ -279,7 +280,29 @@ export default function CheckoutScreen() {
         orderIds: createdOrderIds,
       });
 
+      // Link orders to payment intent ID before proceeding to payment sheet
+      // This ensures orders cannot be bypassed and must be paid
+      if (!paymentIntentResult.paymentIntentId) {
+        Alert.alert('Error', 'Failed to create payment intent. Please try again.');
+        setProcessing(false);
+        return;
+      }
 
+      try {
+        await updatePaymentIntent.mutateAsync({
+          orderIds: createdOrderIds,
+          paymentIntentId: paymentIntentResult.paymentIntentId,
+        });
+        console.log('[Checkout] Orders linked to payment intent:', paymentIntentResult.paymentIntentId);
+      } catch (linkError: any) {
+        console.error('[Checkout] Error linking orders to payment intent:', linkError);
+        Alert.alert(
+          'Error',
+          'Failed to link orders to payment. Please try again or contact support.'
+        );
+        setProcessing(false);
+        return;
+      }
 
       if (!initPaymentSheet || !presentPaymentSheet) {
         Alert.alert('Error', 'Payment system not available');

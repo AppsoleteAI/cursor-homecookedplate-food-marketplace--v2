@@ -24,5 +24,10 @@ export const meProcedure = protectedProcedure
       createdAt: new Date(profile.created_at),
       isPaused: profile.is_paused,
       twoFactorEnabled: profile.two_factor_enabled,
+      membershipTier: (profile.membership_tier as 'free' | 'premium') || 'free',
+      stripeCustomerId: profile.stripe_customer_id || undefined,
+      stripeSubscriptionId: profile.stripe_subscription_id || undefined,
+      metro_area: profile.metro_area || null,
+      trial_ends_at: profile.trial_ends_at ? new Date(profile.trial_ends_at) : null,
     };
   });

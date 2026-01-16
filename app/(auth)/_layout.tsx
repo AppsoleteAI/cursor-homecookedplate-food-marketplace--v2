@@ -26,6 +26,20 @@ export default function AuthLayout() {
           gestureEnabled: true,
         }} 
       />
+      <Stack.Screen 
+        name="recover" 
+        options={{ 
+          headerShown: false,
+          gestureEnabled: true,
+        }} 
+      />
+      <Stack.Screen 
+        name="reset-password" 
+        options={{ 
+          headerShown: false,
+          gestureEnabled: true,
+        }} 
+      />
     </Stack>
   );
 }

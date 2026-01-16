@@ -10,6 +10,11 @@ export interface User {
   createdAt: Date;
   isPaused?: boolean;
   twoFactorEnabled?: boolean;
+  membershipTier?: 'free' | 'premium';
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  metro_area?: string | null;
+  trial_ends_at?: Date | null;
 }
 
 export interface PlateMaker extends User {

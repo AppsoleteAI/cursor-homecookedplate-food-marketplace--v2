@@ -52,6 +52,22 @@ export function BuyerOnly({ children }: GuardProps) {
   return <>{children}</>;
 }
 
+export function AdminOnly({ children }: GuardProps) {
+  const { isLoading, isAuthenticated, user } = useAuth();
+
+  if (isLoading) return <LoadingFallback />;
+
+  if (!isAuthenticated) {
+    return <Redirect href="/(auth)/login" />;
+  }
+
+  if (user?.isAdmin !== true) {
+    return <Redirect href="/(tabs)/(home)/home" />;
+  }
+
+  return <>{children}</>;
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,

@@ -10,11 +10,16 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { Globe, Volume2, MapPin, ChevronRight } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors, monoGradients } from '@/constants/colors';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '@/hooks/auth-context';
 
 export default function SettingsScreen() {
+  const { user } = useAuth();
+  const router = useRouter();
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(true);
 
@@ -220,5 +225,51 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: Colors.gray[900],
+  },
+  membershipCard: {
+    backgroundColor: Colors.gray[50],
+    borderRadius: 12,
+    padding: 16,
+  },
+  membershipHeader: {
+    marginBottom: 12,
+  },
+  membershipBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+  },
+  membershipBadgeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.white,
+  },
+  subscriptionInfo: {
+    marginBottom: 16,
+  },
+  subscriptionText: {
+    fontSize: 14,
+    color: Colors.gray[700],
+    lineHeight: 20,
+  },
+  manageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: Colors.white,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.gradient.green,
+  },
+  manageButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.gradient.green,
   },
 });

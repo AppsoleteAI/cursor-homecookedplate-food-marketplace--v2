@@ -12,8 +12,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Colors } from '@/constants/colors';
+import { Colors, monoGradients } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { MembershipPromoBanner } from '@/components/MembershipPromoBanner';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
@@ -44,42 +46,64 @@ export default function ProfileScreen() {
     );
   };
 
-  const menuItems = [
+  const menuItems: Array<{
+    icon: keyof typeof Ionicons.glyphMap;
+    title: string;
+    onPress: () => void;
+    subtitle?: string;
+  }> = [
     {
-      icon: 'person-outline' as const,
+      icon: 'star-outline',
+      title: 'Membership',
+      onPress: () => router.push('/membership'),
+      subtitle: membershipTier === 'premium' ? 'Premium Member' : 'Free Member',
+    },
+    {
+      icon: 'person-outline',
       title: 'Edit Profile',
       onPress: () => router.push('/edit-profile'),
     },
     {
-      icon: 'notifications-outline' as const,
+      icon: 'notifications-outline',
       title: 'Notifications',
       onPress: () => router.push('/notifications'),
     },
     {
-      icon: 'shield-checkmark-outline' as const,
+      icon: 'shield-checkmark-outline',
       title: 'Privacy & Security',
       onPress: () => router.push('/privacy-security'),
     },
     {
-      icon: 'document-text-outline' as const,
+      icon: 'document-text-outline',
       title: 'Legal & Safety',
       onPress: () => router.push('/legal'),
     },
     {
-      icon: 'help-circle-outline' as const,
+      icon: 'help-circle-outline',
       title: 'Help & Support',
       onPress: () => router.push('/help-support'),
     },
     {
-      icon: 'settings-outline' as const,
+      icon: 'settings-outline',
       title: 'Settings',
       onPress: () => router.push('/settings'),
     },
   ];
 
+  const membershipTier = user?.membershipTier || 'free';
+  const userLocation = user?.phone || user?.bio || null; // Using profile location if available
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Promo Banner */}
+        {membershipTier === 'free' && (
+          <MembershipPromoBanner
+            userLocation={userLocation}
+            membershipTier={membershipTier}
+          />
+        )}
+
         <View style={styles.header}>
           <Image
             source={{ uri: (user?.profileImage ?? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400') }}
@@ -95,6 +119,25 @@ export default function ProfileScreen() {
             <Text style={styles.roleText}>
               {user?.role === 'platemaker' ? 'platemaker' : 'platetaker'}
             </Text>
+          </View>
+          
+          {/* Membership Badge */}
+          <View style={styles.membershipBadgeContainer}>
+            <LinearGradient
+              colors={membershipTier === 'premium' ? monoGradients.gold : [Colors.gray[400], Colors.gray[500]]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.membershipBadge}
+            >
+              <Ionicons
+                name={membershipTier === 'premium' ? 'diamond' : 'person'}
+                size={16}
+                color={Colors.white}
+              />
+              <Text style={styles.membershipText}>
+                {membershipTier === 'premium' ? 'Premium' : 'Free'}
+              </Text>
+            </LinearGradient>
           </View>
         </View>
 
@@ -178,10 +221,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
+    flex: 1,
+  },
+  menuItemTextContainer: {
+    flex: 1,
   },
   menuItemText: {
     fontSize: 16,
     color: Colors.gray[900],
+  },
+  menuItemSubtitle: {
+    fontSize: 13,
+    color: Colors.gray[600],
+    marginTop: 2,
+  },
+  membershipBadgeContainer: {
+    marginTop: 12,
+  },
+  membershipBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  membershipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.white,
   },
   logoutButton: {
     flexDirection: 'row',

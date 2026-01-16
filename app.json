@@ -43,6 +43,17 @@
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.SCHEDULE_EXACT_ALARM",
         "INTERNET"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": {
+            "scheme": "homecookedplate",
+            "host": "(auth)",
+            "path": "reset-password"
+          },
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
       ]
     },
     "web": {

@@ -4,6 +4,7 @@ import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { NavigationContainer } from "@react-navigation/native";
 import * as Sentry from "@sentry/react-native";
 import { AuthProvider } from "@/hooks/auth-context";
 import { CartProvider } from "@/hooks/cart-context";
@@ -56,6 +57,7 @@ function RootLayoutNav() {
       <Stack.Screen name="promotions" options={{ title: "Promotions" }} />
       <Stack.Screen name="messages" options={{ title: "Messages" }} />
       <Stack.Screen name="funnel" options={{ headerShown: false }} />
+      <Stack.Screen name="admin-metro-caps" options={{ title: "Metro Cap Management" }} />
     </Stack>
   );
 }
@@ -71,6 +73,21 @@ function RootLayout() {
     });
   }, []);
 
+  // CRITICAL: Platform-split navigation for Rork Lightning Preview compatibility
+  // DO NOT REMOVE: Manual NavigationContainer on Web is required for Rork Preview
+  // DO NOT REMOVE: The independent: true prop and type cast are intentionally required
+  const LayoutContent = (
+    <>
+      {Platform.OS !== 'web' && StripeProvider ? (
+        <StripeProvider publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''}>
+          <RootLayoutNav />
+        </StripeProvider>
+      ) : (
+        <RootLayoutNav />
+      )}
+    </>
+  );
+
   return (
     <ErrorBoundary>
       <GestureHandlerRootView style={styles.container}>
@@ -84,12 +101,13 @@ function RootLayout() {
                       <MealsProvider>
                         <AdminsProvider>
                           <ReviewsProvider>
-                            {Platform.OS !== 'web' && StripeProvider ? (
-                              <StripeProvider publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''}>
-                                <RootLayoutNav />
-                              </StripeProvider>
+                            {Platform.OS === 'web' ? (
+                              // DO NOT REMOVE: Required for Rork Web Preview functionality
+                              <NavigationContainer {...({ independent: true } as any)}>
+                                {LayoutContent}
+                              </NavigationContainer>
                             ) : (
-                              <RootLayoutNav />
+                              LayoutContent
                             )}
                           </ReviewsProvider>
                         </AdminsProvider>

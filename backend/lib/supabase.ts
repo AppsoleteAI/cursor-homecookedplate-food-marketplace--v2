@@ -1,20 +1,34 @@
 import { createClient } from '@supabase/supabase-js';
 
-// 1. Pull keys from your verified .env
-const supabaseUrl = process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL;
+// Read environment variables from backend/.env
+const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl) {
-  console.error("❌ SUPABASE_URL is missing in backend/.env");
+// Validate all required environment variables are present
+if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
+  throw new Error('❌ Missing Supabase environment variables in backend/.env. Required: SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY');
 }
 
-// 2. Standard Client (Respects RLS - for general use)
-export const supabase = createClient(supabaseUrl!, supabaseAnonKey!);
+/**
+ * CLIENT 1: Standard Anon Client
+ * Use this for: Login, fetching public data, and operations 
+ * that should respect Row Level Security (RLS).
+ * 
+ * This client uses the anon key, which respects RLS policies.
+ * Used by: Login route (via createServerSupabaseClient), public queries
+ */
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// 3. Admin Client (Bypasses RLS - for signup, webhooks, and recovery)
-// This uses the Service Role Key from Supabase Dashboard
-export const supabaseAdmin = createClient(supabaseUrl!, supabaseServiceKey!, {
+/**
+ * CLIENT 2: Admin Client (God Mode)
+ * Use this for: Signup (admin.createUser), deleting users, 
+ * or bypassing RLS during server-side logic.
+ * 
+ * This client uses the service role key, which bypasses RLS.
+ * Used by: Signup route, webhooks, account recovery
+ */
+export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false
@@ -23,7 +37,10 @@ export const supabaseAdmin = createClient(supabaseUrl!, supabaseServiceKey!, {
 
 // Keep createServerSupabaseClient for user-scoped operations with RLS
 export function createServerSupabaseClient(accessToken?: string) {
-  return createClient(supabaseUrl!, supabaseAnonKey!, {
+  const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || supabaseAnonKey || '';
+  const url = supabaseUrl || '';
+  
+  return createClient(url, anonKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,

@@ -12,7 +12,7 @@ interface AuthState {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<void>;
-  signup: (username: string, email: string, password: string, role: 'platemaker' | 'platetaker') => Promise<void>;
+  signup: (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }) => Promise<{ success: boolean; requiresLogin: boolean }>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<Pick<User, 'username' | 'email' | 'phone' | 'bio' | 'profileImage'>>) => Promise<void>;
   requestPlatemakerRole: () => Promise<void>;
@@ -22,6 +22,8 @@ interface AuthState {
   setTwoFactorEnabled: (enabled: boolean) => Promise<void>;
   changePassword: (current: string, next: string) => Promise<boolean>;
   requestDataExport: () => Promise<{ filename: string; content: string; mimeType: string }>;
+  resetPassword: (email: string) => Promise<void>;
+  reactivateAccount: (email: string) => Promise<void>;
 }
 
 const STORAGE_KEY = 'auth_user_v2';
@@ -38,6 +40,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const logoutMutation = trpc.auth.logout.useMutation();
   const updateProfileMutation = trpc.auth.updateProfile.useMutation();
   const requestPlatemakerRoleMutation = trpc.auth.requestPlatemakerRole.useMutation();
+  const resetPasswordMutation = trpc.auth.resetPassword.useMutation();
+  const reactivateAccountMutation = trpc.auth.reactivateAccount.useMutation();
   const { data: meData, refetch: refetchMe } = trpc.auth.me.useQuery(undefined, {
     enabled: !!session,
     retry: false,
@@ -200,24 +204,43 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     }
   }, [loginMutation, persistUser, persistSession]);
 
-  const signup = useCallback(async (username: string, email: string, password: string, role: 'platemaker' | 'platetaker') => {
+  const signup = useCallback(async (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }): Promise<{ success: boolean; requiresLogin: boolean }> => {
     try {
-      const result = await signupMutation.mutateAsync({ username, email, password });
-      if (!result.session) {
-        throw new Error('No session returned from signup');
-      }
-      if (mountedRef.current) {
-        setUser(result.user);
-        setSession(result.session);
-      }
-      await persistUser(result.user);
-      await persistSession(result.session);
-      await supabase.auth.setSession({
-        access_token: result.session.access_token,
-        refresh_token: result.session.refresh_token,
+      const result = await signupMutation.mutateAsync({ 
+        username, 
+        email, 
+        password,
+        role,
+        lat: location?.lat,
+        lng: location?.lng,
       });
-      setSentryUser(result.user);
-      addBreadcrumb('User signed up', 'auth', { userId: result.user.id, role: result.user.role });
+      
+      // Backend returns session: null because admin.createUser() doesn't create sessions
+      // User will need to login after signup
+      if (result.session) {
+        // Session returned (e.g., OAuth flows) - persist and go directly to app
+        if (mountedRef.current) {
+          setUser(result.user);
+          setSession(result.session);
+        }
+        await persistUser(result.user);
+        await persistSession(result.session);
+        await supabase.auth.setSession({
+          access_token: result.session.access_token,
+          refresh_token: result.session.refresh_token,
+        });
+        setSentryUser(result.user);
+        addBreadcrumb('User signed up', 'auth', { userId: result.user.id, role: result.user.role });
+        return { success: true, requiresLogin: false };
+      } else {
+        // No session - user created but needs to login separately
+        // Just set user info for the success animation, don't persist session
+        if (mountedRef.current) {
+          setUser(result.user);
+        }
+        addBreadcrumb('User signed up (no session - needs login)', 'auth', { userId: result.user.id, role: result.user.role });
+        return { success: true, requiresLogin: true };
+      }
     } catch (error) {
       captureException(error as Error, { context: 'signup', username, email, role });
       throw error;
@@ -358,6 +381,31 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     return { filename: `my-data-${u?.username ?? 'user'}.json`, content, mimeType: 'application/json' };
   }, [user]);
 
+  const resetPassword = useCallback(async (email: string) => {
+    try {
+      const result = await resetPasswordMutation.mutateAsync({ email });
+      addBreadcrumb('Password reset requested', 'auth', { email });
+      // The mutation always returns success for security (doesn't reveal if email exists)
+      // We can show the message to the user
+      return;
+    } catch (error) {
+      captureException(error as Error, { context: 'resetPassword', email });
+      throw error;
+    }
+  }, [resetPasswordMutation]);
+
+  const reactivateAccount = useCallback(async (email: string) => {
+    try {
+      const result = await reactivateAccountMutation.mutateAsync({ email });
+      addBreadcrumb('Account reactivation requested', 'auth', { email });
+      // The mutation returns success/error message
+      return;
+    } catch (error) {
+      captureException(error as Error, { context: 'reactivateAccount', email });
+      throw error;
+    }
+  }, [reactivateAccountMutation]);
+
   return useMemo(() => ({
     user,
     isLoading,
@@ -373,5 +421,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     setTwoFactorEnabled,
     changePassword,
     requestDataExport,
-  }), [user, isLoading, login, signup, logout, updateProfile, requestPlatemakerRole, pauseAccount, unpauseAccount, deleteAccount, setTwoFactorEnabled, changePassword, requestDataExport]);
+    resetPassword,
+    reactivateAccount,
+  }), [user, isLoading, login, signup, logout, updateProfile, requestPlatemakerRole, pauseAccount, unpauseAccount, deleteAccount, setTwoFactorEnabled, changePassword, requestDataExport, resetPassword, reactivateAccount]);
 });
