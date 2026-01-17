@@ -57,6 +57,7 @@ create table if not exists public.orders (
   quantity integer not null check (quantity > 0),
   total_price numeric(10,2) not null check (total_price >= 0),
   paid boolean default false,
+  payment_intent_id text,
   special_instructions text,
   cooking_temperature text,
   allergies text[] default '{}',

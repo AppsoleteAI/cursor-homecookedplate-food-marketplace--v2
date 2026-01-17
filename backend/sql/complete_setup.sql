@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS public.orders (
   quantity integer NOT NULL CHECK (quantity > 0 AND quantity <= 999),
   total_price numeric(10,2) NOT NULL CHECK (total_price >= 0 AND total_price <= 999999999.99),
   paid boolean DEFAULT false,
+  payment_intent_id text,
   special_instructions text,
   cooking_temperature text,
   allergies text[] DEFAULT '{}',

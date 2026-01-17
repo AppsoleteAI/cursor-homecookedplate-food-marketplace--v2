@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { publicProcedure } from '../../../create-context';
+import { calculateFees } from '../../../lib/fees';
 
 const inputSchema = z.object({
   amount: z.number().min(0),
@@ -39,15 +40,21 @@ export const createPaymentIntentProcedure = publicProcedure
       throw new Error('Seller has not completed Stripe onboarding');
     }
 
-    const amountInCents = Math.round(input.amount * 100);
-    const applicationFee = Math.round(amountInCents * (input.platformFeePercent / 100));
+    // Calculate fees using dual fee structure:
+    // - Buyer pays: base + 10% fee
+    // - Platform gets: 10% buyer fee + 10% seller fee = 20% total
+    // - Seller gets: base - 10% fee (handled by Stripe Connect)
+    const fees = calculateFees(input.amount, input.platformFeePercent, input.platformFeePercent);
+    
+    const totalChargeInCents = Math.round(fees.totalCharge * 100);
+    const appTotalRevenueInCents = Math.round(fees.appTotalRevenue * 100);
 
     const params = new URLSearchParams({
-      amount: amountInCents.toString(),
+      amount: totalChargeInCents.toString(), // Buyer pays base + buyer fee
       currency: input.currency,
       'automatic_payment_methods[enabled]': 'true',
       'transfer_data[destination]': sellerProfile.stripe_account_id,
-      application_fee_amount: applicationFee.toString(),
+      application_fee_amount: appTotalRevenueInCents.toString(), // Platform keeps buyer fee + seller fee
       ...(input.orderIds ? { 'metadata[order_ids]': input.orderIds.join(',') } : {}),
     });
 
@@ -68,11 +75,17 @@ export const createPaymentIntentProcedure = publicProcedure
 
     const paymentIntent = await response.json();
 
-    console.log(`[Stripe] Payment intent created: ${paymentIntent.id}, Platform fee: $${applicationFee / 100}`);
+    console.log(`[Stripe] Payment intent created: ${paymentIntent.id}`);
+    console.log(`[Stripe] Fee breakdown: Base=$${fees.baseAmount.toFixed(2)}, Buyer fee=$${fees.buyerFee.toFixed(2)}, Seller fee=$${fees.sellerFee.toFixed(2)}`);
+    console.log(`[Stripe] Buyer pays: $${fees.totalCharge.toFixed(2)}, Platform revenue: $${fees.appTotalRevenue.toFixed(2)}, Seller payout: $${fees.sellerPayout.toFixed(2)}`);
 
     return {
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
-      platformFee: applicationFee / 100,
+      platformFee: fees.appTotalRevenue,
+      buyerFee: fees.buyerFee,
+      sellerFee: fees.sellerFee,
+      totalCharge: fees.totalCharge,
+      sellerPayout: fees.sellerPayout,
     };
   });

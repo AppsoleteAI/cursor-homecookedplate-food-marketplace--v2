@@ -26,6 +26,7 @@ import { useAuth } from '@/hooks/auth-context';
 import { Colors } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
 import { trpc } from '@/lib/trpc';
+import { MetroProgressBar } from '@/components/Registration/MetroProgressBar';
 
 export default function SignupScreen() {
   const [username, setUsername] = useState('');
@@ -47,6 +48,7 @@ export default function SignupScreen() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const { signup } = useAuth();
   const checkEligibilityMutation = trpc.trials.checkEligibility.useMutation();
+  const createCheckoutSession = trpc.payments.createCheckoutSession.useMutation();
   
   // Simple eligibility check query (no quotas, just metro check)
   const eligibilityQuery = trpc.auth.checkEligibility.useQuery(
@@ -261,8 +263,39 @@ export default function SignupScreen() {
     try {
       const result = await signup(username, cleanEmail, password, role, userLocation || undefined);
       // #region agent log - HYPOTHESIS 1, 2, 4: Frontend signup success
-      fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(auth)/signup.tsx:SIGNUP_SUCCESS',message:'Frontend signup succeeded',data:{username,cleanEmail,role,requiresLogin:result.requiresLogin},timestamp:Date.now(),sessionId:'debug-session',runId:'signup-attempt',hypothesisId:'1,2,4'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(auth)/signup.tsx:SIGNUP_SUCCESS',message:'Frontend signup succeeded',data:{username,cleanEmail,role,requiresLogin:result.requiresLogin,requiresCheckout:result.requiresCheckout},timestamp:Date.now(),sessionId:'debug-session',runId:'signup-attempt',hypothesisId:'1,2,4'})}).catch(()=>{});
       // #endregion
+      
+      // If Remote/Over-cap user requires checkout, redirect to Stripe checkout
+      if (result.requiresCheckout) {
+        try {
+          const checkoutResult = await createCheckoutSession.mutateAsync({
+            returnUrl: 'homecookedplate://payment-success',
+          });
+
+          if (checkoutResult.checkoutUrl) {
+            // Open Stripe Hosted Checkout in browser
+            await WebBrowser.openBrowserAsync(checkoutResult.checkoutUrl);
+            // User will be redirected back to app after payment
+            // The webhook will upgrade their membership_tier to premium
+            Alert.alert(
+              'Complete Payment',
+              'Please complete your payment to activate your premium membership. You\'ll be redirected back to the app after payment.',
+              [{ text: 'OK' }]
+            );
+            setLoading(false);
+            return;
+          }
+        } catch (checkoutError: unknown) {
+          const checkoutErrorMessage = checkoutError instanceof Error 
+            ? checkoutError.message 
+            : 'Failed to create checkout session. Please try again or contact support.';
+          console.error('[Signup] Checkout session error:', checkoutError);
+          Alert.alert('Payment Setup Error', checkoutErrorMessage);
+          setLoading(false);
+          return;
+        }
+      }
       
       // Set animation state - this will trigger the animation effect
       // The animation will redirect based on requiresLogin flag
@@ -371,12 +404,19 @@ export default function SignupScreen() {
                   <Text style={styles.eligibilityLoadingText}>Checking eligibility...</Text>
                 </View>
               )}
-              {isEligibleForTrial && trialMeta && !checkingEligibility && (
-                <View style={styles.eligibilityMessage}>
-                  <Ionicons name="checkmark-circle" size={20} color={Colors.gradient.green} />
-                  <Text style={styles.eligibilityText}>
-                    Congrats! You qualify for 3 months FREE in {trialMeta.metro}! ({trialMeta.spotsRemaining} spots remaining)
-                  </Text>
+              {isEligibleForTrial && trialMeta && trialMeta.metro && !checkingEligibility && (
+                <View style={styles.progressBarContainer}>
+                  <View style={styles.eligibilityMessage}>
+                    <Ionicons name="checkmark-circle" size={20} color={Colors.gradient.green} />
+                    <Text style={styles.eligibilityText}>
+                      Congrats! You qualify for Early Bird trial in {trialMeta.metro}!
+                    </Text>
+                  </View>
+                  <MetroProgressBar
+                    metroName={trialMeta.metro}
+                    role={role}
+                    refetchInterval={20000} // Poll every 20 seconds for live updates
+                  />
                 </View>
               )}
               {isMembershipEnabled && !isEligibleForTrial && !checkingEligibility && trialMeta === null && (
@@ -646,6 +686,9 @@ const styles = StyleSheet.create({
   },
   eligibilityTextContainer: {
     flex: 1,
+  },
+  progressBarContainer: {
+    marginTop: 8,
   },
   formContainer: {
     marginBottom: 32,

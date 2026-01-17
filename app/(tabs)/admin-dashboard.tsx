@@ -15,6 +15,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, monoGradients } from '@/constants/colors';
 import { ProgressBar } from '@/components/ProgressBar';
 import { trpc } from '@/lib/trpc';
+import { UserTrialControl } from '@/components/Admin/UserTrialControl';
+import { CityMaxAlerts } from '@/components/Admin/CityMaxAlerts';
+import { PreLaunchChecklist } from '@/components/Admin/PreLaunchChecklist';
 
 const MetroMonitor = () => {
   const { data: counts, isLoading, error } = trpc.admin.getMetroCounts.useQuery();
@@ -153,6 +156,52 @@ const MetroSettings = () => {
   );
 };
 
+const UserManagement = () => {
+  const [userId, setUserId] = useState('');
+  const [extensionDays, setExtensionDays] = useState('30');
+
+  return (
+    <View style={styles.userManagement}>
+      <Text style={styles.metroHeader}>User Management</Text>
+      <Text style={styles.metroSubheader}>
+        Manually extend trial periods for specific users. Bypasses automated limits for high-value users.
+      </Text>
+      
+      <View style={styles.userManagementRow}>
+        <Text style={styles.inputLabel}>User ID (UUID):</Text>
+        <TextInput
+          style={styles.userIdInput}
+          value={userId}
+          onChangeText={setUserId}
+          placeholder="Enter user UUID"
+          placeholderTextColor={Colors.gray[400]}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      </View>
+
+      <View style={styles.userManagementRow}>
+        <Text style={styles.inputLabel}>Extension Days:</Text>
+        <TextInput
+          style={styles.extensionDaysInput}
+          value={extensionDays}
+          onChangeText={setExtensionDays}
+          keyboardType="numeric"
+          placeholder="30"
+          placeholderTextColor={Colors.gray[400]}
+        />
+      </View>
+
+      <View style={styles.trialButtonContainer}>
+        <UserTrialControl
+          userId={userId.trim()}
+          extensionDays={Number(extensionDays) || 30}
+        />
+      </View>
+    </View>
+  );
+};
+
 export default function AdminDashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
@@ -195,7 +244,10 @@ export default function AdminDashboardScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
+          <PreLaunchChecklist />
           <MetroMonitor />
+          <CityMaxAlerts />
+          <UserManagement />
         </ScrollView>
       </View>
     </AdminOnly>
@@ -354,5 +406,46 @@ const styles = StyleSheet.create({
     color: Colors.gray[900],
     backgroundColor: Colors.white,
     minWidth: 80,
+  },
+  userManagement: {
+    marginHorizontal: 24,
+    marginBottom: 24,
+    padding: 20,
+    backgroundColor: Colors.gray[50],
+    borderRadius: 16,
+  },
+  userManagementRow: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    color: Colors.gray[700],
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  userIdInput: {
+    borderWidth: 1,
+    borderColor: Colors.gray[300],
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: Colors.gray[900],
+    backgroundColor: Colors.white,
+    fontFamily: 'monospace',
+  },
+  extensionDaysInput: {
+    borderWidth: 1,
+    borderColor: Colors.gray[300],
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: Colors.gray[900],
+    backgroundColor: Colors.white,
+    width: 120,
+  },
+  trialButtonContainer: {
+    marginTop: 8,
   },
 });

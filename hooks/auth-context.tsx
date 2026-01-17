@@ -12,7 +12,7 @@ interface AuthState {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<void>;
-  signup: (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }) => Promise<{ success: boolean; requiresLogin: boolean }>;
+  signup: (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }) => Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean }>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<Pick<User, 'username' | 'email' | 'phone' | 'bio' | 'profileImage'>>) => Promise<void>;
   requestPlatemakerRole: () => Promise<void>;
@@ -204,7 +204,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     }
   }, [loginMutation, persistUser, persistSession]);
 
-  const signup = useCallback(async (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }): Promise<{ success: boolean; requiresLogin: boolean }> => {
+  const signup = useCallback(async (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }): Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean }> => {
     try {
       const result = await signupMutation.mutateAsync({ 
         username, 
@@ -231,7 +231,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         });
         setSentryUser(result.user);
         addBreadcrumb('User signed up', 'auth', { userId: result.user.id, role: result.user.role });
-        return { success: true, requiresLogin: false };
+        return { success: true, requiresLogin: false, requiresCheckout: result.requiresCheckout };
       } else {
         // No session - user created but needs to login separately
         // Just set user info for the success animation, don't persist session
@@ -239,7 +239,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           setUser(result.user);
         }
         addBreadcrumb('User signed up (no session - needs login)', 'auth', { userId: result.user.id, role: result.user.role });
-        return { success: true, requiresLogin: true };
+        return { success: true, requiresLogin: true, requiresCheckout: result.requiresCheckout };
       }
     } catch (error) {
       captureException(error as Error, { context: 'signup', username, email, role });

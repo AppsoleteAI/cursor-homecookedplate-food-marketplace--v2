@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { protectedProcedure } from '../../../create-context';
 import { supabaseAdmin } from '../../../../lib/supabase';
+import { getStripePriceId } from '../../../../lib/stripe-utils';
 
 // Major metropolitan areas eligible for trial promotion
 export const MAJOR_METROS = [
@@ -214,13 +215,17 @@ export const subscribeProcedure = protectedProcedure
             const maxCount = isMaker ? config.max_makers_per_metro : config.max_takers_per_metro;
 
             if (currentCount < maxCount) {
-              trialDays = config.trial_days || 0;
-
-              // Atomically increment count using RPC
-              await supabaseAdmin.rpc('increment_metro_count', {
-                area: metroName,
+              // Atomically increment count using RPC (thread-safe)
+              // RPC returns status string 'SUCCESS' or 'CAP_REACHED'
+              const { data: status, error: incrementError } = await supabaseAdmin.rpc('increment_metro_count', {
+                metro_name_param: metroName,
                 user_role: profile.role,
               });
+
+              // Only apply trial if RPC returned SUCCESS
+              if (!incrementError && status === 'SUCCESS') {
+                trialDays = config.trial_days || 0;
+              }
             }
           }
         } else {
@@ -229,13 +234,17 @@ export const subscribeProcedure = protectedProcedure
           const maxCount = isMaker ? config.max_makers_per_metro : config.max_takers_per_metro;
 
           if (currentCount < maxCount) {
-            trialDays = config.trial_days || 0;
-
-            // Atomically increment count using RPC
-            await supabaseAdmin.rpc('increment_metro_count', {
-              area: metroName,
+            // Atomically increment count using RPC (thread-safe)
+            // RPC returns status string 'SUCCESS' or 'CAP_REACHED'
+            const { data: status, error: incrementError } = await supabaseAdmin.rpc('increment_metro_count', {
+              metro_name_param: metroName,
               user_role: profile.role,
             });
+
+            // Only apply trial if RPC returned SUCCESS
+            if (!incrementError && status === 'SUCCESS') {
+              trialDays = config.trial_days || 0;
+            }
           }
         }
 
@@ -326,10 +335,15 @@ export const subscribeProcedure = protectedProcedure
       // Continue anyway - subscription creation will handle it
     }
 
+    // Determine Early Bird status and get appropriate price ID
+    const isEarlyBird = trialDays > 0 && metroName && metroName !== 'Remote/Other';
+    const membershipTier = trialDays > 0 ? 'premium' : (profile.membership_tier || 'free');
+    const priceId = getStripePriceId(membershipTier, isEarlyBird);
+
     // Create subscription
     const subscriptionParams = new URLSearchParams({
       customer: customerId,
-      items: JSON.stringify([{ price: 'price_monthly_499' }]),
+      items: JSON.stringify([{ price: priceId }]),
       default_payment_method: input.paymentMethodId,
       payment_behavior: 'default_incomplete',
       expand: 'latest_invoice.payment_intent',

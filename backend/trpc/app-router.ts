@@ -40,6 +40,7 @@ import { createConnectAccountProcedure } from "./routes/payments/create-connect-
 import { getConnectAccountStatusProcedure } from "./routes/payments/get-connect-account-status/route";
 import { createSetupIntentProcedure } from "./routes/payments/create-setup-intent/route";
 import { getPaymentMethodFromSetupProcedure } from "./routes/payments/get-payment-method-from-setup/route";
+import { createCheckoutSessionProcedure } from "./routes/payments/create-checkout-session/route";
 import { sendMessageProcedure } from "./routes/messages/send/route";
 import { listMessagesProcedure } from "./routes/messages/list/route";
 import { listConversationsProcedure } from "./routes/messages/conversations/route";
@@ -48,6 +49,12 @@ import { checkTrialEligibilityProcedure } from "./routes/trials/check-eligibilit
 import { metroCountsProcedure } from "./routes/admin/metro-counts/route";
 import { updateMaxCapProcedure } from "./routes/admin/update-max-cap/route";
 import { updateMetroSettingsProcedure } from "./routes/admin/update-metro-settings/route";
+import { extendUserTrialProcedure } from "./routes/admin/extend-user-trial/route";
+import { getSystemAlertsProcedure } from "./routes/admin/get-system-alerts/route";
+import { verifyPreLaunchProcedure } from "./routes/admin/verify-pre-launch/route";
+import { toggleGlobalMaintenanceProcedure } from "./routes/admin/toggle-global-maintenance/route";
+import { resetAllCountsProcedure } from "./routes/admin/reset-all-counts/route";
+import { getMetroAvailabilityProcedure } from "./routes/metro/get-availability/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -93,6 +100,7 @@ export const appRouter = createTRPCRouter({
     getConnectAccountStatus: getConnectAccountStatusProcedure,
     createSetupIntent: createSetupIntentProcedure,
     getPaymentMethodFromSetup: getPaymentMethodFromSetupProcedure,
+    createCheckoutSession: createCheckoutSessionProcedure,
   }),
   messages: createTRPCRouter({
     send: sendMessageProcedure,
@@ -109,6 +117,14 @@ export const appRouter = createTRPCRouter({
     getMetroCounts: metroCountsProcedure,
     updateMaxCap: updateMaxCapProcedure,
     updateMetroSettings: updateMetroSettingsProcedure,
+    extendUserTrial: extendUserTrialProcedure,
+    getSystemAlerts: getSystemAlertsProcedure,
+    verifyPreLaunch: verifyPreLaunchProcedure,
+    toggleGlobalMaintenance: toggleGlobalMaintenanceProcedure,
+    resetAllCounts: resetAllCountsProcedure,
+  }),
+  metro: createTRPCRouter({
+    getAvailability: getMetroAvailabilityProcedure,
   }),
 });
 

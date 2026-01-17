@@ -6,6 +6,9 @@ import { secureHeaders } from "hono/secure-headers";
 import { appRouter } from "./trpc/app-router";
 import { createContext } from "./trpc/create-context";
 import { supabaseAdmin } from "./lib/supabase";
+import { logAdminAlert } from "./lib/alerts";
+import { sendExpoPushNotification } from "./lib/expo-push-notifications";
+import { calculateFees } from "./lib/fees";
 
 type Bindings = {
   RATE_LIMIT_KV?: KVNamespace;
@@ -210,6 +213,67 @@ app.post("/webhook/stripe", async (c) => {
     } else {
       console.log('[Stripe Webhook] Updated', updatedOrders.length, 'order(s) successfully');
     }
+
+    // Financial Architecture: Every successful Stripe webhook MUST create transaction records
+    // Calculate fee breakdowns for 20% take rate (double-sided 10% fee)
+    if (updatedOrders && updatedOrders.length > 0) {
+      // Get Stripe charge and transfer details
+      const chargeId = paymentIntent.latest_charge || paymentIntent.charges?.data?.[0]?.id;
+      const transferId = paymentIntent.charges?.data?.[0]?.transfer;
+      const applicationFeeId = paymentIntent.charges?.data?.[0]?.application_fee?.id;
+      const currency = paymentIntent.currency || 'usd';
+
+      // Create transaction record for each order with fee breakdowns
+      // Use order.total_price as base price (each order calculates fees independently)
+      for (const order of updatedOrders) {
+        // Base price from order (meal.price * quantity)
+        const basePrice = parseFloat(order.total_price);
+        
+        // Calculate fees using standard utility (20% take rate: buyer +10%, seller -10%)
+        const fees = calculateFees(basePrice, 10, 10);
+        
+        // Calculate proportional share if multiple orders share one payment intent
+        const paymentAmount = paymentIntent.amount / 100; // Total buyer payment
+        const applicationFeeAmount = paymentIntent.application_fee_amount ? paymentIntent.application_fee_amount / 100 : 0;
+        const totalBasePrice = updatedOrders.reduce((sum, o) => sum + parseFloat(o.total_price), 0);
+        const orderProportion = basePrice / totalBasePrice;
+        
+        // Allocate fees proportionally if multiple orders
+        const buyerPayment = orderProportion * paymentAmount;
+        const appRevenue = orderProportion * applicationFeeAmount;
+        const sellerPayout = buyerPayment - appRevenue;
+
+        const { error: transactionError } = await supabaseAdmin
+          .from('transactions')
+          .insert({
+            payment_intent_id: paymentIntentId,
+            order_id: order.id,
+            buyer_id: order.buyer_id,
+            seller_id: order.seller_id,
+            meal_id: order.meal_id,
+            base_price: parseFloat(basePrice.toFixed(2)),
+            buyer_payment: parseFloat(buyerPayment.toFixed(2)),
+            seller_payout: parseFloat(sellerPayout.toFixed(2)),
+            app_revenue: parseFloat(appRevenue.toFixed(2)),
+            buyer_fee: parseFloat(fees.buyerFee.toFixed(2)),
+            seller_fee: parseFloat(fees.sellerFee.toFixed(2)),
+            total_fee: parseFloat(fees.appTotalRevenue.toFixed(2)),
+            stripe_charge_id: chargeId,
+            stripe_transfer_id: transferId,
+            stripe_application_fee_id: applicationFeeId,
+            currency,
+            quantity: order.quantity,
+            status: 'completed',
+          });
+
+        if (transactionError) {
+          console.error('[Stripe Webhook] Error creating transaction record:', transactionError);
+          // Continue processing - transaction logging is important but not critical for order fulfillment
+        } else {
+          console.log(`[Stripe Webhook] Created transaction record for order ${order.id}: Base=$${basePrice.toFixed(2)}, Buyer=$${buyerPayment.toFixed(2)}, Seller=$${sellerPayout.toFixed(2)}, App=$${appRevenue.toFixed(2)}`);
+        }
+      }
+    }
   }
 
   // Handle subscription events for membership management
@@ -323,7 +387,7 @@ app.post("/webhook/stripe", async (c) => {
     if (profile) {
       // Create database notification for user
       const trialEndDate = new Date(trialEnd * 1000).toLocaleDateString();
-      await supabaseAdmin
+      const { error: notificationError } = await supabaseAdmin
         .from('notifications')
         .insert({
           user_id: profile.id,
@@ -333,24 +397,32 @@ app.post("/webhook/stripe", async (c) => {
           read: false,
         });
 
-      console.log('[Stripe Webhook] Created trial ending notification for user:', profile.id);
+      if (notificationError) {
+        console.error('[Stripe Webhook] Error creating database notification for user:', profile.id, notificationError);
+      } else {
+        console.log('[Stripe Webhook] Created trial ending notification for user:', profile.id);
+      }
 
       // Send Expo push notification if push token exists
       if (profile.expo_push_token) {
         const metroArea = profile.metro_area || 'your area';
-        const pushSent = await sendExpoPushNotification(profile.expo_push_token, {
-          title: "Your Trial is Almost Up! ⏳",
-          body: `Your 90-day Early Bird trial in ${metroArea} ends in 3 days. No action needed to keep your premium access!`,
-          data: {
-            type: 'trial_ending',
-            subscriptionId: subscription.id,
-          },
-        });
+        try {
+          const pushSent = await sendExpoPushNotification(profile.expo_push_token, {
+            title: "Your Trial is Almost Up! ⏳",
+            body: `Your 90-day Early Bird trial in ${metroArea} ends in 3 days. No action needed to keep your premium access!`,
+            data: {
+              type: 'trial_ending',
+              subscriptionId: subscription.id,
+            },
+          });
 
-        if (pushSent) {
-          console.log('[Stripe Webhook] Sent push notification for trial ending to user:', profile.id);
-        } else {
-          console.warn('[Stripe Webhook] Failed to send push notification for trial ending to user:', profile.id);
+          if (pushSent) {
+            console.log('[Stripe Webhook] Sent push notification for trial ending to user:', profile.id);
+          } else {
+            console.warn('[Stripe Webhook] Failed to send push notification for trial ending to user:', profile.id);
+          }
+        } catch (pushError) {
+          console.error('[Stripe Webhook] Error sending push notification for trial ending to user:', profile.id, pushError);
         }
       } else {
         console.log('[Stripe Webhook] No expo_push_token found for user:', profile.id, '- skipping push notification');
@@ -408,43 +480,27 @@ app.post("/webhook/metro-cap-reached", async (c) => {
       maxCap,
     });
 
-    // Create notifications for all admin users
-    const { data: adminProfiles, error: adminError } = await supabaseAdmin
-      .from('profiles')
-      .select('id')
-      .eq('is_admin', true);
-
-    if (adminError) {
-      console.error('[Metro Cap Webhook] Error fetching admin profiles:', adminError);
-      // Continue anyway - webhook was received
-    }
-
-    if (adminProfiles && adminProfiles.length > 0) {
-      const notifications = adminProfiles.map((admin) => {
-        const roles = [];
-        if (makerHitCap) roles.push('Platemakers');
-        if (takerHitCap) roles.push('Platetakers');
-        
-        return {
-          user_id: admin.id,
-          title: 'Metro Cap Reached',
-          body: `Metro "${metroName}" has reached the maximum capacity (${maxCap}/${maxCap}) for ${roles.join(' and ')}.`,
-          type: 'metro_cap_reached',
-          reference_id: null,
-          read: false,
-        };
-      });
-
-      const { error: notifyError } = await supabaseAdmin
-        .from('notifications')
-        .insert(notifications);
-
-      if (notifyError) {
-        console.error('[Metro Cap Webhook] Error creating notifications:', notifyError);
-      } else {
-        console.log(`[Metro Cap Webhook] Created ${notifications.length} admin notification(s) for metro cap reached`);
-      }
-    }
+    // Source of Truth: Log to admin_system_alerts table (all system notifications must go here)
+    const roles = [];
+    if (makerHitCap) roles.push('Platemakers');
+    if (takerHitCap) roles.push('Platetakers');
+    
+    const alertMessage = `Metro "${metroName}" has reached the maximum capacity (${maxCap}/${maxCap}) for ${roles.join(' and ')}.`;
+    
+    // Use standard utility for consistent alert formatting
+    await logAdminAlert('metro_cap_reached', alertMessage, {
+      severity: 'high',
+      title: `City Max Alert: ${metroName}`,
+      metadata: {
+        metro_name: metroName,
+        maker_count: makerCount,
+        taker_count: takerCount,
+        max_cap: maxCap,
+        maker_hit_cap: makerHitCap,
+        taker_hit_cap: takerHitCap,
+        timestamp: new Date().toISOString(),
+      },
+    });
 
     return c.json({ received: true, message: 'Metro cap notification processed' });
   } catch (error) {

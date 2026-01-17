@@ -59,21 +59,11 @@ if (profileError?.code === '23505') {
 
 ## 💎 MEMBERSHIP & TIER MAPPING (CRITICAL)
 - **Primary Column:** `membership_tier` (values: 'free' | 'premium').
-- **Trial Cap Logic (First 100 per Metro):**
-    - You MUST use `increment_metro_count(metro_name, user_role)` to safely check and lock a trial spot.
-    - If the function returns `true`: Grant `premium` tier + trial (length from `metro_geofences.trial_days`).
-    - If `false`: Set `free` tier. User must pay $4.99/mo (No trial).
-- **Mapping:**
-    - In-Metro + Active + Slot Available: `membership_tier = 'premium'` + `trial_ends_at = NOW() + trial_days` (from `metro_geofences.trial_days`).
-    - Remote OR Metro Inactive OR Metro Over-Cap: `membership_tier = 'free'`.
-- **Remote Tagging:** For users outside 50 metros, set `metro_area = 'Remote/Other'`.
-- **🛡️ ADMIN OVERRIDES & DYNAMIC TRIALS:**
-    - **Columns Added:** `metro_geofences.is_active` (bool) and `metro_geofences.trial_days` (int).
-    - **Signup Logic Update:**
-        - You MUST check `is_active` BEFORE allowing a signup in a metro. If `is_active = false`, block signup entirely (throw error).
-        - Use the value in `trial_days` to calculate `trial_ends_at`. Do not assume 90 days.
-    - **Source of Truth:** All city-level settings (trial length, active status) MUST be read from the `metro_geofences` table.
-    - **Automation:** The `seed_metro_counts` trigger handles metadata creation for new cities automatically. When a new `metro_geofences` entry is created, it automatically creates the corresponding `metro_area_counts` entry with default values (maker_count=0, taker_count=0, max_cap=100).
+- **RPC Handling:** `find_metro_by_location` returns a single string. Handle accordingly.
+- **Admin Overrides:**
+    - Always check `metro_geofences.is_active` before allowing metro signups.
+    - Use `metro_geofences.trial_days` for dynamic trial calculations.
+- **Security:** Ensure `.env` files are strictly ignored in Git.
 
 ---
 
@@ -425,6 +415,18 @@ These sections form a stability triangle:
 **All sections must remain intact for all three environments (Local Web, Rork Preview, Native Mobile) to function reliably.**
 
 ---
+
+## 💳 PAYMENT & REDIRECT ARCHITECTURE
+- **Secret Management:** Use `process.env` for Stripe keys in tRPC routes. Never hardcode.
+- **Price Selection:**
+  - Early Bird (SUCCESS from `increment_metro_count`) → Use Early Bird Trial Price ID.
+  - Remote/Over-cap (CAP_REACHED or OUTSIDE_ZONE) → Use Standard Monthly Price ID.
+- **Remote UX:** Users failing the "First 100" check MUST be redirected to checkout before gaining `premium` status.
+- **Supabase Admin:** Use `supabaseAdmin` for all internal tier-flipping after successful Stripe Webhooks.
+- **Checkout Flow:** Remote users sign up → Account created as `free` → Redirected to Stripe Checkout → Webhook upgrades to `premium` on payment.
+- **Price ID Utility:** Use `getStripePriceId()` from `backend/lib/stripe-utils.ts` to select correct price based on Early Bird status and membership tier.
+- **Checkout Session:** Use `trpc.payments.createCheckoutSession` to create Stripe hosted checkout for Remote users after signup.
+- **Webhook Verification:** Stripe webhooks update `membership_tier` to `premium` after successful subscription creation.
 
 ## 🔒 SECURITY & GITIGNORE
 - **Critical:** Never commit `.env`, `.env.local`, or `service-role-key.json`.

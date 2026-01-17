@@ -1,8 +1,9 @@
 // Supabase Edge Function: Notify when metro area cap is reached
 // This function receives webhook payloads from database triggers
-// and forwards them to Discord/Slack webhooks
+// and logs them to admin_system_alerts table
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { corsHeaders } from "../_shared/cors.ts"
 
 interface MetroCapPayload {
@@ -20,20 +21,23 @@ serve(async (req) => {
   }
 
   try {
-    // Get webhook URL from environment variables
-    const discordWebhookUrl = Deno.env.get('DISCORD_WEBHOOK_URL');
-    const slackWebhookUrl = Deno.env.get('SLACK_WEBHOOK_URL');
+    // Get Supabase credentials from environment (Service Role Key for admin access)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    if (!discordWebhookUrl && !slackWebhookUrl) {
-      console.error('[notify-cap-reached] No webhook URLs configured');
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('[notify-cap-reached] Missing Supabase credentials');
       return new Response(
-        JSON.stringify({ error: 'Webhook URLs not configured' }),
+        JSON.stringify({ error: 'Server configuration error' }),
         { 
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
     }
+
+    // Create Supabase admin client
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Parse request body
     const payload: MetroCapPayload = await req.json();
@@ -49,61 +53,41 @@ serve(async (req) => {
       );
     }
 
-    // Format message for Discord/Slack
-    const message = `🚨 **CAP REACHED** 🚨\n` +
-      `Metro: ${payload.metro_name}\n` +
-      `Type: ${payload.cap_type === 'platemakers' ? 'Platemakers' : 'Platetakers'} is now FULL (${payload.cap_type === 'platemakers' ? payload.platemaker_count : payload.platetaker_count}/100)\n` +
-      `Timestamp: ${new Date(payload.timestamp).toISOString()}`;
+    // Log to admin_system_alerts table (Security Standards: Log critical system events)
+    // Use City Max Alert branding for consistency with backend utility
+    const count = payload.cap_type === 'platemakers' ? payload.platemaker_count : payload.platetaker_count;
+    const roleLabel = payload.cap_type === 'platemakers' ? 'Platemakers' : 'Platetakers';
+    const alertMessage = `${roleLabel} cap reached for ${payload.metro_name} (${count}/100)`;
+    
+    const { error: alertError } = await supabase
+      .from('admin_system_alerts')
+      .insert({
+        alert_type: 'metro_cap_reached',
+        severity: 'high',
+        title: `City Max Alert: ${payload.metro_name}`,
+        message: `🚨 City Max Alert: ${alertMessage}`,
+        metadata: {
+          metro_name: payload.metro_name,
+          cap_type: payload.cap_type,
+          platemaker_count: payload.platemaker_count,
+          platetaker_count: payload.platetaker_count,
+          timestamp: payload.timestamp,
+        },
+      });
 
-    const promises: Promise<Response>[] = [];
-
-    // Send to Discord if configured
-    if (discordWebhookUrl) {
-      promises.push(
-        fetch(discordWebhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: message,
-          }),
-        })
-      );
+    if (alertError) {
+      console.error('[notify-cap-reached] Failed to log to admin_system_alerts:', alertError);
+      // Continue anyway - alert was received
+    } else {
+      console.log(`[notify-cap-reached] Alert logged to admin_system_alerts for ${payload.metro_name}: ${payload.cap_type}`);
     }
-
-    // Send to Slack if configured
-    if (slackWebhookUrl) {
-      promises.push(
-        fetch(slackWebhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: message,
-          }),
-        })
-      );
-    }
-
-    // Wait for all webhook calls to complete
-    const results = await Promise.allSettled(promises);
-
-    // Check if any failed
-    const failures = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok));
-    if (failures.length > 0) {
-      console.error('[notify-cap-reached] Some webhooks failed:', failures);
-    }
-
-    // Log success
-    console.log(`[notify-cap-reached] Notification sent for ${payload.metro_name}: ${payload.cap_type}`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         metro: payload.metro_name,
         cap_type: payload.cap_type,
-        sent_to: {
-          discord: !!discordWebhookUrl,
-          slack: !!slackWebhookUrl,
-        }
+        logged: true,
       }),
       { 
         status: 200, 
