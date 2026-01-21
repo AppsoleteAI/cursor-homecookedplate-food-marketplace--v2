@@ -190,7 +190,7 @@ export const subscribeProcedure = protectedProcedure
         // Check current counts for this metro
         const { data: counts, error: countsError } = await supabaseAdmin
           .from('metro_area_counts')
-          .select('maker_count, taker_count')
+          .select('platemaker_count, platetaker_count')
           .eq('metro_name', metroName)
           .single();
 
@@ -198,20 +198,20 @@ export const subscribeProcedure = protectedProcedure
           // If metro doesn't exist in counts table, initialize it
           await supabaseAdmin
             .from('metro_area_counts')
-            .insert({ metro_name: metroName, maker_count: 0, taker_count: 0 })
+            .insert({ metro_name: metroName, platemaker_count: 0, platetaker_count: 0 })
             .onConflict('metro_name')
             .merge();
 
           // Retry the query
           const { data: retryCounts } = await supabaseAdmin
             .from('metro_area_counts')
-            .select('maker_count, taker_count')
+            .select('platemaker_count, platetaker_count')
             .eq('metro_name', metroName)
             .single();
 
           if (retryCounts) {
             const isMaker = profile.role === 'platemaker';
-            const currentCount = isMaker ? retryCounts.maker_count : retryCounts.taker_count;
+            const currentCount = isMaker ? retryCounts.platemaker_count : retryCounts.platetaker_count;
             const maxCount = isMaker ? config.max_makers_per_metro : config.max_takers_per_metro;
 
             if (currentCount < maxCount) {
@@ -230,7 +230,7 @@ export const subscribeProcedure = protectedProcedure
           }
         } else {
           const isMaker = profile.role === 'platemaker';
-          const currentCount = isMaker ? counts.maker_count : counts.taker_count;
+          const currentCount = isMaker ? counts.platemaker_count : counts.platetaker_count;
           const maxCount = isMaker ? config.max_makers_per_metro : config.max_takers_per_metro;
 
           if (currentCount < maxCount) {

@@ -25,8 +25,8 @@ CREATE TABLE IF NOT EXISTS public.promotion_configs (
 -- Metro promo tracking table to track usage per metro area
 CREATE TABLE IF NOT EXISTS public.metro_promo_tracking (
   metro_name text PRIMARY KEY,
-  maker_count integer DEFAULT 0 NOT NULL,
-  taker_count integer DEFAULT 0 NOT NULL,
+  platemaker_count integer DEFAULT 0 NOT NULL,
+  platetaker_count integer DEFAULT 0 NOT NULL,
   updated_at timestamptz DEFAULT now() NOT NULL
 );
 
@@ -42,7 +42,7 @@ VALUES ('EARLY_BIRD', true, 90, 100, 100)
 ON CONFLICT (promo_name) DO NOTHING;
 
 -- Insert initial metro tracking records for all 50 major metros
-INSERT INTO public.metro_promo_tracking (metro_name, maker_count, taker_count)
+INSERT INTO public.metro_promo_tracking (metro_name, platemaker_count, platetaker_count)
 VALUES
   ('New York-Newark-Jersey City', 0, 0),
   ('Los Angeles-Long Beach-Anaheim', 0, 0),

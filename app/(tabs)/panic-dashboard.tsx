@@ -80,7 +80,7 @@ export default function PanicDashboardScreen() {
   const resetAllCounts = () => {
     Alert.alert(
       'Emergency Reset',
-      'This will reset all metro counts (maker_count and taker_count) to 0 for all metros. This action cannot be undone. Are you sure?',
+      'This will reset all metro counts (platemaker_count and platetaker_count) to 0 for all metros. This action cannot be undone. Are you sure?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -153,7 +153,7 @@ export default function PanicDashboardScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionHeader}>Emergency Reset</Text>
             <Text style={styles.sectionDescription}>
-              Reset all metro counts (maker_count and taker_count) to 0 for all metros. Use with extreme caution.
+              Reset all metro counts (platemaker_count and platetaker_count) to 0 for all metros. Use with extreme caution.
             </Text>
 
             <View style={styles.buttonContainer}>

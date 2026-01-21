@@ -6,7 +6,7 @@ export const getMetroCountsProcedure = adminProcedure
     // Query all metro area counts using admin client to bypass RLS
     const { data: counts, error } = await supabaseAdmin
       .from('metro_area_counts')
-      .select('metro_name, maker_count, taker_count')
+      .select('metro_name, platemaker_count, platetaker_count')
       .order('metro_name', { ascending: true });
 
     if (error) {
@@ -14,9 +14,10 @@ export const getMetroCountsProcedure = adminProcedure
     }
 
     // Transform to match component expectations
+    // Naming Convention: Use platemaker/platetaker (not maker/taker)
     return (counts || []).map(metro => ({
       name: metro.metro_name,
-      maker_count: metro.maker_count,
-      taker_count: metro.taker_count,
+      platemaker_count: metro.platemaker_count,
+      platetaker_count: metro.platetaker_count,
     }));
   });

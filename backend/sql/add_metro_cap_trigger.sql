@@ -1,5 +1,5 @@
 -- Migration: Add trigger to notify when metro area cap is reached
--- This trigger fires when maker_count or taker_count reaches 100
+-- This trigger fires when platemaker_count or platetaker_count reaches max_cap
 -- It calls a Supabase Edge Function to send webhook notifications
 
 -- Enable pg_net extension for HTTP requests (if not already enabled)
@@ -17,13 +17,13 @@ DECLARE
   http_response jsonb;
   cap_type text;
 BEGIN
-  -- Check if maker count reached 100
-  IF NEW.maker_count = 100 AND (OLD.maker_count IS NULL OR OLD.maker_count < 100) THEN
+  -- Check if platemaker count reached max_cap
+  IF NEW.platemaker_count = NEW.max_cap AND (OLD.platemaker_count IS NULL OR OLD.platemaker_count < NEW.max_cap) THEN
     cap_type := 'platemakers';
     webhook_payload := jsonb_build_object(
       'metro_name', NEW.metro_name,
-      'platemaker_count', NEW.maker_count,
-      'platetaker_count', NEW.taker_count,
+      'platemaker_count', NEW.platemaker_count,
+      'platetaker_count', NEW.platetaker_count,
       'cap_type', cap_type,
       'timestamp', now()
     );
@@ -53,17 +53,17 @@ BEGIN
     );
 
     -- Log the notification attempt (non-blocking)
-    RAISE NOTICE 'Metro cap reached notification sent for %: % (count: %)', 
-      NEW.metro_name, cap_type, NEW.maker_count;
+    RAISE NOTICE 'Metro cap reached notification sent for %: % (count: %/%%)', 
+      NEW.metro_name, cap_type, NEW.platemaker_count, NEW.max_cap;
   END IF;
 
-  -- Check if taker count reached 100
-  IF NEW.taker_count = 100 AND (OLD.taker_count IS NULL OR OLD.taker_count < 100) THEN
+  -- Check if platetaker count reached max_cap
+  IF NEW.platetaker_count = NEW.max_cap AND (OLD.platetaker_count IS NULL OR OLD.platetaker_count < NEW.max_cap) THEN
     cap_type := 'platetakers';
     webhook_payload := jsonb_build_object(
       'metro_name', NEW.metro_name,
-      'platemaker_count', NEW.maker_count,
-      'platetaker_count', NEW.taker_count,
+      'platemaker_count', NEW.platemaker_count,
+      'platetaker_count', NEW.platetaker_count,
       'cap_type', cap_type,
       'timestamp', now()
     );
@@ -89,8 +89,8 @@ BEGIN
     );
 
     -- Log the notification attempt (non-blocking)
-    RAISE NOTICE 'Metro cap reached notification sent for %: % (count: %)', 
-      NEW.metro_name, cap_type, NEW.taker_count;
+    RAISE NOTICE 'Metro cap reached notification sent for %: % (count: %/%%)', 
+      NEW.metro_name, cap_type, NEW.platetaker_count, NEW.max_cap;
   END IF;
 
   RETURN NEW;
@@ -106,15 +106,15 @@ $$;
 DROP TRIGGER IF EXISTS metro_cap_reached_trigger ON public.metro_area_counts;
 
 CREATE TRIGGER metro_cap_reached_trigger
-  AFTER UPDATE OF maker_count, taker_count ON public.metro_area_counts
+  AFTER UPDATE OF platemaker_count, platetaker_count ON public.metro_area_counts
   FOR EACH ROW
   WHEN (
-    (NEW.maker_count = 100 AND (OLD.maker_count IS NULL OR OLD.maker_count < 100))
+    (NEW.platemaker_count = NEW.max_cap AND (OLD.platemaker_count IS NULL OR OLD.platemaker_count < NEW.max_cap))
     OR
-    (NEW.taker_count = 100 AND (OLD.taker_count IS NULL OR OLD.taker_count < 100))
+    (NEW.platetaker_count = NEW.max_cap AND (OLD.platetaker_count IS NULL OR OLD.platetaker_count < NEW.max_cap))
   )
   EXECUTE FUNCTION public.notify_metro_cap_reached();
 
 -- Add comments for documentation
-COMMENT ON FUNCTION public.notify_metro_cap_reached IS 'Trigger function that sends webhook notification when metro area cap (100) is reached. Calls Supabase Edge Function via HTTP.';
-COMMENT ON TRIGGER metro_cap_reached_trigger ON public.metro_area_counts IS 'Fires when maker_count or taker_count reaches 100, sending notification via Edge Function';
+COMMENT ON FUNCTION public.notify_metro_cap_reached IS 'Trigger function that sends webhook notification when metro area cap (max_cap) is reached. Calls Supabase Edge Function via HTTP.';
+COMMENT ON TRIGGER metro_cap_reached_trigger ON public.metro_area_counts IS 'Fires when platemaker_count or platetaker_count reaches max_cap, sending notification via Edge Function';

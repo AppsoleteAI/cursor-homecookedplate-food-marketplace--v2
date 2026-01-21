@@ -16,9 +16,30 @@ import { Colors, monoGradients } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MembershipPromoBanner } from '@/components/MembershipPromoBanner';
+import * as WebBrowser from 'expo-web-browser';
+import { trpc } from '@/lib/trpc';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
+  const utils = trpc.useUtils();
+  const updateProfileMutation = trpc.auth.updateProfile.useMutation({
+    onSuccess: () => {
+      utils.auth.me.invalidate();
+      Alert.alert('Success', 'Food safety acknowledgment updated');
+    },
+  });
+
+  const handleAcknowledgmentUpdate = async (acknowledged: boolean) => {
+    if (!user || user.role !== 'platemaker') return;
+    try {
+      await updateProfileMutation.mutateAsync({
+        foodSafetyAcknowledged: acknowledged,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update acknowledgment';
+      Alert.alert('Error', errorMessage);
+    }
+  };
 
   const handleLogout = () => {
     if (Platform.OS === 'web') {
@@ -157,6 +178,55 @@ export default function ProfileScreen() {
           ))}
         </View>
 
+        {user?.role === 'platemaker' && (
+          <View style={styles.foodSafetySection}>
+            <View style={styles.foodSafetyHeader}>
+              <Ionicons name="shield-checkmark" size={24} color={Colors.gradient.green} />
+              <Text style={styles.foodSafetyTitle}>Food Safety Acknowledgment</Text>
+            </View>
+            <View style={styles.foodSafetyContent}>
+              <Text style={styles.foodSafetyDescription}>
+                We recommend every Platemaker review{' '}
+                <Text
+                  style={styles.foodSafetyLink}
+                  onPress={() => WebBrowser.openBrowserAsync('https://cottagefoodlaws.com')}
+                >
+                  cottagefoodlaws.com
+                </Text>
+                {' '}and do your due diligence to meet all food safety requirements from your local, county, state and federal laws before selling food items on the HomeCookedPlate App.
+              </Text>
+              <View style={styles.acknowledgmentStatusContainer}>
+                <View style={styles.acknowledgmentStatusRow}>
+                  <Ionicons
+                    name={user.foodSafetyAcknowledged ? "checkmark-circle" : "close-circle"}
+                    size={24}
+                    color={user.foodSafetyAcknowledged ? Colors.gradient.green : Colors.gradient.orange}
+                  />
+                  <Text style={styles.acknowledgmentStatusText}>
+                    Status: {user.foodSafetyAcknowledged ? 'Acknowledged' : 'Not Acknowledged'}
+                  </Text>
+                </View>
+                {!user.foodSafetyAcknowledged && (
+                  <TouchableOpacity
+                    style={styles.acknowledgmentButton}
+                    onPress={() => handleAcknowledgmentUpdate(true)}
+                    disabled={updateProfileMutation.isLoading}
+                  >
+                    <Text style={styles.acknowledgmentButtonText}>
+                      {updateProfileMutation.isLoading ? 'Updating...' : 'Acknowledge Now'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              <View style={styles.acknowledgmentDisclaimerBox}>
+                <Text style={styles.acknowledgmentDisclaimerText}>
+                  I understand that HomeCookedPlate does not allow anyone to violate their local, county, state and/or federal food laws on the HomeCookedPlate App.
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         <TouchableOpacity testID="logout-button" style={styles.logoutButton} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={20} color={Colors.gradient.red} />
           <Text style={styles.logoutText}>Logout</Text>
@@ -267,5 +337,81 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: Colors.gradient.red,
+  },
+  foodSafetySection: {
+    marginHorizontal: 24,
+    marginVertical: 24,
+    backgroundColor: Colors.gray[50],
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+  },
+  foodSafetyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  foodSafetyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.gray[900],
+  },
+  foodSafetyContent: {
+    gap: 16,
+  },
+  foodSafetyDescription: {
+    fontSize: 14,
+    color: Colors.gray[700],
+    lineHeight: 20,
+  },
+  foodSafetyLink: {
+    color: Colors.gradient.green,
+    textDecorationLine: 'underline',
+    fontWeight: '600',
+  },
+  acknowledgmentStatusContainer: {
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+  },
+  acknowledgmentStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  acknowledgmentStatusText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.gray[900],
+  },
+  acknowledgmentButton: {
+    backgroundColor: Colors.gradient.green,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  acknowledgmentButtonText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  acknowledgmentDisclaimerBox: {
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.gray[300],
+    borderRadius: 8,
+    padding: 12,
+  },
+  acknowledgmentDisclaimerText: {
+    fontSize: 13,
+    color: Colors.gray[700],
+    lineHeight: 18,
+    fontStyle: 'italic',
   },
 });

@@ -26,6 +26,7 @@ import { useAuth } from '@/hooks/auth-context';
 import { Colors } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
 import { trpc } from '@/lib/trpc';
+import { supabase } from '@/lib/supabase';
 import { MetroProgressBar } from '@/components/Registration/MetroProgressBar';
 
 export default function SignupScreen() {
@@ -36,6 +37,7 @@ export default function SignupScreen() {
   const [role, setRole] = useState<'platemaker' | 'platetaker'>('platetaker');
   const [loading, setLoading] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [foodSafetyAcknowledged, setFoodSafetyAcknowledged] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isSigningUp, setIsSigningUp] = useState(false);
   const [signupUserRole, setSignupUserRole] = useState<'platetaker' | 'platemaker' | null>(null);
@@ -48,7 +50,7 @@ export default function SignupScreen() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const { signup } = useAuth();
   const checkEligibilityMutation = trpc.trials.checkEligibility.useMutation();
-  const createCheckoutSession = trpc.payments.createCheckoutSession.useMutation();
+  // Checkout is handled via Supabase Edge Function `create-checkout-session` (replaces tRPC route)
   
   // Simple eligibility check query (no quotas, just metro check)
   const eligibilityQuery = trpc.auth.checkEligibility.useQuery(
@@ -247,6 +249,11 @@ export default function SignupScreen() {
       return;
     }
 
+    if (role === 'platemaker' && !foodSafetyAcknowledged) {
+      Alert.alert('Error', 'Please acknowledge the food safety requirements before signing up as a Platemaker');
+      return;
+    }
+
     // Sanitize email input
     const cleanEmail = email.trim().toLowerCase();
     
@@ -261,7 +268,7 @@ export default function SignupScreen() {
     fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(auth)/signup.tsx:SIGNUP_ATTEMPT',message:'Frontend signup attempt started',data:{username,cleanEmail,hasPassword:!!password,role},timestamp:Date.now(),sessionId:'debug-session',runId:'signup-attempt',hypothesisId:'1,2,4'})}).catch(()=>{});
     // #endregion
     try {
-      const result = await signup(username, cleanEmail, password, role, userLocation || undefined);
+      const result = await signup(username, cleanEmail, password, role, userLocation || undefined, role === 'platemaker' ? foodSafetyAcknowledged : false);
       // #region agent log - HYPOTHESIS 1, 2, 4: Frontend signup success
       fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(auth)/signup.tsx:SIGNUP_SUCCESS',message:'Frontend signup succeeded',data:{username,cleanEmail,role,requiresLogin:result.requiresLogin,requiresCheckout:result.requiresCheckout},timestamp:Date.now(),sessionId:'debug-session',runId:'signup-attempt',hypothesisId:'1,2,4'})}).catch(()=>{});
       // #endregion
@@ -269,9 +276,16 @@ export default function SignupScreen() {
       // If Remote/Over-cap user requires checkout, redirect to Stripe checkout
       if (result.requiresCheckout) {
         try {
-          const checkoutResult = await createCheckoutSession.mutateAsync({
-            returnUrl: 'homecookedplate://payment-success',
-          });
+          const { data: checkoutResult, error: checkoutError } = await supabase.functions.invoke(
+            'create-checkout-session',
+            {
+              body: { returnUrl: 'homecookedplate://payment-success' },
+            }
+          );
+
+          if (checkoutError) {
+            throw checkoutError;
+          }
 
           if (checkoutResult.checkoutUrl) {
             // Open Stripe Hosted Checkout in browser
@@ -525,11 +539,40 @@ export default function SignupScreen() {
                 </Text>
               </TouchableOpacity>
 
+              {role === 'platemaker' && (
+                <View style={styles.foodSafetyContainer}>
+                  <View style={styles.foodSafetyInfoBox}>
+                    <Ionicons name="information-circle" size={20} color={Colors.gradient.yellow} />
+                    <Text style={styles.foodSafetyInfoText}>
+                      We recommend every Platemaker review{' '}
+                      <Text
+                        style={styles.foodSafetyLink}
+                        onPress={() => WebBrowser.openBrowserAsync('https://cottagefoodlaws.com')}
+                      >
+                        cottagefoodlaws.com
+                      </Text>
+                      {' '}and do your due diligence to meet all food safety requirements from your local, county, state and federal laws before selling food items.
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.termsContainer}
+                    onPress={() => setFoodSafetyAcknowledged(!foodSafetyAcknowledged)}
+                  >
+                    <View style={[styles.checkbox, foodSafetyAcknowledged && styles.checkboxActive]}>
+                      {foodSafetyAcknowledged && <Text style={styles.checkmark}>✓</Text>}
+                    </View>
+                    <Text style={styles.termsText}>
+                      I acknowledge that I have reviewed cottagefoodlaws.com and understand that I must comply with all local, county, state and federal food laws. I understand that HomeCookedPlate does not allow anyone to violate their local, county, state and/or federal food laws on the HomeCookedPlate App.
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               <GradientButton
                 title="Create Account"
                 onPress={handleSignup}
                 loading={loading}
-                disabled={!agreedToTerms}
+                disabled={!agreedToTerms || (role === 'platemaker' && !foodSafetyAcknowledged)}
                 style={styles.signupButton}
                 baseColor="gold"
               />
@@ -748,6 +791,31 @@ const styles = StyleSheet.create({
   termsLink: {
     color: Colors.gradient.green,
     textDecorationLine: 'underline',
+  },
+  foodSafetyContainer: {
+    marginBottom: 16,
+  },
+  foodSafetyInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: Colors.gray[50],
+    borderWidth: 1,
+    borderColor: Colors.gradient.yellow,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  foodSafetyInfoText: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.gray[700],
+    lineHeight: 18,
+  },
+  foodSafetyLink: {
+    color: Colors.gradient.green,
+    textDecorationLine: 'underline',
+    fontWeight: '600',
   },
   signupButton: {
     marginTop: 8,

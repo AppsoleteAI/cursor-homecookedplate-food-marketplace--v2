@@ -52,11 +52,10 @@ function NavigationGuard() {
     if (isLoading) return;
 
     // Handle empty segments (initial load)
-    if (!segments || segments.length === 0) return;
+    if (!segments || segments.length < 1) return;
 
-    const currentSegment = segments[0];
+    const currentSegment = String(segments[0] ?? '');
     const inAuthGroup = currentSegment === '(auth)';
-    const inTabsGroup = currentSegment === '(tabs)';
     const isIndexRoute = currentSegment === 'index';
 
     // PUBLIC ROUTES: These can be accessed without authentication
@@ -131,6 +130,7 @@ function RootLayoutNav() {
         <Stack.Screen name="settings" options={{ title: "Settings" }} />
         <Stack.Screen name="finance/today" options={{ presentation: "modal", headerShown: false }} />
         <Stack.Screen name="finance/periods" options={{ presentation: "modal", headerShown: false }} />
+        <Stack.Screen name="finance/earnings" options={{ presentation: "modal", headerShown: false }} />
         <Stack.Screen name="reviews-dashboard" options={{ presentation: "modal", headerShown: false }} />
         <Stack.Screen name="promotions" options={{ title: "Promotions" }} />
         <Stack.Screen name="messages" options={{ title: "Messages" }} />

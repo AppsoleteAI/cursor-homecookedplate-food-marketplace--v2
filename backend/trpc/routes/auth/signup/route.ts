@@ -36,6 +36,7 @@ const createSignupProcedure = () => {
         role: z.enum(['platemaker', 'platetaker']).optional().default('platetaker'),
         lat: z.number().optional(),
         lng: z.number().optional(),
+        foodSafetyAcknowledged: z.boolean().optional().default(false),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -101,41 +102,38 @@ const createSignupProcedure = () => {
       if (input.lat && input.lng) {
         process.stdout.write(`[GEO_LOCK] Verifying location for user: ${input.username} at (${input.lat}, ${input.lng})\n`);
         
-        // RPC Logic: find_metro_by_location returns a single text (name) or null
-        const { data: matchedMetro } = await supabaseAdmin.rpc(
-          'find_metro_by_location',
-          { lng: input.lng, lat: input.lat }
+        // Consolidated RPC: Get metro settings by location (combines lookup + settings query)
+        // Returns metro_name, is_active, and trial_days if metro found, otherwise returns no rows
+        const { data: metroSettingsArray, error: metroError } = await supabaseAdmin.rpc(
+          'get_metro_settings_by_location',
+          { lat: input.lat, lng: input.lng }
         );
 
-        // Validate with: if (matchedMetro) { ... }
-        if (matchedMetro) {
-          // Path A: Inside Metro - Check is_active from metro_geofences FIRST
-          // CRITICAL: Read city-level settings from metro_geofences table (source of truth)
-          // Use metro_geofences.trial_days as integer for trial_ends_at calculation
-          const { data: metroSettings, error: settingsError } = await supabaseAdmin
-            .from('metro_geofences')
-            .select('is_active, trial_days, metro_name')
-            .eq('metro_name', matchedMetro)
-            .single();
+        // Check if metro was found (RPC returns array - empty if no metro found)
+        const metro = metroSettingsArray && metroSettingsArray.length > 0 ? metroSettingsArray[0] : null;
 
-          if (settingsError || !metroSettings) {
-            throw new TRPCError({
-              code: 'INTERNAL_SERVER_ERROR',
-              message: `Failed to fetch metro settings for ${matchedMetro}: ${settingsError?.message || 'Not found'}`,
-            });
+        if (metroError || !metro) {
+          // No metro found or error - assign Remote/Other
+          if (metroError) {
+            process.stdout.write(`[GEO_LOCK] Error fetching metro settings: ${metroError.message || JSON.stringify(metroError)}. Assigning Remote/Other\n`);
+          } else {
+            process.stdout.write(`[GEO_LOCK] No metro area found for coordinates (${input.lat}, ${input.lng}). Assigning Remote/Other\n`);
           }
-
-          // CHECK: Is the Metro currently active? (Panic Button check)
+          assignedMetro = 'Remote/Other';
+          membershipTier = 'free';
+          process.stdout.write(`[GEO_LOCK] Remote User. Redirecting to $4.99 subscription. membership_tier: ${membershipTier}\n`);
+        } else {
+          // Metro found - Check is_active FIRST (Panic Button check)
           // Throw error immediately if inactive - do not proceed with signup
-          if (!metroSettings.is_active) {
+          if (!metro.is_active) {
             throw new TRPCError({
-              code: 'FORBIDDEN',
-              message: `Signups in ${metroSettings.metro_name || matchedMetro} are currently paused for maintenance.`,
+              code: 'PRECONDITION_FAILED',
+              message: `Signups in ${metro.metro_name} are currently paused for maintenance.`,
             });
           }
 
           // Metro is active - proceed with signup and check cap
-          assignedMetro = matchedMetro;
+          assignedMetro = metro.metro_name;
           
           // Database Integrity: Always use increment_metro_count RPC for signups
           // RPC handles row-level locking for concurrency safety (do not manage counts in frontend)
@@ -143,7 +141,7 @@ const createSignupProcedure = () => {
           const { data: status, error: incrementError } = await supabaseAdmin.rpc(
             'increment_metro_count',
             {
-              metro_name_param: matchedMetro, // RPC parameter: text
+              metro_name_param: metro.metro_name, // RPC parameter: text
               user_role: input.role || 'platetaker' // RPC parameter: text
             }
           );
@@ -156,9 +154,9 @@ const createSignupProcedure = () => {
           }
 
           if (status === 'SUCCESS') {
-            // SUCCESS: Spot locked. Grant trial using trial_days from metro_geofences (source of truth)
+            // SUCCESS: Spot locked. Grant trial using trial_days from metro (source of truth)
             // USE DYNAMIC TRIAL DAYS from DB - never override with hardcoded values
-            const trialDays = metroSettings.trial_days ?? 90; // Null coalescing only for safety (shouldn't happen due to NOT NULL constraint)
+            const trialDays = metro.trial_days ?? 90; // Null coalescing only for safety (shouldn't happen due to NOT NULL constraint)
             trialEndDate = new Date();
             trialEndDate.setDate(trialEndDate.getDate() + trialDays);
             membershipTier = 'premium';
@@ -168,13 +166,6 @@ const createSignupProcedure = () => {
             membershipTier = 'free';
             process.stdout.write(`[GEO_LOCK] Metro Match: ${assignedMetro}. CAP_REACHED. Redirecting to paid checkout. membership_tier: ${membershipTier}\n`);
           }
-        } else {
-          // Path B: Remote/Underserved - No metro found (null returned from RPC)
-          // No trial, start as free (must pay $4.99 to activate premium)
-          process.stdout.write(`[GEO_LOCK] No metro area found for coordinates (${input.lat}, ${input.lng}). Assigning Remote/Other\n`);
-          assignedMetro = 'Remote/Other';
-          membershipTier = 'free';
-          process.stdout.write(`[GEO_LOCK] Remote User. Redirecting to $4.99 subscription. membership_tier: ${membershipTier}\n`);
         }
       } else {
         // No coordinates provided: Assign Remote/Other (no trial, free tier)
@@ -200,6 +191,7 @@ const createSignupProcedure = () => {
         metro_area: assignedMetro, // Always set: matched metro or 'Remote/Other'
         trial_ends_at: trialEndDate?.toISOString() || null, // Only set for active metros with available slots (trial_days from metro_geofences), null otherwise
         membership_tier: membershipTier, // 'premium' for metro with available trial slot, 'free' otherwise
+        food_safety_acknowledged: input.role === 'platemaker' ? (input.foodSafetyAcknowledged || false) : false, // Only set for platemakers
       };
 
       process.stdout.write(`[SIGNUP_V4] Attempting INSERT with metro_area=${assignedMetro}, trial_ends_at=${trialEndDate?.toISOString() || 'null'}, membership_tier=${membershipTier}\n`);
@@ -227,6 +219,7 @@ const createSignupProcedure = () => {
             metro_area: profileData.metro_area, // CRITICAL: Finalize metro_area (matched metro or 'Remote/Other')
             trial_ends_at: profileData.trial_ends_at, // CRITICAL: Finalize trial_ends_at (dynamic trial_days from metro_geofences for metros, null for Remote/Other)
             membership_tier: profileData.membership_tier, // CRITICAL: Finalize membership_tier ('premium' for metro, 'free' for remote)
+            food_safety_acknowledged: profileData.food_safety_acknowledged, // Store food safety acknowledgment for platemakers
           })
           .eq('id', authData.user.id)
           .select()
@@ -260,27 +253,41 @@ const createSignupProcedure = () => {
       console.log('[Signup] Profile created successfully with admin client');
       await sendWelcomeEmail(input.email, input.username);
 
-      // Determine if user requires checkout (Remote or Over-cap users)
-      const requiresCheckout = membershipTier === 'free' || assignedMetro === 'Remote/Other';
+      // Prepare user object
+      const user = {
+        id: profile.id,
+        username: profile.username,
+        email: profile.email,
+        role: profile.role as 'platemaker' | 'platetaker',
+        isAdmin: profile.is_admin || false,
+        phone: profile.phone,
+        bio: profile.bio,
+        profileImage: profile.profile_image,
+        createdAt: new Date(profile.created_at),
+        isPaused: profile.is_paused,
+        twoFactorEnabled: profile.two_factor_enabled,
+        metroArea: profile.metro_area || null,
+        trialEndsAt: profile.trial_ends_at ? new Date(profile.trial_ends_at) : null,
+      };
 
+      // Determine status and return appropriate structure
+      // Case 1: SUCCESS - Metro active and under cap (trial granted)
+      if (membershipTier === 'premium' && trialEndDate) {
+        return {
+          status: 'SUCCESS' as const,
+          user,
+          session: authData.session,
+          metro: assignedMetro || 'Remote/Other',
+          trialEndsAt: trialEndDate.toISOString(),
+        };
+      }
+
+      // Case 2: REDIRECT_TO_PAYMENT - Metro cap reached or Remote/Other
       return {
-        user: {
-          id: profile.id,
-          username: profile.username,
-          email: profile.email,
-          role: profile.role as 'platemaker' | 'platetaker',
-          isAdmin: profile.is_admin || false,
-          phone: profile.phone,
-          bio: profile.bio,
-          profileImage: profile.profile_image,
-          createdAt: new Date(profile.created_at),
-          isPaused: profile.is_paused,
-          twoFactorEnabled: profile.two_factor_enabled,
-          metro_area: profile.metro_area || null,
-          trial_ends_at: profile.trial_ends_at ? new Date(profile.trial_ends_at) : null,
-        },
+        status: 'REDIRECT_TO_PAYMENT' as const,
+        user,
         session: authData.session,
-        requiresCheckout,
+        metro: assignedMetro || 'Remote/Other',
       };
     });
 };

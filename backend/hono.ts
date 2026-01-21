@@ -434,7 +434,7 @@ app.post("/webhook/stripe", async (c) => {
 });
 
 // Database webhook endpoint for metro cap reached notifications
-// Triggered by Supabase Database Webhooks when metro_area_counts.maker_count or taker_count hits max_cap
+// Triggered by Supabase Database Webhooks when metro_area_counts.platemaker_count or platetaker_count hits max_cap
 app.post("/webhook/metro-cap-reached", async (c) => {
   const supabaseUrl = c.env?.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const supabaseServiceKey = c.env?.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -448,7 +448,7 @@ app.post("/webhook/metro-cap-reached", async (c) => {
     const payload = await c.req.json();
     
     // Supabase Database Webhooks send payload with 'type' and 'record' fields
-    // Expected payload: { type: 'UPDATE', record: { metro_name, maker_count, taker_count, max_cap }, old_record: {...} }
+    // Expected payload: { type: 'UPDATE', record: { metro_name, platemaker_count, platetaker_count, max_cap }, old_record: {...} }
     const { type, record, old_record } = payload;
 
     if (type !== 'UPDATE' || !record) {
@@ -457,15 +457,15 @@ app.post("/webhook/metro-cap-reached", async (c) => {
     }
 
     const metroName = record.metro_name;
-    const makerCount = record.maker_count;
-    const takerCount = record.taker_count;
+    const platemakerCount = record.platemaker_count;
+    const platetakerCount = record.platetaker_count;
     const maxCap = record.max_cap || 100;
-    const oldMakerCount = old_record?.maker_count || 0;
-    const oldTakerCount = old_record?.taker_count || 0;
+    const oldPlatemakerCount = old_record?.platemaker_count || 0;
+    const oldPlatetakerCount = old_record?.platetaker_count || 0;
 
-    // Check if maker_count or taker_count just hit max_cap
-    const makerHitCap = makerCount === maxCap && oldMakerCount < maxCap;
-    const takerHitCap = takerCount === maxCap && oldTakerCount < maxCap;
+    // Check if platemaker_count or platetaker_count just hit max_cap
+    const makerHitCap = platemakerCount === maxCap && oldPlatemakerCount < maxCap;
+    const takerHitCap = platetakerCount === maxCap && oldPlatetakerCount < maxCap;
 
     if (!makerHitCap && !takerHitCap) {
       // Not a cap-reached event, ignore
@@ -475,8 +475,8 @@ app.post("/webhook/metro-cap-reached", async (c) => {
     console.log(`[Metro Cap Webhook] Metro "${metroName}" reached cap:`, {
       makerHitCap,
       takerHitCap,
-      makerCount,
-      takerCount,
+      platemakerCount,
+      platetakerCount,
       maxCap,
     });
 
@@ -493,11 +493,11 @@ app.post("/webhook/metro-cap-reached", async (c) => {
       title: `City Max Alert: ${metroName}`,
       metadata: {
         metro_name: metroName,
-        maker_count: makerCount,
-        taker_count: takerCount,
+        platemaker_count: platemakerCount,
+        platetaker_count: platetakerCount,
         max_cap: maxCap,
-        maker_hit_cap: makerHitCap,
-        taker_hit_cap: takerHitCap,
+        platemaker_hit_cap: makerHitCap,
+        platetaker_hit_cap: takerHitCap,
         timestamp: new Date().toISOString(),
       },
     });

@@ -27,7 +27,8 @@ export const meProcedure = protectedProcedure
       membershipTier: (profile.membership_tier as 'free' | 'premium') || 'free',
       stripeCustomerId: profile.stripe_customer_id || undefined,
       stripeSubscriptionId: profile.stripe_subscription_id || undefined,
-      metro_area: profile.metro_area || null,
-      trial_ends_at: profile.trial_ends_at ? new Date(profile.trial_ends_at) : null,
+      metroArea: profile.metro_area || null,
+      trialEndsAt: profile.trial_ends_at ? new Date(profile.trial_ends_at) : null,
+      foodSafetyAcknowledged: profile.food_safety_acknowledged || false,
     };
   });

@@ -33,8 +33,8 @@ CREATE INDEX IF NOT EXISTS idx_metro_geofences_center ON public.metro_geofences 
 -- Metro area counts table - tracks member counts per role per metro
 CREATE TABLE IF NOT EXISTS public.metro_area_counts (
   metro_name text PRIMARY KEY,
-  maker_count integer DEFAULT 0 NOT NULL CHECK (maker_count >= 0),
-  taker_count integer DEFAULT 0 NOT NULL CHECK (taker_count >= 0),
+  platemaker_count integer DEFAULT 0 NOT NULL CHECK (platemaker_count >= 0),
+  platetaker_count integer DEFAULT 0 NOT NULL CHECK (platetaker_count >= 0),
   updated_at timestamptz DEFAULT now() NOT NULL
 );
 
@@ -95,31 +95,31 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
   new_count integer;
-  current_maker_count integer;
-  current_taker_count integer;
+  current_platemaker_count integer;
+  current_platetaker_count integer;
   metro_max_cap integer;
 BEGIN
   -- Lock the row for update to prevent concurrent modifications
-  SELECT maker_count, taker_count, max_cap
-  INTO current_maker_count, current_taker_count, metro_max_cap
+  SELECT platemaker_count, platetaker_count, max_cap
+  INTO current_platemaker_count, current_platetaker_count, metro_max_cap
   FROM public.metro_area_counts
   WHERE metro_name = metro_name_param
   FOR UPDATE;
 
   -- If row doesn't exist, create it
   IF NOT FOUND THEN
-    INSERT INTO public.metro_area_counts (metro_name, maker_count, taker_count)
+    INSERT INTO public.metro_area_counts (metro_name, platemaker_count, platetaker_count)
     VALUES (metro_name_param, 0, 0)
     ON CONFLICT (metro_name) DO NOTHING;
     
     -- Read the inserted row (including max_cap default)
-    SELECT maker_count, taker_count, max_cap
-    INTO current_maker_count, current_taker_count, metro_max_cap
+    SELECT platemaker_count, platetaker_count, max_cap
+    INTO current_platemaker_count, current_platetaker_count, metro_max_cap
     FROM public.metro_area_counts
     WHERE metro_name = metro_name_param;
     
-    current_maker_count := 0;
-    current_taker_count := 0;
+    current_platemaker_count := 0;
+    current_platetaker_count := 0;
   END IF;
 
   -- Use default max_cap if NULL (shouldn't happen, but safety check)
@@ -131,17 +131,17 @@ BEGIN
   IF user_role = 'platemaker' THEN
     UPDATE public.metro_area_counts
     SET 
-      maker_count = maker_count + 1,
+      platemaker_count = platemaker_count + 1,
       updated_at = now()
     WHERE metro_name = metro_name_param
-    RETURNING maker_count INTO new_count;
+    RETURNING platemaker_count INTO new_count;
   ELSIF user_role = 'platetaker' THEN
     UPDATE public.metro_area_counts
     SET 
-      taker_count = taker_count + 1,
+      platetaker_count = platetaker_count + 1,
       updated_at = now()
     WHERE metro_name = metro_name_param
-    RETURNING taker_count INTO new_count;
+    RETURNING platetaker_count INTO new_count;
   ELSE
     RAISE EXCEPTION 'Invalid role: %. Must be platemaker or platetaker', user_role;
   END IF;
@@ -155,8 +155,66 @@ BEGIN
 END;
 $$;
 
+-- RPC function: Get metro settings by location (combines lookup + settings query)
+-- Returns metro settings if found, NULL if not in any metro
+-- This consolidates find_metro_by_location + metro_geofences query into a single call
+CREATE OR REPLACE FUNCTION public.get_metro_settings_by_location(
+  lat double precision,
+  lng double precision
+)
+RETURNS TABLE (
+  metro_name text,
+  is_active boolean,
+  trial_days integer
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  result_metro text;
+  point_geom geometry;
+  point_geog geography;
+BEGIN
+  -- Create point geometry/geography from input coordinates
+  point_geom := ST_SetSRID(ST_MakePoint(lng, lat), 4326);
+  point_geog := point_geom::geography;
+
+  -- Priority 1: High-precision boundary match using ST_Contains
+  -- Only check if boundary is not NULL
+  SELECT metro_name INTO result_metro
+  FROM public.metro_geofences
+  WHERE boundary IS NOT NULL
+    AND ST_Contains(boundary, point_geom)
+  LIMIT 1;
+
+  -- Priority 2: Fallback to circular radius if boundary match failed
+  -- Use ST_DWithin with center and radius_meters
+  IF result_metro IS NULL THEN
+    SELECT metro_name INTO result_metro
+    FROM public.metro_geofences
+    WHERE center IS NOT NULL
+      AND radius_meters IS NOT NULL
+      AND ST_DWithin(center, point_geog, radius_meters)
+    LIMIT 1;
+  END IF;
+
+  -- If metro found, return its settings
+  IF result_metro IS NOT NULL THEN
+    RETURN QUERY
+    SELECT 
+      mg.metro_name,
+      mg.is_active,
+      mg.trial_days
+    FROM public.metro_geofences mg
+    WHERE mg.metro_name = result_metro;
+  END IF;
+
+  -- No metro found - return empty result (no rows)
+  RETURN;
+END;
+$$;
+
 -- Initialize metro_area_counts with all major metros (from MAJOR_METROS list)
-INSERT INTO public.metro_area_counts (metro_name, maker_count, taker_count)
+INSERT INTO public.metro_area_counts (metro_name, platemaker_count, platetaker_count)
 VALUES
   ('New York-Newark-Jersey City', 0, 0),
   ('Los Angeles-Long Beach-Anaheim', 0, 0),
@@ -219,4 +277,5 @@ COMMENT ON COLUMN public.metro_geofences.center IS 'GEOGRAPHY(POINT, 4326) - Cen
 COMMENT ON COLUMN public.metro_geofences.radius_meters IS 'FLOAT - Used for circular fallbacks if boundary is NULL';
 COMMENT ON TABLE public.metro_area_counts IS 'Tracks member counts per role per metro area (100 makers + 100 takers per metro)';
 COMMENT ON FUNCTION public.find_metro_by_location IS 'PostGIS function to find metro area by GPS coordinates. Priority: ST_Contains(boundary) then ST_DWithin(center, radius_meters). LOCKED LOGIC per RORK requirements.';
-COMMENT ON FUNCTION public.increment_metro_count IS 'Atomically increments maker_count or taker_count for a metro area (thread-safe). Returns status string: SUCCESS if under cap, CAP_REACHED if cap exceeded.';
+COMMENT ON FUNCTION public.increment_metro_count IS 'Atomically increments platemaker_count or platetaker_count for a metro area (thread-safe). Returns status string: SUCCESS if under cap, CAP_REACHED if cap exceeded.';
+COMMENT ON FUNCTION public.get_metro_settings_by_location IS 'Combines metro lookup by location with settings retrieval. Returns metro_name, is_active, and trial_days if metro found, otherwise returns no rows. Single database call replaces find_metro_by_location + metro_geofences query.';

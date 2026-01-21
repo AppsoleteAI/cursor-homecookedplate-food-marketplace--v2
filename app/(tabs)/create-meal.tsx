@@ -23,6 +23,7 @@ import { useAuth } from '@/hooks/auth-context';
 import { Video, ResizeMode } from 'expo-av';
 import { trpc } from '@/lib/trpc';
 import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
 
 type MediaType = 'image' | 'video';
 interface MediaItem {
@@ -64,6 +65,7 @@ export default function CreateMealScreen() {
   const { addMeal } = useMeals();
   const [saving, setSaving] = useState<boolean>(false);
   const [countdown, setCountdown] = useState<number>(0);
+  const [foodSafetyAcknowledged, setFoodSafetyAcknowledged] = useState<boolean>(false);
 
   const { requestPlatemakerRole } = useAuth();
 
@@ -318,9 +320,17 @@ export default function CreateMealScreen() {
       priceNumber > 0 &&
       form.ingredientList.trim().length > 0 &&
       hasFreshness &&
-      form.media.length > 0
+      form.media.length > 0 &&
+      foodSafetyAcknowledged
     );
-  }, [form, priceNumber]);
+  }, [form, priceNumber, foodSafetyAcknowledged]);
+
+  // Set acknowledgment to true if user has already acknowledged in their profile
+  useEffect(() => {
+    if (user?.foodSafetyAcknowledged) {
+      setFoodSafetyAcknowledged(true);
+    }
+  }, [user?.foodSafetyAcknowledged]);
 
   const saveMeal = useCallback(async () => {
     if (!isValid) return;
@@ -744,6 +754,33 @@ export default function CreateMealScreen() {
             <Text style={styles.warningText}>⚠️ You waive any right to hold HomeCookedPlate app or any other AppsoleteAI affiliated business entity, investor or individual associated with HomeCookedPlate, liable for any items you publish as a PlateMaker and you affirm all local, county, state and federal food service laws are actively being adhered to by you, in every transaction via the HomeCookedPlate app.</Text>
           </ScrollView>
         </View>
+        <View style={styles.foodSafetyAcknowledgmentBox}>
+          <View style={styles.foodSafetyInfoRow}>
+            <Ionicons name="information-circle" size={18} color={Colors.gradient.yellow} />
+            <Text style={styles.foodSafetyInfoText}>
+              We recommend reviewing{' '}
+              <Text
+                style={styles.foodSafetyLink}
+                onPress={() => WebBrowser.openBrowserAsync('https://cottagefoodlaws.com')}
+              >
+                cottagefoodlaws.com
+              </Text>
+              {' '}and doing your due diligence to meet all food safety requirements.
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.acknowledgmentCheckboxRow}
+            onPress={() => setFoodSafetyAcknowledged(!foodSafetyAcknowledged)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.acknowledgmentCheckbox, foodSafetyAcknowledged && styles.acknowledgmentCheckboxActive]}>
+              {foodSafetyAcknowledged && <Text style={styles.acknowledgmentCheckmark}>✓</Text>}
+            </View>
+            <Text style={styles.acknowledgmentText}>
+              I acknowledge that I have reviewed cottagefoodlaws.com and understand that I must comply with all local, county, state and federal food laws. I understand that HomeCookedPlate does not allow anyone to violate their local, county, state and/or federal food laws on the HomeCookedPlate App.
+            </Text>
+          </TouchableOpacity>
+        </View>
           <GradientButton
             title={saving ? 'Publishing…' : 'Save / Publish Meal'}
             onPress={saveMeal}
@@ -846,6 +883,61 @@ const styles = StyleSheet.create({
     height: 48,
   },
   warningText: { fontSize: 12, color: Colors.warning, lineHeight: 16 },
+  foodSafetyAcknowledgmentBox: {
+    backgroundColor: Colors.gray[50],
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  foodSafetyInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 12,
+  },
+  foodSafetyInfoText: {
+    flex: 1,
+    fontSize: 12,
+    color: Colors.gray[700],
+    lineHeight: 18,
+  },
+  foodSafetyLink: {
+    color: Colors.gradient.green,
+    textDecorationLine: 'underline',
+    fontWeight: '600',
+  },
+  acknowledgmentCheckboxRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  acknowledgmentCheckbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderColor: Colors.gray[300],
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  acknowledgmentCheckboxActive: {
+    backgroundColor: Colors.gradient.green,
+    borderColor: Colors.gradient.green,
+  },
+  acknowledgmentCheckmark: {
+    color: Colors.white,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  acknowledgmentText: {
+    flex: 1,
+    fontSize: 12,
+    color: Colors.gray[700],
+    lineHeight: 18,
+  },
   countdownOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   countdownBox: { width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
   countdownText: { color: Colors.white, fontSize: 48, fontWeight: '800' },

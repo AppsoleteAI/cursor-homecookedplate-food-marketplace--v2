@@ -21,8 +21,8 @@ import { trpc } from '@/lib/trpc';
 
 interface MetroCount {
   metro_name: string;
-  maker_count: number;
-  taker_count: number;
+  platemaker_count: number;
+  platetaker_count: number;
   max_cap: number;
   updated_at: string;
 }
@@ -163,8 +163,8 @@ export default function AdminMetroCapsScreen() {
         ) : metroCounts && metroCounts.length > 0 ? (
           <>
             {metroCounts.map((metro: MetroCount) => {
-              const makerStatus = getStatusColor(metro.maker_count, metro.max_cap);
-              const takerStatus = getStatusColor(metro.taker_count, metro.max_cap);
+              const makerStatus = getStatusColor(metro.platemaker_count, metro.max_cap);
+              const takerStatus = getStatusColor(metro.platetaker_count, metro.max_cap);
               const isSelected = selectedMetro === metro.metro_name && isEditing;
 
               return (
@@ -196,7 +196,7 @@ export default function AdminMetroCapsScreen() {
                           ]}
                         />
                         <Text style={styles.countValue}>
-                          {metro.maker_count} / {metro.max_cap}
+                          {metro.platemaker_count} / {metro.max_cap}
                         </Text>
                         <Text
                           style={[
@@ -204,7 +204,7 @@ export default function AdminMetroCapsScreen() {
                             { color: makerStatus },
                           ]}
                         >
-                          {getStatusText(metro.maker_count, metro.max_cap)}
+                          {getStatusText(metro.platemaker_count, metro.max_cap)}
                         </Text>
                       </View>
                     </View>
@@ -219,7 +219,7 @@ export default function AdminMetroCapsScreen() {
                           ]}
                         />
                         <Text style={styles.countValue}>
-                          {metro.taker_count} / {metro.max_cap}
+                          {metro.platetaker_count} / {metro.max_cap}
                         </Text>
                         <Text
                           style={[
@@ -227,7 +227,7 @@ export default function AdminMetroCapsScreen() {
                             { color: takerStatus },
                           ]}
                         >
-                          {getStatusText(metro.taker_count, metro.max_cap)}
+                          {getStatusText(metro.platetaker_count, metro.max_cap)}
                         </Text>
                       </View>
                     </View>

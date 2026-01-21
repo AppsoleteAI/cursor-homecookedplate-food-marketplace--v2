@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { AdminOnly } from '@/components/RoleGuard';
 import {
   View,
@@ -18,6 +18,126 @@ import { trpc } from '@/lib/trpc';
 import { UserTrialControl } from '@/components/Admin/UserTrialControl';
 import { CityMaxAlerts } from '@/components/Admin/CityMaxAlerts';
 import { PreLaunchChecklist } from '@/components/Admin/PreLaunchChecklist';
+import BarChart, { BarDatum } from '@/components/BarChart';
+import {
+  DEFAULT_FORECAST_ASSUMPTIONS,
+  ForecastTimeUnit,
+  SUBSCRIPTION_PRICES,
+  calculatePromotionalCapRevenue,
+  forecastRevenueTotals,
+} from '@/backend/lib/fees';
+
+type ForecastMode = 'current' | 'at_cap';
+
+function formatCurrency(n: number) {
+  const v = Number.isFinite(n) ? n : 0;
+  return `$${v.toFixed(2)}`;
+}
+
+const RevenueForecast = () => {
+  const { data: counts, isLoading, error } = trpc.admin.getMetroCounts.useQuery();
+  const [unit, setUnit] = useState<ForecastTimeUnit>('monthly');
+  const [mode, setMode] = useState<ForecastMode>('current');
+
+  const totals = useMemo(() => {
+    if (!counts || counts.length === 0) return null;
+    return forecastRevenueTotals({
+      metros: counts,
+      assumptions: DEFAULT_FORECAST_ASSUMPTIONS,
+      unit,
+      mode,
+    });
+  }, [counts, unit, mode]);
+
+  const chartData: BarDatum[] = useMemo(() => {
+    if (!totals) return [];
+    return [
+      { label: 'PM Sub', value: Number(totals.platemaker_subscriptions.toFixed(2)) },
+      { label: 'PT Sub', value: Number(totals.platetaker_subscriptions.toFixed(2)) },
+      { label: 'PM 10%', value: Number(totals.platemaker_rake.toFixed(2)) },
+      { label: 'PT 10%', value: Number(totals.platetaker_fee.toFixed(2)) },
+    ];
+  }, [totals]);
+
+  const promoMonthly = useMemo(
+    () => calculatePromotionalCapRevenue(DEFAULT_FORECAST_ASSUMPTIONS.promoFreeSubscriberPool ?? 0),
+    []
+  );
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.gradient.purple} />
+        <Text style={styles.loadingText}>Loading revenue forecast...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Error loading revenue forecast</Text>
+        <Text style={styles.errorDetail}>{error.message}</Text>
+      </View>
+    );
+  }
+
+  if (!counts || counts.length === 0 || !totals) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>No metro areas found</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.revenueForecast}>
+      <Text style={styles.metroHeader}>Revenue Forecast</Text>
+      <Text style={styles.metroSubheader}>
+        4 streams: platemaker subs, platetaker subs, platemaker 10% rake, platetaker 10% fee
+      </Text>
+
+      <View style={styles.forecastControls}>
+        {(['daily', 'weekly', 'monthly', 'quarterly', 'annual'] as ForecastTimeUnit[]).map(u => (
+          <Text
+            key={u}
+            style={[styles.chip, unit === u && styles.chipActive]}
+            onPress={() => setUnit(u)}
+          >
+            {u}
+          </Text>
+        ))}
+      </View>
+
+      <View style={styles.forecastControls}>
+        {(['current', 'at_cap'] as ForecastMode[]).map(m => (
+          <Text
+            key={m}
+            style={[styles.chip, mode === m && styles.chipActive]}
+            onPress={() => setMode(m)}
+          >
+            {m === 'current' ? 'current' : 'at cap'}
+          </Text>
+        ))}
+      </View>
+
+      <BarChart data={chartData} height={190} barColor={monoGradients.purple[0]} />
+
+      <View style={styles.forecastSummary}>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Total ({mode}, {unit})</Text>
+          <Text style={styles.summaryValue}>{formatCurrency(totals.total)}</Text>
+        </View>
+        <Text style={styles.assumptionsTitle}>Assumptions</Text>
+        <Text style={styles.assumptionsText}>
+          Subs: {formatCurrency(SUBSCRIPTION_PRICES.MONTHLY)}/mo or {formatCurrency(SUBSCRIPTION_PRICES.ANNUAL)}/yr per paid member.
+          {'\n'}GMV model: AOV ${DEFAULT_FORECAST_ASSUMPTIONS.averageOrderValue} and {DEFAULT_FORECAST_ASSUMPTIONS.ordersPerPlatetakerPerMonth} orders/platetaker/month.
+          {'\n'}Promo pool: {DEFAULT_FORECAST_ASSUMPTIONS.promoFreeSubscriberPool ?? 0} free slots convert → {formatCurrency(promoMonthly)}/mo when paid.
+        </Text>
+      </View>
+    </View>
+  );
+};
 
 const MetroMonitor = () => {
   const { data: counts, isLoading, error } = trpc.admin.getMetroCounts.useQuery();
@@ -57,13 +177,13 @@ const MetroMonitor = () => {
         <View key={metro.metro_name} style={styles.metroRow}>
           <Text style={styles.metroName}>{metro.metro_name}</Text>
           <ProgressBar 
-            progress={metro.maker_count / maxCap} 
-            label={`Makers: ${metro.maker_count}/${maxCap}`}
+            progress={metro.platemaker_count / maxCap} 
+            label={`Makers: ${metro.platemaker_count}/${maxCap}`}
             color="green"
           />
           <ProgressBar 
-            progress={metro.taker_count / maxCap} 
-            label={`Takers: ${metro.taker_count}/${maxCap}`}
+            progress={metro.platetaker_count / maxCap} 
+            label={`Takers: ${metro.platetaker_count}/${maxCap}`}
             color="green"
           />
         </View>
@@ -245,6 +365,7 @@ export default function AdminDashboardScreen() {
           }
         >
           <PreLaunchChecklist />
+          <RevenueForecast />
           <MetroMonitor />
           <CityMaxAlerts />
           <UserManagement />
@@ -413,6 +534,66 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: Colors.gray[50],
     borderRadius: 16,
+  },
+  revenueForecast: {
+    marginHorizontal: 24,
+    marginBottom: 24,
+    padding: 20,
+    backgroundColor: Colors.gray[50],
+    borderRadius: 16,
+  },
+  forecastControls: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  chip: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+    color: Colors.gray[700],
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  chipActive: {
+    backgroundColor: Colors.gradient.purple + '1A',
+    borderColor: Colors.gradient.purple,
+    color: Colors.gray[900],
+  },
+  forecastSummary: {
+    marginTop: 12,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: Colors.gray[700],
+    fontWeight: '600',
+  },
+  summaryValue: {
+    fontSize: 14,
+    color: Colors.gray[900],
+    fontWeight: '700',
+  },
+  assumptionsTitle: {
+    fontSize: 12,
+    color: Colors.gray[700],
+    fontWeight: '700',
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  assumptionsText: {
+    fontSize: 12,
+    color: Colors.gray[600],
+    lineHeight: 18,
   },
   userManagementRow: {
     marginBottom: 16,

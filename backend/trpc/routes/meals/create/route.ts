@@ -1,5 +1,6 @@
 import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 
 export const createMealProcedure = protectedProcedure
   .input(
@@ -19,6 +20,27 @@ export const createMealProcedure = protectedProcedure
     })
   )
   .mutation(async ({ input, ctx }) => {
+    // Check if user is a platemaker and has acknowledged food safety requirements
+    const { data: profile, error: profileError } = await ctx.supabase
+      .from('profiles')
+      .select('role, food_safety_acknowledged')
+      .eq('id', ctx.userId)
+      .single();
+
+    if (profileError || !profile) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to verify profile',
+      });
+    }
+
+    if (profile.role === 'platemaker' && !profile.food_safety_acknowledged) {
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'You must acknowledge food safety requirements before publishing meals. Please review cottagefoodlaws.com and acknowledge the requirements in your profile.',
+      });
+    }
+
     const { data, error } = await ctx.supabase
       .from('meals')
       .insert({

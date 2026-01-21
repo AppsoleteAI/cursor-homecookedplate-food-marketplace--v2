@@ -41,8 +41,8 @@ export default function MembershipScreen() {
   });
 
   const membershipTier = user?.membershipTier || 'free';
-  // Use metro_area from profile (locked at signup via PostGIS)
-  const userMetro = user?.metro_area || null;
+  // Use metroArea from profile (locked at signup via PostGIS)
+  const userMetro = user?.metroArea || null;
   const isEligibleForTrial = membershipTier === 'free' && userMetro !== null;
 
   // Request GPS permission and get coordinates

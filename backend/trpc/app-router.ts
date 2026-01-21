@@ -40,7 +40,6 @@ import { createConnectAccountProcedure } from "./routes/payments/create-connect-
 import { getConnectAccountStatusProcedure } from "./routes/payments/get-connect-account-status/route";
 import { createSetupIntentProcedure } from "./routes/payments/create-setup-intent/route";
 import { getPaymentMethodFromSetupProcedure } from "./routes/payments/get-payment-method-from-setup/route";
-import { createCheckoutSessionProcedure } from "./routes/payments/create-checkout-session/route";
 import { sendMessageProcedure } from "./routes/messages/send/route";
 import { listMessagesProcedure } from "./routes/messages/list/route";
 import { listConversationsProcedure } from "./routes/messages/conversations/route";
@@ -100,7 +99,6 @@ export const appRouter = createTRPCRouter({
     getConnectAccountStatus: getConnectAccountStatusProcedure,
     createSetupIntent: createSetupIntentProcedure,
     getPaymentMethodFromSetup: getPaymentMethodFromSetupProcedure,
-    createCheckoutSession: createCheckoutSessionProcedure,
   }),
   messages: createTRPCRouter({
     send: sendMessageProcedure,

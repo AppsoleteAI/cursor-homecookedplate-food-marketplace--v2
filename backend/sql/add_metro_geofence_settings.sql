@@ -33,7 +33,7 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
   -- Automatically create corresponding metro_area_counts entry for new metro
-  INSERT INTO public.metro_area_counts (metro_name, maker_count, taker_count, max_cap)
+  INSERT INTO public.metro_area_counts (metro_name, platemaker_count, platetaker_count, max_cap)
   VALUES (NEW.metro_name, 0, 0, 100)
   ON CONFLICT (metro_name) DO NOTHING;
   

@@ -21,12 +21,15 @@ import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { useOrders } from '@/hooks/orders-context';
+import { useAuth } from '@/hooks/auth-context';
+import * as WebBrowser from 'expo-web-browser';
 
 export default function DashboardScreen() {
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [headerHeight, setHeaderHeight] = useState<number>(0);
   const insets = useSafeAreaInsets();
   const { activeOrdersCount, todayEarnings, weekEarnings, totalReviews, orders, refresh } = useOrders();
+  const { user } = useAuth();
 
   useFocusEffect(
     useCallback(() => {
@@ -103,12 +106,17 @@ export default function DashboardScreen() {
           <TouchableOpacity style={styles.statCard} testID="card-today-earnings" onPress={() => router.push('/finance/today')}>
             <Ionicons name="cash-outline" size={24} color={Colors.gradient.green} />
             <Text style={styles.statValue}>${stats.todayEarnings.toFixed(2)}</Text>
-            <Text style={styles.statLabel}>Today’s Earnings</Text>
+            <Text style={styles.statLabel}>Today's Earnings</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.statCard} testID="card-week-earnings" onPress={() => router.push('/finance/periods')}>
             <Ionicons name="trending-up-outline" size={24} color={Colors.gradient.green} />
             <Text style={styles.statValue}>${stats.weekEarnings.toFixed(2)}</Text>
             <Text style={styles.statLabel}>This Week</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.statCard} testID="card-earnings-breakdown" onPress={() => router.push('/finance/earnings')}>
+            <Ionicons name="receipt-outline" size={24} color={Colors.gradient.green} />
+            <Text style={styles.statValue}>$</Text>
+            <Text style={styles.statLabel}>Earnings Breakdown</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.statCard} testID="card-active-orders" onPress={() => router.push('/active-orders')}>
             <Ionicons name="cube-outline" size={24} color={Colors.gradient.green} />
@@ -121,6 +129,31 @@ export default function DashboardScreen() {
             <Text style={styles.statLabel}>Reviews</Text>
           </TouchableOpacity>
         </View>
+
+        {user && !user.foodSafetyAcknowledged && (
+          <View style={styles.foodSafetyBanner}>
+            <View style={styles.foodSafetyBannerHeader}>
+              <Ionicons name="warning" size={24} color={Colors.gradient.orange} />
+              <Text style={styles.foodSafetyBannerTitle}>Food Safety Acknowledgment Required</Text>
+            </View>
+            <Text style={styles.foodSafetyBannerText}>
+              We recommend every Platemaker review{' '}
+              <Text
+                style={styles.foodSafetyBannerLink}
+                onPress={() => WebBrowser.openBrowserAsync('https://cottagefoodlaws.com')}
+              >
+                cottagefoodlaws.com
+              </Text>
+              {' '}and do your due diligence to meet all food safety requirements from your local, county, state and federal laws before selling food items. You must acknowledge this requirement before publishing meals.
+            </Text>
+            <TouchableOpacity
+              style={styles.foodSafetyBannerButton}
+              onPress={() => router.push('/(tabs)/profile')}
+            >
+              <Text style={styles.foodSafetyBannerButtonText}>Acknowledge Now</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.uploadSection}>
           <Text style={styles.sectionTitle}>Document Ingredients</Text>
@@ -409,5 +442,49 @@ const styles = StyleSheet.create({
   addMealButton: {
     marginHorizontal: 24,
     marginBottom: 24,
+  },
+  foodSafetyBanner: {
+    marginHorizontal: 24,
+    marginBottom: 24,
+    backgroundColor: Colors.gradient.orange + '10',
+    borderWidth: 2,
+    borderColor: Colors.gradient.orange,
+    borderRadius: 16,
+    padding: 16,
+  },
+  foodSafetyBannerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  foodSafetyBannerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.gray[900],
+    flex: 1,
+  },
+  foodSafetyBannerText: {
+    fontSize: 14,
+    color: Colors.gray[700],
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  foodSafetyBannerLink: {
+    color: Colors.gradient.green,
+    textDecorationLine: 'underline',
+    fontWeight: '600',
+  },
+  foodSafetyBannerButton: {
+    backgroundColor: Colors.gradient.orange,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  foodSafetyBannerButtonText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

@@ -56,3 +56,303 @@ export const calculateOrderSplit = (baseAmount: number) => {
     sellerPayout: baseAmount - platemakerFee,  // $90
   };
 };
+
+/**
+ * Calculates the total amount to charge the buyer in cents for Just-In-Time (JIT) Checkout.
+ * This function is used when creating Stripe Checkout Sessions with dynamic price_data.
+ * 
+ * Fee Structure:
+ * - Base price: Platemaker's listed price
+ * - Marketplace commission: 10% added on top (buyer pays)
+ * - Stripe processing fee: 2.9% + $0.30 (passed to buyer)
+ * 
+ * Formula:
+ * 1. Convert base price to cents
+ * 2. Add 10% marketplace markup (buyer fee)
+ * 3. Calculate Stripe processing fee (2.9% + $0.30)
+ * 4. Return total in cents for Stripe's unit_amount field
+ * 
+ * @param basePrice - The base item price in dollars (e.g., 15.00 for $15.00)
+ * @returns The total charge amount in cents (e.g., 1731 for ~$17.31)
+ * 
+ * @example
+ * ```typescript
+ * const itemPrice = 15.00; // $15.00
+ * const unitAmount = calculateTotalWithFees(itemPrice);
+ * // Returns amount in cents including all fees
+ * ```
+ */
+export function calculateTotalWithFees(basePrice: number): number {
+  // Convert base price to cents
+  const baseInCents = Math.round(basePrice * 100);
+  
+  // Add 10% marketplace markup (buyer fee)
+  const amountWithMarkup = Math.round(baseInCents * 1.10);
+  
+  // Calculate Stripe processing fee (2.9% + $0.30 = 30 cents)
+  const stripeFee = Math.round(amountWithMarkup * 0.029 + 30);
+  
+  // Return total in cents
+  return amountWithMarkup + stripeFee;
+}
+
+/**
+ * ---------------------------------------------------------------------------
+ * Revenue Forecast Utilities (Financial Source of Truth)
+ * ---------------------------------------------------------------------------
+ * These helpers power admin revenue projections and earnings transparency.
+ *
+ * Key assumptions (defaults are set in the UI layer; functions remain pure):
+ * - Membership pricing: $4.99/mo or $39.99/yr
+ * - GMV model: AOV + orders-per-platetaker-per-month
+ * - Fee model: 10% platetaker fee + 10% platemaker rake (two-sided "double 10")
+ */
+
+export type ForecastTimeUnit = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annual';
+
+export interface ForecastAssumptions {
+  /** Subscription price per paying subscriber per month (e.g., 4.99). */
+  subscriptionPriceMonthly: number;
+  /** Subscription price per paying subscriber per year (e.g., 39.99). */
+  subscriptionPriceAnnual: number;
+  /** Average order value in dollars (base amount / GMV). */
+  averageOrderValue: number;
+  /** Orders per platetaker per month (used to estimate GMV). */
+  ordersPerPlatetakerPerMonth: number;
+  /** Fee percent charged to platetaker (buyer). */
+  platetakerFeePercent: number;
+  /** Fee percent charged to platemaker (seller). */
+  platemakerRakePercent: number;
+  /** Optional promotion pool of free subscribers that later convert to paid. */
+  promoFreeSubscriberPool?: number;
+}
+
+export interface MetroCountsLike {
+  metro_name: string;
+  platemaker_count: number;
+  platetaker_count: number;
+  max_cap?: number | null;
+}
+
+export interface RevenueBreakdown {
+  /** Subscription revenue from platemakers. */
+  platemaker_subscriptions: number;
+  /** Subscription revenue from platetakers. */
+  platetaker_subscriptions: number;
+  /** 10% rake taken from platemakers (seller side), applied to GMV baseline. */
+  platemaker_rake: number;
+  /** 10% fee charged to platetakers (buyer side), applied to GMV baseline. */
+  platetaker_fee: number;
+  /** Total revenue across all four streams. */
+  total: number;
+}
+
+/**
+ * Subscription price constants.
+ *
+ * IMPORTANT:
+ * - Numeric prices live here (source of truth for forecasts/UI).
+ * - Stripe Price IDs must remain in server/edge secrets and should NOT be hardcoded.
+ */
+export const SUBSCRIPTION_PRICES = {
+  MONTHLY: 4.99,
+  ANNUAL: 39.99,
+  // Env var names used by server/edge code (values provided via Supabase secrets).
+  STRIPE_MONTHLY_ID_ENV: 'STRIPE_PRICE_ID_STANDARD_MONTHLY',
+  STRIPE_ANNUAL_ID_ENV: 'STRIPE_PRICE_ID_STANDARD_ANNUAL',
+} as const;
+
+export const DEFAULT_FORECAST_ASSUMPTIONS: ForecastAssumptions = {
+  subscriptionPriceMonthly: SUBSCRIPTION_PRICES.MONTHLY,
+  subscriptionPriceAnnual: SUBSCRIPTION_PRICES.ANNUAL,
+  averageOrderValue: 25,
+  ordersPerPlatetakerPerMonth: 2,
+  platetakerFeePercent: 10,
+  platemakerRakePercent: 10,
+  promoFreeSubscriberPool: 10_000,
+};
+
+function clampNonNegative(n: number): number {
+  return Number.isFinite(n) ? Math.max(0, n) : 0;
+}
+
+function unitsPerMonth(unit: ForecastTimeUnit): number {
+  // Approximate conversions suitable for business forecasting UI.
+  // Keep deterministic and simple; do not depend on calendar month length.
+  switch (unit) {
+    case 'daily':
+      return 1 / 30;
+    case 'weekly':
+      return 1 / 4.345; // ~52.14 weeks/year / 12
+    case 'monthly':
+      return 1;
+    case 'quarterly':
+      return 1 / 3;
+    case 'annual':
+      return 1 / 12;
+  }
+}
+
+export function subscriptionRevenueForUnit(params: {
+  payingSubscribers: number;
+  assumptions: Pick<ForecastAssumptions, 'subscriptionPriceMonthly' | 'subscriptionPriceAnnual'>;
+  unit: ForecastTimeUnit;
+}): number {
+  const paying = clampNonNegative(params.payingSubscribers);
+  const monthlyPrice = clampNonNegative(params.assumptions.subscriptionPriceMonthly);
+  const annualPrice = clampNonNegative(params.assumptions.subscriptionPriceAnnual);
+
+  if (params.unit === 'annual') {
+    return paying * annualPrice;
+  }
+
+  // Convert monthly subscription to requested unit.
+  const monthlyRevenue = paying * monthlyPrice;
+  return monthlyRevenue * unitsPerMonth(params.unit);
+}
+
+export function forecastGmvForUnit(params: {
+  platetakerCount: number;
+  assumptions: Pick<ForecastAssumptions, 'averageOrderValue' | 'ordersPerPlatetakerPerMonth'>;
+  unit: ForecastTimeUnit;
+}): number {
+  const takers = clampNonNegative(params.platetakerCount);
+  const aov = clampNonNegative(params.assumptions.averageOrderValue);
+  const ordersPerMonth = clampNonNegative(params.assumptions.ordersPerPlatetakerPerMonth);
+
+  const gmvMonthly = takers * ordersPerMonth * aov;
+  return gmvMonthly * unitsPerMonth(params.unit);
+}
+
+export function forecastFeeRevenueForUnit(params: {
+  gmv: number;
+  assumptions: Pick<ForecastAssumptions, 'platemakerRakePercent' | 'platetakerFeePercent'>;
+}): Pick<RevenueBreakdown, 'platemaker_rake' | 'platetaker_fee'> {
+  const gmv = clampNonNegative(params.gmv);
+  const makerPct = clampNonNegative(params.assumptions.platemakerRakePercent);
+  const takerPct = clampNonNegative(params.assumptions.platetakerFeePercent);
+
+  return {
+    platemaker_rake: gmv * (makerPct / 100),
+    platetaker_fee: gmv * (takerPct / 100),
+  };
+}
+
+export function forecastPromoPoolSubscriptionRevenueForUnit(params: {
+  assumptions: Pick<ForecastAssumptions, 'subscriptionPriceMonthly' | 'subscriptionPriceAnnual' | 'promoFreeSubscriberPool'>;
+  unit: ForecastTimeUnit;
+}): number {
+  const pool = clampNonNegative(params.assumptions.promoFreeSubscriberPool ?? 0);
+  return subscriptionRevenueForUnit({
+    payingSubscribers: pool,
+    assumptions: {
+      subscriptionPriceMonthly: params.assumptions.subscriptionPriceMonthly,
+      subscriptionPriceAnnual: params.assumptions.subscriptionPriceAnnual,
+    },
+    unit: params.unit,
+  });
+}
+
+/**
+ * Calculates the total subscription revenue potential for a promotional pool (monthly basis),
+ * e.g. when a free-trial cohort converts to paid.
+ */
+export const calculatePromotionalCapRevenue = (totalUsers: number) => {
+  const users = clampNonNegative(totalUsers);
+  return users * SUBSCRIPTION_PRICES.MONTHLY;
+};
+
+export function forecastRevenueBreakdownForCounts(params: {
+  platemakerCount: number;
+  platetakerCount: number;
+  assumptions: ForecastAssumptions;
+  unit: ForecastTimeUnit;
+}): RevenueBreakdown {
+  const makers = clampNonNegative(params.platemakerCount);
+  const takers = clampNonNegative(params.platetakerCount);
+
+  const platemaker_subscriptions = subscriptionRevenueForUnit({
+    payingSubscribers: makers,
+    assumptions: params.assumptions,
+    unit: params.unit,
+  });
+
+  const platetaker_subscriptions = subscriptionRevenueForUnit({
+    payingSubscribers: takers,
+    assumptions: params.assumptions,
+    unit: params.unit,
+  });
+
+  const gmv = forecastGmvForUnit({
+    platetakerCount: takers,
+    assumptions: params.assumptions,
+    unit: params.unit,
+  });
+
+  const { platemaker_rake, platetaker_fee } = forecastFeeRevenueForUnit({
+    gmv,
+    assumptions: params.assumptions,
+  });
+
+  const total =
+    platemaker_subscriptions +
+    platetaker_subscriptions +
+    platemaker_rake +
+    platetaker_fee;
+
+  return {
+    platemaker_subscriptions,
+    platetaker_subscriptions,
+    platemaker_rake,
+    platetaker_fee,
+    total,
+  };
+}
+
+export function getMetroCap(metro: Pick<MetroCountsLike, 'max_cap'>, fallbackCap: number = 100): number {
+  const cap = metro.max_cap ?? fallbackCap;
+  return clampNonNegative(Number(cap || fallbackCap)) || fallbackCap;
+}
+
+export function forecastRevenueForMetro(params: {
+  metro: MetroCountsLike;
+  assumptions: ForecastAssumptions;
+  unit: ForecastTimeUnit;
+  mode: 'current' | 'at_cap';
+}): RevenueBreakdown {
+  const cap = getMetroCap(params.metro, 100);
+  const makers = params.mode === 'at_cap' ? cap : params.metro.platemaker_count;
+  const takers = params.mode === 'at_cap' ? cap : params.metro.platetaker_count;
+
+  return forecastRevenueBreakdownForCounts({
+    platemakerCount: makers,
+    platetakerCount: takers,
+    assumptions: params.assumptions,
+    unit: params.unit,
+  });
+}
+
+export function forecastRevenueTotals(params: {
+  metros: MetroCountsLike[];
+  assumptions: ForecastAssumptions;
+  unit: ForecastTimeUnit;
+  mode: 'current' | 'at_cap';
+}): RevenueBreakdown {
+  return params.metros.reduce<RevenueBreakdown>(
+    (acc, metro) => {
+      const r = forecastRevenueForMetro({
+        metro,
+        assumptions: params.assumptions,
+        unit: params.unit,
+        mode: params.mode,
+      });
+      const platemaker_subscriptions = acc.platemaker_subscriptions + r.platemaker_subscriptions;
+      const platetaker_subscriptions = acc.platetaker_subscriptions + r.platetaker_subscriptions;
+      const platemaker_rake = acc.platemaker_rake + r.platemaker_rake;
+      const platetaker_fee = acc.platetaker_fee + r.platetaker_fee;
+      const total = acc.total + r.total;
+      return { platemaker_subscriptions, platetaker_subscriptions, platemaker_rake, platetaker_fee, total };
+    },
+    { platemaker_subscriptions: 0, platetaker_subscriptions: 0, platemaker_rake: 0, platetaker_fee: 0, total: 0 }
+  );
+}

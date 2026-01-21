@@ -30,7 +30,7 @@ export const checkTrialEligibilityProcedure = publicProcedure
     // Step 2: Check current counts for this metro
     const { data: counts, error: countsError } = await supabaseAdmin
       .from('metro_area_counts')
-      .select('maker_count, taker_count')
+      .select('platemaker_count, platetaker_count')
       .eq('metro_name', metroName)
       .single();
 
@@ -38,14 +38,14 @@ export const checkTrialEligibilityProcedure = publicProcedure
     if (countsError || !counts) {
       await supabaseAdmin
         .from('metro_area_counts')
-        .insert({ metro_name: metroName, maker_count: 0, taker_count: 0 })
+        .insert({ metro_name: metroName, platemaker_count: 0, platetaker_count: 0 })
         .onConflict('metro_name')
         .merge();
 
       // Retry the query
       const { data: retryCounts } = await supabaseAdmin
         .from('metro_area_counts')
-        .select('maker_count, taker_count')
+        .select('platemaker_count, platetaker_count')
         .eq('metro_name', metroName)
         .single();
 
@@ -59,7 +59,7 @@ export const checkTrialEligibilityProcedure = publicProcedure
       }
 
       const isMaker = input.role === 'platemaker';
-      const currentCount = isMaker ? retryCounts.maker_count : retryCounts.taker_count;
+      const currentCount = isMaker ? retryCounts.platemaker_count : retryCounts.platetaker_count;
       const maxCount = 100; // Hardcoded limit per RORK_INSTRUCTIONS.md
       const spotsRemaining = Math.max(0, maxCount - currentCount);
 
@@ -73,7 +73,7 @@ export const checkTrialEligibilityProcedure = publicProcedure
 
     // Step 3: Check eligibility based on role and count
     const isMaker = input.role === 'platemaker';
-    const currentCount = isMaker ? counts.maker_count : counts.taker_count;
+    const currentCount = isMaker ? counts.platemaker_count : counts.platetaker_count;
     const maxCount = 100; // Hardcoded limit per RORK_INSTRUCTIONS.md
     const spotsRemaining = Math.max(0, maxCount - currentCount);
 

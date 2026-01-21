@@ -17,7 +17,7 @@ export const updateMaxCapProcedure = adminProcedure
         updated_at: new Date().toISOString()
       })
       .eq('metro_name', input.metro_name)
-      .select('metro_name, maker_count, taker_count, max_cap, updated_at')
+      .select('metro_name, platemaker_count, platetaker_count, max_cap, updated_at')
       .single();
 
     if (error) {

@@ -65,6 +65,12 @@ if (profileError?.code === '23505') {
     - Use `metro_geofences.trial_days` for dynamic trial calculations.
 - **Security:** Ensure `.env` files are strictly ignored in Git.
 
+### Lifetime Membership Policy (LOCKED)
+
+- **Non-Transferable:** Lifetime memberships are tied strictly to the original `user_id` and `device_id`.
+- **Hardware Binding:** If a user loses their device and cannot provide the original device UUID, the membership is void (boosts security and prevents account sharing).
+- **Traffic Logic:** Lifetime members count toward `metro_name` active counts to maintain "hype" and traffic metrics.
+
 ---
 
 ## 📱 DEVELOPMENT ENVIRONMENT
@@ -78,10 +84,17 @@ if (profileError?.code === '23505') {
 - **Automated Pings:** Notifications must be triggered via Database Webhooks when any count hits exactly `max_cap`.
 - **Admin Overrides:** Provide a way in the Admin UI to increment the `max_cap` (default 100) if a specific metro needs to expand its Early Bird program manually.
 
+### Data Schema Mapping (LOCKED)
+
+- **Table:** `metro_area_counts`
+- **City Column:** Always use `metro_name` (**NOT** `metro_area`).
+- **Role Columns:** Always use `platemaker_count` and `platetaker_count`.
+- **Source of Truth:** Any logic checking city capacity must query `metro_name` from this table.
+
 ### Implementation Details
 
 - **Database Schema:** The `metro_area_counts` table includes a `max_cap` column (default 100) that can be adjusted per metro.
-- **Trigger Function:** `notify_metro_cap_reached()` fires on UPDATE when `maker_count = max_cap` OR `taker_count = max_cap`.
+- **Trigger Function:** `notify_metro_cap_reached()` fires on UPDATE when `platemaker_count = max_cap` OR `platetaker_count = max_cap`.
 - **Webhook Endpoint:** `POST /webhook/metro-cap-reached` receives Supabase Database Webhooks and creates notifications for admin users.
 - **Admin Routes:** 
   - `trpc.admin.metroCounts` - Query all metro counts with max_cap values
@@ -437,3 +450,27 @@ These sections form a stability triangle:
   - `.env*` (except `.env.example`)
   - `service-role-key.json`
   - `**/supabase/functions/.env`
+
+---
+
+## 📋 AI CONSTRAINTS & STANDARDS (LOCKED)
+
+### 🏷️ Naming Convention Standardization
+- **Forbidden:** All references to roles must strictly use `platemaker` or `platetaker`. No "maker/taker" abbreviations allowed.
+- **Metadata Standardization:** All metadata property names must use snake_case (e.g., `metro_name`, `platemaker_count`, `platetaker_count`) as sent from webhooks.
+- **Database Consistency:** All database columns and JSON metadata must follow the same naming convention.
+- **Reasoning:** Aligns with 320+ existing codebase matches and prevents payload mismatch between backend and frontend.
+- **Citation:** [2026-01-17]
+
+### 💸 Financial Calculation Guardrails
+- **Mandatory Location:** All financial and fee-related calculations (Order Splits, Membership Trials, Revenue Projections) MUST reside in `backend/lib/fees.ts`.
+- **Import Requirement:** All Earnings and Revenue calculations must be imported from `backend/lib/fees.ts`. Never calculate fees inline within a component.
+- **Implementation:** Use `calculateOrderSplit()` for standard "Double 10" split (10% added to buyer, 10% deducted from seller).
+- **Source of Truth:** Base amount = `order.total_price` (always use this as the source of truth).
+- **Citation:** [2026-01-17]
+
+### 🏗️ Navigation Tree Lock
+- **Locked File:** `app/index.tsx` is LOCKED. Do not modify to avoid breaking the Expo navigation tree.
+- **New Screen Pattern:** All new screens (Earnings, Dashboard, etc.) must be added as sub-routes or modal views. Do not modify the main navigation tree.
+- **Route Registration:** New routes must be registered in `app/_layout.tsx` following the existing pattern.
+- **Citation:** [2026-01-09]

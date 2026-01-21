@@ -12,7 +12,7 @@ export const getMetroAvailabilityProcedure = publicProcedure
     // Use ctx.supabase (anon key) - RLS should allow public read access
     const { data: metroData, error } = await ctx.supabase
       .from('metro_area_counts')
-      .select('metro_name, maker_count, taker_count, max_cap')
+      .select('metro_name, platemaker_count, platetaker_count, max_cap')
       .eq('metro_name', input.metroName)
       .single();
 
@@ -31,8 +31,8 @@ export const getMetroAvailabilityProcedure = publicProcedure
     }
 
     const maxCap = metroData.max_cap || 100; // Fallback to 100 if null
-    const makerCount = metroData.maker_count || 0;
-    const takerCount = metroData.taker_count || 0;
+    const makerCount = metroData.platemaker_count || 0;
+    const takerCount = metroData.platetaker_count || 0;
 
     // Calculate spots remaining (ensure non-negative)
     const makerSpotsRemaining = Math.max(0, maxCap - makerCount);

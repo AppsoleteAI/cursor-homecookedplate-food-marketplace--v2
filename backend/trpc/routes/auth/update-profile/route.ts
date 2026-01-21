@@ -3,22 +3,24 @@ import { z } from "zod";
 
 export const updateProfileProcedure = protectedProcedure
   .input(
-    z.object({
-      username: z.string().min(3).optional(),
-      email: z.string().email().optional(),
-      phone: z.string().optional(),
-      bio: z.string().optional(),
-      profileImage: z.string().optional(),
-    })
+      z.object({
+        username: z.string().min(3).optional(),
+        email: z.string().email().optional(),
+        phone: z.string().optional(),
+        bio: z.string().optional(),
+        profileImage: z.string().optional(),
+        foodSafetyAcknowledged: z.boolean().optional(),
+      })
   )
   .mutation(async ({ input, ctx }) => {
-    const updateData: Record<string, string> = {};
+    const updateData: Record<string, string | boolean> = {};
     
     if (input.username) updateData.username = input.username;
     if (input.email) updateData.email = input.email;
     if (input.phone !== undefined) updateData.phone = input.phone;
     if (input.bio !== undefined) updateData.bio = input.bio;
     if (input.profileImage !== undefined) updateData.profile_image = input.profileImage;
+    if (input.foodSafetyAcknowledged !== undefined) updateData.food_safety_acknowledged = input.foodSafetyAcknowledged;
 
     const { data: profile, error } = await ctx.supabase
       .from('profiles')
@@ -42,5 +44,6 @@ export const updateProfileProcedure = protectedProcedure
       createdAt: new Date(profile.created_at),
       isPaused: profile.is_paused,
       twoFactorEnabled: profile.two_factor_enabled,
+      foodSafetyAcknowledged: profile.food_safety_acknowledged || false,
     };
   });

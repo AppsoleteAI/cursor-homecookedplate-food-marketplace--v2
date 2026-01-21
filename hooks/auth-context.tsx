@@ -9,6 +9,7 @@ import { captureException, setUser as setSentryUser, addBreadcrumb } from '@/lib
 
 interface AuthState {
   user: User | null;
+  session: Session | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<void>;
@@ -204,7 +205,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     }
   }, [loginMutation, persistUser, persistSession]);
 
-  const signup = useCallback(async (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }): Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean }> => {
+  const signup = useCallback(async (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }, foodSafetyAcknowledged?: boolean): Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean }> => {
     try {
       const result = await signupMutation.mutateAsync({ 
         username, 
@@ -213,10 +214,14 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         role,
         lat: location?.lat,
         lng: location?.lng,
+        foodSafetyAcknowledged: foodSafetyAcknowledged || false,
       });
       
       // Backend returns session: null because admin.createUser() doesn't create sessions
       // User will need to login after signup
+      // Backend now returns status-based structure: { status: 'SUCCESS' | 'REDIRECT_TO_PAYMENT', user, session, metro, trialEndsAt? }
+      const requiresCheckout = result.status === 'REDIRECT_TO_PAYMENT';
+      
       if (result.session) {
         // Session returned (e.g., OAuth flows) - persist and go directly to app
         if (mountedRef.current) {
@@ -230,16 +235,16 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           refresh_token: result.session.refresh_token,
         });
         setSentryUser(result.user);
-        addBreadcrumb('User signed up', 'auth', { userId: result.user.id, role: result.user.role });
-        return { success: true, requiresLogin: false, requiresCheckout: result.requiresCheckout };
+        addBreadcrumb('User signed up', 'auth', { userId: result.user.id, role: result.user.role, status: result.status, metro: result.metro });
+        return { success: true, requiresLogin: false, requiresCheckout };
       } else {
         // No session - user created but needs to login separately
         // Just set user info for the success animation, don't persist session
         if (mountedRef.current) {
           setUser(result.user);
         }
-        addBreadcrumb('User signed up (no session - needs login)', 'auth', { userId: result.user.id, role: result.user.role });
-        return { success: true, requiresLogin: true, requiresCheckout: result.requiresCheckout };
+        addBreadcrumb('User signed up (no session - needs login)', 'auth', { userId: result.user.id, role: result.user.role, status: result.status, metro: result.metro });
+        return { success: true, requiresLogin: true, requiresCheckout };
       }
     } catch (error) {
       captureException(error as Error, { context: 'signup', username, email, role });
@@ -408,6 +413,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   return useMemo(() => ({
     user,
+    session,
     isLoading,
     isAuthenticated: !!user,
     login,
@@ -423,5 +429,5 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     requestDataExport,
     resetPassword,
     reactivateAccount,
-  }), [user, isLoading, login, signup, logout, updateProfile, requestPlatemakerRole, pauseAccount, unpauseAccount, deleteAccount, setTwoFactorEnabled, changePassword, requestDataExport, resetPassword, reactivateAccount]);
+  }), [user, session, isLoading, login, signup, logout, updateProfile, requestPlatemakerRole, pauseAccount, unpauseAccount, deleteAccount, setTwoFactorEnabled, changePassword, requestDataExport, resetPassword, reactivateAccount]);
 });

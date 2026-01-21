@@ -13,8 +13,9 @@ export interface User {
   membershipTier?: 'free' | 'premium';
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
-  metro_area?: string | null;
-  trial_ends_at?: Date | null;
+  metroArea?: string | null;
+  trialEndsAt?: Date | null;
+  foodSafetyAcknowledged?: boolean;
 }
 
 export interface PlateMaker extends User {
