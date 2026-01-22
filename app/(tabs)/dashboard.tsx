@@ -17,8 +17,7 @@ import { Colors, monoGradients } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
 
 
-import { router } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { router, useFocusEffect } from 'expo-router';
 
 import { useOrders } from '@/hooks/orders-context';
 import { useAuth } from '@/hooks/auth-context';

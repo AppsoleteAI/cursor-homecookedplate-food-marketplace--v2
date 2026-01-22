@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, monoGradients } from '@/constants/colors';
-import { calculateFees } from '@/backend/lib/fees';
+import { calculateFees, getNetPayout } from '@/backend/lib/fees';
 
 function formatMoney(n: number) {
   const v = Number.isFinite(n) ? n : 0;
@@ -21,6 +21,7 @@ export default function PlatemakerEarningsScreen() {
   }, [saleAmountText]);
 
   const fees = useMemo(() => calculateFees(saleAmount, 10, 10), [saleAmount]);
+  const netAfterStripe = useMemo(() => getNetPayout(saleAmount), [saleAmount]);
 
   return (
     <View style={styles.container}>
@@ -84,8 +85,12 @@ export default function PlatemakerEarningsScreen() {
             <Text style={[styles.rowLabel, styles.bold]}>Your Net Payout</Text>
             <Text style={[styles.rowValue, styles.bold]}>{formatMoney(fees.sellerPayout)}</Text>
           </View>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Estimated net (after Stripe)</Text>
+            <Text style={styles.rowValue}>{formatMoney(netAfterStripe)}</Text>
+          </View>
           <Text style={styles.cardHint}>
-            Note: Stripe processing is not included on this screen (platform + buyer/seller fees only).
+            Note: "Your Net Payout" shows platform fees only. "Estimated net (after Stripe)" includes estimated Stripe processing fees (2.9% + $0.30).
           </Text>
         </View>
       </ScrollView>

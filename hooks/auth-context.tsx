@@ -6,6 +6,8 @@ import { trpc } from '@/lib/trpc';
 import { supabase } from '@/lib/supabase';
 import type { Session } from '@supabase/supabase-js';
 import { captureException, setUser as setSentryUser, addBreadcrumb } from '@/lib/sentry';
+import { runHardwareAudit } from '@/lib/hardwareAudit';
+import { router } from 'expo-router';
 
 interface AuthState {
   user: User | null;
@@ -43,10 +45,16 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const requestPlatemakerRoleMutation = trpc.auth.requestPlatemakerRole.useMutation();
   const resetPasswordMutation = trpc.auth.resetPassword.useMutation();
   const reactivateAccountMutation = trpc.auth.reactivateAccount.useMutation();
-  const { data: meData, refetch: refetchMe } = trpc.auth.me.useQuery(undefined, {
+  const { data: meData, refetch: refetchMe, error: meError, isLoading: meLoading } = trpc.auth.me.useQuery(undefined, {
     enabled: !!session,
     retry: false,
   });
+
+  // #region agent log - HYPOTHESIS C, D, E: Track tRPC auth.me query state
+  useEffect(() => {
+    fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'hooks/auth-context.tsx:TRPC_ME_QUERY',message:'tRPC auth.me query state changed',data:{hasSession:!!session,enabled:!!session,isLoading:meLoading,hasError:!!meError,errorMessage:meError?.message,hasData:!!meData},timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'C,D,E'})}).catch(()=>{});
+  }, [session, meLoading, meError, meData]);
+  // #endregion
 
   useEffect(() => {
     mountedRef.current = true;
@@ -82,8 +90,14 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   const loadUser = useCallback(async () => {
     console.log('[Auth] Starting loadUser...');
+    // #region agent log - HYPOTHESIS E: Auth loadUser started
+    fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'hooks/auth-context.tsx:LOAD_USER_START',message:'loadUser started',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
     const timeoutId = setTimeout(() => {
       console.warn('[Auth] loadUser timeout - forcing isLoading to false');
+      // #region agent log - HYPOTHESIS E: Auth loadUser timeout
+      fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'hooks/auth-context.tsx:LOAD_USER_TIMEOUT',message:'loadUser timeout - forcing isLoading to false',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
       if (mountedRef.current) {
         setIsLoading(false);
       }
@@ -133,6 +147,9 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     } finally {
       clearTimeout(timeoutId);
       console.log('[Auth] loadUser complete, setting isLoading to false');
+      // #region agent log - HYPOTHESIS E: Auth loadUser complete
+      fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'hooks/auth-context.tsx:LOAD_USER_COMPLETE',message:'loadUser complete',data:{hasSession:!!session,hasUser:!!user,timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
       if (mountedRef.current) {
         setIsLoading(false);
       }
@@ -183,6 +200,37 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       persistUser(meData).catch(err => captureException(err as Error, { context: 'persist meData' }));
     }
   }, [meData, persistUser]);
+
+  // Hardware audit: run when user is authenticated
+  useEffect(() => {
+    if (!user || !session) return;
+
+    let isMounted = true;
+
+    const performAudit = async () => {
+      try {
+        const result = await runHardwareAudit(user.id);
+        if (!isMounted) return;
+
+        if (!result.allowed) {
+          // Device mismatch for lifetime user - navigate to error screen
+          console.warn('[HardwareAudit] Device mismatch detected, navigating to hardware-mismatch screen');
+          router.replace('/(auth)/hardware-mismatch');
+        }
+      } catch (error) {
+        // Fail open: don't block user access on audit errors
+        console.error('[HardwareAudit] Error during audit:', error);
+      }
+    };
+
+    // Run audit after a short delay to avoid blocking initial load
+    const timeoutId = setTimeout(performAudit, 1000);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, [user, session, logout]);
 
   const login = useCallback(async (email: string, password: string) => {
     try {

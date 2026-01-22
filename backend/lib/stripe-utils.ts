@@ -21,7 +21,7 @@ export function getStripePriceId(
 ): string {
   // Get price IDs from environment variables (never hardcode - use env)
   const earlyBirdPriceId = process.env.STRIPE_PRICE_ID_EARLY_BIRD_TRIAL;
-  const standardPriceId = process.env.STRIPE_PRICE_ID_STANDARD_MONTHLY || 'price_monthly_499';
+  const standardPriceId = process.env.STRIPE_PRICE_ID_MONTHLY || 'price_monthly_499';
 
   // SUCCESS: Early Bird users (isEarlyBird=true AND premium) get the trial price ID
   if (isEarlyBird && membershipTier === 'premium') {

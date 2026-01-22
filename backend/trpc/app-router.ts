@@ -54,6 +54,7 @@ import { verifyPreLaunchProcedure } from "./routes/admin/verify-pre-launch/route
 import { toggleGlobalMaintenanceProcedure } from "./routes/admin/toggle-global-maintenance/route";
 import { resetAllCountsProcedure } from "./routes/admin/reset-all-counts/route";
 import { getMetroAvailabilityProcedure } from "./routes/metro/get-availability/route";
+import { hardwareAuditProcedure } from "./routes/auth/hardware-audit/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -72,6 +73,7 @@ export const appRouter = createTRPCRouter({
     resetPassword: resetPasswordProcedure,
     reactivateAccount: reactivateAccountProcedure,
     checkEligibility: checkEligibilityProcedure,
+    hardwareAudit: hardwareAuditProcedure,
   }),
   meals: createTRPCRouter({
     create: createMealProcedure,

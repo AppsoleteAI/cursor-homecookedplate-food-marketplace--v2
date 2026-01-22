@@ -1,4 +1,6 @@
 /**
+ * MANDATORY LOCATION FOR ALL FINANCIAL CALCULATIONS [cite: 2026-01-17]
+ * 
  * Fee Calculation Utility (Financial Source of Truth)
  * Calculates platform fees for marketplace payments using dual fee structure:
  * - Platetaker (Buyer) pays: base amount + 10% fee (10% on top of total_price)
@@ -98,6 +100,29 @@ export function calculateTotalWithFees(basePrice: number): number {
 
 /**
  * ---------------------------------------------------------------------------
+ * Platform Fee Constants (Financial Source of Truth)
+ * ---------------------------------------------------------------------------
+ * Centralized fee structure for marketplace transactions.
+ */
+export const PLATFORM_FEES = {
+  MARKETPLACE_PERCENT: 0.10, // 10% Platform Fee
+  STRIPE_FIXED: 0.30,        // $0.30 Stripe Fee
+  STRIPE_PERCENT: 0.029,     // 2.9% Stripe Fee
+} as const;
+
+/**
+ * Net payout calculation for Platemaker transparency.
+ * @param amount - The base order amount before fees
+ * @returns The net payout after platform fee and Stripe processing fees
+ */
+export const getNetPayout = (amount: number): number => {
+  const platformFee = amount * PLATFORM_FEES.MARKETPLACE_PERCENT;
+  const stripeFee = (amount * PLATFORM_FEES.STRIPE_PERCENT) + PLATFORM_FEES.STRIPE_FIXED;
+  return parseFloat((amount - platformFee - stripeFee).toFixed(2));
+};
+
+/**
+ * ---------------------------------------------------------------------------
  * Revenue Forecast Utilities (Financial Source of Truth)
  * ---------------------------------------------------------------------------
  * These helpers power admin revenue projections and earnings transparency.
@@ -153,10 +178,14 @@ export interface RevenueBreakdown {
  * IMPORTANT:
  * - Numeric prices live here (source of truth for forecasts/UI).
  * - Stripe Price IDs must remain in server/edge secrets and should NOT be hardcoded.
+ * 
+ * MANDATORY LOCATION FOR ALL FINANCIAL CALCULATIONS [cite: 2026-01-17]
+ * Centralizes subscription pricing, platform fees, and revenue forecasting.
  */
 export const SUBSCRIPTION_PRICES = {
   MONTHLY: 4.99,
   ANNUAL: 39.99,
+  LIFETIME: 0.00, // Promotional lifetime slots
   // Env var names used by server/edge code (values provided via Supabase secrets).
   STRIPE_MONTHLY_ID_ENV: 'STRIPE_PRICE_ID_STANDARD_MONTHLY',
   STRIPE_ANNUAL_ID_ENV: 'STRIPE_PRICE_ID_STANDARD_ANNUAL',
@@ -254,12 +283,13 @@ export function forecastPromoPoolSubscriptionRevenueForUnit(params: {
 }
 
 /**
+ * Revenue forecast helper for the 10,200-user promotion.
  * Calculates the total subscription revenue potential for a promotional pool (monthly basis),
  * e.g. when a free-trial cohort converts to paid.
  */
-export const calculatePromotionalCapRevenue = (totalUsers: number) => {
+export const calculatePromotionalCapRevenue = (totalUsers: number): number => {
   const users = clampNonNegative(totalUsers);
-  return users * SUBSCRIPTION_PRICES.MONTHLY;
+  return parseFloat((users * SUBSCRIPTION_PRICES.MONTHLY).toFixed(2));
 };
 
 export function forecastRevenueBreakdownForCounts(params: {

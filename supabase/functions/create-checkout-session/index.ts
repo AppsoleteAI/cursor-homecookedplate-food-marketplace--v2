@@ -7,7 +7,7 @@
 // - SUPABASE_SERVICE_ROLE_KEY
 // - STRIPE_SECRET_KEY
 // - STRIPE_PRICE_ID_EARLY_BIRD_TRIAL
-// - STRIPE_PRICE_ID_STANDARD_MONTHLY
+// - STRIPE_PRICE_ID_MONTHLY
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -17,7 +17,7 @@ type MembershipTier = "free" | "premium";
 
 function getStripePriceId(membershipTier: MembershipTier, isEarlyBird: boolean): string {
   const earlyBirdPriceId = Deno.env.get("STRIPE_PRICE_ID_EARLY_BIRD_TRIAL") || "";
-  const standardPriceId = Deno.env.get("STRIPE_PRICE_ID_STANDARD_MONTHLY") || "price_monthly_499";
+  const standardPriceId = Deno.env.get("STRIPE_PRICE_ID_MONTHLY") || "price_monthly_499";
 
   // SUCCESS: Early Bird users (isEarlyBird=true AND premium) get the trial price ID
   if (isEarlyBird && membershipTier === "premium") {

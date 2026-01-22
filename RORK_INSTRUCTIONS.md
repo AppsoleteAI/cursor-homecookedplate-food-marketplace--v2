@@ -441,6 +441,23 @@ These sections form a stability triangle:
 - **Checkout Session:** Use `trpc.payments.createCheckoutSession` to create Stripe hosted checkout for Remote users after signup.
 - **Webhook Verification:** Stripe webhooks update `membership_tier` to `premium` after successful subscription creation.
 
+### Architecture Rules (LOCKED)
+
+- **Subscription Source:** The Supabase Edge Function (`create-checkout-session`) is the **EXCLUSIVE** route for subscription and membership creation. Disable/Remove tRPC `membership/subscribe` routes to prevent logic fragmentation.
+- **Trial Logic:** Always use Stripe's native `trial_period_days` for the 10,000-user promotion to automate the $4.99/mo conversion.
+
+### Billing & Security Standards (LOCKED)
+
+- **Secret Naming:** Use `STRIPE_PRICE_ID_MONTHLY` for the standard $4.99 billing tier.
+- **Financial Isolation:** No Stripe Price IDs or Secret Keys shall exist in `backend/lib/fees.ts` or the frontend. [cite: 2026-01-17]
+- **Edge Function Role:** The Supabase Edge Function is the sole handler of Stripe interactions using environment variables. [cite: 2026-01-17]
+- **Device Locking:** Lifetime memberships are hardware-bound. The `device_id` must be validated against `user_subscriptions` on app launch and via DB triggers.
+- **Navigation:** All membership logic must remain backend-side to avoid breaking the `app/index.tsx` navigation tree. [cite: 2026-01-09]
+
+### Promotional Pool Calculation
+
+- **Total Capacity:** 51 metro areas × 200 slots (100 platemakers + 100 platetakers) = **10,200 free promotional slots**.
+
 ## 🔒 SECURITY & GITIGNORE
 - **Critical:** Never commit `.env`, `.env.local`, or `service-role-key.json`.
 - **Ignore Pattern:** Ensure `**/supabase/functions/.env` is ignored to protect Edge Function secrets.

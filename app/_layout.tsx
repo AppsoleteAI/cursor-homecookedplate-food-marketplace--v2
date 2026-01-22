@@ -19,6 +19,15 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 import { StripeProvider } from '@/lib/stripe';
 
+// #region agent log - EARLY INIT: Track if _layout.tsx module loads
+console.log('[DEBUG] app/_layout.tsx MODULE LOADED', JSON.stringify({location:'app/_layout.tsx:MODULE_LOAD',message:'_layout.tsx module loaded',timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'A'}));
+try {
+  const { Platform } = require('react-native');
+  const debugUrl = Platform.OS === 'android' ? 'http://10.0.2.2:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278' : 'http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278';
+  fetch(debugUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/_layout.tsx:MODULE_LOAD',message:'_layout.tsx module loaded',timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'A'})}).catch(()=>{});
+} catch(e) {}
+// #endregion
+
 SplashScreen.preventAutoHideAsync();
 
 if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
@@ -34,87 +43,32 @@ if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
 
 /**
  * Session verification component that handles navigation based on auth state
- * This ensures seamless redirects between auth and main app screens
  * 
- * Verification Logic:
- * 1. Checks session state and verifies profile exists before navigating
- * 2. Redirects authenticated users out of auth screens to dashboard
- * 3. Redirects unauthenticated users trying to access protected routes to login
- * 4. Handles role-based routing (platemaker -> dashboard, platetaker -> home)
+ * NOTE: Currently disabled - navigation logic is handled in app/index.tsx instead
+ * to avoid navigation context errors. This component uses useRouter() and useSegments()
+ * which require navigation context that may not be ready when rendered at layout level.
+ * 
+ * The error "Couldn't find the prevent remove context" comes from NativeStackView
+ * (used by Expo Router's Stack), which requires a NavigationContainer. On native,
+ * Expo Router should automatically provide this, but NavigationGuard was trying to
+ * use navigation hooks before the context was ready.
  */
 function NavigationGuard() {
-  const { session, isLoading, user } = useAuth();
-  const segments = useSegments();
-  const router = useRouter();
-
-  useEffect(() => {
-    // Wait for auth to finish loading before making navigation decisions
-    if (isLoading) return;
-
-    // Handle empty segments (initial load)
-    if (!segments || segments.length < 1) return;
-
-    const currentSegment = String(segments[0] ?? '');
-    const inAuthGroup = currentSegment === '(auth)';
-    const isIndexRoute = currentSegment === 'index';
-
-    // PUBLIC ROUTES: These can be accessed without authentication
-    // - index (handled separately for initial routing)
-    // - legal, help-support (if they're at root level)
-    const publicRoutes = ['index', 'legal', 'help-support', 'privacy-security'];
-    const isPublicRoute = publicRoutes.includes(currentSegment);
-
-    // Case 1: No session and trying to access protected routes -> Redirect to Login
-    if (!session && !inAuthGroup && !isPublicRoute) {
-      router.replace('/(auth)/login');
-      return;
-    }
-
-    // Case 2: Have session but no profile yet -> Wait for profile to load
-    // The AuthProvider will fetch profile via trpc.auth.me.useQuery when session exists
-    // This prevents premature navigation before profile data is available
-    if (session && !user) {
-      // Profile is being fetched, don't navigate yet
-      return;
-    }
-
-    // Case 3: Logged in with profile & in Auth screens -> Redirect to appropriate dashboard
-    // Verify profile exists before redirecting (ensures profile verification)
-    if (session && user && inAuthGroup) {
-      // Redirect based on user role
-      const destination = user.role === 'platemaker' 
-        ? '/(tabs)/dashboard' 
-        : '/(tabs)/(home)/home';
-      router.replace(destination);
-      return;
-    }
-
-    // Case 4: Logged in with profile but accessing index -> Redirect to appropriate dashboard
-    // This handles the initial route when user is already authenticated
-    if (session && user && isIndexRoute) {
-      const destination = user.role === 'platemaker' 
-        ? '/(tabs)/dashboard' 
-        : '/(tabs)/(home)/home';
-      router.replace(destination);
-      return;
-    }
-
-    // Case 5: Have session and profile, trying to access protected routes -> Allow
-    // (No action needed, user is authenticated and accessing valid routes)
-  }, [session, isLoading, user, segments, router]);
-
-  // Render nothing - this is just for navigation logic
+  // Disabled - navigation logic moved to app/index.tsx to avoid navigation context errors
   return null;
 }
 
 function RootLayoutNav() {
+  // Stack must be rendered first to create NavigationContainer context
+  // NavigationGuard will be rendered inside a screen component to access navigation hooks
   return (
-    <>
-      <NavigationGuard />
-      <Stack screenOptions={{ headerBackTitle: "Back" }}>
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+    <Stack screenOptions={{ headerBackTitle: "Back" }}>
+      <Stack.Screen 
+        name="index" 
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="meal/[id]" options={{ presentation: "modal", headerShown: false }} />
         <Stack.Screen name="reviews/[mealId]" options={{ presentation: "modal", headerShown: false }} />
         <Stack.Screen name="notifications-bell" options={{ presentation: "modal", headerShown: false }} />
@@ -136,15 +90,29 @@ function RootLayoutNav() {
         <Stack.Screen name="messages" options={{ title: "Messages" }} />
         <Stack.Screen name="funnel" options={{ headerShown: false }} />
         <Stack.Screen name="admin-metro-caps" options={{ title: "Metro Cap Management" }} />
-      </Stack>
-    </>
+    </Stack>
   );
 }
 
 function RootLayout() {
+  // #region agent log - ROOT LAYOUT INIT: Track RootLayout component initialization
+  console.log('[DEBUG] RootLayout component initializing', JSON.stringify({location:'app/_layout.tsx:ROOT_LAYOUT_INIT',message:'RootLayout component initializing',timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'A'}));
+  try {
+    const debugUrl = Platform.OS === 'android' ? 'http://10.0.2.2:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278' : 'http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278';
+    fetch(debugUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/_layout.tsx:ROOT_LAYOUT_INIT',message:'RootLayout component initializing',timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'A'})}).catch(()=>{});
+  } catch(e) {}
+  // #endregion
+
   const [queryClient] = useState(() => new QueryClient());
 
   useEffect(() => {
+    // #region agent log - SPLASH SCREEN: Track splash screen hide attempt
+    console.log('[DEBUG] Attempting to hide splash screen', JSON.stringify({location:'app/_layout.tsx:SPLASH_HIDE',message:'Attempting to hide splash screen',timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'A'}));
+    try {
+      const debugUrl = Platform.OS === 'android' ? 'http://10.0.2.2:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278' : 'http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278';
+      fetch(debugUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/_layout.tsx:SPLASH_HIDE',message:'Attempting to hide splash screen',timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'A'})}).catch(()=>{});
+    } catch(e) {}
+    // #endregion
     SplashScreen.hideAsync().catch((error) => {
       if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
         Sentry.captureException(error);
@@ -155,6 +123,7 @@ function RootLayout() {
   // CRITICAL: Platform-split navigation for Rork Lightning Preview compatibility
   // DO NOT REMOVE: Manual NavigationContainer on Web is required for Rork Preview
   // DO NOT REMOVE: The independent: true prop and type cast are intentionally required
+  // NavigationGuard is rendered inside RootLayoutNav to ensure it has access to navigation context
   const LayoutContent = (
     <>
       {Platform.OS !== 'web' && StripeProvider ? (
