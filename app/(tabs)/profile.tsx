@@ -67,12 +67,12 @@ export default function ProfileScreen() {
     );
   };
 
-  const menuItems: Array<{
+  const menuItems: {
     icon: keyof typeof Ionicons.glyphMap;
     title: string;
     onPress: () => void;
     subtitle?: string;
-  }> = [
+  }[] = [
     {
       icon: 'star-outline',
       title: 'Membership',

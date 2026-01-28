@@ -13,11 +13,14 @@ export default function TodayFinanceScreen() {
 
   const today = new Date();
 
+  const todayYear = today.getFullYear();
+  const todayMonth = today.getMonth();
+  const todayDate = today.getDate();
   const todaysOrders = useMemo(() => orders.filter(o => o.status === 'completed' &&
-    o.orderDate.getFullYear() === today.getFullYear() &&
-    o.orderDate.getMonth() === today.getMonth() &&
-    o.orderDate.getDate() === today.getDate()
-  ), [orders, today.getFullYear(), today.getMonth(), today.getDate()]);
+    o.orderDate.getFullYear() === todayYear &&
+    o.orderDate.getMonth() === todayMonth &&
+    o.orderDate.getDate() === todayDate
+  ), [orders, todayYear, todayMonth, todayDate]);
 
   const total = useMemo(() => todaysOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0), [todaysOrders]);
   const count = todaysOrders.length;

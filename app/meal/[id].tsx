@@ -60,7 +60,8 @@ export default function MealDetailScreen() {
     if (__DEV__) {
       console.log('[MealDetail] Component mounted', logData);
     }
-  }, [id, meal, width]);
+     
+  }, [id, meal]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {

@@ -5,9 +5,7 @@ import { Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, monoGradients } from '@/constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNotifications } from '@/hooks/notifications-context';
 import { useOrders } from '@/hooks/orders-context';
-import { useAuth } from '@/hooks/auth-context';
 
 interface SimpleNotification {
   id: string;
@@ -17,9 +15,7 @@ interface SimpleNotification {
 }
 
 export default function NotificationsBellScreen() {
-  const { preferences } = useNotifications();
   const { getNotificationItems } = useOrders();
-  const { user } = useAuth();
 
   const notifications: SimpleNotification[] = useMemo(() => {
     const base = getNotificationItems();

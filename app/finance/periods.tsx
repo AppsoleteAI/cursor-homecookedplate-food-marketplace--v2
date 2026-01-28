@@ -21,7 +21,7 @@ export default function PeriodsFinanceScreen() {
   const [tab, setTab] = useState<'weekly' | 'monthly' | 'ytd'>('weekly');
   const [headerHeight, setHeaderHeight] = useState<number>(0);
 
-  const now = new Date();
+  const now = useMemo(() => new Date(), []);
 
   const weeklyData: BarDatum[] = useMemo(() => {
     const todayIdx = now.getDay();

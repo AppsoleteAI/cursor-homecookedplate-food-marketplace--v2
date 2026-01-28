@@ -1,3 +1,4 @@
+/* eslint-disable import/first */
 // The "PostHog Ghost" Final Silence
 // This kills the fetch attempt to the local PostHog proxy to stop ERR_CONNECTION_REFUSED errors
 if (__DEV__) {

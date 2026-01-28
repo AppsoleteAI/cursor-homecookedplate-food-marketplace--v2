@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Image, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+/* eslint-disable import/no-unresolved */
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -8,6 +9,7 @@ import Animated, {
   withTiming,
   Easing,
 } from 'react-native-reanimated';
+/* eslint-enable import/no-unresolved */
 import { Colors } from '@/constants/colors';
 
 /**
@@ -43,6 +45,7 @@ export const LoadingSplashScreen: React.FC = () => {
       -1,
       true
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const animatedLogoStyle = useAnimatedStyle(() => ({

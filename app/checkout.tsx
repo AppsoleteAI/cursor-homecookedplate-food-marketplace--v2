@@ -17,7 +17,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/auth-context';
 import { Colors, monoGradients } from '@/constants/colors';
 import { trpc } from '@/lib/trpc';
-import { GradientButton } from '@/components/GradientButton';
 import { useCart } from '@/hooks/cart-context';
 import { CartItem } from '@/types';
 

@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+/* eslint-disable import/no-unresolved */
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -8,6 +9,7 @@ import Animated, {
   withRepeat,
   Easing 
 } from 'react-native-reanimated';
+/* eslint-enable import/no-unresolved */
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 
 export const ShimmerLogo = ({ children }: { children: React.ReactNode }) => {
@@ -34,6 +36,7 @@ export const ShimmerLogo = ({ children }: { children: React.ReactNode }) => {
       -1, // -1 means loop forever
       true // reverse: true creates the "in and out" motion
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 3. Gesture configuration for the tap

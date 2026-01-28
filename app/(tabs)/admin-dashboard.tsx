@@ -239,7 +239,8 @@ const MetroControlRow = ({ metro }: { metro: { metro_name: string; is_active: bo
   );
 };
 
-const MetroSettings = () => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _MetroSettings = () => {
   const { data: counts, isLoading, error } = trpc.admin.getMetroCounts.useQuery();
 
   if (isLoading) {
@@ -326,8 +327,8 @@ const UserManagement = () => {
 };
 
 const AuditLogsView = () => {
-  const [limit, setLimit] = useState(20);
-  const { data: logs, isLoading, error, refetch } = trpc.admin.getAuditLogs.useQuery({ limit });
+  const [limit] = useState(20);
+  const { data: logs, isLoading, error } = trpc.admin.getAuditLogs.useQuery({ limit });
   const { data: stats } = trpc.admin.getCleanupStats.useQuery();
 
   if (isLoading) {

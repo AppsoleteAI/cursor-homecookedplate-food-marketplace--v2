@@ -10,16 +10,11 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
 import { Globe, Volume2, MapPin, ChevronRight } from 'lucide-react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, monoGradients } from '@/constants/colors';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useAuth } from '@/hooks/auth-context';
+import { Colors } from '@/constants/colors';
 
 export default function SettingsScreen() {
-  const { user } = useAuth();
-  const router = useRouter();
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(true);
 

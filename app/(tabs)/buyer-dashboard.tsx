@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { BuyerOnly } from '@/components/RoleGuard';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Colors, monoGradients } from '@/constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
