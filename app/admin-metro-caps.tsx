@@ -33,7 +33,32 @@ export default function AdminMetroCapsScreen() {
   const [newMaxCap, setNewMaxCap] = useState<string>('');
   const [isEditing, setIsEditing] = useState(false);
 
-  // Verify admin access
+  // Call hooks unconditionally (before any early returns)
+  const { data: metroCounts, isLoading, refetch } = trpc.admin.getMetroCounts.useQuery(undefined, {
+    enabled: !!user?.isAdmin, // Only fetch if user is admin
+  });
+  const updateMaxCapMutation = trpc.admin.updateMaxCap.useMutation({
+    onSuccess: () => {
+      Alert.alert('Success', `Max cap updated to ${newMaxCap} for ${selectedMetro}`);
+      setSelectedMetro(null);
+      setNewMaxCap('');
+      setIsEditing(false);
+      refetch();
+    },
+    onError: (error) => {
+      Alert.alert('Error', error.message || 'Failed to update max cap');
+    },
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      if (user?.isAdmin) {
+        refetch();
+      }
+    }, [refetch, user?.isAdmin])
+  );
+
+  // Verify admin access (after hooks)
   if (!user?.isAdmin) {
     return (
       <View style={styles.container}>
@@ -50,26 +75,6 @@ export default function AdminMetroCapsScreen() {
       </View>
     );
   }
-
-  const { data: metroCounts, isLoading, refetch } = trpc.admin.getMetroCounts.useQuery();
-  const updateMaxCapMutation = trpc.admin.updateMaxCap.useMutation({
-    onSuccess: () => {
-      Alert.alert('Success', `Max cap updated to ${newMaxCap} for ${selectedMetro}`);
-      setSelectedMetro(null);
-      setNewMaxCap('');
-      setIsEditing(false);
-      refetch();
-    },
-    onError: (error) => {
-      Alert.alert('Error', error.message || 'Failed to update max cap');
-    },
-  });
-
-  useFocusEffect(
-    useCallback(() => {
-      refetch();
-    }, [refetch])
-  );
 
   const handleUpdateMaxCap = () => {
     if (!selectedMetro || !newMaxCap) {

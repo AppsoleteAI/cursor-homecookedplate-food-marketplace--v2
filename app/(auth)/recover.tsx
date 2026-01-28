@@ -91,7 +91,7 @@ export default function RecoverScreen() {
 
             <View style={styles.headerContainer}>
               <Text style={styles.title}>Account Recovery</Text>
-              <Text style={styles.subtitle}>Choose how you'd like to recover your account</Text>
+              <Text style={styles.subtitle}>Choose how you&apos;d like to recover your account</Text>
             </View>
 
             <View style={styles.modeContainer}>

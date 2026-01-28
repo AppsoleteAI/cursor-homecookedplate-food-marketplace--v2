@@ -20,7 +20,6 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMeals } from '@/hooks/meals-context';
 import { useAuth } from '@/hooks/auth-context';
-import { trpc } from '@/lib/trpc';
 import { Ionicons } from '@expo/vector-icons';
 
 // Import expo-video with platform-specific shim for web compatibility
@@ -37,21 +36,25 @@ interface MediaItem {
 
 // Video preview component using expo-video (native only)
 function VideoPreview({ uri, testID }: { uri: string; testID?: string }) {
+  // Call hook unconditionally (hooks must be called at top level)
+  // Use a dummy URI on web to satisfy hook rules
+  const player = useVideoPlayer(Platform.OS === 'web' ? '' : uri, (player: any) => {
+    if (player && Platform.OS !== 'web') {
+      player.loop = true;
+      player.muted = true; // Muted for preview
+    }
+  });
+
   // Only render on native platforms - web uses native <video> element
   if (Platform.OS === 'web') {
     return null;
   }
 
   // Safety check for native platforms
-  if (!useVideoPlayer || !VideoView) {
+  if (!VideoView) {
     console.warn('[VideoPreview] expo-video not available on this platform');
     return null;
   }
-
-  const player = useVideoPlayer(uri, (player: any) => {
-    player.loop = true;
-    player.muted = true; // Muted for preview
-  });
 
   return (
     <VideoView
@@ -502,7 +505,7 @@ export default function CreateMealScreen() {
               </LinearGradient>
             </TouchableOpacity>
             <Text style={styles.disclaimerText}>
-              Note: Account upgrades require admin approval for security. You'll be notified once your request is processed.
+              Note: Account upgrades require admin approval for security. You&apos;ll be notified once your request is processed.
             </Text>
           </View>
         </ScrollView>

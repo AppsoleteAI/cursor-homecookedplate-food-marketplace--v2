@@ -31,7 +31,7 @@ export default function LoginScreen() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginUserRole, setLoginUserRole] = useState<'platetaker' | 'platemaker' | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const { login, user } = useAuth();
+  const { login } = useAuth();
   const modeParam = typeof params.mode === 'string' ? params.mode : undefined;
   const lockedMode = modeParam === 'buyer' || modeParam === 'seller';
   useInitLoginMode(setUserType, modeParam);

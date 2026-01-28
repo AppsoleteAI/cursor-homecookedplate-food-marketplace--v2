@@ -1,5 +1,7 @@
-import React, { Component, ReactNode } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { Component, ReactNode, ErrorInfo } from 'react';
+import { View, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
+import * as Sentry from '@sentry/react-native';
+import { navLogger } from '@/lib/nav-logger';
 
 interface Props {
   children: ReactNode;
@@ -27,11 +29,6 @@ export class NavigationErrorBoundary extends Component<Props, State> {
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
-    // Detect the specific context failure
-    const isNavError = error.message?.includes('NavigationContent') || 
-                       error.message?.includes('PreventRemoveContext') ||
-                       error.message?.includes('prevent remove context');
-    
     return { hasError: true };
   }
 
@@ -101,24 +98,3 @@ export class NavigationErrorBoundary extends Component<Props, State> {
   }
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-    backgroundColor: '#fff',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    color: '#333',
-  },
-  message: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-});

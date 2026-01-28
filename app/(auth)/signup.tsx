@@ -20,17 +20,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
-import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import { Colors } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
 import { MetroProgressBar } from '@/components/Registration/MetroProgressBar';
-import { PasswordStrengthMeter, getPasswordStrengthScore } from '@/components/PasswordStrengthMeter';
+import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 import { useSignupForm } from '@/hooks/useSignupForm';
 
 export default function SignupScreen() {
   // Local UI state (not part of form logic)
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showSuccessModal] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isWaitingForEmail, setIsWaitingForEmail] = useState(false);
@@ -44,7 +43,6 @@ export default function SignupScreen() {
     usernameError,
     passwordScore,
     isMembershipEnabled,
-    setIsMembershipEnabled,
     handleToggleMembership,
     isEligibleForTrial,
     trialMeta,
@@ -64,7 +62,7 @@ export default function SignupScreen() {
   });
 
   // Extract form fields for easier access
-  const { username, email, password, confirmPassword, role, agreedToTerms, foodSafetyAcknowledged } = formData;
+  const { username, email, password, confirmPassword, agreedToTerms, foodSafetyAcknowledged } = formData;
   
   // Animation value for rotation
   const rotationValue = useRef(new Animated.Value(0)).current;
@@ -140,10 +138,10 @@ export default function SignupScreen() {
             <Ionicons name="mail-outline" size={64} color={Colors.gradient.purple} style={styles.emailIcon} />
             <Text style={styles.emailConfirmationTitle}>Check your email!</Text>
             <Text style={styles.emailConfirmationText}>
-              We sent a confirmation link to {email}. Once you click it, you'll be redirected automatically.
+              We sent a confirmation link to {email}. Once you click it, you&apos;ll be redirected automatically.
             </Text>
             <Text style={styles.emailConfirmationSubtext}>
-              Didn't receive the email? Check your spam folder or try signing up again.
+              Didn&apos;t receive the email? Check your spam folder or try signing up again.
             </Text>
             <TouchableOpacity 
               style={styles.backButton}

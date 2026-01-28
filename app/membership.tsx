@@ -31,7 +31,7 @@ export default function MembershipScreen() {
   const [processing, setProcessing] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [gpsCoordinates, setGpsCoordinates] = useState<{ lat: number; lng: number } | null>(null);
-  const [locationPermissionGranted, setLocationPermissionGranted] = useState(false);
+  const [, setLocationPermissionGranted] = useState(false);
 
   const subscribeMutation = trpc.membership.subscribe.useMutation();
   const createSetupIntentMutation = trpc.payments.createSetupIntent.useMutation();
@@ -217,6 +217,7 @@ export default function MembershipScreen() {
     } finally {
       setProcessing(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, initPaymentSheet, presentPaymentSheet, userMetro, isEligibleForTrial]);
 
   const membershipBadgeColor = membershipTier === 'premium' 
@@ -261,7 +262,7 @@ export default function MembershipScreen() {
               
               {membershipTier === 'free' && isEligibleForTrial && (
                 <Text style={styles.statusText}>
-                  You're eligible for a free trial!
+                  You&apos;re eligible for a free trial!
                 </Text>
               )}
             </View>

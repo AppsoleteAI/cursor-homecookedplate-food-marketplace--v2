@@ -36,7 +36,7 @@ export default function HardwareMismatchScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>What happened?</Text>
           <Text style={styles.cardText}>
-            Your lifetime membership is device-locked and non-transferable. The device you're currently using doesn't match the device that was registered when you signed up.
+            Your lifetime membership is device-locked and non-transferable. The device you&apos;re currently using doesn&apos;t match the device that was registered when you signed up.
           </Text>
         </View>
 
@@ -60,7 +60,7 @@ export default function HardwareMismatchScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Testing Note</Text>
           <Text style={styles.cardText}>
-            If you're testing on an Android emulator, make sure you're using the same emulator instance that was used during signup. Each emulator has a unique Android ID that gets locked to your account.
+            If you&apos;re testing on an Android emulator, make sure you&apos;re using the same emulator instance that was used during signup. Each emulator has a unique Android ID that gets locked to your account.
           </Text>
         </View>
 

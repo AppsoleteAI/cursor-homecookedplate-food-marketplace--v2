@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   Image,
   Alert,
-  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -106,7 +105,7 @@ export default function DashboardScreen() {
           <TouchableOpacity style={styles.statCard} testID="card-today-earnings" onPress={() => router.push('/finance/today')}>
             <Ionicons name="cash-outline" size={24} color={Colors.gradient.green} />
             <Text style={styles.statValue}>${stats.todayEarnings.toFixed(2)}</Text>
-            <Text style={styles.statLabel}>Today's Earnings</Text>
+            <Text style={styles.statLabel}>Today&apos;s Earnings</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.statCard} testID="card-week-earnings" onPress={() => router.push('/finance/periods')}>
             <Ionicons name="trending-up-outline" size={24} color={Colors.gradient.green} />
