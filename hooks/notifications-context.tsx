@@ -2,6 +2,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, Alert } from 'react-native';
+import { useAuth } from '@/hooks/auth-context';
 
 let Notifications: any = null;
 const originalConsoleError = console.error;
@@ -70,17 +71,36 @@ export const [NotificationsProvider, useNotifications] = createContextHook<Notif
   const [isLoading, setIsLoading] = useState(true);
   const [hasPermission, setHasPermission] = useState(false);
   const mountedRef = useRef<boolean>(true);
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
+  // Internal Gating: Only perform expensive operations after authentication
+  // This reduces TTR on login screen by deferring AsyncStorage and permission checks
   useEffect(() => {
     mountedRef.current = true;
+    
+    // Gate: Wait for auth to finish loading, then only proceed if authenticated
+    if (authLoading) {
+      return; // Wait for auth state to resolve
+    }
+    
+    if (!isAuthenticated) {
+      // Not authenticated - skip expensive operations, just set loading to false
+      if (mountedRef.current) {
+        setIsLoading(false);
+      }
+      return;
+    }
+    
+    // Authenticated - proceed with expensive operations
     setTimeout(() => {
       loadPreferences();
       checkPermission();
     }, 0);
+    
     return () => {
       mountedRef.current = false;
     };
-  }, []);
+  }, [isAuthenticated, authLoading]);
 
   const loadPreferences = async () => {
     try {

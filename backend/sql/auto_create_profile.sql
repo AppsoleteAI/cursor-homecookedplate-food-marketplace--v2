@@ -1,31 +1,35 @@
 -- Trigger function to automatically create profile when user signs up
-create or replace function public.handle_new_user()
-returns trigger as $
-begin
-  insert into public.profiles (id, username, email, role)
-  values (
+-- Location: backend/sql/auto_create_profile.sql
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, username, email, role)
+  VALUES (
     new.id,
-    coalesce(new.raw_user_meta_data->>'username', split_part(new.email, '@', 1)),
+    -- Fallback: Use username from metadata, or the start of their email if missing
+    COALESCE(new.raw_user_meta_data->>'username', SPLIT_PART(new.email, '@', 1)),
     new.email,
-    'platetaker'
+    -- Fallback: Use role from metadata (platemaker/platetaker), default to platetaker
+    COALESCE(new.raw_user_meta_data->>'role', 'platetaker')
   );
-  return new;
-exception
-  when unique_violation then
-    raise exception 'Username or email already exists';
-  when others then
-    raise exception 'Failed to create profile: %', sqlerrm;
-end;
-$ language plpgsql security definer;
+  RETURN NEW;
+EXCEPTION
+  WHEN unique_violation THEN
+    -- If the profile already exists, we just move on
+    RETURN NEW;
+  WHEN others THEN
+    RAISE EXCEPTION 'Failed to create profile: %', SQLERRM;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Drop the trigger if it exists
-drop trigger if exists on_auth_user_created on auth.users;
+-- Drop the trigger if it exists to avoid error 42710
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 
--- Create trigger to run when a new user is created
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
+-- Create trigger to run when a new user is created in the auth schema
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- Remove the dangerous RLS policy - triggers with SECURITY DEFINER bypass RLS
--- Users should never directly insert into profiles
-drop policy if exists "insert_own_profile" on public.profiles;
+-- Remove the redundant RLS policy
+DROP POLICY IF EXISTS "insert_own_profile" ON public.profiles;

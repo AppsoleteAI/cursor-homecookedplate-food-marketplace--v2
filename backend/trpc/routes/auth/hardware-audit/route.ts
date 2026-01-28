@@ -1,6 +1,5 @@
 import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
-import { supabaseAdmin } from "../../../../lib/supabase";
 
 /**
  * Hardware Audit Procedure
@@ -52,7 +51,7 @@ export const hardwareAuditProcedure = protectedProcedure
     // Lifetime users with mismatched device_id: blocked and logged
     // Use admin client to insert audit log (bypasses RLS)
     try {
-      await supabaseAdmin
+      await ctx.supabaseAdmin
         .from('audit_logs')
         .insert({
           user_id: userId,

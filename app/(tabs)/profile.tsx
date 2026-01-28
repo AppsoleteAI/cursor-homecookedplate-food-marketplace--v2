@@ -195,6 +195,9 @@ export default function ProfileScreen() {
                 </Text>
                 {' '}and do your due diligence to meet all food safety requirements from your local, county, state and federal laws before selling food items on the HomeCookedPlate App.
               </Text>
+              <Text style={[styles.foodSafetyDescription, { marginTop: 8, fontSize: 11, fontStyle: 'italic' }]}>
+                HomeCookedPlate is not affiliated or in partnership with cottagefoodlaws.com.
+              </Text>
               <View style={styles.acknowledgmentStatusContainer}>
                 <View style={styles.acknowledgmentStatusRow}>
                   <Ionicons

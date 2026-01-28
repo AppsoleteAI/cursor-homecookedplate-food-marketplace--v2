@@ -1,6 +1,8 @@
 const { getDefaultConfig } = require("expo/metro-config");
-const { withRorkMetro } = require("@rork-ai/toolkit-sdk/metro");
 
 const config = getDefaultConfig(__dirname);
 
-module.exports = withRorkMetro(config);
+// Metro automatically resolves .web.ts files when platform is 'web'
+// So lib/expo-video.web.ts will be used automatically on web
+
+module.exports = config;

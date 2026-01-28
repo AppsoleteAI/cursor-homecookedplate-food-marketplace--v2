@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { publicProcedure } from '../../../create-context';
-import { calculateFees } from '../../../lib/fees';
+import { calculateFees } from '../../../../lib/fees';
 
 const inputSchema = z.object({
   amount: z.number().min(0),

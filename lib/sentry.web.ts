@@ -30,8 +30,14 @@ export function addBreadcrumb(message: string, category: string, data?: Record<s
   }
 }
 
-// Stub Sentry object for compatibility
+// Stub Sentry object for compatibility with native API
 export const Sentry = {
+  init: (options?: any) => {
+    if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
+      console.log('[Web] Sentry.init (shimmed):', options);
+    }
+  },
+  wrap: (component: any) => component, // Return component as-is on web
   captureException,
   captureMessage,
   setUser,

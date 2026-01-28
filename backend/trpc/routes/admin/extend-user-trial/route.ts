@@ -1,6 +1,5 @@
 import { adminProcedure } from "../../../create-context";
 import { z } from "zod";
-import { supabaseAdmin } from "../../../../lib/supabase";
 
 export const extendUserTrialProcedure = adminProcedure
   .input(
@@ -9,9 +8,9 @@ export const extendUserTrialProcedure = adminProcedure
       extensionDays: z.number().int().min(1).max(365).default(30),
     })
   )
-  .mutation(async ({ input }) => {
+  .mutation(async ({ input, ctx }) => {
     // 1. Verify user exists
-    const { data: profile, error: fetchError } = await supabaseAdmin
+    const { data: profile, error: fetchError } = await ctx.supabaseAdmin
       .from('profiles')
       .select('id, email, username, trial_ends_at')
       .eq('id', input.userId)
@@ -32,7 +31,7 @@ export const extendUserTrialProcedure = adminProcedure
     newEndDate.setDate(newEndDate.getDate() + input.extensionDays);
 
     // 3. Update with admin privileges (bypasses RLS)
-    const { error: updateError } = await supabaseAdmin
+    const { error: updateError } = await ctx.supabaseAdmin
       .from('profiles')
       .update({ 
         trial_ends_at: newEndDate.toISOString(),

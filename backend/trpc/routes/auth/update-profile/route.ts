@@ -1,6 +1,15 @@
 import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
 
+/**
+ * Update Profile Procedure
+ * 
+ * SECURITY: The 'is_admin' field is protected by RLS policy "update_own_profile"
+ * which automatically rejects any update where is_admin differs from the stored value.
+ * Users cannot escalate their own privileges.
+ * 
+ * Corresponds to SQL Section 3 in security_enhancements.sql
+ */
 export const updateProfileProcedure = protectedProcedure
   .input(
       z.object({

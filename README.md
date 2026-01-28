@@ -311,6 +311,13 @@ For mobile apps, you'll configure your app's deep linking scheme in `app.json`.
 - Browse [React Native's documentation](https://reactnative.dev/docs/getting-started) for core components
 - Visit [Rork's FAQ](https://rork.com/faq) for platform-specific questions
 
+### **Debugging your app?**
+
+- **React Native DevTools**: See [docs/REACT_NATIVE_DEVTOOLS.md](docs/REACT_NATIVE_DEVTOOLS.md) for setup and feature overview
+- **DevTools Debugging Strategy**: See [docs/DEVTOOLS_DEBUGGING_STRATEGY.md](docs/DEVTOOLS_DEBUGGING_STRATEGY.md) for comprehensive debugging workflows and strategies
+- **Navigation Debugging**: See [docs/NAVIGATION_DEBUGGING.md](docs/NAVIGATION_DEBUGGING.md) for navigation-specific debugging
+- **Error Monitoring**: See [docs/SENTRY_SETUP.md](docs/SENTRY_SETUP.md) for production error tracking
+
 ## About Rork
 
 Rork builds fully native mobile apps using React Native and Expo - the same technology stack used by Discord, Shopify, Coinbase, Instagram, and nearly 30% of the top 100 apps on the App Store.

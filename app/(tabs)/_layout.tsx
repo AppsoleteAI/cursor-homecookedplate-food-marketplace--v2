@@ -1,24 +1,29 @@
-import { Tabs, useRouter } from "expo-router";
-import React, { useEffect } from "react";
+import { Tabs, Redirect } from "expo-router";
+import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Colors } from "@/constants/colors";
 import { useAuth } from "@/hooks/auth-context";
 import { useCart } from "@/hooks/cart-context";
+import { navLogger } from "@/lib/nav-logger";
 
 export default function TabLayout() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const { totalItems } = useCart();
-  const router = useRouter();
   const isPlatemaker = user?.role === 'platemaker';
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.replace('/(auth)/login');
-    }
-  }, [isAuthenticated, router]);
-
-  if (!isAuthenticated) {
+  // 1. Prevent logic execution while auth is still loading
+  if (isLoading) {
     return null;
+  }
+
+  // 2. Fix Issue #9: Handle unauthenticated state gracefully
+  // Instead of returning null (blank screen), we declaratively redirect.
+  // This ensures that if a session expires, the user is kicked to login.
+  if (!isAuthenticated) {
+    navLogger.authDecision('app/(tabs)/_layout.tsx:REDIRECT', false, undefined, '/(auth)/login', {
+      reason: 'session_expired_or_missing',
+    });
+    return <Redirect href="/(auth)/login" />;
   }
 
   return (

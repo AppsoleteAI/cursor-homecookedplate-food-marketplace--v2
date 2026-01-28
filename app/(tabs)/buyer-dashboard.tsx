@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { BuyerOnly } from '@/components/RoleGuard';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
 import { Colors, monoGradients } from '@/constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -99,7 +99,13 @@ export default function BuyerDashboardScreen() {
                 <TouchableOpacity 
                   key={`p-${m.id}`} 
                   style={styles.card}
-                  onPress={() => router.push(`/meal/${m.id}` as const)}
+                  onPress={() => {
+                    try {
+                      router.push(`/meal/${m.id}` as const);
+                    } catch (error) {
+                      console.error('[buyer-dashboard] Error navigating to meal:', error);
+                    }
+                  }}
                 >
                   <Image source={{ uri: m.images[0] }} style={styles.cardImage} />
                   <View style={styles.cardContent}>
@@ -129,7 +135,13 @@ export default function BuyerDashboardScreen() {
               {favorites.map(m => (
                 <View key={`f-${m.id}`} style={styles.card}>
                   <TouchableOpacity 
-                    onPress={() => router.push(`/meal/${m.id}` as const)}
+                    onPress={() => {
+                      try {
+                        router.push(`/meal/${m.id}` as const);
+                      } catch (error) {
+                        console.error('[buyer-dashboard] Error navigating to meal from favorites:', error);
+                      }
+                    }}
                     activeOpacity={0.9}
                   >
                     <Image source={{ uri: m.images[0] }} style={styles.cardImage} />

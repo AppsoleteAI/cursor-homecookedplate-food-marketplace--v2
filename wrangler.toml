@@ -1,7 +1,7 @@
 name = "plate-marketplace-api"
 main = "backend/hono.ts"
 compatibility_date = "2024-01-01"
-node_compat = true
+compatibility_flags = ["nodejs_compat"]
 
 [observability]
 enabled = true
@@ -13,9 +13,19 @@ preview_id = "c985bfb57b2942de9a204dc3df91121b"
 
 [vars]
 ENVIRONMENT = "production"
+EXPO_PUBLIC_WEB_URL = "https://homecookedplate.com"
 
 [env.production]
 name = "plate-marketplace-api"
+
+[[env.production.kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "1aa88018164e4706905b964789217850"
+preview_id = "c985bfb57b2942de9a204dc3df91121b"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+EXPO_PUBLIC_WEB_URL = "https://homecookedplate.com"
 
 [env.staging]
 name = "plate-marketplace-api-staging"

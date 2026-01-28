@@ -6,7 +6,7 @@
  * No external third-party dependencies (Slack/Discord).
  */
 
-import { supabaseAdmin } from './supabase';
+import { createSupabaseAdmin, type SupabaseClient } from '@supabase/supabase-js';
 
 type AlertType =
   | 'metro_cap_reached'
@@ -31,19 +31,22 @@ interface LogAdminAlertOptions {
  * @param type - Type of alert (must match admin_system_alerts.alert_type constraint)
  * @param message - Human-readable message (will be prefixed with "🚨 City Max Alert: ")
  * @param options - Optional severity, metadata, and title
+ * @param supabaseAdminClient - Optional Supabase admin client (required in Cloudflare Workers)
  * @returns Promise that resolves when alert is logged (or fails gracefully)
  * 
  * @example
  * await logAdminAlert(
  *   'metro_cap_reached',
  *   'New York metro has reached capacity for platemakers (100/100)',
- *   { severity: 'high', metadata: { metro_name: 'New York', role: 'platemaker' } }
+ *   { severity: 'high', metadata: { metro_name: 'New York', role: 'platemaker' } },
+ *   supabaseAdmin
  * );
  */
 export async function logAdminAlert(
   type: AlertType,
   message: string,
-  options: LogAdminAlertOptions = {}
+  options: LogAdminAlertOptions = {},
+  supabaseAdminClient?: SupabaseClient
 ): Promise<void> {
   const {
     severity = 'high',
@@ -65,7 +68,18 @@ export async function logAdminAlert(
   const alertTitle = title || `${type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}`;
 
   try {
-    const { error } = await supabaseAdmin
+    // Get Supabase admin client - use provided client or try to create one
+    let client = supabaseAdminClient;
+    if (!client) {
+      // Fallback for Bun/Node environments where supabaseAdmin is available at module level
+      const { supabaseAdmin } = await import('./supabase');
+      if (!supabaseAdmin) {
+        throw new Error('Supabase admin client not available. Provide supabaseAdminClient parameter or ensure environment variables are set.');
+      }
+      client = supabaseAdmin;
+    }
+
+    const { error } = await client
       .from('admin_system_alerts')
       .insert({
         alert_type: type,

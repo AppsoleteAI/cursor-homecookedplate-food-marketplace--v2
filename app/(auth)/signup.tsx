@@ -22,41 +22,49 @@ import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
-import { useAuth } from '@/hooks/auth-context';
 import { Colors } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
-import { trpc } from '@/lib/trpc';
-import { supabase } from '@/lib/supabase';
 import { MetroProgressBar } from '@/components/Registration/MetroProgressBar';
+import { PasswordStrengthMeter, getPasswordStrengthScore } from '@/components/PasswordStrengthMeter';
+import { useSignupForm } from '@/hooks/useSignupForm';
 
 export default function SignupScreen() {
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState<'platemaker' | 'platetaker'>('platetaker');
-  const [loading, setLoading] = useState(false);
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [foodSafetyAcknowledged, setFoodSafetyAcknowledged] = useState(false);
+  // Local UI state (not part of form logic)
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [isSigningUp, setIsSigningUp] = useState(false);
-  const [signupUserRole, setSignupUserRole] = useState<'platetaker' | 'platemaker' | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isMembershipEnabled, setIsMembershipEnabled] = useState(false);
-  const [isEligibleForTrial, setIsEligibleForTrial] = useState(false);
-  const [trialMeta, setTrialMeta] = useState<{ metro: string; spotsRemaining: number } | null>(null);
-  const [checkingEligibility, setCheckingEligibility] = useState(false);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const { signup } = useAuth();
-  const checkEligibilityMutation = trpc.trials.checkEligibility.useMutation();
-  // Checkout is handled via Supabase Edge Function `create-checkout-session` (replaces tRPC route)
-  
-  // Simple eligibility check query (no quotas, just metro check)
-  const eligibilityQuery = trpc.auth.checkEligibility.useQuery(
-    { lat: userLocation?.lat ?? 0, lng: userLocation?.lng ?? 0 },
-    { enabled: !!userLocation && isMembershipEnabled }
-  );
+  const [isWaitingForEmail, setIsWaitingForEmail] = useState(false);
+
+  // Use the comprehensive signup form hook
+  const {
+    formData,
+    setFormData,
+    isUsernameAvailable,
+    isCheckingUsername,
+    usernameError,
+    passwordScore,
+    isMembershipEnabled,
+    setIsMembershipEnabled,
+    handleToggleMembership,
+    isEligibleForTrial,
+    trialMeta,
+    checkingEligibility,
+    handleSignup,
+    isLoading: loading,
+    isSigningUp,
+    signupUserRole,
+  } = useSignupForm({
+    onSuccess: (result) => {
+      // Success handled by animation logic below
+      console.log('[Signup] Success callback:', result);
+    },
+    onError: (error) => {
+      console.error('[Signup] Error callback:', error);
+    },
+  });
+
+  // Extract form fields for easier access
+  const { username, email, password, confirmPassword, role, agreedToTerms, foodSafetyAcknowledged } = formData;
   
   // Animation value for rotation
   const rotationValue = useRef(new Animated.Value(0)).current;
@@ -118,6 +126,37 @@ export default function SignupScreen() {
     extrapolate: 'clamp',
   });
 
+  // Email confirmation UI (optional - currently not needed since email_confirm: true is set)
+  // This will show if Supabase dashboard settings change to require email confirmation
+  if (isWaitingForEmail) {
+    return (
+      <View style={styles.container}>
+        <LinearGradient
+          colors={[Colors.white, Colors.gray[50]]}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.emailConfirmationContainer}>
+            <Ionicons name="mail-outline" size={64} color={Colors.gradient.purple} style={styles.emailIcon} />
+            <Text style={styles.emailConfirmationTitle}>Check your email!</Text>
+            <Text style={styles.emailConfirmationText}>
+              We sent a confirmation link to {email}. Once you click it, you'll be redirected automatically.
+            </Text>
+            <Text style={styles.emailConfirmationSubtext}>
+              Didn't receive the email? Check your spam folder or try signing up again.
+            </Text>
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={() => setIsWaitingForEmail(false)}
+            >
+              <Text style={styles.backButtonText}>Back to Signup</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
   // If showing animation, render the spinning logo
   if (isSigningUp) {
     return (
@@ -150,183 +189,6 @@ export default function SignupScreen() {
     );
   }
 
-  const handleToggleMembership = async (value: boolean) => {
-    setIsMembershipEnabled(value);
-    
-    if (!value) {
-      // Reset eligibility state when toggled off
-      setIsEligibleForTrial(false);
-      setTrialMeta(null);
-      return;
-    }
-
-    // Request location permission and check eligibility
-    if (Platform.OS === 'web') {
-      Alert.alert(
-        'Not Available',
-        'Location detection is only available on mobile devices. Premium membership will be available after signup.'
-      );
-      setIsMembershipEnabled(false);
-      return;
-    }
-
-    setCheckingEligibility(true);
-    setIsEligibleForTrial(false);
-    setTrialMeta(null);
-
-    try {
-      // Request location permissions
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      
-      if (status !== 'granted') {
-        Alert.alert(
-          'Location Permission Required',
-          'We need your location to check if you qualify for the free trial. You can still sign up for premium after creating your account.'
-        );
-        setIsMembershipEnabled(false);
-        setCheckingEligibility(false);
-        return;
-      }
-
-      // Get current position
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-
-      // Store location for eligibility query
-      setUserLocation({
-        lat: location.coords.latitude,
-        lng: location.coords.longitude,
-      });
-
-      // Check eligibility via backend (with quota check)
-      const result = await checkEligibilityMutation.mutateAsync({
-        lat: location.coords.latitude,
-        lng: location.coords.longitude,
-        role: role,
-      });
-
-      if (result.eligible && result.metro) {
-        setIsEligibleForTrial(true);
-        setTrialMeta({
-          metro: result.metro,
-          spotsRemaining: result.spotsRemaining,
-        });
-      } else {
-        setIsEligibleForTrial(false);
-        setTrialMeta({
-          metro: result.metro || null,
-          spotsRemaining: result.spotsRemaining,
-        });
-      }
-    } catch (error) {
-      console.error('[Signup] Eligibility check error:', error);
-      Alert.alert(
-        'Location Error',
-        'Could not check trial eligibility. You can still sign up for premium after creating your account.'
-      );
-      setIsEligibleForTrial(false);
-      setTrialMeta(null);
-    } finally {
-      setCheckingEligibility(false);
-    }
-  };
-
-  const handleSignup = async () => {
-    console.log('Sign-up triggered');
-    if (!username || !email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
-    }
-
-    if (!agreedToTerms) {
-      Alert.alert('Error', 'Please agree to the terms and conditions');
-      return;
-    }
-
-    if (role === 'platemaker' && !foodSafetyAcknowledged) {
-      Alert.alert('Error', 'Please acknowledge the food safety requirements before signing up as a Platemaker');
-      return;
-    }
-
-    // Sanitize email input
-    const cleanEmail = email.trim().toLowerCase();
-    
-    // Pre-flight validation with regex
-    if (!cleanEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-      Alert.alert('Invalid Email', 'Please check for hidden spaces or typos in: ' + cleanEmail);
-      return;
-    }
-
-    setLoading(true);
-    // #region agent log - HYPOTHESIS 1, 2, 4: Frontend signup attempt
-    fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(auth)/signup.tsx:SIGNUP_ATTEMPT',message:'Frontend signup attempt started',data:{username,cleanEmail,hasPassword:!!password,role},timestamp:Date.now(),sessionId:'debug-session',runId:'signup-attempt',hypothesisId:'1,2,4'})}).catch(()=>{});
-    // #endregion
-    try {
-      const result = await signup(username, cleanEmail, password, role, userLocation || undefined, role === 'platemaker' ? foodSafetyAcknowledged : false);
-      // #region agent log - HYPOTHESIS 1, 2, 4: Frontend signup success
-      fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(auth)/signup.tsx:SIGNUP_SUCCESS',message:'Frontend signup succeeded',data:{username,cleanEmail,role,requiresLogin:result.requiresLogin,requiresCheckout:result.requiresCheckout},timestamp:Date.now(),sessionId:'debug-session',runId:'signup-attempt',hypothesisId:'1,2,4'})}).catch(()=>{});
-      // #endregion
-      
-      // If Remote/Over-cap user requires checkout, redirect to Stripe checkout
-      if (result.requiresCheckout) {
-        try {
-          const { data: checkoutResult, error: checkoutError } = await supabase.functions.invoke(
-            'create-checkout-session',
-            {
-              body: { returnUrl: 'homecookedplate://payment-success' },
-            }
-          );
-
-          if (checkoutError) {
-            throw checkoutError;
-          }
-
-          if (checkoutResult.checkoutUrl) {
-            // Open Stripe Hosted Checkout in browser
-            await WebBrowser.openBrowserAsync(checkoutResult.checkoutUrl);
-            // User will be redirected back to app after payment
-            // The webhook will upgrade their membership_tier to premium
-            Alert.alert(
-              'Complete Payment',
-              'Please complete your payment to activate your premium membership. You\'ll be redirected back to the app after payment.',
-              [{ text: 'OK' }]
-            );
-            setLoading(false);
-            return;
-          }
-        } catch (checkoutError: unknown) {
-          const checkoutErrorMessage = checkoutError instanceof Error 
-            ? checkoutError.message 
-            : 'Failed to create checkout session. Please try again or contact support.';
-          console.error('[Signup] Checkout session error:', checkoutError);
-          Alert.alert('Payment Setup Error', checkoutErrorMessage);
-          setLoading(false);
-          return;
-        }
-      }
-      
-      // Set animation state - this will trigger the animation effect
-      // The animation will redirect based on requiresLogin flag
-      setSignupUserRole(role);
-      setIsSigningUp(true);
-    } catch (error: unknown) {
-      // #region agent log - HYPOTHESIS 1, 2, 4: Frontend signup error
-      const errorDetails = error instanceof Error ? {message:error.message,name:error.name,stack:error.stack?.substring(0,200)} : {message:'Unknown error',rawError:String(error)};
-      fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(auth)/signup.tsx:SIGNUP_ERROR',message:'Frontend signup error caught',data:{...errorDetails,username,cleanEmail,role},timestamp:Date.now(),sessionId:'debug-session',runId:'signup-attempt',hypothesisId:'1,2,4'})}).catch(()=>{});
-      // #endregion
-      const errorMessage = error instanceof Error ? error.message : 'Failed to create account';
-      Alert.alert('Error', errorMessage);
-      setIsSigningUp(false);
-      setSignupUserRole(null);
-      setLoading(false);
-    }
-  };
 
   return (
     <View style={styles.container}>
@@ -352,20 +214,20 @@ export default function SignupScreen() {
                 <TouchableOpacity
                   style={[
                     styles.roleButton,
-                    role === 'platetaker' && styles.roleButtonActive,
-                    role === 'platetaker' && styles.roleButtonActivePlatetaker,
+                    formData.role === 'platetaker' && styles.roleButtonActive,
+                    formData.role === 'platetaker' && styles.roleButtonActivePlatetaker,
                   ]}
-                  onPress={() => setRole('platetaker')}
+                  onPress={() => setFormData({ ...formData, role: 'platetaker' })}
                 >
                   <Ionicons
                     name="bag-outline"
                     size={20}
-                    color={role === 'platetaker' ? Colors.white : Colors.gray[600]}
+                    color={formData.role === 'platetaker' ? Colors.white : Colors.gray[600]}
                   />
                   <Text
                     style={[
                       styles.roleButtonText,
-                      role === 'platetaker' && styles.roleButtonTextActive,
+                      formData.role === 'platetaker' && styles.roleButtonTextActive,
                     ]}
                   >
                     Order Food
@@ -375,20 +237,20 @@ export default function SignupScreen() {
                 <TouchableOpacity
                   style={[
                     styles.roleButton,
-                    role === 'platemaker' && styles.roleButtonActive,
-                    role === 'platemaker' && styles.roleButtonActivePlatemaker,
+                    formData.role === 'platemaker' && styles.roleButtonActive,
+                    formData.role === 'platemaker' && styles.roleButtonActivePlatemaker,
                   ]}
-                  onPress={() => setRole('platemaker')}
+                  onPress={() => setFormData({ ...formData, role: 'platemaker' })}
                 >
                   <Ionicons
                     name="restaurant-outline"
                     size={20}
-                    color={role === 'platemaker' ? Colors.white : Colors.gray[600]}
+                    color={formData.role === 'platemaker' ? Colors.white : Colors.gray[600]}
                   />
                   <Text
                     style={[
                       styles.roleButtonText,
-                      role === 'platemaker' && styles.roleButtonTextActive,
+                      formData.role === 'platemaker' && styles.roleButtonTextActive,
                     ]}
                   >
                     Sell Food
@@ -428,7 +290,7 @@ export default function SignupScreen() {
                   </View>
                   <MetroProgressBar
                     metroName={trialMeta.metro}
-                    role={role}
+                    role={formData.role}
                     refetchInterval={20000} // Poll every 20 seconds for live updates
                   />
                 </View>
@@ -455,36 +317,61 @@ export default function SignupScreen() {
               <View style={styles.inputContainer}>
                 <Ionicons name="person-outline" size={20} color={Colors.gray[400]} />
                 <TextInput
+                  id="username"
+                  name="username"
                   style={styles.input}
                   placeholder="Username"
                   value={username}
-                  onChangeText={setUsername}
+                  onChangeText={(text) => setFormData({ ...formData, username: text })}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  autoComplete="username"
                 />
               </View>
+              {/* Username Availability Indicator */}
+              {username.length >= 3 && (
+                <View style={{ marginTop: 4, marginLeft: 40 }}>
+                  {isCheckingUsername ? (
+                    <Text style={{ fontSize: 12, color: Colors.gray[400] }}>Checking...</Text>
+                  ) : usernameError ? (
+                    <Text style={{ fontSize: 12, color: '#ff4d4d' }}>
+                      {usernameError}
+                    </Text>
+                  ) : isUsernameAvailable === true ? (
+                    <Text style={{ fontSize: 12, color: '#2eb82e' }}>✓ Username available</Text>
+                  ) : isUsernameAvailable === false ? (
+                    <Text style={{ fontSize: 12, color: '#ff4d4d' }}>✗ Username taken</Text>
+                  ) : null}
+                </View>
+              )}
 
               <View style={styles.inputContainer}>
                 <Ionicons name="mail-outline" size={20} color={Colors.gray[400]} />
                 <TextInput
+                  id="email"
+                  name="email"
                   style={styles.input}
                   placeholder="Email"
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={(text) => setFormData({ ...formData, email: text })}
                   keyboardType="email-address"
                   autoCapitalize="none"
+                  autoComplete="email"
                 />
               </View>
 
               <View style={styles.inputContainer}>
                 <Ionicons name="lock-closed-outline" size={20} color={Colors.gray[400]} />
                 <TextInput
+                  id="password"
+                  name="password"
                   style={styles.input}
                   placeholder="Password"
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(text) => setFormData({ ...formData, password: text })}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
+                  autoComplete="new-password"
                 />
                 <TouchableOpacity
                   onPress={() => setShowPassword(!showPassword)}
@@ -497,16 +384,21 @@ export default function SignupScreen() {
                   />
                 </TouchableOpacity>
               </View>
+              {/* Password Strength Meter */}
+              {password.length > 0 && <PasswordStrengthMeter password={password} />}
 
               <View style={styles.inputContainer}>
                 <Ionicons name="lock-closed-outline" size={20} color={Colors.gray[400]} />
                 <TextInput
+                  id="confirmPassword"
+                  name="confirmPassword"
                   style={styles.input}
                   placeholder="Confirm Password"
                   value={confirmPassword}
-                  onChangeText={setConfirmPassword}
+                  onChangeText={(text) => setFormData({ ...formData, confirmPassword: text })}
                   secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
+                  autoComplete="new-password"
                 />
                 <TouchableOpacity
                   onPress={() => setShowConfirmPassword(!showConfirmPassword)}
@@ -522,7 +414,7 @@ export default function SignupScreen() {
 
               <TouchableOpacity
                 style={styles.termsContainer}
-                onPress={() => setAgreedToTerms(!agreedToTerms)}
+                onPress={() => setFormData({ ...formData, agreedToTerms: !agreedToTerms })}
               >
                 <View style={[styles.checkbox, agreedToTerms && styles.checkboxActive]}>
                   {agreedToTerms && <Text style={styles.checkmark}>✓</Text>}
@@ -539,40 +431,52 @@ export default function SignupScreen() {
                 </Text>
               </TouchableOpacity>
 
-              {role === 'platemaker' && (
-                <View style={styles.foodSafetyContainer}>
-                  <View style={styles.foodSafetyInfoBox}>
-                    <Ionicons name="information-circle" size={20} color={Colors.gradient.yellow} />
+              {/* Cottage Laws Warning - ALWAYS SHOWN for ALL users */}
+              <View style={styles.foodSafetyContainer}>
+                <View style={styles.foodSafetyInfoBox}>
+                  <Ionicons name="information-circle" size={20} color={Colors.gradient.yellow} />
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.foodSafetyInfoText}>
-                      We recommend every Platemaker review{' '}
+                      We recommend every user review{' '}
                       <Text
                         style={styles.foodSafetyLink}
                         onPress={() => WebBrowser.openBrowserAsync('https://cottagefoodlaws.com')}
                       >
                         cottagefoodlaws.com
                       </Text>
-                      {' '}and do your due diligence to meet all food safety requirements from your local, county, state and federal laws before selling food items.
+                      {' '}and do your due diligence to meet all food safety requirements from your local, county, state and federal laws before using the HomeCookedPlate platform.
+                    </Text>
+                    <Text style={[styles.foodSafetyInfoText, { marginTop: 8, fontSize: 11, fontStyle: 'italic' }]}>
+                      HomeCookedPlate is not affiliated or in partnership with cottagefoodlaws.com.
                     </Text>
                   </View>
-                  <TouchableOpacity
-                    style={styles.termsContainer}
-                    onPress={() => setFoodSafetyAcknowledged(!foodSafetyAcknowledged)}
-                  >
-                    <View style={[styles.checkbox, foodSafetyAcknowledged && styles.checkboxActive]}>
-                      {foodSafetyAcknowledged && <Text style={styles.checkmark}>✓</Text>}
-                    </View>
-                    <Text style={styles.termsText}>
-                      I acknowledge that I have reviewed cottagefoodlaws.com and understand that I must comply with all local, county, state and federal food laws. I understand that HomeCookedPlate does not allow anyone to violate their local, county, state and/or federal food laws on the HomeCookedPlate App.
-                    </Text>
-                  </TouchableOpacity>
                 </View>
-              )}
+                <TouchableOpacity
+                  style={styles.termsContainer}
+                  onPress={() => setFormData({ ...formData, foodSafetyAcknowledged: !foodSafetyAcknowledged })}
+                >
+                  <View style={[styles.checkbox, foodSafetyAcknowledged && styles.checkboxActive]}>
+                    {foodSafetyAcknowledged && <Text style={styles.checkmark}>✓</Text>}
+                  </View>
+                  <Text style={styles.termsText}>
+                    I acknowledge that I have reviewed cottagefoodlaws.com and understand that I must comply with all local, county, state and federal food laws. I understand that HomeCookedPlate does not allow anyone to violate their local, county, state and/or federal food laws on the HomeCookedPlate App.
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
               <GradientButton
                 title="Create Account"
-                onPress={handleSignup}
+                onPress={() => {
+                  handleSignup();
+                }}
                 loading={loading}
-                disabled={!agreedToTerms || (role === 'platemaker' && !foodSafetyAcknowledged)}
+                disabled={
+                  !agreedToTerms || 
+                  !foodSafetyAcknowledged || 
+                  loading || 
+                  passwordScore < 5 || 
+                  isUsernameAvailable === false
+                }
                 style={styles.signupButton}
                 baseColor="gold"
               />
@@ -882,5 +786,46 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.gray[600],
     marginTop: 8,
+  },
+  emailConfirmationContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  emailIcon: {
+    marginBottom: 24,
+  },
+  emailConfirmationTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: Colors.gray[900],
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  emailConfirmationText: {
+    fontSize: 16,
+    color: Colors.gray[700],
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 12,
+  },
+  emailConfirmationSubtext: {
+    fontSize: 14,
+    color: Colors.gray[600],
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 32,
+  },
+  backButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    backgroundColor: Colors.gradient.purple,
+  },
+  backButtonText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

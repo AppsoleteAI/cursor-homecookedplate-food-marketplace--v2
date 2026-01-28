@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { protectedProcedure } from '../../../create-context';
-import { supabaseAdmin } from '../../../../lib/supabase';
 import { getStripePriceId } from '../../../../lib/stripe-utils';
 
 // Major metropolitan areas eligible for trial promotion
@@ -158,8 +157,9 @@ export const subscribeProcedure = protectedProcedure
     // Check trial eligibility with 3-tier location fallback
     if (input.useTrial && config.is_active) {
       // Tier 1: Try GPS coordinates with PostGIS RPC
+      // Use ctx.supabase (anon key) for RPC - respects RLS
       if (input.lat !== undefined && input.lng !== undefined) {
-        const { data: gpsMetro, error: gpsError } = await supabaseAdmin.rpc(
+        const { data: gpsMetro, error: gpsError } = await ctx.supabase.rpc(
           'find_metro_by_location',
           { lng: input.lng, lat: input.lat }
         );
@@ -188,7 +188,8 @@ export const subscribeProcedure = protectedProcedure
       // If we found a metro area, check quota and apply trial
       if (metroName) {
         // Check current counts for this metro
-        const { data: counts, error: countsError } = await supabaseAdmin
+        // Use ctx.supabase (anon key) for reads - respects RLS
+        const { data: counts, error: countsError } = await ctx.supabase
           .from('metro_area_counts')
           .select('platemaker_count, platetaker_count')
           .eq('metro_name', metroName)
@@ -196,14 +197,15 @@ export const subscribeProcedure = protectedProcedure
 
         if (countsError || !counts) {
           // If metro doesn't exist in counts table, initialize it
-          await supabaseAdmin
+          // Use ctx.supabaseAdmin (service role) ONLY for writes - this is a system operation
+          await ctx.supabaseAdmin
             .from('metro_area_counts')
             .insert({ metro_name: metroName, platemaker_count: 0, platetaker_count: 0 })
             .onConflict('metro_name')
             .merge();
 
-          // Retry the query
-          const { data: retryCounts } = await supabaseAdmin
+          // Retry the query using anon key (read operation)
+          const { data: retryCounts } = await ctx.supabase
             .from('metro_area_counts')
             .select('platemaker_count, platetaker_count')
             .eq('metro_name', metroName)
@@ -217,7 +219,8 @@ export const subscribeProcedure = protectedProcedure
             if (currentCount < maxCount) {
               // Atomically increment count using RPC (thread-safe)
               // RPC returns status string 'SUCCESS' or 'CAP_REACHED'
-              const { data: status, error: incrementError } = await supabaseAdmin.rpc('increment_metro_count', {
+              // Use ctx.supabaseAdmin (service role) for writes - ensures thread-safe atomic increment
+              const { data: status, error: incrementError } = await ctx.supabaseAdmin.rpc('increment_metro_count', {
                 metro_name_param: metroName,
                 user_role: profile.role,
               });
@@ -236,7 +239,8 @@ export const subscribeProcedure = protectedProcedure
           if (currentCount < maxCount) {
             // Atomically increment count using RPC (thread-safe)
             // RPC returns status string 'SUCCESS' or 'CAP_REACHED'
-            const { data: status, error: incrementError } = await supabaseAdmin.rpc('increment_metro_count', {
+            // Use ctx.supabaseAdmin (service role) for writes - ensures thread-safe atomic increment
+            const { data: status, error: incrementError } = await ctx.supabaseAdmin.rpc('increment_metro_count', {
               metro_name_param: metroName,
               user_role: profile.role,
             });

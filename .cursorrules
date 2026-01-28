@@ -1,0 +1,137 @@
+# Project Rules: Rork Marketplace (Homecooked Plate)
+
+## 🏗️ Mandatory Architecture Patterns
+
+### Financial Logic (LOCKED)
+- **ALL calculations** must happen in `backend/lib/fees.ts`. Never inline math in components.
+- **Source of Truth**: Base amount = `order.total_price` (always use this)
+- **Import Requirement**: All Earnings and Revenue calculations must be imported from `backend/lib/fees.ts`
+- **Implementation**: Use `calculateOrderSplit()` for standard "Double 10" split (10% added to buyer, 10% deducted from seller)
+
+### Navigation Safety (CRITICAL - DO NOT REFACTOR)
+- **Double-Lock System**: We use a "Double-Lock" system in `app/_layout.tsx` that gates Providers behind navigation readiness
+- **Chronological Rule**: Navigation (Redirects) must wait for:
+  1. `isNativeLayoutReady` (onLayout fires)
+  2. `hasEverHadKey` (useRootNavigationState key detected)
+  3. A 200ms settling delay (allows Fabric bridge to stabilize)
+- **Platform Split**: Web uses manual `NavigationContainer` with `independent: true`; Native uses Expo Router's built-in container
+- **Forbidden Pattern**: NEVER use `router.replace()` in `useEffect` in `app/index.tsx`. Use declarative `<Redirect />` instead.
+
+### Route Registration (REQUIRED)
+- **Every top-level route** in `app/` directory MUST be registered in `app/_layout.tsx` as a `<Stack.Screen name="..." />`
+- **Prevents**: TypeScript routing errors and native navigation crashes
+- **Action**: When adding new screens, always add corresponding Stack.Screen entry
+
+## 🚫 Strict Restrictions
+
+### Locked Files
+- **app/index.tsx**: Logic is LOCKED. Do not attempt "fixes" that move logic into this file. It is a passive redirect gate using `<Redirect />`.
+- **app/_layout.tsx**: Platform-split navigation is REQUIRED. Do not remove `Platform.OS` check or `independent: true` prop.
+
+### Deprecated Modules
+- **Never use `expo-av`**: Only use `expo-audio` or `expo-video`
+- **Native Module Pattern**: Every native module must have a `.web.ts` shim (e.g., `lib/stripe.ts` + `lib/stripe.web.ts`)
+
+### Forbidden Patterns
+- ❌ `router.replace()` in `useEffect` in `app/index.tsx` → Causes PreventRemoveContext crash
+- ❌ Removing `Platform.OS` check in `_layout.tsx` → Breaks web preview
+- ❌ Removing `as any` cast for `independent: true` → TypeScript error blocks build
+- ❌ Inline fee calculations in components → Must use `backend/lib/fees.ts`
+
+## 🔄 Chronological Flow (Debugging Protocol)
+
+When analyzing logs or crashes, prioritize this sequence:
+
+1. **Phase 1 & 2 (Setup)**: Bundle loads, Metro connects
+2. **Phase 4a (Key Detection)**: `NAV_KEY_DETECTED` log appears
+3. **Phase 4b (Hardware Sync)**: `LAYOUT_READY` log appears
+4. **Phase 4c (Settling)**: 200ms delay runs
+5. **Phase 4d (Mount)**: `NAV_STATE_READY` log appears → Providers mount
+6. **Phase 3 (Auth)**: `LOAD_USER` / `AUTH_HYDRATION_START` log appears
+7. **Phase 5 (Redirect)**: `app/index.tsx` issues `<Redirect />` after hydration
+
+### Debugging Checklist
+- If `NAV_STATE_READY` never appears → Check `DOUBLE_LOCK_STATUS` logs to see which lock is failing
+- If `PreventRemoveContext` error → Increase settling delay from 200ms to 300ms or 500ms
+- If bundle won't load → Check Metro bundler is running and ADB port forwarding is set up
+
+## 🌐 Platform-Specific Rules
+
+### Web Preview (Rork Lightning Preview)
+- Requires manual `NavigationContainer` with `independent: true` prop
+- Native modules must be shimmed (`.web.ts` pattern)
+- Never import native-only libraries globally
+
+### Native Mobile (iOS/Android)
+- Expo Router provides `NavigationContainer` automatically
+- Do NOT add manual `NavigationContainer` on native
+- Use `10.0.2.2:3000` for backend connectivity on Android emulator
+
+### Metro Bundler Connection
+- Android emulator requires: `adb reverse tcp:8081 tcp:8081`
+- Check connection with: `./scripts/check-metro-connection.sh`
+- If "Unable to load script" error → Metro not running or port forwarding not set up
+
+## 📊 Database & Backend Rules
+
+### Naming Conventions (LOCKED)
+- **Roles**: Always use `platemaker` or `platetaker` (no abbreviations)
+- **Metadata**: All property names must use snake_case (e.g., `metro_name`, `platemaker_count`, `platetaker_count`)
+- **Database Columns**: Follow same naming convention as metadata
+
+### API Routing
+- **Custom Backend**: Hardcoded to `https://platetaker-api.appsolete.workers.dev` in `lib/trpc.ts`
+- **Do NOT use**: `EXPO_PUBLIC_RORK_API_BASE_URL` (system-managed, often points to legacy endpoint)
+
+## 🔍 Error Diagnosis Patterns
+
+### Common Error Signatures
+
+| Error | Likely Cause | Fix |
+|-------|--------------|-----|
+| `PreventRemoveContext` | Navigation context race condition | Increase settling delay in `_layout.tsx` |
+| `Unable to load script` | Metro bundler not connected | Start Metro, check ADB forwarding |
+| `Type not assignable` | Route not registered in `_layout.tsx` | Add `<Stack.Screen name="..." />` |
+| `LinkingContext` error | Missing `NavigationContainer` on web | Ensure platform-split navigation |
+| No `NAV_STATE_READY` log | Double-Lock stuck | Check `DOUBLE_LOCK_STATUS` logs |
+
+## 🛠️ Development Workflow
+
+### Before Making Changes
+1. Verify route is registered in `app/_layout.tsx`
+2. Check if native module needs `.web.ts` shim
+3. Ensure financial calculations use `backend/lib/fees.ts`
+
+### When Debugging
+1. Check Metro bundler is running: `lsof -i :8081`
+2. Check ADB forwarding: `adb reverse --list`
+3. Look for chronological flow logs in order
+4. Use `DOUBLE_LOCK_STATUS` logs to identify stuck locks
+
+### Testing Checklist
+- [ ] Metro bundler running and accessible
+- [ ] ADB port forwarding set up (Android)
+- [ ] Backend server running on port 3000
+- [ ] All routes registered in `_layout.tsx`
+- [ ] No inline fee calculations in components
+- [ ] Platform-split navigation intact
+
+## 📝 Code Review Guidelines
+
+When reviewing code changes, verify:
+- ✅ Financial logic uses `backend/lib/fees.ts`
+- ✅ Navigation uses declarative `<Redirect />` not `router.replace()` in `useEffect`
+- ✅ Platform-split navigation preserved in `_layout.tsx`
+- ✅ New routes registered in `_layout.tsx`
+- ✅ Native modules have `.web.ts` shims
+- ✅ Naming conventions follow snake_case for metadata
+
+## 🎯 AI Assistant Instructions
+
+When helping with this codebase:
+1. **Always check** `RORK_INSTRUCTIONS.md` for locked patterns before suggesting changes
+2. **Never suggest** removing the platform-split navigation or Double-Lock logic
+3. **Always verify** routes are registered before adding new screens
+4. **Always use** `backend/lib/fees.ts` for any financial calculations
+5. **Always check** Metro connection before debugging navigation issues
+6. **Respect** the chronological flow when analyzing logs or crashes

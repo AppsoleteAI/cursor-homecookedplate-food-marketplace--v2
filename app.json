@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#1A0F0A"
     },
     "ios": {
       "supportsTablet": true,
@@ -32,7 +32,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#1A0F0A"
       },
       "package": "com.rork.homecookedplate",
       "permissions": [
@@ -52,7 +52,10 @@
             "host": "(auth)",
             "path": "reset-password"
           },
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -93,7 +96,9 @@
           "merchantIdentifier": "string | string[]",
           "enableGooglePay": "boolean"
         }
-      ]
+      ],
+      "expo-audio",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true

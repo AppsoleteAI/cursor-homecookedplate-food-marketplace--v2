@@ -5,7 +5,7 @@ import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { appRouter } from "./trpc/app-router";
 import { createContext } from "./trpc/create-context";
-import { supabaseAdmin } from "./lib/supabase";
+import { createSupabaseAdmin } from "./lib/supabase";
 import { logAdminAlert } from "./lib/alerts";
 import { sendExpoPushNotification } from "./lib/expo-push-notifications";
 import { calculateFees } from "./lib/fees";
@@ -90,7 +90,40 @@ const rateLimit = (maxRequests: number, windowMs: number) => {
   };
 };
 
-app.use("*", cors());
+// Enable CORS for your Expo origin
+// MUST BE FIRST: CORS middleware must be before tRPC routes to handle OPTIONS preflight
+app.use(
+  '/api/trpc/*',
+  cors({
+    // Allow Expo web origins (development and production)
+    // For development: '*' allows all origins (including Expo tunnel URLs)
+    // For production: Specify exact origins for security
+    origin: (origin) => {
+      // Allow all origins in development (includes Expo tunnel URLs like *.exp.direct, *.expo.dev)
+      if (process.env.NODE_ENV !== 'production') {
+        return true; // Allow all origins in development
+      }
+      // Production: Allow specific Expo origins
+      if (!origin) return true; // Allow requests without origin (e.g., Postman, curl)
+      const allowedOrigins = [
+        'https://homecookedplate.com',
+        'https://www.homecookedplate.com',
+        'https://homecookedplate-marketplace.vercel.app',
+        // Add your production Expo web URL here when deployed
+      ];
+      // Also allow Expo tunnel URLs in production (for testing)
+      if (origin.includes('.exp.direct') || origin.includes('.expo.dev')) {
+        return true;
+      }
+      return allowedOrigins.includes(origin);
+    },
+    allowMethods: ['POST', 'GET', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'x-trpc-source'],
+    exposeHeaders: ['Content-Length'],
+    maxAge: 600,
+    credentials: true,
+  })
+);
 
 app.use(
   "*",
@@ -183,6 +216,9 @@ app.post("/webhook/stripe", async (c) => {
   }
 
   console.log('[Stripe Webhook] Event received:', event.type);
+
+  // Create Supabase admin client for all webhook operations
+  const supabaseAdmin = createSupabaseAdmin({ SUPABASE_URL: supabaseUrl, SUPABASE_SERVICE_ROLE_KEY: supabaseServiceKey });
 
   // Handle payment intent events (existing logic)
   if (event.type === 'payment_intent.succeeded') {
@@ -444,6 +480,9 @@ app.post("/webhook/metro-cap-reached", async (c) => {
     return c.json({ error: 'Server configuration error' }, 500);
   }
 
+  // Create Supabase admin client for webhook operations
+  const supabaseAdmin = createSupabaseAdmin({ SUPABASE_URL: supabaseUrl, SUPABASE_SERVICE_ROLE_KEY: supabaseServiceKey });
+
   try {
     const payload = await c.req.json();
     
@@ -500,7 +539,7 @@ app.post("/webhook/metro-cap-reached", async (c) => {
         platetaker_hit_cap: takerHitCap,
         timestamp: new Date().toISOString(),
       },
-    });
+    }, supabaseAdmin);
 
     return c.json({ received: true, message: 'Metro cap notification processed' });
   } catch (error) {
@@ -509,23 +548,106 @@ app.post("/webhook/metro-cap-reached", async (c) => {
   }
 });
 
+// tRPC server middleware - THE FIX: Destructure both the tRPC opts AND the Hono context 'c'
 app.use(
-  "/api/trpc/*",
-  async (c, next) => {
-    // #region agent log - HYPOTHESIS G, H: Track tRPC request arrival
-    fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'backend/hono.ts:TRPC_REQUEST',message:'tRPC request received',data:{path:c.req.path,method:c.req.method,hasBody:!!c.req.body},timestamp:Date.now(),sessionId:'debug-session',runId:'trpc-request',hypothesisId:'G,H'})}).catch(()=>{});
-    // #endregion
-    await next();
-  },
+  '/api/trpc/*',
   trpcServer({
-    endpoint: "/api/trpc",
+    endpoint: '/api/trpc', // Explicitly set the endpoint to match the Hono route
     router: appRouter,
-    createContext,
+    // THE FIX: Destructure both the tRPC opts AND the Hono context 'c'
+    createContext: async (opts, c) => {
+      // Passes Cloudflare secrets (c.env) or local .env (process.env)
+      // Note: If you are using Bun locally, c.env might be empty, so we use the ?? operator to fall back to process.env
+      const env = {
+        SUPABASE_URL: c.env?.SUPABASE_URL ?? process.env.EXPO_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE_KEY: c.env?.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY,
+        EXPO_PUBLIC_SUPABASE_ANON_KEY: c.env?.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+        EXPO_PUBLIC_WEB_URL: c.env?.EXPO_PUBLIC_WEB_URL ?? process.env.EXPO_PUBLIC_WEB_URL,
+      };
+      return await createContext(opts, env);
+    },
+    onError: ({ path, error }) => {
+      console.error(`❌ tRPC Error on ${path}:`, error);
+      // Log additional context for debugging
+      if (error.cause) {
+        console.error('Error cause:', error.cause);
+      }
+      if (error.stack) {
+        console.error('Error stack:', error.stack);
+      }
+    },
   })
 );
 
 app.get("/", (c) => {
   return c.json({ status: "ok", message: "API is running" });
+});
+
+// Health check endpoint - tests Supabase connection from Cloudflare Workers
+app.get("/health", async (c) => {
+  const supabaseUrl = c.env?.SUPABASE_URL || process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = c.env?.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  const healthStatus = {
+    timestamp: new Date().toISOString(),
+    api: {
+      status: 'ok',
+      message: 'API is running',
+    },
+    supabase: {
+      connected: false,
+      url: supabaseUrl ? (supabaseUrl.includes('supabase.co') ? 'Configured' : supabaseUrl) : 'Not configured',
+      hasCredentials: !!(supabaseUrl && supabaseServiceKey),
+      tables: {} as Record<string, boolean>,
+      error: null as string | null,
+    },
+    environment: {
+      platform: 'cloudflare-worker',
+      hasEnvVars: !!(supabaseUrl && supabaseServiceKey),
+    },
+  };
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    healthStatus.supabase.error = 'Supabase credentials not configured in Cloudflare Workers';
+    return c.json(healthStatus, 503);
+  }
+
+  try {
+    const { createSupabaseAdmin } = await import('./lib/supabase.js');
+    const supabaseAdmin = createSupabaseAdmin({
+      SUPABASE_URL: supabaseUrl,
+      SUPABASE_SERVICE_ROLE_KEY: supabaseServiceKey,
+    });
+
+    // Test connection with a simple count query on profiles table
+    const { count, error: queryError } = await supabaseAdmin
+      .from('profiles')
+      .select('*', { count: 'exact', head: true });
+
+    if (queryError) {
+      // Check if it's a "relation does not exist" error (table not created)
+      if (queryError.message?.includes('does not exist') || queryError.code === '42P01') {
+        healthStatus.supabase.error = 'Database connected, but profiles table does not exist. Please run SQL migrations in Supabase SQL Editor.';
+        healthStatus.supabase.connected = true; // Connection works, just missing tables
+        return c.json(healthStatus, 503);
+      }
+      
+      healthStatus.supabase.error = `Query failed: ${queryError.message}`;
+      return c.json(healthStatus, 503);
+    }
+
+    // Connection successful and table exists
+    healthStatus.supabase.connected = true;
+    healthStatus.supabase.tables = {
+      profiles: true, // We know it exists if the query succeeded
+    };
+    return c.json(healthStatus, 200);
+
+  } catch (error) {
+    healthStatus.supabase.error = error instanceof Error ? error.message : 'Unknown error';
+    healthStatus.supabase.connected = false;
+    return c.json(healthStatus, 503);
+  }
 });
 
 export default app;

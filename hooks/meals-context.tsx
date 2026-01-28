@@ -2,6 +2,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CreatedMeal, FreshnessAttachment, MealFreshness } from '@/types';
+import { useAuth } from '@/hooks/auth-context';
 
 interface MealsState {
   meals: CreatedMeal[];
@@ -17,9 +18,28 @@ export const [MealsProvider, useMeals] = createContextHook<MealsState>(() => {
   const [meals, setMeals] = useState<CreatedMeal[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const mountedRef = useRef<boolean>(true);
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
+  // Internal Gating: Only load meals data after authentication
+  // This reduces TTR on login screen by deferring AsyncStorage operations
   useEffect(() => {
     mountedRef.current = true;
+    
+    // Gate: Wait for auth to finish loading, then only proceed if authenticated
+    if (authLoading) {
+      return; // Wait for auth state to resolve
+    }
+    
+    if (!isAuthenticated) {
+      // Not authenticated - skip expensive operations
+      if (mountedRef.current) {
+        setIsLoading(false);
+        setMeals([]);
+      }
+      return;
+    }
+    
+    // Authenticated - proceed with data loading
     const loadData = async () => {
       try {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
@@ -46,7 +66,7 @@ export const [MealsProvider, useMeals] = createContextHook<MealsState>(() => {
     return () => {
       mountedRef.current = false;
     };
-  }, []);
+  }, [isAuthenticated, authLoading]);
 
   const persist = useCallback(async (next: CreatedMeal[]) => {
     try {

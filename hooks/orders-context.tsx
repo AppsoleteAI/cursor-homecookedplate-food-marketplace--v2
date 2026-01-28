@@ -58,7 +58,7 @@ function hydrateOrders(src: Order[], meals: Meal[], plateMakerId?: string | null
 }
 
 export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => {
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const mountedRef = useRef<boolean>(true);
@@ -67,8 +67,26 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
   const BELL_SEEN_PREFIX = 'bell_last_seen_';
   const [bellLastSeen, setBellLastSeen] = useState<Date | null>(null);
 
+  // Internal Gating: Only fetch orders and load data after authentication
+  // This reduces TTR on login screen by deferring expensive operations
   useEffect(() => {
     mountedRef.current = true;
+    
+    // Gate: Wait for auth to finish loading, then only proceed if authenticated
+    if (authLoading) {
+      return; // Wait for auth state to resolve
+    }
+    
+    if (!isAuthenticated || !user?.id) {
+      // Not authenticated - skip expensive operations
+      if (mountedRef.current) {
+        setIsLoading(false);
+        setOrders([]);
+      }
+      return;
+    }
+    
+    // Authenticated - proceed with data fetching
     refresh();
     (async () => {
       try {
@@ -88,7 +106,7 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
       mountedRef.current = false;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, user?.role]);
+  }, [user?.id, user?.role, isAuthenticated, authLoading]);
 
   const refresh = useCallback(async () => {
     try {

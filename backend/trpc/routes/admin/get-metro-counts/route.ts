@@ -1,10 +1,9 @@
 import { adminProcedure } from "../../../create-context";
-import { supabaseAdmin } from "../../../../lib/supabase";
 
 export const getMetroCountsProcedure = adminProcedure
-  .query(async () => {
+  .query(async ({ ctx }) => {
     // Query all metro area counts using admin client to bypass RLS
-    const { data: counts, error } = await supabaseAdmin
+    const { data: counts, error } = await ctx.supabaseAdmin
       .from('metro_area_counts')
       .select('metro_name, platemaker_count, platetaker_count')
       .order('metro_name', { ascending: true });

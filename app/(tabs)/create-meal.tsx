@@ -20,9 +20,12 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMeals } from '@/hooks/meals-context';
 import { useAuth } from '@/hooks/auth-context';
-import { Video, ResizeMode } from 'expo-av';
 import { trpc } from '@/lib/trpc';
 import { Ionicons } from '@expo/vector-icons';
+
+// Import expo-video with platform-specific shim for web compatibility
+// Metro will automatically resolve to lib/expo-video.web.ts on web platform
+import { useVideoPlayer, VideoView } from '@/lib/expo-video';
 import * as WebBrowser from 'expo-web-browser';
 
 type MediaType = 'image' | 'video';
@@ -30,6 +33,37 @@ interface MediaItem {
   uri: string;
   type: MediaType;
   duration?: number;
+}
+
+// Video preview component using expo-video (native only)
+function VideoPreview({ uri, testID }: { uri: string; testID?: string }) {
+  // Only render on native platforms - web uses native <video> element
+  if (Platform.OS === 'web') {
+    return null;
+  }
+
+  // Safety check for native platforms
+  if (!useVideoPlayer || !VideoView) {
+    console.warn('[VideoPreview] expo-video not available on this platform');
+    return null;
+  }
+
+  const player = useVideoPlayer(uri, (player: any) => {
+    player.loop = true;
+    player.muted = true; // Muted for preview
+  });
+
+  return (
+    <VideoView
+      testID={testID}
+      player={player}
+      style={styles.previewVideo}
+      allowsFullscreen={false}
+      allowsPictureInPicture={false}
+      contentFit="cover"
+      nativeControls={true}
+    />
+  );
 }
 
 interface FormState {
@@ -492,7 +526,7 @@ export default function CreateMealScreen() {
             </View>
           </LinearGradient>
         </View>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
           <View style={styles.section}>
           <GradientButton
@@ -578,17 +612,9 @@ export default function CreateMealScreen() {
                       // @ts-ignore web-only built-in element
                       React.createElement('video', { style: styles.previewImage as any, controls: true, loop: true, src: item.uri, playsInline: true })
                     ) : (
-                      <Video
+                      <VideoPreview
+                        uri={item.uri}
                         testID={`preview-video-${idx}`}
-                        source={{ uri: item.uri }}
-                        style={styles.previewVideo}
-                        useNativeControls
-                        resizeMode={ResizeMode.COVER}
-                        isLooping
-                        shouldPlay={false}
-                        onError={(e) => {
-                          Alert.alert('Playback error', 'There was a problem playing this video.');
-                        }}
                       />
                     )
                   )}
@@ -711,17 +737,9 @@ export default function CreateMealScreen() {
                       // @ts-ignore web-only built-in element
                       React.createElement('video', { style: styles.previewImage as any, controls: true, loop: true, src: item.uri, playsInline: true })
                     ) : (
-                      <Video
+                      <VideoPreview
+                        uri={item.uri}
                         testID={`preview-fresh-video-${idx}`}
-                        source={{ uri: item.uri }}
-                        style={styles.previewVideo}
-                        useNativeControls
-                        resizeMode={ResizeMode.COVER}
-                        isLooping
-                        shouldPlay={false}
-                        onError={(e) => {
-                          Alert.alert('Playback error', 'There was a problem playing this video.');
-                        }}
                       />
                     )
                   )}
@@ -757,16 +775,21 @@ export default function CreateMealScreen() {
         <View style={styles.foodSafetyAcknowledgmentBox}>
           <View style={styles.foodSafetyInfoRow}>
             <Ionicons name="information-circle" size={18} color={Colors.gradient.yellow} />
-            <Text style={styles.foodSafetyInfoText}>
-              We recommend reviewing{' '}
-              <Text
-                style={styles.foodSafetyLink}
-                onPress={() => WebBrowser.openBrowserAsync('https://cottagefoodlaws.com')}
-              >
-                cottagefoodlaws.com
+            <View style={{ flex: 1 }}>
+              <Text style={styles.foodSafetyInfoText}>
+                We recommend reviewing{' '}
+                <Text
+                  style={styles.foodSafetyLink}
+                  onPress={() => WebBrowser.openBrowserAsync('https://cottagefoodlaws.com')}
+                >
+                  cottagefoodlaws.com
+                </Text>
+                {' '}and doing your due diligence to meet all food safety requirements.
               </Text>
-              {' '}and doing your due diligence to meet all food safety requirements.
-            </Text>
+              <Text style={[styles.foodSafetyInfoText, { marginTop: 8, fontSize: 11, fontStyle: 'italic' }]}>
+                HomeCookedPlate is not affiliated or in partnership with cottagefoodlaws.com.
+              </Text>
+            </View>
           </View>
           <TouchableOpacity
             style={styles.acknowledgmentCheckboxRow}

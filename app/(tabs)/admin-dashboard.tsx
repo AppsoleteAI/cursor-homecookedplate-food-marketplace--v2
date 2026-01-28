@@ -9,6 +9,9 @@ import {
   ActivityIndicator,
   Switch,
   TextInput,
+  TouchableOpacity,
+  FlatList,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -322,6 +325,141 @@ const UserManagement = () => {
   );
 };
 
+const AuditLogsView = () => {
+  const [limit, setLimit] = useState(20);
+  const { data: logs, isLoading, error, refetch } = trpc.admin.getAuditLogs.useQuery({ limit });
+  const { data: stats } = trpc.admin.getCleanupStats.useQuery();
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.gradient.purple} />
+        <Text style={styles.loadingText}>Loading security logs...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Error loading audit logs</Text>
+        <Text style={styles.errorDetail}>{error.message}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.auditLogsContainer}>
+      <Text style={styles.metroHeader}>System Oversight</Text>
+      
+      <View style={styles.statCard}>
+        <Text style={styles.statLabel}>Pending Media Deletions</Text>
+        <Text style={styles.statValue}>{stats?.pendingCleanups ?? 0}</Text>
+      </View>
+
+      <Text style={styles.subHeader}>Security Audit Trail</Text>
+      {logs && logs.length > 0 ? (
+        <FlatList
+          data={logs}
+          keyExtractor={(item) => item.id}
+          scrollEnabled={false}
+          renderItem={({ item }) => {
+            const profile = item.profiles as { username?: string; email?: string } | null;
+            const actionLabel = item.action?.replace(/_/g, ' ') || 'Unknown Action';
+            
+            return (
+              <View style={styles.logItem}>
+                <Text style={styles.logAction}>{actionLabel}</Text>
+                <Text style={styles.logMeta}>
+                  Table: {item.table_name || 'N/A'} | By: {profile?.username || profile?.email || 'System'}
+                </Text>
+                <Text style={styles.logTime}>
+                  {new Date(item.created_at).toLocaleString()}
+                </Text>
+              </View>
+            );
+          }}
+        />
+      ) : (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No audit logs found</Text>
+        </View>
+      )}
+    </View>
+  );
+};
+
+const AdminPromotionView = () => {
+  const [targetUserId, setTargetUserId] = useState('');
+  const utils = trpc.useUtils();
+  
+  const promoteMutation = trpc.admin.promoteToAdmin.useMutation({
+    onSuccess: (data) => {
+      Alert.alert("Success", data.message || "User has been promoted to Admin and logged.");
+      setTargetUserId('');
+      // Invalidate relevant queries
+      utils.admin.getAuditLogs.invalidate();
+    },
+    onError: (err) => {
+      Alert.alert("Promotion Failed", err.message || "Failed to promote user to admin");
+    },
+  });
+
+  const handlePromote = () => {
+    if (!targetUserId.trim()) {
+      Alert.alert("Error", "Please enter a User UUID");
+      return;
+    }
+    
+    Alert.alert(
+      "Confirm Promotion",
+      "Warning: This grants full access to system logs and price overrides. Are you sure?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Grant Admin", 
+          style: "destructive",
+          onPress: () => promoteMutation.mutate({ userId: targetUserId.trim() })
+        },
+      ]
+    );
+  };
+
+  return (
+    <View style={styles.promotionContainer}>
+      <Text style={styles.metroHeader}>Promote User to Admin</Text>
+      <Text style={styles.promotionWarning}>
+        Warning: This grants full access to system logs and price overrides.
+      </Text>
+      
+      <TextInput
+        placeholder="Enter User UUID"
+        value={targetUserId}
+        onChangeText={setTargetUserId}
+        style={styles.promotionInput}
+        placeholderTextColor={Colors.gray[400]}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+
+      <TouchableOpacity 
+        onPress={handlePromote}
+        disabled={promoteMutation.isLoading || !targetUserId.trim()}
+        style={[
+          styles.promotionButton,
+          (promoteMutation.isLoading || !targetUserId.trim()) && styles.promotionButtonDisabled
+        ]}
+      >
+        {promoteMutation.isLoading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.promotionButtonText}>Grant Admin Privileges</Text>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+};
+
 export default function AdminDashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
@@ -369,6 +507,8 @@ export default function AdminDashboardScreen() {
           <MetroMonitor />
           <CityMaxAlerts />
           <UserManagement />
+          <AdminPromotionView />
+          <AuditLogsView />
         </ScrollView>
       </View>
     </AdminOnly>
@@ -594,6 +734,106 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.gray[600],
     lineHeight: 18,
+  },
+  auditLogsContainer: {
+    marginHorizontal: 24,
+    marginBottom: 24,
+    padding: 20,
+    backgroundColor: Colors.gray[50],
+    borderRadius: 16,
+  },
+  statCard: {
+    backgroundColor: Colors.white,
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  statLabel: {
+    color: Colors.gray[600],
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: Colors.error,
+  },
+  subHeader: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginVertical: 15,
+    color: Colors.gray[900],
+  },
+  logItem: {
+    backgroundColor: Colors.white,
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.gradient.purple,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  logAction: {
+    fontWeight: 'bold',
+    fontSize: 14,
+    color: Colors.gray[900],
+    marginBottom: 4,
+  },
+  logMeta: {
+    fontSize: 12,
+    color: Colors.gray[600],
+    marginTop: 4,
+  },
+  logTime: {
+    fontSize: 10,
+    color: Colors.gray[500],
+    marginTop: 4,
+  },
+  promotionContainer: {
+    marginHorizontal: 24,
+    marginBottom: 24,
+    padding: 20,
+    backgroundColor: Colors.gray[50],
+    borderRadius: 16,
+  },
+  promotionWarning: {
+    color: Colors.error,
+    marginBottom: 15,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  promotionInput: {
+    borderWidth: 1,
+    borderColor: Colors.gray[300],
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 15,
+    fontSize: 14,
+    color: Colors.gray[900],
+    backgroundColor: Colors.white,
+  },
+  promotionButton: {
+    backgroundColor: Colors.gradient.purple,
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  promotionButtonDisabled: {
+    opacity: 0.6,
+  },
+  promotionButtonText: {
+    color: Colors.white,
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   userManagementRow: {
     marginBottom: 16,

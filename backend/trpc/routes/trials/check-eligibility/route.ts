@@ -1,6 +1,5 @@
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
-import { supabaseAdmin } from "../../../../lib/supabase";
 
 export const checkTrialEligibilityProcedure = publicProcedure
   .input(
@@ -10,9 +9,10 @@ export const checkTrialEligibilityProcedure = publicProcedure
       role: z.enum(['platemaker', 'platetaker']),
     })
   )
-  .mutation(async ({ input }) => {
+  .mutation(async ({ input, ctx }) => {
     // Step 1: Use PostGIS RPC to find metro area (per RORK_INSTRUCTIONS.md Section 2)
-    const { data: metroName, error: rpcError } = await supabaseAdmin.rpc(
+    // Use ctx.supabase (anon key) for RPC - respects RLS if enabled
+    const { data: metroName, error: rpcError } = await ctx.supabase.rpc(
       'find_metro_by_location',
       { lng: input.lng, lat: input.lat }
     );
@@ -28,22 +28,25 @@ export const checkTrialEligibilityProcedure = publicProcedure
     }
 
     // Step 2: Check current counts for this metro
-    const { data: counts, error: countsError } = await supabaseAdmin
+    // Use ctx.supabase (anon key) for reads - respects RLS
+    // Note: metro_area_counts doesn't have RLS enabled, but we use anon key for consistency
+    const { data: counts, error: countsError } = await ctx.supabase
       .from('metro_area_counts')
       .select('platemaker_count, platetaker_count')
       .eq('metro_name', metroName)
       .single();
 
     // If metro doesn't exist in counts table, initialize it
+    // Use ctx.supabaseAdmin (service role) ONLY for writes - this is a system operation
     if (countsError || !counts) {
-      await supabaseAdmin
+      await ctx.supabaseAdmin
         .from('metro_area_counts')
         .insert({ metro_name: metroName, platemaker_count: 0, platetaker_count: 0 })
         .onConflict('metro_name')
         .merge();
 
-      // Retry the query
-      const { data: retryCounts } = await supabaseAdmin
+      // Retry the query using anon key (read operation)
+      const { data: retryCounts } = await ctx.supabase
         .from('metro_area_counts')
         .select('platemaker_count, platetaker_count')
         .eq('metro_name', metroName)

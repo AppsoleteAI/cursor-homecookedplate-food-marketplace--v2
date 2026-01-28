@@ -197,7 +197,7 @@ export default function CheckoutScreen() {
   const [processing, setProcessing] = useState<boolean>(false);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  
+
   const stripe = useStripe();
   const initPaymentSheet = stripe?.initPaymentSheet || null;
   const presentPaymentSheet = stripe?.presentPaymentSheet || null;
@@ -263,7 +263,7 @@ export default function CheckoutScreen() {
           mealId: item.meal.id,
           sellerId: firstSellerId,
           quantity: item.quantity,
-          totalPrice: item.meal.price * item.quantity,
+          unitPrice: item.meal.price, // Price per unit - fees.ts will calculate breakdown
           specialInstructions: item.specialInstructions,
           cookingTemperature: item.cookingTemperature,
           allergies: item.allergies,

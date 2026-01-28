@@ -110,7 +110,7 @@ if (profileError?.code === '23505') {
 **CRITICAL**: The platform environment variable `EXPO_PUBLIC_RORK_API_BASE_URL` is system-managed and often points to a legacy endpoint (`api.rivet.dev`). **Do not use or rely on this variable for API calls.**
 
 - **Custom Backend**: The app is routed to a custom Cloudflare Workers backend.
-- **Production URL**: `https://platetaker-api.appsolete.workers.dev`
+- **Production URL**: `https://plate-marketplace-api.appsolete.workers.dev`
 - **Implementation**: The tRPC client in `lib/trpc.ts` is **hardcoded** to this URL to bypass system-managed routing.
 - **Rule**: Any modifications to API fetching or tRPC must maintain this hardcoded URL unless a new Cloudflare deployment is specified.
 
@@ -491,3 +491,28 @@ These sections form a stability triangle:
 - **New Screen Pattern:** All new screens (Earnings, Dashboard, etc.) must be added as sub-routes or modal views. Do not modify the main navigation tree.
 - **Route Registration:** New routes must be registered in `app/_layout.tsx` following the existing pattern.
 - **Citation:** [2026-01-09]
+
+### 🔧 Android Emulator & ADB Connection Rules (CRITICAL)
+- **DO NOT** use `adb wait-for-device` in automated command chains that could hang indefinitely.
+- **DO NOT** attempt to auto-reboot the Android emulator using `adb reverse` if the port fails; notify the user to check `adb devices` manually instead.
+- **ADB Server Recovery:** If `adb wait-for-device` hangs, run `adb kill-server && adb start-server` to reset the ADB bridge.
+- **Port Conflict Check:** Before running `adb reverse tcp:8081 tcp:8081`, verify port 8081 is free: `lsof -ti:8081` (Mac/Linux) or `netstat -ano | findstr :8081` (Windows).
+- **Emulator State Verification:** Always check `adb devices` output before attempting port reverse:
+  - `device` = Ready (proceed with port reverse)
+  - `offline` = Emulator not fully booted (wait or restart emulator)
+  - `unauthorized` = Emulator needs authorization (user must authorize on device)
+  - Empty list = No emulator running (user must start emulator first)
+- **Manual Recovery Sequence:** If automated commands hang:
+  1. Run `adb kill-server`
+  2. Run `adb devices` (should be empty)
+  3. User starts emulator manually from Android Studio
+  4. Wait for emulator home screen to appear
+  5. Then run `adb reverse tcp:8081 tcp:8081`
+- **Logcat Debugging Rules (PREVENT TERMINAL HANG):**
+  - **ALWAYS use `-d` flag** for one-shot logcat dumps: `adb logcat -d | grep "TAG"` (exits automatically)
+  - **NEVER pipe `adb logcat` without `-d`** in automated scripts (causes infinite hang)
+  - **Use timeout for live monitoring:** `timeout 10 adb logcat | grep "TAG"` (exits after 10 seconds)
+  - **Navigation Debug Script:** Use `./scripts/nav-debug-logcat.sh all` (uses `-d` flag by default, exits automatically)
+  - **For live monitoring:** Use `./scripts/nav-debug-logcat.sh live` (explicitly continuous, user must Ctrl+C)
+  - **When debugging navigation:** If logs aren't moving, check `adb devices` first; hanging logcat usually means emulator disconnected or app not running
+- **Citation:** [2026-01-26]

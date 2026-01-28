@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -117,7 +118,13 @@ export default function DashboardScreen() {
             <Text style={styles.statValue}>$</Text>
             <Text style={styles.statLabel}>Earnings Breakdown</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.statCard} testID="card-active-orders" onPress={() => router.push('/active-orders')}>
+          <TouchableOpacity style={styles.statCard} testID="card-active-orders" onPress={() => {
+            try {
+              router.push('/active-orders');
+            } catch (error) {
+              console.error('[dashboard] Error navigating to active orders:', error);
+            }
+          }}>
             <Ionicons name="cube-outline" size={24} color={Colors.gradient.green} />
             <Text style={styles.statValue}>{stats.activeOrders}</Text>
             <Text style={styles.statLabel}>Active Orders</Text>
@@ -144,6 +151,9 @@ export default function DashboardScreen() {
                 cottagefoodlaws.com
               </Text>
               {' '}and do your due diligence to meet all food safety requirements from your local, county, state and federal laws before selling food items. You must acknowledge this requirement before publishing meals.
+            </Text>
+            <Text style={[styles.foodSafetyBannerText, { marginTop: 8, fontSize: 11, fontStyle: 'italic' }]}>
+              HomeCookedPlate is not affiliated or in partnership with cottagefoodlaws.com.
             </Text>
             <TouchableOpacity
               style={styles.foodSafetyBannerButton}

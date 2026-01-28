@@ -3,102 +3,149 @@ import { createTRPCProxyClient, httpLink } from "@trpc/client";
 import type { AppRouter } from "@/backend/trpc/app-router";
 import superjson from "superjson";
 import { Platform } from "react-native";
+import * as Device from "expo-device";
+import Constants from 'expo-constants';
 import { supabase } from "./supabase";
 
 export const trpc = createTRPCReact<AppRouter>();
 
 /**
- * Resolve the base URL for the tRPC backend.
- *
- * CRITICAL: The platform environment variable `EXPO_PUBLIC_RORK_API_BASE_URL` is system-managed
- * and often points to a legacy endpoint (`api.rivet.dev`). DO NOT use or rely on this variable.
- *
- * - Prefer `EXPO_PUBLIC_API_URL` from your `.env` if defined (for development/local overrides).
- * - In development (`__DEV__ === true`), automatically detect platform:
- *   - Android emulator: `http://10.0.2.2:3000` (bridge IP to host localhost)
- *   - iOS Simulator: `http://localhost:3000` (shares host network)
- *   - Web browser: `http://localhost:3000` (runs on host)
- *   - Physical devices: Falls back to `EXPO_PUBLIC_API_URL` or LAN IP
- * - In production, ALWAYS use the hardcoded Cloudflare Workers URL.
+ * Option A + B Hybrid: Always use production URL
+ * Since logs show the "Runtime fix" is successfully redirecting requests, 
+ * we make that redirection the default so the app stops wasting time on failed local requests.
+ * Always use production for now to ensure we hit the working Cloudflare CORS.
  */
 const getBaseUrl = () => {
-  // Development: Allow local override via EXPO_PUBLIC_API_URL
-  // NOTE: EXPO_PUBLIC_RORK_API_BASE_URL is intentionally ignored (system-managed legacy endpoint)
-  const envUrl = process.env.EXPO_PUBLIC_API_URL;
-  if (envUrl) {
-    console.log("[tRPC] Using API URL from EXPO_PUBLIC_API_URL:", envUrl);
-    // #region agent log - HYPOTHESIS D: Using env URL
-    fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/trpc.ts:GET_BASE_URL',message:'Using API URL from env',data:{url:envUrl,platform:Platform.OS},timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
-    return envUrl;
-  }
-
+  // Always use production for now to ensure we hit the working Cloudflare CORS
+  const baseUrl = 'https://plate-marketplace-api.appsolete.workers.dev';
+  
   if (__DEV__) {
-    // Platform-specific URLs for development
-    if (Platform.OS === 'android') {
-      // Android emulator uses special bridge IP to access host localhost
-      const url = "http://10.0.2.2:3000";
-      console.log("[tRPC] Using Android emulator bridge URL:", url);
-      // #region agent log - HYPOTHESIS D: Android URL selected
-      fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/trpc.ts:GET_BASE_URL_ANDROID',message:'Using Android emulator bridge URL',data:{url,platform:Platform.OS},timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
-      return url;
-    } else if (Platform.OS === 'ios') {
-      // iOS Simulator shares host network, can use localhost
-      const url = "http://localhost:3000";
-      console.log("[tRPC] Using iOS Simulator localhost URL:", url);
-      // #region agent log - HYPOTHESIS D: iOS URL selected
-      fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/trpc.ts:GET_BASE_URL_IOS',message:'Using iOS Simulator localhost URL',data:{url,platform:Platform.OS},timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
-      return url;
-    } else if (Platform.OS === 'web') {
-      // Web browser runs on host, can use localhost
-      const url = "http://localhost:3000";
-      console.log("[tRPC] Using web localhost URL:", url);
-      // #region agent log - HYPOTHESIS D: Web URL selected
-      fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/trpc.ts:GET_BASE_URL_WEB',message:'Using web localhost URL',data:{url,platform:Platform.OS},timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
-      return url;
-    }
-    
-    // Fallback for physical devices or unknown platforms
-    // Physical devices need Mac's LAN IP (should set EXPO_PUBLIC_API_URL)
-    const url = "http://192.168.0.123:3000";
-    console.warn("[tRPC] Using DEV fallback URL (set EXPO_PUBLIC_API_URL for physical devices):", url);
-    // #region agent log - HYPOTHESIS D: Fallback URL selected
-    fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/trpc.ts:GET_BASE_URL_FALLBACK',message:'Using fallback URL',data:{url,platform:Platform.OS},timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
-    return url;
+    console.log("[tRPC] Development mode - Using production backend:", baseUrl);
+    return baseUrl;
   }
 
-  // Production: Hardcoded Cloudflare Workers URL (DO NOT CHANGE)
-  // This bypasses system-managed routing that points to legacy endpoints
-  const url = "https://platetaker-api.appsolete.workers.dev";
-  console.log("[tRPC] Using PROD backend URL (hardcoded):", url);
-  // #region agent log - HYPOTHESIS D: Production URL selected
-  fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/trpc.ts:GET_BASE_URL_PROD',message:'Using production URL',data:{url,platform:Platform.OS},timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'D'})}).catch(()=>{});
-  // #endregion
-  return url;
+  console.log("[tRPC] Production build - Using Cloudflare Worker:", baseUrl);
+  return baseUrl;
 };
 
 const baseUrl = getBaseUrl();
-const trpcUrl = `${baseUrl}/api/trpc`;
+// CRITICAL: URL must match backend route configuration
+// If backend mounts like this: app.use('/api/trpc/*', trpcServer({ ... }))
+// Then frontend URL MUST be: 'https://...workers.dev/api/trpc' (NO trailing slash)
+// Define it once with trailing slash handling
+export const trpcUrl = baseUrl.endsWith('/') 
+  ? `${baseUrl}api/trpc` 
+  : `${baseUrl}/api/trpc`;
+// Log the URL being used - this helps debug connection issues
+if (typeof window !== 'undefined') {
+  console.log('[tRPC] 🌐 Client initialized with URL:', trpcUrl, {
+    platform: Platform.OS,
+    isDev: __DEV__,
+    currentUrl: window.location.href,
+    hostname: window.location.hostname,
+    protocol: window.location.protocol,
+    isTunnel: window.location.hostname.includes('.exp.direct') || window.location.hostname.includes('.expo.dev'),
+  });
+} else {
+  console.log('[tRPC] Client initialized with URL:', trpcUrl, {
+    platform: Platform.OS,
+    isDev: __DEV__,
+  });
+}
 // #region agent log - HYPOTHESIS C, D: tRPC client initialization
-fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/trpc.ts:TRPC_CLIENT_INIT',message:'tRPC client initializing',data:{baseUrl,trpcUrl,platform:Platform.OS,isDev:__DEV__},timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'C,D'})}).catch(()=>{});
+fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/trpc.ts:TRPC_CLIENT_INIT',message:'tRPC client initializing',data:{trpcUrl,platform:Platform.OS,isDev:__DEV__},timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'C,D'})}).catch(()=>{});
 // #endregion
 
 export const trpcClient = trpc.createClient({
   links: [
     httpLink({
+      // httpLink automatically adds /trpc, so set to /api to get /api/trpc
       url: trpcUrl,
       transformer: superjson,
       async headers() {
         const session = await supabase.auth.getSession();
         const token = session.data.session?.access_token;
         // #region agent log - HYPOTHESIS D: tRPC request headers
-        fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/trpc.ts:TRPC_HEADERS',message:'tRPC request headers prepared',data:{hasToken:!!token,url:trpcUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'D'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/trpc.ts:TRPC_HEADERS',message:'tRPC request headers prepared',data:{hasToken:!!token},timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'D'})}).catch(()=>{});
         // #endregion
-        return token ? { authorization: `Bearer ${token}` } : {};
+        return {
+          'Content-Type': 'application/json',
+          'x-trpc-source': 'expo-web', // Required for CORS validation
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        };
+      },
+      fetch: async (url, options) => {
+        // Runtime check: If on HTTPS tunnel but URL is HTTP, force production backend
+        // Convert URL to string for processing
+        const urlString = typeof url === 'string' ? url : url instanceof URL ? url.toString() : String(url);
+        let finalUrl: string | URL | Request = url;
+        
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          const hostname = window.location.hostname;
+          const protocol = window.location.protocol;
+          const isTunnel = hostname.includes('.exp.direct') || 
+                          hostname.includes('.expo.dev') ||
+                          protocol === 'https:';
+          
+          if (isTunnel && urlString.startsWith('http://')) {
+            try {
+              // Extract the path from the original URL (e.g., /api/trpc/auth.signup)
+              // httpLink adds /trpc, so the path will be /api/trpc/auth.signup
+              const urlObj = new URL(urlString);
+              const path = urlObj.pathname + urlObj.search;
+              // Build new URL with production backend - ensure no double slash
+              const productionBase = 'https://plate-marketplace-api.appsolete.workers.dev';
+              finalUrl = productionBase.endsWith('/') && path.startsWith('/')
+                ? `${productionBase}${path.slice(1)}`
+                : `${productionBase}${path}`;
+              console.warn('[tRPC] ⚠️ Runtime fix: Replacing HTTP URL with HTTPS production backend');
+              console.warn('[tRPC] Original URL:', urlString);
+              console.warn('[tRPC] Fixed URL:', finalUrl);
+              console.warn('[tRPC] Context:', { hostname, protocol, isTunnel });
+            } catch (urlError) {
+              // If URL parsing fails, try simple string replacement as fallback
+              // Preserve the full path including /api/trpc
+              console.warn('[tRPC] URL parsing failed, using string replacement:', urlError);
+              const productionBase = 'https://plate-marketplace-api.appsolete.workers.dev';
+              finalUrl = urlString.replace(/^http:\/\/[^/]+/, productionBase);
+              console.warn('[tRPC] Fallback fixed URL:', finalUrl);
+            }
+          }
+        }
+        
+        console.log('[tRPC] Making request to:', finalUrl, 'Method:', options?.method);
+        try {
+          const response = await fetch(finalUrl, {
+            ...options,
+            credentials: 'include',
+            mode: 'cors', // Explicitly set CORS mode
+          });
+          console.log('[tRPC] Response status:', response.status, response.statusText);
+          if (!response.ok) {
+            // Clone the response before reading the body to avoid "Body stream already read" error
+            const clonedResponse = response.clone();
+            const text = await clonedResponse.text();
+            console.error('[tRPC] Request failed:', response.status, response.statusText, 'Body:', text.substring(0, 200));
+          }
+          return response;
+        } catch (error) {
+          console.error('[tRPC] Fetch error:', error);
+          console.error('[tRPC] Error details:', {
+            message: error instanceof Error ? error.message : String(error),
+            name: error instanceof Error ? error.name : 'Unknown',
+            stack: error instanceof Error ? error.stack : undefined,
+            originalUrl: urlString,
+            finalUrl: typeof finalUrl === 'string' ? finalUrl : String(finalUrl),
+            ...(typeof window !== 'undefined' ? {
+              currentUrl: window.location.href,
+              hostname: window.location.hostname,
+              protocol: window.location.protocol,
+            } : {}),
+          });
+          // Re-throw with more context
+          const finalUrlString = typeof finalUrl === 'string' ? finalUrl : String(finalUrl);
+          throw new Error(`Failed to fetch from ${finalUrlString}: ${error instanceof Error ? error.message : String(error)}`);
+        }
       },
     }),
   ],
@@ -107,12 +154,17 @@ export const trpcClient = trpc.createClient({
 export const trpcProxyClient = createTRPCProxyClient<AppRouter>({
   links: [
     httpLink({
-      url: `${getBaseUrl()}/api/trpc`,
+      // Use trpcUrl for consistency - ensures this matches your Hono route
+      url: trpcUrl,
       transformer: superjson,
       async headers() {
         const session = await supabase.auth.getSession();
         const token = session.data.session?.access_token;
-        return token ? { authorization: `Bearer ${token}` } : {};
+        return {
+          'Content-Type': 'application/json',
+          'x-trpc-source': 'expo-web', // Required for CORS validation
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        };
       },
     }),
   ],

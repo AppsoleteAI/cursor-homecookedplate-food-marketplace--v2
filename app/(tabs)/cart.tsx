@@ -7,6 +7,7 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -139,7 +140,13 @@ export default function CartScreen() {
           </View>
           <GradientButton
             title={`Checkout • ${finalTotal.toFixed(2)}`}
-            onPress={() => router.push('/checkout')}
+            onPress={() => {
+              try {
+                router.push('/checkout');
+              } catch (error) {
+                console.error('[cart] Error navigating to checkout:', error);
+              }
+            }}
             baseColor="green"
             testID="go-to-checkout"
           />

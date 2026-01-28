@@ -31,17 +31,41 @@ export function calculateFees(
   buyerFeePercent: number = 10,
   sellerFeePercent: number = 10
 ) {
+  // Null/NaN validation (Codeleka approach - prevent crashes from invalid data)
+  if (!Number.isFinite(baseAmount) || baseAmount < 0) {
+    console.error('[FEES_DEBUG] Invalid baseAmount:', baseAmount);
+    throw new Error(`Invalid baseAmount: ${baseAmount}. Must be a finite, non-negative number.`);
+  }
+  
+  if (!Number.isFinite(buyerFeePercent) || buyerFeePercent < 0) {
+    console.error('[FEES_DEBUG] Invalid buyerFeePercent:', buyerFeePercent);
+    buyerFeePercent = 10; // Default fallback
+  }
+  
+  if (!Number.isFinite(sellerFeePercent) || sellerFeePercent < 0) {
+    console.error('[FEES_DEBUG] Invalid sellerFeePercent:', sellerFeePercent);
+    sellerFeePercent = 10; // Default fallback
+  }
+
   const buyerFee = baseAmount * (buyerFeePercent / 100);
   const sellerFee = baseAmount * (sellerFeePercent / 100);
 
-  return {
+  // Verify calculations don't return NaN (Codeleka approach)
+  const result = {
     baseAmount,
-    buyerFee,
-    sellerFee,
-    totalCharge: baseAmount + buyerFee, // What buyer pays (e.g., $100 + $10 = $110)
-    appTotalRevenue: buyerFee + sellerFee, // Platform keeps (e.g., $10 + $10 = $20)
-    sellerPayout: baseAmount - sellerFee, // What seller receives (e.g., $100 - $10 = $90)
+    buyerFee: Number.isFinite(buyerFee) ? buyerFee : 0,
+    sellerFee: Number.isFinite(sellerFee) ? sellerFee : 0,
+    totalCharge: Number.isFinite(baseAmount + buyerFee) ? baseAmount + buyerFee : baseAmount,
+    appTotalRevenue: Number.isFinite(buyerFee + sellerFee) ? buyerFee + sellerFee : 0,
+    sellerPayout: Number.isFinite(baseAmount - sellerFee) ? baseAmount - sellerFee : baseAmount,
   };
+
+  // Log calculation for debugging (Philipp Lackner - Watches approach)
+  if (__DEV__) {
+    console.log('[FEES_DEBUG] calculateFees result:', JSON.stringify(result, null, 2));
+  }
+
+  return result;
 }
 
 /**
@@ -49,15 +73,71 @@ export function calculateFees(
  * Buyer pays +10%, Seller pays -10%. Platform keeps 20%.
  */
 export const calculateOrderSplit = (baseAmount: number) => {
+  // Null/NaN validation (Codeleka approach)
+  if (!Number.isFinite(baseAmount) || baseAmount < 0) {
+    console.error('[FEES_DEBUG] calculateOrderSplit: Invalid baseAmount:', baseAmount);
+    throw new Error(`Invalid baseAmount: ${baseAmount}. Must be a finite, non-negative number.`);
+  }
+
   const platetakerFee = baseAmount * 0.10; // 10% on top
   const platemakerFee = baseAmount * 0.10; // 10% deduction
   
-  return {
-    totalCaptured: baseAmount + platetakerFee, // $110
-    appRevenue: platetakerFee + platemakerFee, // $20
-    sellerPayout: baseAmount - platemakerFee,  // $90
+  const result = {
+    totalCaptured: Number.isFinite(baseAmount + platetakerFee) ? baseAmount + platetakerFee : baseAmount,
+    appRevenue: Number.isFinite(platetakerFee + platemakerFee) ? platetakerFee + platemakerFee : 0,
+    sellerPayout: Number.isFinite(baseAmount - platemakerFee) ? baseAmount - platemakerFee : baseAmount,
   };
+
+  // Verify no NaN values (Codeleka approach)
+  if (!Number.isFinite(result.totalCaptured) || !Number.isFinite(result.appRevenue) || !Number.isFinite(result.sellerPayout)) {
+    console.error('[FEES_DEBUG] calculateOrderSplit returned NaN:', result);
+    throw new Error('Fee calculation resulted in NaN values');
+  }
+
+  return result;
 };
+
+/**
+ * Calculate order breakdown for UI display and API consistency.
+ * 
+ * MANDATORY LOCATION FOR ALL FINANCIAL CALCULATIONS [cite: 2026-01-17]
+ * This function ensures UI and API use the same calculation logic.
+ * The SQL trigger will re-verify the total_price on insert/update.
+ * 
+ * @param unitPrice - Price per unit (from meals table)
+ * @param quantity - Number of units ordered
+ * @returns Breakdown with subtotal, platform fee, and total
+ * 
+ * Formula:
+ * - subtotal = unitPrice * quantity (base amount)
+ * - platformFee = subtotal * 0.10 (10% buyer fee)
+ * - total = subtotal + platformFee (what buyer pays)
+ */
+export function calculateOrderBreakdown(unitPrice: number, quantity: number) {
+  // Null/NaN validation
+  if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+    throw new Error(`Invalid unitPrice: ${unitPrice}. Must be a finite, non-negative number.`);
+  }
+  if (!Number.isFinite(quantity) || quantity <= 0 || quantity > 999) {
+    throw new Error(`Invalid quantity: ${quantity}. Must be between 1 and 999.`);
+  }
+
+  const subtotal = unitPrice * quantity;
+  const platformFee = subtotal * 0.10; // 10% platform fee (buyer pays)
+  const total = subtotal + platformFee;
+
+  // Verify no NaN values
+  if (!Number.isFinite(subtotal) || !Number.isFinite(platformFee) || !Number.isFinite(total)) {
+    console.error('[FEES_DEBUG] calculateOrderBreakdown returned NaN:', { unitPrice, quantity, subtotal, platformFee, total });
+    throw new Error('Order breakdown calculation resulted in NaN values');
+  }
+
+  return {
+    subtotal: parseFloat(subtotal.toFixed(2)),
+    platformFee: parseFloat(platformFee.toFixed(2)),
+    total: parseFloat(total.toFixed(2)),
+  };
+}
 
 /**
  * Calculates the total amount to charge the buyer in cents for Just-In-Time (JIT) Checkout.
@@ -85,6 +165,12 @@ export const calculateOrderSplit = (baseAmount: number) => {
  * ```
  */
 export function calculateTotalWithFees(basePrice: number): number {
+  // Null/NaN validation (Codeleka approach)
+  if (!Number.isFinite(basePrice) || basePrice < 0) {
+    console.error('[FEES_DEBUG] calculateTotalWithFees: Invalid basePrice:', basePrice);
+    throw new Error(`Invalid basePrice: ${basePrice}. Must be a finite, non-negative number.`);
+  }
+
   // Convert base price to cents
   const baseInCents = Math.round(basePrice * 100);
   
@@ -94,8 +180,14 @@ export function calculateTotalWithFees(basePrice: number): number {
   // Calculate Stripe processing fee (2.9% + $0.30 = 30 cents)
   const stripeFee = Math.round(amountWithMarkup * 0.029 + 30);
   
-  // Return total in cents
-  return amountWithMarkup + stripeFee;
+  // Return total in cents - verify no NaN
+  const total = amountWithMarkup + stripeFee;
+  if (!Number.isFinite(total) || total < 0) {
+    console.error('[FEES_DEBUG] calculateTotalWithFees: Invalid result:', { basePrice, baseInCents, amountWithMarkup, stripeFee, total });
+    throw new Error('Fee calculation resulted in invalid total');
+  }
+
+  return total;
 }
 
 /**

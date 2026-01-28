@@ -1,6 +1,9 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+// Import expo-secure-store with platform-specific shim for web compatibility
+// Metro will automatically resolve to lib/expo-secure-store.web.ts on web platform
+import * as SecureStore from '@/lib/expo-secure-store';
 import { User } from '@/types';
 import { trpc } from '@/lib/trpc';
 import { supabase } from '@/lib/supabase';
@@ -8,6 +11,8 @@ import type { Session } from '@supabase/supabase-js';
 import { captureException, setUser as setSentryUser, addBreadcrumb } from '@/lib/sentry';
 import { runHardwareAudit } from '@/lib/hardwareAudit';
 import { router } from 'expo-router';
+import { Platform } from 'react-native';
+import { navLogger } from '@/lib/nav-logger';
 
 interface AuthState {
   user: User | null;
@@ -30,7 +35,9 @@ interface AuthState {
 }
 
 const STORAGE_KEY = 'auth_user_v2';
-const SESSION_KEY = 'auth_session_v2';
+// CRITICAL: Session stored in SecureStore (encrypted Keychain/Keystore) for production-grade security
+// This prevents session tokens from being accessible in device backups or by other apps
+const SESSION_KEY = 'rork_secure_session';
 
 export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [user, setUser] = useState<User | null>(null);
@@ -50,11 +57,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     retry: false,
   });
 
-  // #region agent log - HYPOTHESIS C, D, E: Track tRPC auth.me query state
-  useEffect(() => {
-    fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'hooks/auth-context.tsx:TRPC_ME_QUERY',message:'tRPC auth.me query state changed',data:{hasSession:!!session,enabled:!!session,isLoading:meLoading,hasError:!!meError,errorMessage:meError?.message,hasData:!!meData},timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'C,D,E'})}).catch(()=>{});
-  }, [session, meLoading, meError, meData]);
-  // #endregion
 
   useEffect(() => {
     mountedRef.current = true;
@@ -63,12 +65,22 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     };
   }, []);
 
+  /**
+   * Secure Session Persistence
+   * 
+   * Uses SecureStore (hardware-backed Keychain/Keystore) instead of AsyncStorage
+   * for production-grade security. Stores the entire Supabase session object to
+   * maintain compatibility with Supabase's auto-refresh logic.
+   * 
+   * CRITICAL: Must store full session object (not just token) for Supabase integration
+   */
   const persistSession = useCallback(async (session: Session | null) => {
     try {
       if (session) {
-        await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(session));
+        // Encrypt and store the WHOLE session object in SecureStore
+        await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session));
       } else {
-        await AsyncStorage.removeItem(SESSION_KEY);
+        await SecureStore.deleteItemAsync(SESSION_KEY);
       }
     } catch (e) {
       captureException(e as Error, { context: 'persistSession' });
@@ -89,70 +101,115 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, []);
 
   const loadUser = useCallback(async () => {
-    console.log('[Auth] Starting loadUser...');
-    // #region agent log - HYPOTHESIS E: Auth loadUser started
-    fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'hooks/auth-context.tsx:LOAD_USER_START',message:'loadUser started',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'E'})}).catch(()=>{});
-    // #endregion
-    const timeoutId = setTimeout(() => {
-      console.warn('[Auth] loadUser timeout - forcing isLoading to false');
-      // #region agent log - HYPOTHESIS E: Auth loadUser timeout
-      fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'hooks/auth-context.tsx:LOAD_USER_TIMEOUT',message:'loadUser timeout - forcing isLoading to false',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
-      if (mountedRef.current) {
-        setIsLoading(false);
-      }
-    }, 5000);
+    // Phase 3: Auth Hydration - Only starts after Phase 4 (Navigation Ready) is complete
+    // No timeout needed: RootLayout guarantees navigation context is ready before AuthProvider mounts
+    navLogger.stateChange('hooks/auth-context.tsx:LOAD_USER', 'auth_hydration_start', undefined, {
+      platform: Platform.OS,
+    });
+
+    // Declare outside try block so they're accessible in finally block
+    let sessionStr: string | null = null;
+    let userStr: string | null = null;
 
     try {
-      console.log('[Auth] Checking AsyncStorage for session...');
-      const sessionRaw = await AsyncStorage.getItem(SESSION_KEY);
-      if (sessionRaw) {
-        console.log('[Auth] Found stored session, attempting to restore...');
-        const storedSession = JSON.parse(sessionRaw) as Session;
-        const { data, error } = await supabase.auth.setSession({
-          access_token: storedSession.access_token,
-          refresh_token: storedSession.refresh_token,
-        });
+      // 1. Bootstrap: Pull encrypted session from SecureStore (async operation)
+      // CRITICAL: SecureStore is asynchronous - must await before proceeding
+      // This prevents navigation tree from mounting until session is hydrated
+      [sessionStr, userStr] = await Promise.all([
+        SecureStore.getItemAsync(SESSION_KEY).catch(() => null), // Gracefully handle if not found
+        AsyncStorage.getItem(STORAGE_KEY), // User data can stay in AsyncStorage (less sensitive)
+      ]);
 
-        if (error || !data.session) {
-          console.log('[Auth] Session restore failed, clearing storage');
-          await AsyncStorage.removeItem(SESSION_KEY);
-          await AsyncStorage.removeItem(STORAGE_KEY);
-        } else {
-          console.log('[Auth] Session restored successfully');
-          if (mountedRef.current) {
-            setSession(data.session);
+      // 2. Restore session if found
+      if (sessionStr) {
+        try {
+          const sessionData = JSON.parse(sessionStr) as Session;
+          const { data, error } = await supabase.auth.setSession({
+            access_token: sessionData.access_token,
+            refresh_token: sessionData.refresh_token,
+          });
+
+          if (error || !data.session) {
+            // Session invalid - clean up corrupted state
+            await Promise.all([
+              SecureStore.deleteItemAsync(SESSION_KEY).catch(() => {}), // Graceful cleanup
+              AsyncStorage.removeItem(STORAGE_KEY),
+            ]);
+            navLogger.warn('hooks/auth-context.tsx:LOAD_USER', 'Session restore failed, cleared storage', undefined, {
+              error: error?.message,
+            });
+          } else {
+            // Session restored successfully
+            if (mountedRef.current) {
+              setSession(data.session);
+            }
+            await persistSession(data.session);
+            navLogger.stateChange('hooks/auth-context.tsx:LOAD_USER', 'session_restored', undefined, {
+              userId: data.session.user?.id,
+            });
           }
-          await persistSession(data.session);
+        } catch (parseError) {
+          // Corrupted session data - clean up
+          await Promise.all([
+            SecureStore.deleteItemAsync(SESSION_KEY).catch(() => {}), // Graceful cleanup
+            AsyncStorage.removeItem(STORAGE_KEY),
+          ]);
+          navLogger.error('hooks/auth-context.tsx:LOAD_USER', 'Failed to parse session data', undefined, {
+            error: parseError instanceof Error ? parseError.message : String(parseError),
+          });
         }
-      } else {
-        console.log('[Auth] No stored session found');
       }
 
-      console.log('[Auth] Checking AsyncStorage for user...');
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        console.log('[Auth] Found stored user');
-        const parsed = JSON.parse(raw) as Omit<User, 'createdAt'> & { createdAt?: string };
-        const hydrated: User = { ...parsed, createdAt: parsed.createdAt ? new Date(parsed.createdAt) : new Date() };
-        if (mountedRef.current) {
-          setUser(hydrated);
+      // 3. Restore user if found
+      if (userStr) {
+        try {
+          const parsed = JSON.parse(userStr) as Omit<User, 'createdAt'> & { createdAt?: string };
+          // Hydrate Dates (AsyncStorage stores them as strings)
+          const hydrated: User = {
+            ...parsed,
+            createdAt: parsed.createdAt ? new Date(parsed.createdAt) : new Date(),
+          };
+          if (mountedRef.current) {
+            setUser(hydrated);
+          }
+          navLogger.stateChange('hooks/auth-context.tsx:LOAD_USER', 'user_restored', undefined, {
+            userId: hydrated.id,
+            role: hydrated.role,
+          });
+        } catch (parseError) {
+          // Corrupted user data - clean up
+          await AsyncStorage.removeItem(STORAGE_KEY);
+          navLogger.error('hooks/auth-context.tsx:LOAD_USER', 'Failed to parse user data', undefined, {
+            error: parseError instanceof Error ? parseError.message : String(parseError),
+          });
         }
-      } else {
-        console.log('[Auth] No stored user found');
       }
     } catch (error) {
-      console.error('[Auth] loadUser error:', error);
+      // Critical error during hydration - log and clean up
+      navLogger.error('hooks/auth-context.tsx:LOAD_USER', 'AUTH_HYDRATION_FAILURE', undefined, {
+        error: error instanceof Error ? error.message : String(error),
+      });
       captureException(error as Error, { context: 'loadUser' });
+      
+      // Clean up potentially corrupted state
+      try {
+        await Promise.all([
+          SecureStore.deleteItemAsync(SESSION_KEY).catch(() => {}), // Graceful cleanup
+          AsyncStorage.removeItem(STORAGE_KEY),
+        ]);
+      } catch (cleanupError) {
+        // Ignore cleanup errors
+      }
     } finally {
-      clearTimeout(timeoutId);
-      console.log('[Auth] loadUser complete, setting isLoading to false');
-      // #region agent log - HYPOTHESIS E: Auth loadUser complete
-      fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'hooks/auth-context.tsx:LOAD_USER_COMPLETE',message:'loadUser complete',data:{hasSession:!!session,hasUser:!!user,timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
+      // 4. Mark hydration complete - no timeout needed
+      // The promise settles naturally, and navigation context is guaranteed ready
       if (mountedRef.current) {
         setIsLoading(false);
       }
+      navLogger.stateChange('hooks/auth-context.tsx:LOAD_USER', 'auth_hydration_complete', undefined, {
+        hasSession: !!sessionStr,
+        hasUser: !!userStr,
+      });
     }
   }, [persistSession]);
 
@@ -161,6 +218,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, [loadUser]);
 
   // Keep local state in sync with Supabase auth events (critical for OAuth / deep link redirects)
+  // Handles Auth Gap: When user confirms email, USER_UPDATED fires and app "wakes up"
+  // Navigation to root triggers [2026-01-09] navigation lock in app/index.tsx
   useEffect(() => {
     const {
       data: { subscription },
@@ -174,6 +233,32 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           // Pull the latest profile/user from backend using the new session
           await refetchMe();
           addBreadcrumb('Supabase auth SIGNED_IN', 'auth', { userId: nextSession.user?.id });
+          // Navigate to root to trigger [2026-01-09] navigation lock
+          // app/index.tsx will handle routing based on user role
+          router.replace('/');
+        }
+
+        // Handle email confirmation: USER_UPDATED fires when user confirms email
+        if (event === 'USER_UPDATED' && nextSession) {
+          setSession(nextSession);
+          await persistSession(nextSession);
+          // Pull the latest profile/user after email confirmation
+          await refetchMe();
+          addBreadcrumb('Supabase auth USER_UPDATED', 'auth', { userId: nextSession.user?.id });
+          // Navigate to root to trigger [2026-01-09] navigation lock
+          // This ensures the app "wakes up" and routes user correctly after email confirmation
+          router.replace('/');
+        }
+
+        // Handle password recovery: PASSWORD_RECOVERY fires when user clicks reset link
+        // Force navigation to reset-password screen regardless of role to bypass [2026-01-09] lock
+        // This ensures user can set new password before being redirected to their dashboard
+        if (event === 'PASSWORD_RECOVERY' && nextSession) {
+          setSession(nextSession);
+          await persistSession(nextSession);
+          addBreadcrumb('Supabase auth PASSWORD_RECOVERY', 'auth', { userId: nextSession.user?.id });
+          // Force navigation to reset-password screen - bypasses role-based redirect
+          router.replace('/(auth)/reset-password');
         }
 
         if (event === 'SIGNED_OUT') {
@@ -183,6 +268,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           await persistUser(null);
           setSentryUser(null);
           addBreadcrumb('Supabase auth SIGNED_OUT', 'auth');
+          // Navigate to login on sign out
+          router.replace('/(auth)/login');
         }
       } catch (e) {
         captureException(e as Error, { context: 'onAuthStateChange', event });
@@ -214,6 +301,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
         if (!result.allowed) {
           // Device mismatch for lifetime user - navigate to error screen
+          // Note: This router.replace is acceptable here since it's not during initial mount
+          // The RORK_INSTRUCTIONS.md pattern applies to app/index.tsx initial routing
           console.warn('[HardwareAudit] Device mismatch detected, navigating to hardware-mismatch screen');
           router.replace('/(auth)/hardware-mismatch');
         }
@@ -230,7 +319,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       isMounted = false;
       clearTimeout(timeoutId);
     };
-  }, [user, session, logout]);
+  }, [user, session]);
 
   const login = useCallback(async (email: string, password: string) => {
     try {
@@ -459,7 +548,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     }
   }, [reactivateAccountMutation]);
 
-  return useMemo(() => ({
+  const authState = useMemo(() => ({
     user,
     session,
     isLoading,
@@ -478,4 +567,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     resetPassword,
     reactivateAccount,
   }), [user, session, isLoading, login, signup, logout, updateProfile, requestPlatemakerRole, pauseAccount, unpauseAccount, deleteAccount, setTwoFactorEnabled, changePassword, requestDataExport, resetPassword, reactivateAccount]);
+
+
+  return authState;
 });

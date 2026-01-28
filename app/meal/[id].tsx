@@ -9,9 +9,10 @@ import {
   Alert,
   Dimensions,
   BackHandler,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams, router, Stack } from 'expo-router';
 import { Star, Clock, MapPin, Heart } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
@@ -21,6 +22,9 @@ import { useFavorites } from '@/hooks/favorites-context';
 import StarRating from '@/components/StarRating';
 import { useReviewsContext } from '@/hooks/reviews-context';
 import { useAuth } from '@/hooks/auth-context';
+import { navLogger } from '@/lib/nav-logger';
+import { captureException } from '@/lib/sentry';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const { width } = Dimensions.get('window');
 
@@ -41,6 +45,23 @@ export default function MealDetailScreen() {
   const [cookingTemp, setCookingTemp] = useState<string>('');
   const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
 
+  // Log modal mount for Issue #12 (Instrumentation)
+  useEffect(() => {
+    const logData = {
+      mealId: id,
+      hasMeal: !!meal,
+      platform: Platform.OS,
+      screenWidth: width,
+      mealImages: meal?.images?.length || 0,
+    };
+    
+    navLogger.routeChange('app/meal/[id].tsx:MODAL_MOUNT', `/meal/${id}`, undefined, logData);
+    
+    if (__DEV__) {
+      console.log('[MealDetail] Component mounted', logData);
+    }
+  }, [id, meal, width]);
+
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       try {
@@ -58,11 +79,36 @@ export default function MealDetailScreen() {
     return () => sub.remove();
   }, []);
 
+  // Enhanced error handling with logging
+  useEffect(() => {
+    if (!meal && id) {
+      const error = new Error(`Meal not found: ${id}`);
+      navLogger.error('app/meal/[id].tsx:MEAL_NOT_FOUND', error, `/meal/${id}`, {
+        mealId: id,
+        platform: Platform.OS,
+      });
+      captureException(error, {
+        context: 'MealDetailScreen',
+        mealId: id,
+        platform: Platform.OS,
+      });
+    }
+  }, [meal, id]);
+
   if (!meal) {
     return (
-      <SafeAreaView style={styles.container}>
-        <Text>Meal not found</Text>
-      </SafeAreaView>
+      <ErrorBoundary>
+        <SafeAreaView style={styles.container} edges={Platform.OS === 'android' ? ['top', 'bottom'] : undefined}>
+          <Stack.Screen options={{ headerShown: true, title: 'Meal Details' }} />
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>Meal not found</Text>
+            <Text style={styles.errorSubtext}>ID: {id}</Text>
+            <TouchableOpacity onPress={() => router.back()} style={styles.errorButton}>
+              <Text style={styles.errorButtonText}>Go Back</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </ErrorBoundary>
     );
   }
 
@@ -82,21 +128,81 @@ export default function MealDetailScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false} testID="meal-detail-scroll">
+    <ErrorBoundary>
+      <View style={styles.container}>
+        {/* Contextual Options: Always include Stack.Screen inside the modal file itself
+            to bind the context and prevent PreventRemoveContext errors (Issue #1) */}
+        <Stack.Screen 
+        options={{ 
+          headerShown: true, 
+          title: 'Meal Details',
+          presentation: 'modal',
+          headerLeft: () => (
+            <TouchableOpacity 
+              onPress={() => router.back()}
+              style={{ marginLeft: 10 }}
+            >
+              <Text style={{ color: Colors.blue[600], fontSize: 16, fontWeight: '600' }}>Close</Text>
+            </TouchableOpacity>
+          ),
+        }} 
+      />
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        testID="meal-detail-scroll"
+        onLayout={() => {
+          if (__DEV__) {
+            console.log('[MealDetail] ScrollView laid out', { platform: Platform.OS, width });
+          }
+        }}
+      >
         <View style={styles.imageContainer}>
           <ScrollView
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}
+            nestedScrollEnabled={Platform.OS === 'android'}
             onScroll={(e) => {
               const index = Math.round(e.nativeEvent.contentOffset.x / width);
               setCurrentImageIndex(index);
             }}
             scrollEventThrottle={16}
+            onLayout={() => {
+              if (__DEV__) {
+                console.log('[MealDetail] Image ScrollView laid out', { 
+                  platform: Platform.OS, 
+                  imageCount: meal.images.length,
+                  width 
+                });
+              }
+            }}
           >
             {meal.images.map((image, index) => (
-              <Image key={index} source={{ uri: image }} style={styles.image} />
+              <Image 
+                key={index} 
+                source={{ uri: image }} 
+                style={styles.image}
+                onLoad={() => {
+                  if (__DEV__) {
+                    console.log('[MealDetail] Image loaded', { index, platform: Platform.OS });
+                  }
+                }}
+                onError={(error) => {
+                  const err = new Error(`Failed to load image ${index}: ${image}`);
+                  navLogger.error('app/meal/[id].tsx:IMAGE_LOAD_ERROR', err, `/meal/${id}`, {
+                    imageIndex: index,
+                    imageUri: image,
+                    platform: Platform.OS,
+                  });
+                  captureException(err, {
+                    context: 'MealDetailScreen:ImageLoad',
+                    imageIndex: index,
+                    imageUri: image,
+                    platform: Platform.OS,
+                  });
+                }}
+                resizeMode="cover"
+              />
             ))}
           </ScrollView>
           <View style={styles.imageIndicators}>
@@ -191,6 +297,7 @@ export default function MealDetailScreen() {
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
+                  nestedScrollEnabled={Platform.OS === 'android'}
                   contentContainerStyle={styles.optionsRow}
                 >
                   {cookingTemperatures.map(temp => (
@@ -286,7 +393,8 @@ export default function MealDetailScreen() {
           />
         </View>
       )}
-    </View>
+      </View>
+    </ErrorBoundary>
   );
 }
 
@@ -529,5 +637,33 @@ const styles = StyleSheet.create({
   },
   addButton: {
     flex: 1,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.gray[900],
+    marginBottom: 8,
+  },
+  errorSubtext: {
+    fontSize: 14,
+    color: Colors.gray[600],
+    marginBottom: 24,
+  },
+  errorButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: Colors.blue[600],
+    borderRadius: 8,
+  },
+  errorButtonText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

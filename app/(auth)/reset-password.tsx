@@ -15,25 +15,63 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks/auth-context';
 import { Colors } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
 
+/**
+ * Password validation rules (matches signup requirements)
+ * - Minimum 8 characters (enhanced from previous 6)
+ * - Must contain at least one letter and one number (recommended)
+ */
+function validatePassword(password: string): { valid: boolean; message?: string } {
+  if (password.length < 8) {
+    return { valid: false, message: 'Password must be at least 8 characters long' };
+  }
+  // Optional: Add more strict validation if needed
+  // For now, we match the signup flow which uses min(6) but recommend 8+
+  return { valid: true };
+}
+
 export default function ResetPasswordScreen() {
   const params = useLocalSearchParams<{ access_token?: string; type?: string }>();
+  const { session } = useAuth();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [hasValidSession, setHasValidSession] = useState(false);
 
   useEffect(() => {
-    // Check if we have a valid reset token
-    if (!params.access_token || params.type !== 'recovery') {
+    // Check if we have a valid reset token from URL params (deep link)
+    if (params.access_token && params.type === 'recovery') {
+      // Set session from URL token
+      supabase.auth.setSession({
+        access_token: params.access_token,
+        refresh_token: '',
+      }).then(({ error }) => {
+        if (error) {
+          Alert.alert(
+            'Invalid Link',
+            'This password reset link is invalid or has expired. Please request a new one.',
+            [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
+          );
+        } else {
+          setHasValidSession(true);
+        }
+      });
+    } else if (session) {
+      // Session exists from PASSWORD_RECOVERY event (auth listener navigated here)
+      // Check if this is a recovery session
+      setHasValidSession(true);
+    } else {
+      // No valid token or session - redirect to login
       Alert.alert(
         'Invalid Link',
         'This password reset link is invalid or has expired. Please request a new one.',
         [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
       );
     }
-  }, [params]);
+  }, [params, session]);
 
   const handleResetPassword = async () => {
     if (!password || !confirmPassword) {
@@ -41,8 +79,10 @@ export default function ResetPasswordScreen() {
       return;
     }
 
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
+    // Validate password strength
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      Alert.alert('Error', passwordValidation.message || 'Invalid password');
       return;
     }
 
@@ -51,26 +91,16 @@ export default function ResetPasswordScreen() {
       return;
     }
 
-    if (!params.access_token) {
+    // Ensure we have a valid session (either from URL token or PASSWORD_RECOVERY event)
+    if (!hasValidSession && !session) {
       Alert.alert('Error', 'Invalid reset token. Please request a new password reset link.');
       return;
     }
 
     setLoading(true);
     try {
-      // If we have an access token in the URL, we need to set the session first
-      if (params.access_token) {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: params.access_token,
-          refresh_token: '', // Not needed for password reset
-        });
-
-        if (sessionError) {
-          throw new Error('Invalid or expired reset token. Please request a new password reset link.');
-        }
-      }
-
-      // Update password
+      // Update password using current session
+      // The session is already set either from URL token (setSession above) or PASSWORD_RECOVERY event
       const { error } = await supabase.auth.updateUser({
         password: password,
       });
@@ -81,8 +111,17 @@ export default function ResetPasswordScreen() {
 
       Alert.alert(
         'Success',
-        'Your password has been reset successfully. You can now log in with your new password.',
-        [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
+        'Your password has been reset successfully.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Navigate to root to trigger [2026-01-09] navigation lock
+              // This ensures user is redirected to their correct Dashboard/Marketplace based on role
+              router.replace('/');
+            },
+          },
+        ]
       );
     } catch (error: any) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to reset password. Please try again.';
@@ -124,7 +163,7 @@ export default function ResetPasswordScreen() {
                 <Ionicons name="lock-closed-outline" size={20} color={Colors.gray[400]} />
                 <TextInput
                   style={styles.input}
-                  placeholder="New Password"
+                  placeholder="New Password (min 8 characters)"
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry

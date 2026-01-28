@@ -4,8 +4,11 @@ fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{metho
 import { createTRPCRouter } from "./create-context";
 import hiRoute from "./routes/example/hi/route";
 import { supabaseTestProcedure } from "./routes/supabase-test/route";
+import { healthCheckProcedure } from "./routes/health/route";
+import { dbHealthProcedure } from "./routes/system/db-health/route";
 import { signupProcedure } from "./routes/auth/signup/route";
 import { checkEligibilityProcedure } from "./routes/auth/check-eligibility/route";
+import { checkUsernameProcedure } from "./routes/auth/check-username/route";
 // #region agent log - ROUTER_LOAD: Signup procedure imported
 // Log procedure details to verify which version is imported
 const procedureDetails = {
@@ -53,8 +56,13 @@ import { getSystemAlertsProcedure } from "./routes/admin/get-system-alerts/route
 import { verifyPreLaunchProcedure } from "./routes/admin/verify-pre-launch/route";
 import { toggleGlobalMaintenanceProcedure } from "./routes/admin/toggle-global-maintenance/route";
 import { resetAllCountsProcedure } from "./routes/admin/reset-all-counts/route";
+import { getAuditLogsProcedure } from "./routes/admin/get-audit-logs/route";
+import { getCleanupStatsProcedure } from "./routes/admin/get-cleanup-stats/route";
+import { processMediaCleanupProcedure } from "./routes/admin/process-media-cleanup/route";
+import { promoteToAdminProcedure } from "./routes/admin/promote-to-admin/route";
 import { getMetroAvailabilityProcedure } from "./routes/metro/get-availability/route";
 import { hardwareAuditProcedure } from "./routes/auth/hardware-audit/route";
+import { markAsReadyProcedure } from "./routes/platemaker/mark-as-ready/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -62,6 +70,12 @@ export const appRouter = createTRPCRouter({
   }),
   supabase: createTRPCRouter({
     test: supabaseTestProcedure,
+  }),
+  health: createTRPCRouter({
+    check: healthCheckProcedure,
+  }),
+  system: createTRPCRouter({
+    dbHealth: dbHealthProcedure,
   }),
   auth: createTRPCRouter({
     signup: signupProcedure,
@@ -73,6 +87,7 @@ export const appRouter = createTRPCRouter({
     resetPassword: resetPasswordProcedure,
     reactivateAccount: reactivateAccountProcedure,
     checkEligibility: checkEligibilityProcedure,
+    checkUsername: checkUsernameProcedure,
     hardwareAudit: hardwareAuditProcedure,
   }),
   meals: createTRPCRouter({
@@ -122,9 +137,16 @@ export const appRouter = createTRPCRouter({
     verifyPreLaunch: verifyPreLaunchProcedure,
     toggleGlobalMaintenance: toggleGlobalMaintenanceProcedure,
     resetAllCounts: resetAllCountsProcedure,
+    getAuditLogs: getAuditLogsProcedure,
+    getCleanupStats: getCleanupStatsProcedure,
+    processMediaCleanup: processMediaCleanupProcedure,
+    promoteToAdmin: promoteToAdminProcedure,
   }),
   metro: createTRPCRouter({
     getAvailability: getMetroAvailabilityProcedure,
+  }),
+  platemaker: createTRPCRouter({
+    markAsReady: markAsReadyProcedure,
   }),
 });
 

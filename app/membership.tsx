@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useStripe } from '@stripe/stripe-react-native';
+import { useStripe } from '@/lib/stripe';
 import * as Location from 'expo-location';
 import { Colors, monoGradients } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';

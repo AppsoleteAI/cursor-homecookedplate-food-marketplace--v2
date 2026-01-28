@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import { Colors, monoGradients } from '@/constants/colors';
@@ -10,6 +10,7 @@ export default function ActiveOrdersModal() {
   const { orders } = useOrders();
   const insets = useSafeAreaInsets();
   const active = useMemo(() => orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled'), [orders]);
+
   const grouped = useMemo(() => {
     const map: Record<string, { label: string; items: typeof active }> = {} as Record<string, { label: string; items: typeof active }>;
     active.forEach((o) => {

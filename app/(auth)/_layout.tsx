@@ -1,20 +1,9 @@
-import { Stack, useRouter } from 'expo-router';
-import { useEffect } from 'react';
-import { useAuth } from '@/hooks/auth-context';
+import { Stack } from 'expo-router';
 
 export default function AuthLayout() {
-  const { isAuthenticated, user } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      if (user?.role === 'platemaker') {
-        router.replace('/(tabs)/dashboard');
-      } else {
-        router.replace('/(tabs)/(home)/home');
-      }
-    }
-  }, [isAuthenticated, user, router]);
+  // FIXED: Removed router.replace() in useEffect - violates RORK_INSTRUCTIONS.md Section 8
+  // Navigation is handled declaratively in app/index.tsx using <Redirect />
+  // This prevents circular redirects and PreventRemoveContext crashes
 
   return (
     <Stack screenOptions={{ headerShown: false }}>

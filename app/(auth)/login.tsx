@@ -270,24 +270,30 @@ export default function LoginScreen() {
               <View style={styles.inputContainer}>
                 <Ionicons name="mail-outline" size={20} color={Colors.gray[400]} />
                 <TextInput
+                  id="username"
+                  name="username"
                   style={styles.input}
                   placeholder="name@example.com"
                   value={username}
                   onChangeText={setUsername}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  autoComplete="username"
                 />
               </View>
 
               <View style={styles.inputContainer}>
                 <Ionicons name="lock-closed-outline" size={20} color={Colors.gray[400]} />
                 <TextInput
+                  id="password"
+                  name="password"
                   style={styles.input}
                   placeholder="Password"
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
+                  autoComplete="current-password"
                 />
                 <TouchableOpacity
                   onPress={() => setShowPassword(!showPassword)}
