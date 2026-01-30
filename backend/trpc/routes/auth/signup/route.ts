@@ -6,16 +6,9 @@ import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { randomBytes } from "crypto";
+// eslint-disable-next-line import/no-unresolved
 import { sendEmailConfirmation } from "../../../lib/email";
 // Use process.stdout.write directly for critical logs (bypasses Bun buffering)
-
-async function sendWelcomeEmail(email: string, username: string) {
-  try {
-    console.log(`[Signup] Welcome email would be sent to ${email} for ${username}`);
-  } catch (error) {
-    console.error('[Signup] Failed to send welcome email:', error);
-  }
-}
 
 // Force module reload by adding version to export
 const SIGNUP_PROCEDURE_VERSION = `v4-insert-then-update-20250118-${Date.now()}`;

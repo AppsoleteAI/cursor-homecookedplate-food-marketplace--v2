@@ -6,5 +6,7 @@
     "dev": "bun --watch server.ts",
     "start": "bun server.ts"
   },
-  "dependencies": {}
+  "dependencies": {
+    "resend": "^4.0.0"
+  }
 }

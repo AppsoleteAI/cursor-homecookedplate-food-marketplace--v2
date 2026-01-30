@@ -34,6 +34,8 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
   const [trialMeta, setTrialMeta] = useState<{ metro: string; spotsRemaining: number } | null>(null);
   const [checkingEligibility, setCheckingEligibility] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   // 1. Username Availability Logic
   const debouncedUsername = useDebounce(formData.username, 500);
@@ -164,11 +166,37 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
     }
   }, [formData.role, checkEligibilityMutation]);
 
+  // Clear error state when form data changes
+  useEffect(() => {
+    if (error && (formData.username || formData.email || formData.password)) {
+      setError(null);
+    }
+  }, [formData.username, formData.email, formData.password, error]);
+
+  // Clear error and retry count on unmount
+  useEffect(() => {
+    return () => {
+      setError(null);
+      setRetryCount(0);
+    };
+  }, []);
+
   // 3. Signup Handler
-  const handleSignup = useCallback(async () => {
+  const handleSignup = useCallback(async (isRetry = false) => {
     // Prevent double-taps
     if (loading) {
       console.log('[Signup] Sign-up blocked: Already in progress');
+      return;
+    }
+
+    // Prevent excessive retries (max 3 attempts)
+    if (retryCount >= 3 && !isRetry) {
+      const message = 'Too many signup attempts. Please wait a moment before trying again.';
+      if (Platform.OS === 'web') {
+        window.alert(message);
+      } else {
+        Alert.alert('Too Many Attempts', message);
+      }
       return;
     }
 
@@ -261,10 +289,19 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
     }
 
     setLoading(true);
-    console.log("[Signup] Mutating...");
+    setError(null);
+    console.log("[Signup] Mutating...", { isRetry, retryCount });
     
+    // Add timeout for stuck network requests (15 seconds for signup)
+    let timeoutId: NodeJS.Timeout | null = null;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error('Request timed out. Please check your connection and try again.'));
+      }, 15000);
+    });
+
     try {
-      const result = await signup(
+      const signupPromise = signup(
         formData.username, 
         cleanEmail, 
         formData.password, 
@@ -272,6 +309,13 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
         userLocation || undefined, 
         formData.foodSafetyAcknowledged
       );
+
+      const result = await Promise.race([signupPromise, timeoutPromise]);
+      
+      // Clear timeout if signup succeeds
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       
       console.log("[Signup] Success!", result);
       
@@ -316,24 +360,69 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
         }
       }
       
-      // Set animation state - this will trigger the animation effect
+      // Success - reset retry count and error
+      setRetryCount(0);
+      setError(null);
+      
+      // Set animation state - this will trigger the success UI
+      // Email confirmation is no longer blocking - users can sign in immediately
       setSignupUserRole(formData.role);
       setIsSigningUp(true);
       
       // Call success callback if provided
+      // Note: needsEmailConfirmation is ignored - users can sign in immediately
       if (options?.onSuccess) {
         options.onSuccess(result);
       }
     } catch (err: any) {
+      // Clear timeout if error occurs
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      
+      // Increment retry count
+      if (!isRetry) {
+        setRetryCount(prev => prev + 1);
+      }
+      
       const errorMessage = err.message || 'Failed to create account. Please try again.';
       
       console.error('[Signup] Signup error:', err);
       console.error('[Signup] Error message:', errorMessage);
       
-      if (Platform.OS === 'web') {
-        window.alert('Signup Issue: ' + errorMessage);
+      // Detect network errors
+      const isNetworkError = errorMessage.includes('fetch') || 
+        errorMessage.includes('network') ||
+        errorMessage.includes('timeout') ||
+        errorMessage.includes('Failed to fetch');
+      
+      // Set error state
+      setError(errorMessage);
+      
+      // Show alert with retry option if not max retries
+      if (retryCount < 2) {
+        const alertMessage = isNetworkError 
+          ? 'Network error. Please check your connection and try again.'
+          : errorMessage;
+        
+        if (Platform.OS === 'web') {
+          const shouldRetry = window.confirm(alertMessage + '\n\nWould you like to retry?');
+          if (shouldRetry) {
+            handleSignup(true);
+            return;
+          }
+        } else {
+          Alert.alert('Signup Issue', alertMessage, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Retry', onPress: () => handleSignup(true) },
+          ]);
+        }
       } else {
-        Alert.alert('Signup Issue', errorMessage);
+        if (Platform.OS === 'web') {
+          window.alert('Signup Issue: ' + errorMessage);
+        } else {
+          Alert.alert('Signup Issue', errorMessage);
+        }
       }
       
       setIsSigningUp(false);
@@ -352,7 +441,9 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
     isUsernameAvailable, 
     userLocation, 
     signup, 
-    options
+    options,
+    retryCount,
+    error
   ]);
 
   return {
@@ -381,6 +472,10 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
     isLoading: loading,
     isSigningUp,
     signupUserRole,
+    
+    // Error recovery
+    error,
+    retryCount,
     
     // Location
     userLocation,

@@ -1,16 +1,10 @@
+// eslint-disable-next-line import/no-unresolved
 import { Resend } from 'resend';
-// Note: captureException is optional - if sentry is not available, errors will just be logged
-let captureException: ((error: Error, context?: any) => void) | null = null;
-try {
-  // Try to import sentry if available (may not exist in backend)
-  const sentry = require('../../lib/sentry');
-  captureException = sentry.captureException;
-} catch {
-  // Sentry not available - use console.error instead
-  captureException = (error: Error, context?: any) => {
-    console.error('[Email Service Error]', error, context);
-  };
-}
+
+// Error logging function - uses console.error since sentry may not be available in backend
+const logError = (error: Error, context?: Record<string, unknown>) => {
+  console.error('[Email Service Error]', error.message, context);
+};
 
 /**
  * Production Email Service Utility
@@ -114,8 +108,8 @@ If you didn't create an account, you can safely ignore this email.
 
     if (result.error) {
       console.error('[Email Service] Failed to send confirmation email:', result.error);
-      if (captureException) {
-        captureException(new Error(`Resend error: ${result.error.message}`), {
+      if (logError) {
+        logError(new Error(`Resend error: ${result.error.message}`), {
           context: 'sendEmailConfirmation',
           email,
           username,
@@ -127,8 +121,8 @@ If you didn't create an account, you can safely ignore this email.
     console.log(`[Email Service] Confirmation email sent to ${email}`);
   } catch (error) {
     console.error('[Email Service] Error sending confirmation email:', error);
-    if (captureException) {
-      captureException(error as Error, {
+    if (logError) {
+      logError(error as Error, {
         context: 'sendEmailConfirmation',
         email,
         username,
@@ -193,8 +187,8 @@ export async function sendWelcomeEmail(
     console.log(`[Email Service] Welcome email sent to ${email}`);
   } catch (error) {
     console.error('[Email Service] Error sending welcome email:', error);
-    if (captureException) {
-      captureException(error as Error, {
+    if (logError) {
+      logError(error as Error, {
         context: 'sendWelcomeEmail',
         email,
         username,
@@ -261,8 +255,8 @@ export async function sendPasswordResetEmail(
     console.log(`[Email Service] Password reset email sent to ${email}`);
   } catch (error) {
     console.error('[Email Service] Error sending password reset email:', error);
-    if (captureException) {
-      captureException(error as Error, {
+    if (logError) {
+      logError(error as Error, {
         context: 'sendPasswordResetEmail',
         email,
       });

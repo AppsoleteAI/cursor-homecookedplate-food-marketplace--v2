@@ -57,33 +57,53 @@ if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
 // Phase 1: Asset preloading will be handled inside RootLayout component
 // This allows state management and proper gating
 
-// Providers component that wraps all context providers
-function Providers({ children }: { children: React.ReactNode }) {
+// Core providers needed for auth (mounted immediately)
+function CoreProviders({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
 
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <CartProvider>
-            <FavoritesProvider>
-              <NotificationsProvider>
-                <OrdersProvider>
-                  <MealsProvider>
-                    <AdminsProvider>
-                      <ReviewsProvider>
-                        {children}
-                      </ReviewsProvider>
-                    </AdminsProvider>
-                  </MealsProvider>
-                </OrdersProvider>
-              </NotificationsProvider>
-            </FavoritesProvider>
-          </CartProvider>
+          {children}
         </AuthProvider>
       </QueryClientProvider>
     </trpc.Provider>
   );
+}
+
+// App providers (only needed after auth - mounted lazily)
+function AppProviders({ children }: { children: React.ReactNode }) {
+  return (
+    <CartProvider>
+      <FavoritesProvider>
+        <NotificationsProvider>
+          <OrdersProvider>
+            <MealsProvider>
+              <AdminsProvider>
+                <ReviewsProvider>
+                  {children}
+                </ReviewsProvider>
+              </AdminsProvider>
+            </MealsProvider>
+          </OrdersProvider>
+        </NotificationsProvider>
+      </FavoritesProvider>
+    </CartProvider>
+  );
+}
+
+// Conditional provider wrapper - must be inside AuthProvider to access useAuth()
+function ConditionalAppProviders({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuth();
+  
+  // Only mount app providers after authentication
+  // This reduces initial render cost from ~8 providers to just 1 (AuthProvider)
+  if (!isAuthenticated) {
+    return <>{children}</>;
+  }
+  
+  return <AppProviders>{children}</AppProviders>;
 }
 
 // Navigation content component using Slot pattern
@@ -229,11 +249,13 @@ function RootLayout() {
     return (
       <ErrorBoundary>
         <GestureHandlerRootView style={styles.container}>
-          <Providers>
-            <NavigationContainer {...({ independent: true } as any)}>
-              {content}
-            </NavigationContainer>
-          </Providers>
+          <CoreProviders>
+            <ConditionalAppProviders>
+              <NavigationContainer {...({ independent: true } as any)}>
+                {content}
+              </NavigationContainer>
+            </ConditionalAppProviders>
+          </CoreProviders>
         </GestureHandlerRootView>
       </ErrorBoundary>
     );
@@ -260,7 +282,7 @@ function RootLayout() {
   }
 
   // Native: Straight-line render after essential locks pass
-  // Extended Splash: Splash hide is handled by ExtendedSplashHandler (inside Providers)
+  // Extended Splash: Splash hide is handled by ExtendedSplashHandler (inside CoreProviders)
   // Same structure as web - just wrapped in onLayout for native bridge sync
   return (
     <ErrorBoundary>
@@ -269,11 +291,13 @@ function RootLayout() {
           style={{ flex: 1 }} 
           onLayout={onLayoutRootView}
         >
-          <Providers>
-            <ExtendedSplashHandler>
-              {content}
-            </ExtendedSplashHandler>
-          </Providers>
+          <CoreProviders>
+            <ConditionalAppProviders>
+              <ExtendedSplashHandler>
+                {content}
+              </ExtendedSplashHandler>
+            </ConditionalAppProviders>
+          </CoreProviders>
         </View>
       </GestureHandlerRootView>
     </ErrorBoundary>

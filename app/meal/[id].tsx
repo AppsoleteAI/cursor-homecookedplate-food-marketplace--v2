@@ -25,6 +25,7 @@ import { useAuth } from '@/hooks/auth-context';
 import { navLogger } from '@/lib/nav-logger';
 import { captureException } from '@/lib/sentry';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { SkeletonMealDetail } from '@/components/SkeletonMealDetail';
 
 const { width } = Dimensions.get('window');
 

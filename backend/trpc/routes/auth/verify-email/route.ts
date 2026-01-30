@@ -1,6 +1,7 @@
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+// eslint-disable-next-line import/no-unresolved
 import { sendWelcomeEmail } from "../../../lib/email";
 
 /**

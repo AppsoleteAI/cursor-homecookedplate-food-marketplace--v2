@@ -30,7 +30,6 @@ export default function SignupScreen() {
   const [showSuccessModal] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isWaitingForEmail, setIsWaitingForEmail] = useState(false);
 
   // Use the comprehensive signup form hook
   const {
@@ -49,17 +48,13 @@ export default function SignupScreen() {
     isLoading: loading,
     isSigningUp,
     signupUserRole,
+    error,
+    retryCount,
   } = useSignupForm({
     onSuccess: (result) => {
-      // Central Listener Pattern: Check if email confirmation is needed
-      // When needsEmailConfirmation is true, show "Waiting for Verification" UI
-      // The central onAuthStateChange listener in hooks/auth-context.tsx will handle
-      // session updates when the user verifies their email and logs in
-      if (result.needsEmailConfirmation) {
-        setIsWaitingForEmail(true);
-        return; // Don't proceed with animation - show email confirmation UI
-      }
-      // Success handled by animation logic below
+      // Email confirmation is no longer blocking - backend uses email_confirm: true
+      // Users can sign in immediately after signup
+      // Email confirmation email is still sent but doesn't block access
       console.log('[Signup] Success callback:', result);
     },
     onError: (error) => {
@@ -75,89 +70,9 @@ export default function SignupScreen() {
     WebBrowser.maybeCompleteAuthSession();
   }, []);
 
-  // Auto-redirect to login after successful signup (no blocking animation)
-  useEffect(() => {
-    if (isSigningUp && signupUserRole) {
-      // Show success message briefly, then auto-redirect
-      const timer = setTimeout(() => {
-        router.replace('/(auth)/login');
-      }, 1500); // 1.5 second delay for user to see success
-
-      return () => clearTimeout(timer);
-    }
-  }, [isSigningUp, signupUserRole]);
-
-  // Resend email mutation - allows users to request a new verification email
-  const resendEmail = trpc.auth.resendVerificationEmail.useMutation({
-    onSuccess: (data) => {
-      Alert.alert('Email Sent', data.message || 'A new verification link has been sent to your email.');
-    },
-    onError: (error) => {
-      Alert.alert('Error', error.message || 'Failed to resend email. Please try again.');
-    },
-  });
-
-  /**
-   * "Waiting for Verification" UI
-   * 
-   * This screen is shown immediately after signup when needsEmailConfirmation is true.
-   * It provides:
-   * 1. Clear instructions to check email
-   * 2. Resend email functionality (if user didn't receive the email)
-   * 3. Option to go back to signup form
-   * 
-   * Flow:
-   * - User signs up → receives confirmation email via Resend (production email service)
-   * - This UI is shown → user waits for email
-   * - User clicks link in email → navigates to verify-email screen
-   * - After verification → user can log in
-   * 
-   * The central onAuthStateChange listener in hooks/auth-context.tsx handles session
-   * updates when the user verifies and logs in, ensuring the app "wakes up" correctly.
-   */
-  if (isWaitingForEmail) {
-    return (
-      <View style={styles.container}>
-        <LinearGradient
-          colors={[Colors.white, Colors.gray[50]]}
-          style={StyleSheet.absoluteFillObject}
-        />
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.emailConfirmationContainer}>
-            <Ionicons name="mail-outline" size={64} color={Colors.gradient.purple} style={styles.emailIcon} />
-            <Text style={styles.emailConfirmationTitle}>Check your email!</Text>
-            <Text style={styles.emailConfirmationText}>
-              We sent a confirmation link to {email}. Please check your email and click the link to verify your account.
-            </Text>
-            <Text style={styles.emailConfirmationSubtext}>
-              Once verified, you can log in to your account. The link will expire in 24 hours.
-            </Text>
-            <View style={styles.emailConfirmationActions}>
-              <TouchableOpacity 
-                style={[styles.resendButton, resendEmail.isLoading && styles.resendButtonDisabled]}
-                onPress={() => resendEmail.mutate({ email })}
-                disabled={resendEmail.isLoading}
-              >
-                {resendEmail.isLoading ? (
-                  <ActivityIndicator size="small" color={Colors.white} />
-                ) : (
-                  <Text style={styles.resendButtonText}>Resend Email</Text>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.backButton}
-                onPress={() => setIsWaitingForEmail(false)}
-              >
-                <Text style={styles.backButtonText}>Back to Signup</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </SafeAreaView>
-      </View>
-    );
-  }
-
-  // Show success message during signup (brief, then auto-redirect)
+  // Show success message during signup
+  // Don't auto-redirect - let auth context handle navigation if session was created
+  // If no session, user can manually navigate to login
   if (isSigningUp) {
     return (
       <View style={styles.container}>
@@ -169,7 +84,13 @@ export default function SignupScreen() {
           <View style={styles.successContainer}>
             <Ionicons name="checkmark-circle" size={80} color={Colors.gradient.green} />
             <Text style={styles.successTitle}>Account Created!</Text>
-            <Text style={styles.successText}>Redirecting to login...</Text>
+            <Text style={styles.successText}>You can now sign in to your account.</Text>
+            <TouchableOpacity
+              style={styles.loginButton}
+              onPress={() => router.push('/(auth)/login')}
+            >
+              <Text style={styles.loginButtonText}>Go to Login</Text>
+            </TouchableOpacity>
           </View>
         </SafeAreaView>
       </View>
@@ -451,10 +372,27 @@ export default function SignupScreen() {
                 </TouchableOpacity>
               </View>
 
+              {/* Error message display */}
+              {error && (
+                <View style={styles.errorContainer}>
+                  <Ionicons name="alert-circle" size={20} color="#ff4444" />
+                  <Text style={styles.errorText}>{error}</Text>
+                  {retryCount < 3 && (
+                    <TouchableOpacity
+                      onPress={() => handleSignup(true)}
+                      style={styles.retryButton}
+                      disabled={loading}
+                    >
+                      <Text style={styles.retryButtonText}>Retry</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
               <GradientButton
                 title="Create Account"
                 onPress={() => {
-                  handleSignup();
+                  handleSignup(false);
                 }}
                 loading={loading}
                 disabled={
@@ -764,82 +702,48 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.gray[600],
     textAlign: 'center',
-  },
-  appName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: Colors.gray[900],
-    marginTop: 16,
-  },
-  tagline: {
-    fontSize: 16,
-    color: Colors.gray[600],
-    marginTop: 8,
-  },
-  emailConfirmationContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  emailIcon: {
     marginBottom: 24,
   },
-  emailConfirmationTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: Colors.gray[900],
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  emailConfirmationText: {
-    fontSize: 16,
-    color: Colors.gray[700],
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 12,
-  },
-  emailConfirmationSubtext: {
-    fontSize: 14,
-    color: Colors.gray[600],
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 32,
-  },
-  emailConfirmationActions: {
-    width: '100%',
-    gap: 12,
-    marginTop: 8,
-  },
-  resendButton: {
+  loginButton: {
+    marginTop: 16,
     paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    backgroundColor: Colors.gradient.purple,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    backgroundColor: Colors.gradient.green,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 48,
+    minWidth: 200,
   },
-  resendButtonDisabled: {
-    opacity: 0.6,
-  },
-  resendButtonText: {
+  loginButtonText: {
     color: Colors.white,
     fontSize: 16,
     fontWeight: '600',
   },
-  backButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: Colors.gradient.purple,
+  errorContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#fff5f5',
+    borderWidth: 1,
+    borderColor: '#ff4444',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    gap: 8,
   },
-  backButtonText: {
-    color: Colors.gradient.purple,
-    fontSize: 16,
+  errorText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#ff4444',
+  },
+  retryButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#ff4444',
+    borderRadius: 6,
+  },
+  retryButtonText: {
+    color: Colors.white,
+    fontSize: 12,
     fontWeight: '600',
   },
 });

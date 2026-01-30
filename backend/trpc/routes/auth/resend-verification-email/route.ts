@@ -2,6 +2,7 @@ import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { randomBytes } from "crypto";
+// eslint-disable-next-line import/no-unresolved
 import { sendEmailConfirmation } from "../../../lib/email";
 
 /**

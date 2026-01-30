@@ -44,6 +44,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [session, setSession] = useState<Session | null>(null);
   const mountedRef = useRef<boolean>(true);
+  const navigationPendingRef = useRef<boolean>(false);
+  const lastNavigationTimeRef = useRef<number>(0);
 
   const loginMutation = trpc.auth.login.useMutation();
   const signupMutation = trpc.auth.signup.useMutation();
@@ -252,9 +254,23 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
             userId: nextSession.user?.id,
             email: nextSession.user?.email,
           });
-          // Navigate to root to trigger [2026-01-09] navigation lock
-          // app/index.tsx will handle routing based on user role
-          router.replace('/');
+          
+          // Navigation guard: Prevent rapid successive navigation calls
+          const now = Date.now();
+          const timeSinceLastNav = now - lastNavigationTimeRef.current;
+          if (!navigationPendingRef.current && timeSinceLastNav > 300) {
+            navigationPendingRef.current = true;
+            lastNavigationTimeRef.current = now;
+            
+            // Navigate to root to trigger navigation lock
+            // app/index.tsx will handle routing based on user role
+            router.replace('/');
+            
+            // Reset navigation guard after a delay
+            setTimeout(() => {
+              navigationPendingRef.current = false;
+            }, 500);
+          }
         }
 
         // Handle email confirmation: USER_UPDATED fires when user confirms email via Supabase
@@ -269,9 +285,23 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
             email: nextSession.user?.email,
             emailConfirmed: !!nextSession.user?.email_confirmed_at,
           });
-          // Navigate to root to trigger [2026-01-09] navigation lock
-          // This ensures the app "wakes up" and routes user correctly after email confirmation
-          router.replace('/');
+          
+          // Navigation guard: Prevent rapid successive navigation calls
+          const now = Date.now();
+          const timeSinceLastNav = now - lastNavigationTimeRef.current;
+          if (!navigationPendingRef.current && timeSinceLastNav > 300) {
+            navigationPendingRef.current = true;
+            lastNavigationTimeRef.current = now;
+            
+            // Navigate to root to trigger navigation lock
+            // This ensures the app "wakes up" and routes user correctly after email confirmation
+            router.replace('/');
+            
+            // Reset navigation guard after a delay
+            setTimeout(() => {
+              navigationPendingRef.current = false;
+            }, 500);
+          }
         }
 
         // Handle password recovery: PASSWORD_RECOVERY fires when user clicks reset link
@@ -357,7 +387,16 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   const login = useCallback(async (email: string, password: string) => {
     try {
-      const result = await loginMutation.mutateAsync({ email, password });
+      // Add timeout for stuck network requests (10 seconds)
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('Login request timed out. Please check your connection and try again.'));
+        }, 10000);
+      });
+
+      const loginPromise = loginMutation.mutateAsync({ email, password });
+      const result = await Promise.race([loginPromise, timeoutPromise]);
+
       if (mountedRef.current) {
         setUser(result.user);
         setSession(result.session);
@@ -372,13 +411,24 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       addBreadcrumb('User logged in', 'auth', { userId: result.user.id, role: result.user.role });
     } catch (error) {
       captureException(error as Error, { context: 'login', email });
+      // Re-throw with better error message for network issues
+      if (error instanceof Error && (error.message.includes('timeout') || error.message.includes('fetch'))) {
+        throw new Error('Network error. Please check your connection and try again.');
+      }
       throw error;
     }
   }, [loginMutation, persistUser, persistSession]);
 
   const signup = useCallback(async (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }, foodSafetyAcknowledged?: boolean): Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean; needsEmailConfirmation?: boolean }> => {
     try {
-      const result = await signupMutation.mutateAsync({ 
+      // Add timeout for stuck network requests (15 seconds for signup)
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('Signup request timed out. Please check your connection and try again.'));
+        }, 15000);
+      });
+
+      const signupPromise = signupMutation.mutateAsync({ 
         username, 
         email, 
         password,
@@ -387,6 +437,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         lng: location?.lng,
         foodSafetyAcknowledged: foodSafetyAcknowledged || false,
       });
+
+      const result = await Promise.race([signupPromise, timeoutPromise]);
       
       // Backend returns session: null because admin.createUser() doesn't create sessions
       // User will need to login after signup
@@ -420,6 +472,10 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       }
     } catch (error) {
       captureException(error as Error, { context: 'signup', username, email, role });
+      // Re-throw with better error message for network issues
+      if (error instanceof Error && (error.message.includes('timeout') || error.message.includes('fetch'))) {
+        throw new Error('Network error. Please check your connection and try again.');
+      }
       throw error;
     }
   }, [signupMutation, persistUser, persistSession]);

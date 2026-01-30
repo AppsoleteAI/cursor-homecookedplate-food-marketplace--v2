@@ -106,9 +106,7 @@ supabase functions deploy create-subscription --project-ref tsrjtiunqbocmjgozeew
 
 ## Verify Deployment```bash
 supabase functions list --project-ref tsrjtiunqbocmjgozeew --access-token <YOUR_ACCESS_TOKEN>
-```
-
-## Request Format
+```## Request Format
 
 ```typescript
 {

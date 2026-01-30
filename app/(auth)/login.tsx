@@ -27,6 +27,8 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [userType, setUserType] = useState<'buyer' | 'seller' | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const { login } = useAuth();
   const modeParam = typeof params.mode === 'string' ? params.mode : undefined;
   const lockedMode = modeParam === 'buyer' || modeParam === 'seller';
@@ -37,8 +39,23 @@ export default function LoginScreen() {
     WebBrowser.maybeCompleteAuthSession();
   }, []);
 
-  const handleLogin = async () => {
-    console.log('Sign-in triggered');
+  // Clear error state on unmount or when inputs change
+  useEffect(() => {
+    return () => {
+      setError(null);
+      setRetryCount(0);
+    };
+  }, []);
+
+  useEffect(() => {
+    // Clear error when user starts typing
+    if (error && (username || password)) {
+      setError(null);
+    }
+  }, [username, password, error]);
+
+  const handleLogin = async (isRetry = false) => {
+    console.log('Sign-in triggered', { isRetry, retryCount });
     
     if (!userType) {
       Alert.alert('Error', 'Please select a user type (PlateTaker or PlateMaker)');
@@ -59,36 +76,80 @@ export default function LoginScreen() {
       return;
     }
 
+    // Prevent excessive retries (max 3 attempts)
+    if (retryCount >= 3 && !isRetry) {
+      Alert.alert('Too Many Attempts', 'Please wait a moment before trying again.');
+      return;
+    }
+
     // Debug log to see what backend receives
     console.log('Final Sanitize Check:', cleanEmail);
 
     setLoading(true);
+    setError(null);
+    
+    // Add timeout for stuck network requests (10 seconds)
+    const timeoutId = setTimeout(() => {
+      if (loading) {
+        setLoading(false);
+        setError('Request timed out. Please check your connection and try again.');
+        Alert.alert('Connection Timeout', 'The request took too long. Please check your internet connection and try again.');
+      }
+    }, 10000);
+
     try {
       await login(cleanEmail, password);
       
-      // Navigate immediately after login succeeds (no blocking animation)
-      // The auth context will update user state, but we can navigate based on userType
-      // The app/index.tsx will handle role-based routing if needed
-      // For now, navigate based on userType selection
-      if (userType === 'seller') {
-        router.replace('/(tabs)/dashboard');
-      } else {
-        router.replace('/(tabs)/(home)/home');
-      }
+      // Success - reset retry count
+      setRetryCount(0);
+      setError(null);
+      
+      // Don't navigate here - let auth context listener handle navigation
+      // The auth listener in hooks/auth-context.tsx will call router.replace('/')
+      // and app/index.tsx will handle role-based routing
+      // This prevents race conditions where navigation happens before auth state updates
     } catch (error: any) {
       console.error('[Login Error]', error);
+      
+      // Increment retry count
+      if (!isRetry) {
+        setRetryCount(prev => prev + 1);
+      }
+      
       // Detect validation errors (email format issues)
       const isValidationError = error.message?.includes('invalid_format') || 
         error.shape?.message?.includes('email') ||
         error.data?.zodError?.issues?.some((issue: any) => issue.path?.includes('email'));
       
-      // Show appropriate message based on error type
-      const displayMessage = isValidationError 
-        ? 'Please check your email format (e.g., name@example.com)' 
-        : 'Invalid login. Please check your password.';
+      // Detect network errors
+      const isNetworkError = error.message?.includes('fetch') || 
+        error.message?.includes('network') ||
+        error.message?.includes('timeout') ||
+        error.message?.includes('Failed to fetch');
       
-      Alert.alert('Login Failed', displayMessage);
+      // Show appropriate message based on error type
+      let displayMessage: string;
+      if (isValidationError) {
+        displayMessage = 'Please check your email format (e.g., name@example.com)';
+      } else if (isNetworkError) {
+        displayMessage = 'Network error. Please check your connection and try again.';
+      } else {
+        displayMessage = 'Invalid login. Please check your password.';
+      }
+      
+      setError(displayMessage);
+      
+      // Show alert with retry option if not max retries
+      if (retryCount < 2) {
+        Alert.alert('Login Failed', displayMessage, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Retry', onPress: () => handleLogin(true) },
+        ]);
+      } else {
+        Alert.alert('Login Failed', displayMessage);
+      }
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };
@@ -217,6 +278,23 @@ export default function LoginScreen() {
                 </TouchableOpacity>
               </View>
 
+              {/* Error message display */}
+              {error && (
+                <View style={styles.errorContainer}>
+                  <Ionicons name="alert-circle" size={20} color="#ff4444" />
+                  <Text style={styles.errorText}>{error}</Text>
+                  {retryCount < 3 && (
+                    <TouchableOpacity
+                      onPress={() => handleLogin(true)}
+                      style={styles.retryButton}
+                      disabled={loading}
+                    >
+                      <Text style={styles.retryButtonText}>Retry</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
               <TouchableOpacity
                 onPress={() => router.push('/(auth)/recover')}
                 style={styles.forgotPasswordButton}
@@ -226,7 +304,7 @@ export default function LoginScreen() {
 
               <GradientButton
                 title="Sign In"
-                onPress={handleLogin}
+                onPress={() => handleLogin(false)}
                 loading={loading}
                 style={styles.loginButton}
                 baseColor="gold"
@@ -473,6 +551,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: Colors.gray[700],
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff5f5',
+    borderWidth: 1,
+    borderColor: '#ff4444',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#ff4444',
+  },
+  retryButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#ff4444',
+    borderRadius: 6,
+  },
+  retryButtonText: {
+    color: Colors.white,
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
 

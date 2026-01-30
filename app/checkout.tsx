@@ -144,9 +144,8 @@ function ConfettiBurst({ headerOffset, onEnd }: ConfettiBurstProps) {
   // Create shared values for particles - using a workaround for dynamic arrays
   // Since we can't call hooks in loops, we'll use a single shared value approach
   // or create a fixed set. For now, we'll use a simpler approach with fewer particles.
-  const MAX_PARTICLES = 80; // Match the count constant
-  // Create shared values - we need to call hooks unconditionally
-  // This is a limitation - we'll create exactly 80 shared values
+  // Create exactly 80 shared values (matches count constant) - hooks must be called unconditionally
+  // Note: These are called at the component top level, not in a callback
   const anims = [
     useSharedValue(0), useSharedValue(0), useSharedValue(0), useSharedValue(0), useSharedValue(0),
     useSharedValue(0), useSharedValue(0), useSharedValue(0), useSharedValue(0), useSharedValue(0),
