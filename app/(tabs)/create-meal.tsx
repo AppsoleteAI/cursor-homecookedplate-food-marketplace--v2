@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMeals } from '@/hooks/meals-context';
 import { useAuth } from '@/hooks/auth-context';
 import { Ionicons } from '@expo/vector-icons';
+import { calculateOrderBreakdown, calculateOrderSplit } from '@/lib/fees';
 
 // Import expo-video with platform-specific shim for web compatibility
 // Metro will automatically resolve to lib/expo-video.web.ts on web platform
@@ -349,6 +350,27 @@ export default function CreateMealScreen() {
     return Number.isFinite(n) ? n : 0;
   }, [form.price]);
 
+  // Calculate fee breakdown for real-time transparency
+  const feeBreakdown = useMemo(() => {
+    if (priceNumber <= 0 || !Number.isFinite(priceNumber)) {
+      return null;
+    }
+    try {
+      const buyerBreakdown = calculateOrderBreakdown(priceNumber, 1);
+      const sellerSplit = calculateOrderSplit(priceNumber);
+      return {
+        listedPrice: priceNumber,
+        customerPays: buyerBreakdown.total,
+        chefReceives: sellerSplit.sellerPayout,
+        platformFee: buyerBreakdown.platformFee,
+        platformRevenue: sellerSplit.appRevenue,
+      };
+    } catch (error) {
+      console.error('[CreateMeal] Fee calculation error:', error);
+      return null;
+    }
+  }, [priceNumber]);
+
   const isValid = useMemo(() => {
     const hasFreshness = !!(form.freshnessExpiryDate || form.freshnessReceiptDate);
     return (
@@ -396,7 +418,7 @@ export default function CreateMealScreen() {
     }
   }, [isValid, addMeal, user?.id, form, priceNumber]);
 
-  const serviceDisclosure = 'HomeCookedPlate collects a 15% commission on each paid order.';
+  const serviceDisclosure = 'Fee Structure: Customer pays listed price + 10% (buyer fee). You receive listed price - 10% (seller fee). Platform total: 20%.';
 
   // Show loading state
   if (authLoading) {
@@ -580,6 +602,38 @@ export default function CreateMealScreen() {
             testID="meal-price"
           />
           <Text style={styles.disclosureText} numberOfLines={2}>Fees Structure Disclosure: {serviceDisclosure}</Text>
+          
+          {feeBreakdown && (
+            <View style={styles.feeBreakdownContainer} testID="fee-breakdown">
+              <View style={styles.feeBreakdownHeader}>
+                <Ionicons name="information-circle" size={18} color={Colors.gradient.green} />
+                <Text style={styles.feeBreakdownTitle}>Fee Transparency</Text>
+              </View>
+              <View style={styles.feeBreakdownRow}>
+                <Text style={styles.feeBreakdownLabel}>Listed Price:</Text>
+                <Text style={styles.feeBreakdownValue}>${feeBreakdown.listedPrice.toFixed(2)}</Text>
+              </View>
+              <View style={styles.feeBreakdownRow}>
+                <Text style={styles.feeBreakdownLabel}>Customer Pays:</Text>
+                <Text style={[styles.feeBreakdownValue, styles.feeBreakdownValueBold]}>
+                  ${feeBreakdown.customerPays.toFixed(2)}
+                </Text>
+              </View>
+              <View style={styles.feeBreakdownRow}>
+                <Text style={styles.feeBreakdownLabel}>You Receive:</Text>
+                <Text style={[styles.feeBreakdownValue, styles.feeBreakdownValueGreen]}>
+                  ${feeBreakdown.chefReceives.toFixed(2)}
+                </Text>
+              </View>
+              <View style={styles.feeBreakdownRow}>
+                <Text style={styles.feeBreakdownLabel}>Platform Fee (20%):</Text>
+                <Text style={styles.feeBreakdownValue}>${feeBreakdown.platformRevenue.toFixed(2)}</Text>
+              </View>
+              <Text style={styles.feeBreakdownNote}>
+                Includes 10% buyer fee + 10% seller fee
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -897,6 +951,55 @@ const styles = StyleSheet.create({
   footerSpacer: { height: 24 },
   footer: { padding: 16, borderTopWidth: 1, borderTopColor: Colors.gray[100], backgroundColor: Colors.white },
   disclosureText: { fontSize: 12, color: Colors.gray[600], marginTop: 8 },
+  feeBreakdownContainer: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: Colors.gray[50],
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.gradient.green,
+  },
+  feeBreakdownHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  feeBreakdownTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.gradient.green,
+  },
+  feeBreakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  feeBreakdownLabel: {
+    fontSize: 14,
+    color: Colors.gray[700],
+    flex: 1,
+  },
+  feeBreakdownValue: {
+    fontSize: 14,
+    color: Colors.gray[900],
+    fontWeight: '500',
+  },
+  feeBreakdownValueBold: {
+    fontWeight: '700',
+    color: Colors.gradient.green,
+  },
+  feeBreakdownValueGreen: {
+    fontWeight: '700',
+    color: Colors.gradient.green,
+  },
+  feeBreakdownNote: {
+    fontSize: 11,
+    color: Colors.gray[500],
+    fontStyle: 'italic',
+    marginTop: 8,
+  },
   warningBox: {
     backgroundColor: '#FFFBEB',
     borderWidth: 1,

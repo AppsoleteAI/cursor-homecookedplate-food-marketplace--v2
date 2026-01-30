@@ -5,6 +5,8 @@ fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{metho
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { randomBytes } from "crypto";
+import { sendEmailConfirmation } from "../../../lib/email";
 // Use process.stdout.write directly for critical logs (bypasses Bun buffering)
 
 async function sendWelcomeEmail(email: string, username: string) {
@@ -267,7 +269,47 @@ const createSignupProcedure = () => {
       fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'backend/trpc/routes/auth/signup/route.ts:SIGNUP_SUCCESS',message:'Signup completed successfully',data:{profileId:profile.id,userId:authData.user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'signup-attempt',hypothesisId:'I'})}).catch(()=>{});
       // #endregion
       console.log('[Signup] Profile created successfully with admin client');
-      await sendWelcomeEmail(input.email, input.username);
+
+      // Generate email confirmation token and send via Resend (production email service)
+      // CRITICAL: Supabase emails are rate-limited and not suitable for production
+      let confirmationToken: string | null = null;
+      try {
+        // Generate secure token
+        confirmationToken = randomBytes(32).toString('hex');
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 24); // 24 hour expiry
+
+        // Store token in database
+        const { error: tokenError } = await ctx.supabaseAdmin
+          .from('email_verification_tokens')
+          .insert({
+            user_id: authData.user.id,
+            token: confirmationToken,
+            email: input.email,
+            expires_at: expiresAt.toISOString(),
+          });
+
+        if (tokenError) {
+          console.error('[Signup] Failed to store confirmation token:', tokenError);
+          // Don't fail signup if token storage fails - log and continue
+        } else {
+          // Send confirmation email via Resend (production email service)
+          const webUrl = ctx.webUrl || process.env.EXPO_PUBLIC_WEB_URL || 'https://homecookedplate.com';
+          await sendEmailConfirmation(
+            input.email,
+            input.username,
+            confirmationToken,
+            webUrl
+          );
+          console.log('[Signup] Email confirmation sent via Resend');
+        }
+      } catch (emailError) {
+        console.error('[Signup] Failed to send confirmation email:', emailError);
+        // Don't fail signup if email sending fails - log and continue
+        // User can request a new confirmation email later
+      }
+
+      // Note: Welcome email is sent after email verification, not during signup
 
       // Prepare user object
       const user = {
@@ -295,6 +337,7 @@ const createSignupProcedure = () => {
           session: authData.session,
           metro: assignedMetro || 'Remote/Other',
           trialEndsAt: trialEndDate.toISOString(),
+          needsEmailConfirmation: true, // Always true when using custom email flow
         };
       }
 
@@ -304,6 +347,7 @@ const createSignupProcedure = () => {
         user,
         session: authData.session,
         metro: assignedMetro || 'Remote/Other',
+        needsEmailConfirmation: true, // Always true when using custom email flow
       };
     });
 };

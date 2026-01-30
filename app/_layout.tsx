@@ -25,11 +25,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Slot, useRootNavigationState } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState, useCallback } from "react";
-import { StyleSheet, Platform, View, ActivityIndicator, InteractionManager } from "react-native";
+import { StyleSheet, Platform, View, ActivityIndicator } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { NavigationContainer } from "@react-navigation/native";
 import { Asset } from "expo-asset";
-import { AuthProvider } from "@/hooks/auth-context";
+import { AuthProvider, useAuth } from "@/hooks/auth-context";
 import { CartProvider } from "@/hooks/cart-context";
 import { FavoritesProvider } from "@/hooks/favorites-context";
 import { NotificationsProvider } from "@/hooks/notifications-context";
@@ -93,24 +93,71 @@ function LayoutContent() {
   return <Slot />;
 }
 
+// Inner component that handles Extended Splash logic
+// Must be inside Providers tree to access useAuth()
+function ExtendedSplashHandler({ children }: { children: React.ReactNode }) {
+  const { isLoading: authIsLoading } = useAuth();
+  const rootNavigationState = useRootNavigationState();
+  const hasNavigationKey = !!rootNavigationState?.key;
+  const isWeb = Platform.OS === 'web';
+
+  // Extended Splash: Hide native splash only when auth is ready
+  // This eliminates the need for LoadingSplashScreen
+  useEffect(() => {
+    if (!isWeb && !authIsLoading && hasNavigationKey) {
+      SplashScreen.hideAsync().catch((error) => {
+        if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
+          Sentry.captureException(error);
+        }
+      });
+    }
+  }, [isWeb, authIsLoading, hasNavigationKey]);
+
+  return <>{children}</>;
+}
+
 // Root layout component
 function RootLayout() {
   const stripeKey = Platform.OS !== 'web' ? process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY : null;
   const shouldWrapStripe = Platform.OS !== 'web' && StripeProvider !== null && stripeKey;
   const isWeb = Platform.OS === 'web';
   
-  // Phase 1: Asset preloading state
-  // Prevents white flash, missing icons, and silent first trigger for audio assets
-  const [isAssetsReady, setIsAssetsReady] = useState(isWeb); // Web doesn't need asset preloading
-  
-  // Stability Triangle: Gate Providers behind native layout readiness
-  // This ensures AuthProvider (Phase 3) only starts after Navigation (Phase 4) is ready
-  // Prevents PreventRemoveContext crash by eliminating race condition
+  // Simplified gate system: Only essential gates remain
+  // Modern React Native renders fast enough that separate asset/navigation gates are unnecessary
   const rootNavigationState = useRootNavigationState();
   const hasNavigationKey = !!rootNavigationState?.key;
   const [isNativeLayoutReady, setIsNativeLayoutReady] = useState(false);
-  const [isNavigationReady, setIsNavigationReady] = useState(false);
   const [hasEverHadKey, setHasEverHadKey] = useState(false);
+  
+  // Combined asset preloading and navigation readiness check
+  // Parallelized for faster initialization
+  useEffect(() => {
+    if (isWeb) return; // Web doesn't need asset preloading
+    
+    async function prepare() {
+      try {
+        // Parallelize asset loading (no need to wait for navigation key separately)
+        await Promise.all([
+          Asset.loadAsync([
+            require('@/assets/images/splash-icon.png'),
+            require('@/assets/images/icon.png'),
+            require('@/assets/images/adaptive-icon.png'),
+          ]),
+          // Navigation key detection happens automatically via useRootNavigationState
+        ]);
+        navLogger.stateChange('app/_layout.tsx:ASSETS_PRELOADED', 'assets_ready', undefined, {
+          platform: Platform.OS,
+        });
+      } catch (error) {
+        console.warn('[Asset Preload] Failed:', error);
+        if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
+          captureException(error as Error, { context: 'AssetPreload' });
+        }
+        // Fail gracefully - allow app to continue even if assets fail
+      }
+    }
+    prepare();
+  }, [isWeb]);
 
   // Phase 1: Preload critical assets before layout mounts (mobile only)
   useEffect(() => {
@@ -127,14 +174,12 @@ function RootLayout() {
         navLogger.stateChange('app/_layout.tsx:ASSETS_PRELOADED', 'assets_ready', undefined, {
           platform: Platform.OS,
         });
-        setIsAssetsReady(true);
       } catch (error) {
         console.warn('[Asset Preload] Failed:', error);
         if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
           captureException(error as Error, { context: 'AssetPreload' });
         }
         // Fail gracefully - allow app to continue even if assets fail
-        setIsAssetsReady(true);
       }
     }
     prepare();
@@ -151,52 +196,9 @@ function RootLayout() {
     }
   }, [hasNavigationKey, hasEverHadKey, rootNavigationState?.key]);
 
-  // Diagnostic: Log lock state changes for debugging
-  useEffect(() => {
-    if (!isWeb) {
-      navLogger.stateChange('app/_layout.tsx:TRIPLE_LOCK_STATUS', 'lock_status_check', undefined, {
-        platform: Platform.OS,
-        isAssetsReady,
-        hasNavigationKey,
-        hasEverHadKey,
-        isNativeLayoutReady,
-        isNavigationReady,
-        allLocksGreen: isAssetsReady && hasEverHadKey && isNativeLayoutReady && isNavigationReady,
-      });
-    }
-  }, [isAssetsReady, hasNavigationKey, hasEverHadKey, isNativeLayoutReady, isNavigationReady, isWeb]);
-
-  // Hardware-Aware Synchronization: Wait for navigation state to be ready
-  // CRITICAL: Wait for BOTH hasNavigationKey AND isNativeLayoutReady (Double-Lock)
-  // InteractionManager ensures the Double-Lock only opens once the native bridge has finished
-  // all layout calculations and animations, respecting actual hardware speed
-  useEffect(() => {
-    // Only trigger if both physical locks are green
-    if (hasNavigationKey && isNativeLayoutReady && !isNavigationReady && !isWeb) {
-      const task = InteractionManager.runAfterInteractions(() => {
-        // Re-verify key hasn't been lost during the interaction
-        if (!!rootNavigationState?.key || hasEverHadKey) {
-          navLogger.stateChange('app/_layout.tsx:NAV_STATE_READY', 'nav_state_ready', undefined, {
-            platform: Platform.OS,
-            hasKey: !!rootNavigationState?.key,
-            hasEverHadKey,
-            source: 'interaction_manager',
-          });
-          setIsNavigationReady(true);
-        } else {
-          navLogger.warn('app/_layout.tsx:NAV_STATE_READY', 'Key disappeared during interaction wait, retrying...', undefined, {
-            platform: Platform.OS,
-          });
-        }
-      });
-
-      return () => task.cancel(); // Critical: cleanup if component unmounts
-    }
-  }, [hasNavigationKey, isNativeLayoutReady, isNavigationReady, isWeb, rootNavigationState?.key, hasEverHadKey]);
-
   // Layout trigger: fires when native view hierarchy is ready
   // This is the ONLY reliable signal on Fabric/Android that the navigation bridge is ready
-  // Phase 4: Hardware Sync - Native bridge confirms screen dimensions and context are ready
+  // Simplified: Set immediately when onLayout fires (no InteractionManager delay)
   const onLayoutRootView = useCallback(async () => {
     if (!isNativeLayoutReady && !isWeb) {
       navLogger.stateChange('app/_layout.tsx:LAYOUT_READY', 'native_layout_ready', undefined, {
@@ -205,17 +207,6 @@ function RootLayout() {
       setIsNativeLayoutReady(true);
     }
   }, [isNativeLayoutReady, isWeb]);
-
-  // Hide splash screen only after ALL conditions are met: assets ready, navigation ready, layout ready
-  useEffect(() => {
-    if (!isWeb && isAssetsReady && isNavigationReady && isNativeLayoutReady) {
-      SplashScreen.hideAsync().catch((error) => {
-        if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
-          Sentry.captureException(error);
-        }
-      });
-    }
-  }, [isWeb, isAssetsReady, isNavigationReady, isNativeLayoutReady]);
 
   // CRITICAL: Platform-split navigation for Rork Lightning Preview compatibility
   // DO NOT REMOVE: Manual NavigationContainer on Web is required for Rork Preview
@@ -248,29 +239,28 @@ function RootLayout() {
     );
   }
 
-  // Native: Straight-line boot process (like web)
-  // Triple-Lock system: Assets + Navigation + Layout must all be ready
-  // This prevents PreventRemoveContext crash while maintaining straight-line flow
-  // Also prevents white flash and missing icons by ensuring assets are preloaded
-  if (!isAssetsReady || !isNavigationReady || !isNativeLayoutReady || (!hasEverHadKey && !isWeb)) {
+  // Native: Simplified gate system - only essential gates remain
+  // Extended Splash: Native splash stays visible until auth ready (handled in ExtendedSplashHandler)
+  // This prevents PreventRemoveContext crash while maintaining fast boot
+  if (!isNativeLayoutReady || (!hasEverHadKey && !isWeb)) {
     // Log which lock is blocking for better debugging
     if (__DEV__) {
       console.log('[Stability Gate] Blocked:', {
-        isAssetsReady,
-        isNavigationReady,
         isNativeLayoutReady,
         hasEverHadKey,
+        hasNavigationKey,
         platform: Platform.OS,
       });
     }
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
-        <ActivityIndicator size="large" color="#0000ff" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1A0F0A' }}>
+        <ActivityIndicator size="large" color="#ffffff" />
       </View>
     );
   }
 
-  // Native: Straight-line render after all locks pass
+  // Native: Straight-line render after essential locks pass
+  // Extended Splash: Splash hide is handled by ExtendedSplashHandler (inside Providers)
   // Same structure as web - just wrapped in onLayout for native bridge sync
   return (
     <ErrorBoundary>
@@ -280,7 +270,9 @@ function RootLayout() {
           onLayout={onLayoutRootView}
         >
           <Providers>
-            {content}
+            <ExtendedSplashHandler>
+              {content}
+            </ExtendedSplashHandler>
           </Providers>
         </View>
       </GestureHandlerRootView>

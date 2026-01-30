@@ -1,7 +1,6 @@
 import React from 'react';
 import { Redirect } from 'expo-router';
 import { useAuth } from '@/hooks/auth-context';
-import { LoadingSplashScreen } from '@/components/LoadingSplashScreen';
 import { navLogger } from '@/lib/nav-logger';
 
 export default function Index() {
@@ -12,11 +11,12 @@ export default function Index() {
     console.log('[INDEX_GATE]', { isLoading, isAuthenticated, hasSession: !!session });
   }
 
-  // 1. Loading State: Show branded splash screen during SecureStore bootstrap
-  // CRITICAL: This prevents navigation tree from mounting until SecureStore.getItemAsync completes
-  // The LoadingSplashScreen matches app.json splash.backgroundColor to avoid white flash
+  // Extended Splash: Native splash handles loading state (via ExtendedSplashHandler in _layout.tsx)
+  // No need for LoadingSplashScreen - eliminates double-flicker
+  // During loading, native splash remains visible until auth hydration completes
   if (isLoading) {
-    return <LoadingSplashScreen />;
+    // Return null - native splash is already showing
+    return null;
   }
 
   // 2. Declarative Redirects: Let React handle the timing

@@ -51,9 +51,15 @@ npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 # Stripe credentials
 npx wrangler secret put STRIPE_SECRET_KEY
 npx wrangler secret put STRIPE_WEBHOOK_SECRET
+
+# Resend Email Service (for production email delivery)
+npx wrangler secret put RESEND_API_KEY
+npx wrangler secret put OFFICIAL_EMAIL_FROM
 ```
 
 Each command will prompt you to enter the value.
+
+**Note for OFFICIAL_EMAIL_FROM:** Use the format `"Display Name <email@verified-domain.com>"` (e.g., `"HomeCookedPlate <notifications@homecookedplate.com>"`). The domain must be verified in your Resend dashboard.
 
 ### 4. Deploy to Production
 
@@ -171,6 +177,8 @@ Should show:
 - SUPABASE_SERVICE_ROLE_KEY
 - STRIPE_SECRET_KEY
 - STRIPE_WEBHOOK_SECRET
+- RESEND_API_KEY
+- OFFICIAL_EMAIL_FROM
 
 ### Webhook Not Working
 

@@ -10,21 +10,22 @@ import { supabase } from "./supabase";
 export const trpc = createTRPCReact<AppRouter>();
 
 /**
- * Option A + B Hybrid: Always use production URL
- * Since logs show the "Runtime fix" is successfully redirecting requests, 
- * we make that redirection the default so the app stops wasting time on failed local requests.
- * Always use production for now to ensure we hit the working Cloudflare CORS.
+ * Get API base URL from environment variable with fallback to production.
+ * Uses EXPO_PUBLIC_RORK_API_BASE_URL if set, otherwise falls back to production URL.
  */
 const getBaseUrl = () => {
-  // Always use production for now to ensure we hit the working Cloudflare CORS
-  const baseUrl = 'https://plate-marketplace-api.appsolete.workers.dev';
+  // Check for environment variable first
+  const envUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
+  
+  // Fallback to production URL if env var not set
+  const baseUrl = envUrl || 'https://plate-marketplace-api.appsolete.workers.dev';
   
   if (__DEV__) {
-    console.log("[tRPC] Development mode - Using production backend:", baseUrl);
+    console.log("[tRPC] Development mode - Using backend:", baseUrl, envUrl ? "(from env)" : "(fallback)");
     return baseUrl;
   }
 
-  console.log("[tRPC] Production build - Using Cloudflare Worker:", baseUrl);
+  console.log("[tRPC] Production build - Using Cloudflare Worker:", baseUrl, envUrl ? "(from env)" : "(fallback)");
   return baseUrl;
 };
 
@@ -93,12 +94,12 @@ export const trpcClient = trpc.createClient({
               // httpLink adds /trpc, so the path will be /api/trpc/auth.signup
               const urlObj = new URL(urlString);
               const path = urlObj.pathname + urlObj.search;
-              // Build new URL with production backend - ensure no double slash
-              const productionBase = 'https://plate-marketplace-api.appsolete.workers.dev';
-              finalUrl = productionBase.endsWith('/') && path.startsWith('/')
-                ? `${productionBase}${path.slice(1)}`
-                : `${productionBase}${path}`;
-              console.warn('[tRPC] ⚠️ Runtime fix: Replacing HTTP URL with HTTPS production backend');
+              // Build new URL with configured backend - ensure no double slash
+              const configuredBase = process.env.EXPO_PUBLIC_RORK_API_BASE_URL || 'https://plate-marketplace-api.appsolete.workers.dev';
+              finalUrl = configuredBase.endsWith('/') && path.startsWith('/')
+                ? `${configuredBase}${path.slice(1)}`
+                : `${configuredBase}${path}`;
+              console.warn('[tRPC] ⚠️ Runtime fix: Replacing HTTP URL with HTTPS backend');
               console.warn('[tRPC] Original URL:', urlString);
               console.warn('[tRPC] Fixed URL:', finalUrl);
               console.warn('[tRPC] Context:', { hostname, protocol, isTunnel });
@@ -106,8 +107,8 @@ export const trpcClient = trpc.createClient({
               // If URL parsing fails, try simple string replacement as fallback
               // Preserve the full path including /api/trpc
               console.warn('[tRPC] URL parsing failed, using string replacement:', urlError);
-              const productionBase = 'https://plate-marketplace-api.appsolete.workers.dev';
-              finalUrl = urlString.replace(/^http:\/\/[^/]+/, productionBase);
+              const configuredBase = process.env.EXPO_PUBLIC_RORK_API_BASE_URL || 'https://plate-marketplace-api.appsolete.workers.dev';
+              finalUrl = urlString.replace(/^http:\/\/[^/]+/, configuredBase);
               console.warn('[tRPC] Fallback fixed URL:', finalUrl);
             }
           }

@@ -20,7 +20,7 @@ interface AuthState {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<void>;
-  signup: (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }) => Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean }>;
+  signup: (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }, foodSafetyAcknowledged?: boolean) => Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean; needsEmailConfirmation?: boolean }>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<Pick<User, 'username' | 'email' | 'phone' | 'bio' | 'profileImage'>>) => Promise<void>;
   requestPlatemakerRole: () => Promise<void>;
@@ -217,9 +217,22 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     loadUser();
   }, [loadUser]);
 
-  // Keep local state in sync with Supabase auth events (critical for OAuth / deep link redirects)
-  // Handles Auth Gap: When user confirms email, USER_UPDATED fires and app "wakes up"
-  // Navigation to root triggers [2026-01-09] navigation lock in app/index.tsx
+  /**
+   * Central Authentication State Listener
+   * 
+   * This is the "brain" of the app's authentication system. It listens for all
+   * Supabase auth events (SIGNED_IN, SIGNED_OUT, USER_UPDATED, PASSWORD_RECOVERY)
+   * and keeps the app's auth state in sync.
+   * 
+   * CRITICAL: This listener ensures the app "wakes up" when:
+   * - User verifies email (via custom token flow or Supabase)
+   * - User logs in from another device
+   * - User's session is refreshed
+   * - User clicks password reset link
+   * 
+   * Note: Our custom email verification flow (Resend) doesn't trigger Supabase events,
+   * but this listener still handles standard Supabase auth flows (OAuth, password reset, etc.)
+   */
   useEffect(() => {
     const {
       data: { subscription },
@@ -227,24 +240,35 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       try {
         if (!mountedRef.current) return;
 
+        console.log('[Auth Listener] Event:', event, { hasSession: !!nextSession, userId: nextSession?.user?.id });
+
+        // Handle successful sign-in
         if (event === 'SIGNED_IN' && nextSession) {
           setSession(nextSession);
           await persistSession(nextSession);
           // Pull the latest profile/user from backend using the new session
           await refetchMe();
-          addBreadcrumb('Supabase auth SIGNED_IN', 'auth', { userId: nextSession.user?.id });
+          addBreadcrumb('Supabase auth SIGNED_IN', 'auth', { 
+            userId: nextSession.user?.id,
+            email: nextSession.user?.email,
+          });
           // Navigate to root to trigger [2026-01-09] navigation lock
           // app/index.tsx will handle routing based on user role
           router.replace('/');
         }
 
-        // Handle email confirmation: USER_UPDATED fires when user confirms email
+        // Handle email confirmation: USER_UPDATED fires when user confirms email via Supabase
+        // Note: Our custom Resend email flow doesn't trigger this, but we handle it for completeness
         if (event === 'USER_UPDATED' && nextSession) {
           setSession(nextSession);
           await persistSession(nextSession);
           // Pull the latest profile/user after email confirmation
           await refetchMe();
-          addBreadcrumb('Supabase auth USER_UPDATED', 'auth', { userId: nextSession.user?.id });
+          addBreadcrumb('Supabase auth USER_UPDATED', 'auth', { 
+            userId: nextSession.user?.id,
+            email: nextSession.user?.email,
+            emailConfirmed: !!nextSession.user?.email_confirmed_at,
+          });
           // Navigate to root to trigger [2026-01-09] navigation lock
           // This ensures the app "wakes up" and routes user correctly after email confirmation
           router.replace('/');
@@ -261,6 +285,15 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           router.replace('/(auth)/reset-password');
         }
 
+        // Handle token refresh: TOKEN_REFRESHED fires when access token is refreshed
+        if (event === 'TOKEN_REFRESHED' && nextSession) {
+          setSession(nextSession);
+          await persistSession(nextSession);
+          // Silently update session without navigation
+          console.log('[Auth Listener] Token refreshed');
+        }
+
+        // Handle sign out
         if (event === 'SIGNED_OUT') {
           setSession(null);
           setUser(null);
@@ -272,6 +305,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           router.replace('/(auth)/login');
         }
       } catch (e) {
+        console.error('[Auth Listener] Error handling event:', event, e);
         captureException(e as Error, { context: 'onAuthStateChange', event });
       }
     });
@@ -342,7 +376,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     }
   }, [loginMutation, persistUser, persistSession]);
 
-  const signup = useCallback(async (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }, foodSafetyAcknowledged?: boolean): Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean }> => {
+  const signup = useCallback(async (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }, foodSafetyAcknowledged?: boolean): Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean; needsEmailConfirmation?: boolean }> => {
     try {
       const result = await signupMutation.mutateAsync({ 
         username, 
@@ -356,8 +390,9 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       
       // Backend returns session: null because admin.createUser() doesn't create sessions
       // User will need to login after signup
-      // Backend now returns status-based structure: { status: 'SUCCESS' | 'REDIRECT_TO_PAYMENT', user, session, metro, trialEndsAt? }
+      // Backend now returns status-based structure: { status: 'SUCCESS' | 'REDIRECT_TO_PAYMENT', user, session, metro, trialEndsAt?, needsEmailConfirmation? }
       const requiresCheckout = result.status === 'REDIRECT_TO_PAYMENT';
+      const needsEmailConfirmation = result.needsEmailConfirmation ?? false;
       
       if (result.session) {
         // Session returned (e.g., OAuth flows) - persist and go directly to app
@@ -373,7 +408,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         });
         setSentryUser(result.user);
         addBreadcrumb('User signed up', 'auth', { userId: result.user.id, role: result.user.role, status: result.status, metro: result.metro });
-        return { success: true, requiresLogin: false, requiresCheckout };
+        return { success: true, requiresLogin: false, requiresCheckout, needsEmailConfirmation };
       } else {
         // No session - user created but needs to login separately
         // Just set user info for the success animation, don't persist session
@@ -381,7 +416,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           setUser(result.user);
         }
         addBreadcrumb('User signed up (no session - needs login)', 'auth', { userId: result.user.id, role: result.user.role, status: result.status, metro: result.metro });
-        return { success: true, requiresLogin: true, requiresCheckout };
+        return { success: true, requiresLogin: true, requiresCheckout, needsEmailConfirmation };
       }
     } catch (error) {
       captureException(error as Error, { context: 'signup', username, email, role });

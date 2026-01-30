@@ -6,9 +6,5 @@
     "dev": "bun --watch server.ts",
     "start": "bun server.ts"
   },
-  "dependencies": {
-    "expo-device": "~8.0.10",
-    "react-native-linear-gradient": "^2.8.3",
-    "react-native-reanimated": "~4.1.1"
-  }
+  "dependencies": {}
 }

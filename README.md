@@ -27,6 +27,17 @@ If you are new to coding and unsure which editor to use, we recommend Cursor. If
 
 The only requirement is having Node.js & Bun installed - [install Node.js with nvm](https://github.com/nvm-sh/nvm) and [install Bun](https://bun.sh/docs/installation)
 
+### **Package Manager**
+
+This project uses **Bun** as the primary package manager. Both `bun.lock` and `package-lock.json` are present, but you should use Bun for consistency:
+
+- **Install dependencies**: `bun i` (or `bun install`)
+- **Add a package**: `bun add <package-name>`
+- **Remove a package**: `bun remove <package-name>`
+- **Run scripts**: `bun run <script-name>`
+
+The `package-lock.json` file may be present for compatibility but should not be manually edited. Bun will manage `bun.lock` automatically.
+
 Follow these steps:
 
 ```bash
@@ -59,12 +70,20 @@ bun run start -- --ios
 
 This project is built with the most popular native mobile cross-platform technical stack:
 
-- **React Native** - Cross-platform native mobile development framework created by Meta and used for Instagram, Airbnb, and lots of top apps in the App Store
-- **Expo** - Extension of React Native + platform used by Discord, Shopify, Coinbase, Telsa, Starlink, Eightsleep, and more
-- **Expo Router** - File-based routing system for React Native with support for web, server functions and SSR
-- **TypeScript** - Type-safe JavaScript
-- **React Query** - Server state management
+- **React Native 0.81.5** - Cross-platform native mobile development framework created by Meta and used for Instagram, Airbnb, and lots of top apps in the App Store
+- **Expo SDK 54** - Extension of React Native + platform used by Discord, Shopify, Coinbase, Telsa, Starlink, Eightsleep, and more
+- **Expo Router ~6.0.14** - File-based routing system for React Native with support for web, server functions and SSR
+- **TypeScript ~5.9.2** - Type-safe JavaScript
+- **React Query (@tanstack/react-query ^5.90.5)** - Server state management
 - **Lucide React Native** - Beautiful icons
+- **Backend**: Hono + tRPC running on Bun (local) / Cloudflare Workers (production)
+- **Database**: Supabase (PostgreSQL)
+- **Payments**: Stripe
+- **Email**: Resend
+
+### **Version Compatibility Note**
+
+The project uses React Native 0.81.5 with Expo SDK 54. If you encounter compatibility issues, verify that this combination is supported for your use case. Expo SDK 54 typically supports React Native 0.76+, so this version may need adjustment if issues arise.
 
 ## How can I test my app?
 

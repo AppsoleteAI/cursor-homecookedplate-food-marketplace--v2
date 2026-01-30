@@ -9,7 +9,7 @@ import { supabase } from '@/lib/supabase';
 import * as WebBrowser from 'expo-web-browser';
 
 export interface UseSignupFormOptions {
-  onSuccess?: (result: { requiresLogin: boolean; requiresCheckout?: boolean }) => void;
+  onSuccess?: (result: { requiresLogin: boolean; requiresCheckout?: boolean; needsEmailConfirmation?: boolean }) => void;
   onError?: (error: Error) => void;
 }
 

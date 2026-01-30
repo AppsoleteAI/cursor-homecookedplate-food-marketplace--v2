@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,9 +10,6 @@ import {
   TouchableOpacity,
   Alert,
   Modal,
-  Animated,
-  Easing,
-  Image,
   Switch,
   ActivityIndicator,
 } from 'react-native';
@@ -26,6 +23,7 @@ import { GradientButton } from '@/components/GradientButton';
 import { MetroProgressBar } from '@/components/Registration/MetroProgressBar';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 import { useSignupForm } from '@/hooks/useSignupForm';
+import { trpc } from '@/lib/trpc';
 
 export default function SignupScreen() {
   // Local UI state (not part of form logic)
@@ -53,6 +51,14 @@ export default function SignupScreen() {
     signupUserRole,
   } = useSignupForm({
     onSuccess: (result) => {
+      // Central Listener Pattern: Check if email confirmation is needed
+      // When needsEmailConfirmation is true, show "Waiting for Verification" UI
+      // The central onAuthStateChange listener in hooks/auth-context.tsx will handle
+      // session updates when the user verifies their email and logs in
+      if (result.needsEmailConfirmation) {
+        setIsWaitingForEmail(true);
+        return; // Don't proceed with animation - show email confirmation UI
+      }
       // Success handled by animation logic below
       console.log('[Signup] Success callback:', result);
     },
@@ -63,69 +69,52 @@ export default function SignupScreen() {
 
   // Extract form fields for easier access
   const { username, email, password, confirmPassword, agreedToTerms, foodSafetyAcknowledged } = formData;
-  
-  // Animation value for rotation
-  const rotationValue = useRef(new Animated.Value(0)).current;
 
   // Complete any pending auth session for native redirects
   useEffect(() => {
     WebBrowser.maybeCompleteAuthSession();
   }, []);
 
-  // Animation effect - triggers when isSigningUp becomes true
+  // Auto-redirect to login after successful signup (no blocking animation)
   useEffect(() => {
-    if (!isSigningUp || !signupUserRole) return;
+    if (isSigningUp && signupUserRole) {
+      // Show success message briefly, then auto-redirect
+      const timer = setTimeout(() => {
+        router.replace('/(auth)/login');
+      }, 1500); // 1.5 second delay for user to see success
 
-    const isPlatetaker = signupUserRole === 'platetaker';
-    const finalRotation = isPlatetaker ? 1440 : -1440; // 4 full rotations
+      return () => clearTimeout(timer);
+    }
+  }, [isSigningUp, signupUserRole]);
 
-    // Reset rotation value
-    rotationValue.setValue(0);
-
-    // Two-phase animation: slow then fast
-    const animation = Animated.sequence([
-      // Slow phase: 0 to 720 degrees over 2000ms
-      Animated.timing(rotationValue, {
-        toValue: isPlatetaker ? 720 : -720,
-        duration: 2000,
-        easing: Easing.out(Easing.quad), // Slow start
-        useNativeDriver: true,
-      }),
-      // Fast phase: 720 to 1440 degrees over 2000ms
-      Animated.timing(rotationValue, {
-        toValue: finalRotation,
-        duration: 2000,
-        easing: Easing.in(Easing.quad), // Fast end
-        useNativeDriver: true,
-      }),
-    ]);
-
-    animation.start(({ finished }) => {
-      if (finished) {
-        // Navigate to login after animation - user needs to login after signup
-        // (Backend uses admin.createUser which doesn't return a session)
-        Alert.alert(
-          'Account Created!',
-          'Your account has been created successfully. Please sign in to continue.',
-          [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
-        );
-      }
-    });
-
-    return () => {
-      animation.stop();
-    };
-  }, [isSigningUp, signupUserRole, rotationValue]);
-
-  // Create interpolated rotation string (handles both positive and negative rotations)
-  const spin = rotationValue.interpolate({
-    inputRange: [-1440, 1440],
-    outputRange: ['-1440deg', '1440deg'],
-    extrapolate: 'clamp',
+  // Resend email mutation - allows users to request a new verification email
+  const resendEmail = trpc.auth.resendVerificationEmail.useMutation({
+    onSuccess: (data) => {
+      Alert.alert('Email Sent', data.message || 'A new verification link has been sent to your email.');
+    },
+    onError: (error) => {
+      Alert.alert('Error', error.message || 'Failed to resend email. Please try again.');
+    },
   });
 
-  // Email confirmation UI (optional - currently not needed since email_confirm: true is set)
-  // This will show if Supabase dashboard settings change to require email confirmation
+  /**
+   * "Waiting for Verification" UI
+   * 
+   * This screen is shown immediately after signup when needsEmailConfirmation is true.
+   * It provides:
+   * 1. Clear instructions to check email
+   * 2. Resend email functionality (if user didn't receive the email)
+   * 3. Option to go back to signup form
+   * 
+   * Flow:
+   * - User signs up → receives confirmation email via Resend (production email service)
+   * - This UI is shown → user waits for email
+   * - User clicks link in email → navigates to verify-email screen
+   * - After verification → user can log in
+   * 
+   * The central onAuthStateChange listener in hooks/auth-context.tsx handles session
+   * updates when the user verifies and logs in, ensuring the app "wakes up" correctly.
+   */
   if (isWaitingForEmail) {
     return (
       <View style={styles.container}>
@@ -138,24 +127,37 @@ export default function SignupScreen() {
             <Ionicons name="mail-outline" size={64} color={Colors.gradient.purple} style={styles.emailIcon} />
             <Text style={styles.emailConfirmationTitle}>Check your email!</Text>
             <Text style={styles.emailConfirmationText}>
-              We sent a confirmation link to {email}. Once you click it, you&apos;ll be redirected automatically.
+              We sent a confirmation link to {email}. Please check your email and click the link to verify your account.
             </Text>
             <Text style={styles.emailConfirmationSubtext}>
-              Didn&apos;t receive the email? Check your spam folder or try signing up again.
+              Once verified, you can log in to your account. The link will expire in 24 hours.
             </Text>
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={() => setIsWaitingForEmail(false)}
-            >
-              <Text style={styles.backButtonText}>Back to Signup</Text>
-            </TouchableOpacity>
+            <View style={styles.emailConfirmationActions}>
+              <TouchableOpacity 
+                style={[styles.resendButton, resendEmail.isLoading && styles.resendButtonDisabled]}
+                onPress={() => resendEmail.mutate({ email })}
+                disabled={resendEmail.isLoading}
+              >
+                {resendEmail.isLoading ? (
+                  <ActivityIndicator size="small" color={Colors.white} />
+                ) : (
+                  <Text style={styles.resendButtonText}>Resend Email</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.backButton}
+                onPress={() => setIsWaitingForEmail(false)}
+              >
+                <Text style={styles.backButtonText}>Back to Signup</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </SafeAreaView>
       </View>
     );
   }
 
-  // If showing animation, render the spinning logo
+  // Show success message during signup (brief, then auto-redirect)
   if (isSigningUp) {
     return (
       <View style={styles.container}>
@@ -164,23 +166,10 @@ export default function SignupScreen() {
           style={StyleSheet.absoluteFillObject}
         />
         <SafeAreaView style={styles.safeArea}>
-          <View style={styles.animationContainer}>
-            <Animated.View
-              style={[
-                styles.animatedLogoContainer,
-                {
-                  transform: [{ rotate: spin }],
-                },
-              ]}
-            >
-              <Image
-                source={require('../../assets/images/icon.png')}
-                style={styles.animatedLogo}
-                resizeMode="contain"
-              />
-            </Animated.View>
-            <Text style={styles.appName}>HomeCookedPlate</Text>
-            <Text style={styles.tagline}>Authentic PlateMaker Meals</Text>
+          <View style={styles.successContainer}>
+            <Ionicons name="checkmark-circle" size={80} color={Colors.gradient.green} />
+            <Text style={styles.successTitle}>Account Created!</Text>
+            <Text style={styles.successText}>Redirecting to login...</Text>
           </View>
         </SafeAreaView>
       </View>
@@ -758,21 +747,23 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
   },
-  animationContainer: {
+  successContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
   },
-  animatedLogoContainer: {
-    width: 150,
-    height: 150,
-    marginBottom: 16,
+  successTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: Colors.gray[900],
+    marginTop: 24,
+    marginBottom: 8,
   },
-  animatedLogo: {
-    width: 150,
-    height: 150,
-    borderRadius: 24,
+  successText: {
+    fontSize: 16,
+    color: Colors.gray[600],
+    textAlign: 'center',
   },
   appName: {
     fontSize: 24,
@@ -815,14 +806,39 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 32,
   },
+  emailConfirmationActions: {
+    width: '100%',
+    gap: 12,
+    marginTop: 8,
+  },
+  resendButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    backgroundColor: Colors.gradient.purple,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  resendButtonDisabled: {
+    opacity: 0.6,
+  },
+  resendButtonText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
   backButton: {
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
-    backgroundColor: Colors.gradient.purple,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: Colors.gradient.purple,
+    alignItems: 'center',
   },
   backButtonText: {
-    color: Colors.white,
+    color: Colors.gradient.purple,
     fontSize: 16,
     fontWeight: '600',
   },

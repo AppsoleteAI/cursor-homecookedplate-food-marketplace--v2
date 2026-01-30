@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   Switch,
-  ActivityIndicator,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,6 +12,7 @@ import { Stack } from 'expo-router';
 import { Bell, ShoppingBag, MessageSquare, DollarSign, Star, Mail, Smartphone } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useNotifications } from '@/hooks/notifications-context';
+import { SkeletonNotificationsList } from '@/components/SkeletonNotificationsList';
 
 export default function NotificationsScreen() {
   const { preferences, isLoading, hasPermission, updatePreference } = useNotifications();
@@ -78,9 +78,7 @@ export default function NotificationsScreen() {
             headerShown: false,
           }}
         />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.gradient.green} />
-        </View>
+        <SkeletonNotificationsList />
       </SafeAreaView>
     );
   }

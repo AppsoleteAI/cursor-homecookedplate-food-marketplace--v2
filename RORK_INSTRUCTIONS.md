@@ -516,3 +516,13 @@ These sections form a stability triangle:
   - **For live monitoring:** Use `./scripts/nav-debug-logcat.sh live` (explicitly continuous, user must Ctrl+C)
   - **When debugging navigation:** If logs aren't moving, check `adb devices` first; hanging logcat usually means emulator disconnected or app not running
 - **Citation:** [2026-01-26]
+
+### 🎬 Animation Standards (Animation Debt Prevention)
+- **Maximum Duration:** No animation shall exceed 1500ms for primary UI transitions.
+- **Non-Blocking Rule:** No animation shall block `router.replace()` or `router.push()` actions. Navigation must happen immediately after user actions complete.
+- **Reanimated Requirement:** Use `react-native-reanimated` for all continuous pulses, shimmer effects, or particle systems. Legacy `Animated` API runs on JS thread and can block during slow backend calls.
+- **Skeleton UI Preference:** Prefer Skeleton UI placeholders over pulsing logos for data hydration states. Skeleton screens feel faster because they map the content structure users are about to see.
+- **Particle Optimization:** Limit particle systems to 75-100 particles maximum. Visual impact is nearly identical with 65% less CPU load on budget devices.
+- **Celebration Feedback:** Keep celebration animations brief (300ms single pulse) or remove entirely if confetti/particles provide sufficient feedback.
+- **Performance Target:** All animations must run on UI thread (Reanimated) to ensure smooth 60fps even when backend is slow.
+- **Citation:** [2026-01-26]

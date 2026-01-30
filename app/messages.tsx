@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { Colors } from '@/constants/colors';
 import { MessageCircle } from 'lucide-react-native';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/hooks/auth-context';
+import { SkeletonMessagesList } from '@/components/SkeletonMessagesList';
 
 interface Conversation {
   orderId: string;
@@ -109,9 +110,7 @@ export default function MessagesPage() {
     return (
       <View style={styles.container}>
         <Stack.Screen options={{ title: 'Messages' }} />
-        <View style={styles.emptyContainer}>
-          <ActivityIndicator size="large" color={Colors.gradient.green} />
-        </View>
+        <SkeletonMessagesList />
       </View>
     );
   }

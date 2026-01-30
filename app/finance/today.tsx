@@ -4,13 +4,25 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, monoGradients } from '@/constants/colors';
 import { useOrders } from '@/hooks/orders-context';
+import { useAuth } from '@/hooks/auth-context';
+import { SellerOnly } from '@/components/RoleGuard';
+import { trpc } from '@/lib/trpc';
 import BarChart, { BarDatum } from '@/components/BarChart';
 
 export default function TodayFinanceScreen() {
   const insets = useSafeAreaInsets();
   const [headerHeight, setHeaderHeight] = useState<number>(0);
   const { orders } = useOrders();
+  const { user } = useAuth();
 
+  // CRITICAL SECURITY: Only call backend procedure if user is platemaker
+  const dashboardStats = trpc.platemaker.getDashboardStats.useQuery(undefined, {
+    enabled: user?.role === 'platemaker' && !!user?.id,
+    refetchOnWindowFocus: false,
+    refetchOnMount: true,
+  });
+
+  // Call all hooks before any early returns
   const today = new Date();
 
   const todayYear = today.getFullYear();
@@ -22,8 +34,21 @@ export default function TodayFinanceScreen() {
     o.orderDate.getDate() === todayDate
   ), [orders, todayYear, todayMonth, todayDate]);
 
-  const total = useMemo(() => todaysOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0), [todaysOrders]);
-  const count = todaysOrders.length;
+  // Use backend stats if available (take-home after fees), fallback to frontend calculation
+  const total = useMemo(() => {
+    if (dashboardStats.data) {
+      return dashboardStats.data.todayTakeHome; // Use take-home, not gross revenue
+    }
+    return todaysOrders.reduce((s, o) => s + (o.totalPrice ?? 0), 0);
+  }, [todaysOrders, dashboardStats.data]);
+  
+  const count = useMemo(() => {
+    if (dashboardStats.data) {
+      return dashboardStats.data.todayOrderCount;
+    }
+    return todaysOrders.length;
+  }, [todaysOrders, dashboardStats.data]);
+  
   const avg = count > 0 ? Number((total / count).toFixed(2)) : 0;
 
   const byHour: BarDatum[] = useMemo(() => {
@@ -41,7 +66,8 @@ export default function TodayFinanceScreen() {
   }, [todaysOrders]);
 
   return (
-    <View style={styles.container}>
+    <SellerOnly>
+      <View style={styles.container}>
       <View style={styles.staticHeader}>
         <LinearGradient
           colors={monoGradients.green}
@@ -90,6 +116,7 @@ export default function TodayFinanceScreen() {
 
       </ScrollView>
     </View>
+    </SellerOnly>
   );
 }
 

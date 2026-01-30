@@ -189,19 +189,43 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
     return readyToMakeCount + paymentsSinceLastSeen + newMessagesSinceLastSeen;
   }, [role, readyForBuyerCount, newMessagesSinceLastSeen, readyToMakeCount, paymentsSinceLastSeen]);
 
+  // CRITICAL SECURITY: Only call backend procedure if user is platemaker
+  // This prevents API calls from platetakers and ensures frontend never attempts to fetch data for non-platemakers
+  const dashboardStats = trpc.platemaker.getDashboardStats.useQuery(undefined, {
+    enabled: user?.role === 'platemaker' && isAuthenticated,
+    refetchOnWindowFocus: false,
+    refetchOnMount: true,
+  });
+
   const todayEarnings = useMemo(() => {
+    // Use backend data if available (for platemakers only)
+    if (user?.role === 'platemaker' && dashboardStats.data) {
+      return dashboardStats.data.todayTakeHome; // Use take-home, not gross revenue
+    }
+    // Fallback to frontend calculation (only for platemakers, never expose to platetakers)
+    if (user?.role !== 'platemaker') {
+      return 0; // Never expose earnings to platetakers
+    }
     const today = new Date();
     return orders
       .filter(o => o.status === 'completed' && isSameDay(o.orderDate, today))
       .reduce((sum, o) => sum + (o.totalPrice ?? 0), 0);
-  }, [orders]);
+  }, [orders, user?.role, dashboardStats.data]);
 
   const weekEarnings = useMemo(() => {
+    // Use backend data if available (for platemakers only)
+    if (user?.role === 'platemaker' && dashboardStats.data) {
+      return dashboardStats.data.weekTakeHome; // Use take-home, not gross revenue
+    }
+    // Fallback to frontend calculation (only for platemakers, never expose to platetakers)
+    if (user?.role !== 'platemaker') {
+      return 0; // Never expose earnings to platetakers
+    }
     const start = startOfWeek(new Date());
     return orders
       .filter(o => o.status === 'completed' && (o.orderDate >= start))
       .reduce((sum, o) => sum + (o.totalPrice ?? 0), 0);
-  }, [orders]);
+  }, [orders, user?.role, dashboardStats.data]);
 
   const totalReviews = useMemo(() => {
     if (!user || user.role !== 'platemaker') return 0;

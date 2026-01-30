@@ -29,6 +29,13 @@ export default function AuthLayout() {
           gestureEnabled: true,
         }} 
       />
+      <Stack.Screen 
+        name="verify-email" 
+        options={{ 
+          headerShown: false,
+          gestureEnabled: true,
+        }} 
+      />
     </Stack>
   );
 }

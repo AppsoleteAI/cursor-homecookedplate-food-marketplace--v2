@@ -4,6 +4,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, monoGradients } from '@/constants/colors';
 import { useOrders } from '@/hooks/orders-context';
+import { useAuth } from '@/hooks/auth-context';
+import { SellerOnly } from '@/components/RoleGuard';
+import { trpc } from '@/lib/trpc';
 import BarChart, { BarDatum } from '@/components/BarChart';
 
 function getWeekDays(): string[] {
@@ -18,9 +21,18 @@ function monthShort(idx: number): string {
 export default function PeriodsFinanceScreen() {
   const insets = useSafeAreaInsets();
   const { orders } = useOrders();
+  const { user } = useAuth();
   const [tab, setTab] = useState<'weekly' | 'monthly' | 'ytd'>('weekly');
   const [headerHeight, setHeaderHeight] = useState<number>(0);
 
+  // CRITICAL SECURITY: Only call backend procedure if user is platemaker
+  const dashboardStats = trpc.platemaker.getDashboardStats.useQuery(undefined, {
+    enabled: user?.role === 'platemaker' && !!user?.id,
+    refetchOnWindowFocus: false,
+    refetchOnMount: true,
+  });
+
+  // Call all hooks before any early returns
   const now = useMemo(() => new Date(), []);
 
   const weeklyData: BarDatum[] = useMemo(() => {
@@ -56,12 +68,25 @@ export default function PeriodsFinanceScreen() {
     return buckets.map((v, i) => ({ label: monthShort(i), value: Number(v.toFixed(2)) }));
   }, [orders, now]);
 
-  const totalWeekly = weeklyData.reduce((s,d)=>s+d.value,0);
-  const totalMonthly = monthlyData.reduce((s,d)=>s+d.value,0);
-  const totalYTD = ytdData.reduce((s,d)=>s+d.value,0);
+  // Use backend stats for weekly total if available (take-home after fees)
+  const totalWeekly = useMemo(() => {
+    if (dashboardStats.data) {
+      return dashboardStats.data.weekTakeHome; // Use take-home, not gross revenue
+    }
+    return weeklyData.reduce((s,d)=>s+d.value,0);
+  }, [weeklyData, dashboardStats.data]);
+  
+  const totalMonthly = useMemo(() => monthlyData.reduce((s,d)=>s+d.value,0), [monthlyData]);
+  const totalYTD = useMemo(() => ytdData.reduce((s,d)=>s+d.value,0), [ytdData]);
+
+  // Security: Add defensive check to prevent rendering for non-platemakers (after all hooks)
+  if (user?.role !== 'platemaker') {
+    return null;
+  }
 
   return (
-    <View style={styles.container}>
+    <SellerOnly>
+      <View style={styles.container}>
       <View style={styles.staticHeader}>
         <LinearGradient
           colors={monoGradients.green}
@@ -133,6 +158,7 @@ export default function PeriodsFinanceScreen() {
         )}
       </ScrollView>
     </View>
+    </SellerOnly>
   );
 }
 

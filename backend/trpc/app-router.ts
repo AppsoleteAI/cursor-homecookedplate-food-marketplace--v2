@@ -26,6 +26,8 @@ import { updateProfileProcedure } from "./routes/auth/update-profile/route";
 import { requestPlatemakerRoleProcedure } from "./routes/auth/request-platemaker-role/route";
 import { resetPasswordProcedure } from "./routes/auth/reset-password/route";
 import { reactivateAccountProcedure } from "./routes/auth/reactivate-account/route";
+import { verifyEmailProcedure } from "./routes/auth/verify-email/route";
+import { resendVerificationEmailProcedure } from "./routes/auth/resend-verification-email/route";
 import { createMealProcedure } from "./routes/meals/create/route";
 import { listMealsProcedure } from "./routes/meals/list/route";
 import { getMealProcedure } from "./routes/meals/get/route";
@@ -63,6 +65,13 @@ import { promoteToAdminProcedure } from "./routes/admin/promote-to-admin/route";
 import { getMetroAvailabilityProcedure } from "./routes/metro/get-availability/route";
 import { hardwareAuditProcedure } from "./routes/auth/hardware-audit/route";
 import { markAsReadyProcedure } from "./routes/platemaker/mark-as-ready/route";
+import { toggleAvailabilityProcedure } from "./routes/platemaker/toggle-availability/route";
+import { getAvailabilityProcedure } from "./routes/platemaker/get-availability/route";
+import { acceptOrderProcedure } from "./routes/platemaker/accept-order/route";
+import { denyOrderProcedure } from "./routes/platemaker/deny-order/route";
+import { refundOrderProcedure } from "./routes/platemaker/refund-order/route";
+import { getIncomingOrdersProcedure } from "./routes/platemaker/get-incoming-orders/route";
+import { getDashboardStatsProcedure } from "./routes/platemaker/get-dashboard-stats/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -89,6 +98,8 @@ export const appRouter = createTRPCRouter({
     checkEligibility: checkEligibilityProcedure,
     checkUsername: checkUsernameProcedure,
     hardwareAudit: hardwareAuditProcedure,
+    verifyEmail: verifyEmailProcedure,
+    resendVerificationEmail: resendVerificationEmailProcedure,
   }),
   meals: createTRPCRouter({
     create: createMealProcedure,
@@ -147,6 +158,13 @@ export const appRouter = createTRPCRouter({
   }),
   platemaker: createTRPCRouter({
     markAsReady: markAsReadyProcedure,
+    getDashboardStats: getDashboardStatsProcedure,
+    toggleAvailability: toggleAvailabilityProcedure,
+    getAvailability: getAvailabilityProcedure,
+    acceptOrder: acceptOrderProcedure,
+    denyOrder: denyOrderProcedure,
+    refundOrder: refundOrderProcedure,
+    getIncomingOrders: getIncomingOrdersProcedure,
   }),
 });
 

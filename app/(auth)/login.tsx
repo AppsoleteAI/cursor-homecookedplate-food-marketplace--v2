@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,6 @@ import {
   TouchableOpacity,
   Image,
   Alert,
-  Animated,
-  Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,65 +26,16 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [userType, setUserType] = useState<'buyer' | 'seller' | null>(null);
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [loginUserRole, setLoginUserRole] = useState<'platetaker' | 'platemaker' | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const { login } = useAuth();
   const modeParam = typeof params.mode === 'string' ? params.mode : undefined;
   const lockedMode = modeParam === 'buyer' || modeParam === 'seller';
   useInitLoginMode(setUserType, modeParam);
-  
-  // Animation value for rotation
-  const rotationValue = useRef(new Animated.Value(0)).current;
 
   // Complete any pending auth session for native redirects
   useEffect(() => {
     WebBrowser.maybeCompleteAuthSession();
   }, []);
-
-  // Animation effect - triggers when isLoggingIn becomes true
-  useEffect(() => {
-    if (!isLoggingIn || !loginUserRole) return;
-
-    const isPlatetaker = loginUserRole === 'platetaker';
-    const finalRotation = isPlatetaker ? 1440 : -1440; // 4 full rotations
-
-    // Reset rotation value
-    rotationValue.setValue(0);
-
-    // Two-phase animation: slow then fast
-    const animation = Animated.sequence([
-      // Slow phase: 0 to 720 degrees over 2000ms
-      Animated.timing(rotationValue, {
-        toValue: isPlatetaker ? 720 : -720,
-        duration: 2000,
-        easing: Easing.out(Easing.quad), // Slow start
-        useNativeDriver: true,
-      }),
-      // Fast phase: 720 to 1440 degrees over 2000ms
-      Animated.timing(rotationValue, {
-        toValue: finalRotation,
-        duration: 2000,
-        easing: Easing.in(Easing.quad), // Fast end
-        useNativeDriver: true,
-      }),
-    ]);
-
-    animation.start(({ finished }) => {
-      if (finished) {
-        // Navigate after animation completes
-        if (loginUserRole === 'platemaker') {
-          router.replace('/(tabs)/dashboard');
-        } else {
-          router.replace('/(tabs)/(home)/home');
-        }
-      }
-    });
-
-    return () => {
-      animation.stop();
-    };
-  }, [isLoggingIn, loginUserRole, rotationValue]);
 
   const handleLogin = async () => {
     console.log('Sign-in triggered');
@@ -117,13 +66,15 @@ export default function LoginScreen() {
     try {
       await login(cleanEmail, password);
       
-      // Map userType to role for animation
-      // 'buyer' → 'platetaker', 'seller' → 'platemaker'
-      const role = userType === 'seller' ? 'platemaker' : 'platetaker';
-      
-      // Set animation state - this will trigger the animation effect
-      setLoginUserRole(role);
-      setIsLoggingIn(true);
+      // Navigate immediately after login succeeds (no blocking animation)
+      // The auth context will update user state, but we can navigate based on userType
+      // The app/index.tsx will handle role-based routing if needed
+      // For now, navigate based on userType selection
+      if (userType === 'seller') {
+        router.replace('/(tabs)/dashboard');
+      } else {
+        router.replace('/(tabs)/(home)/home');
+      }
     } catch (error: any) {
       console.error('[Login Error]', error);
       // Detect validation errors (email format issues)
@@ -137,51 +88,10 @@ export default function LoginScreen() {
         : 'Invalid login. Please check your password.';
       
       Alert.alert('Login Failed', displayMessage);
-      setIsLoggingIn(false);
-      setLoginUserRole(null);
     } finally {
       setLoading(false);
     }
   };
-
-  // Create interpolated rotation string (handles both positive and negative rotations)
-  const spin = rotationValue.interpolate({
-    inputRange: [-1440, 1440],
-    outputRange: ['-1440deg', '1440deg'],
-    extrapolate: 'clamp',
-  });
-
-  // If showing animation, render the spinning logo
-  if (isLoggingIn) {
-    return (
-      <View style={styles.container} testID="login-screen">
-        <LinearGradient
-          colors={[Colors.white, Colors.gray[50]]}
-          style={StyleSheet.absoluteFillObject}
-        />
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.animationContainer}>
-            <Animated.View
-              style={[
-                styles.animatedLogoContainer,
-                {
-                  transform: [{ rotate: spin }],
-                },
-              ]}
-            >
-              <Image
-                source={require('../../assets/images/icon.png')}
-                style={styles.animatedLogo}
-                resizeMode="contain"
-              />
-            </Animated.View>
-            <Text style={styles.appName}>HomeCookedPlate</Text>
-            <Text style={styles.tagline}>Authentic PlateMaker Meals</Text>
-          </View>
-        </SafeAreaView>
-      </View>
-    );
-  }
 
   return (
     <View style={styles.container} testID="login-screen">
@@ -563,22 +473,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: Colors.gray[700],
-  },
-  animationContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  animatedLogoContainer: {
-    width: 150,
-    height: 150,
-    marginBottom: 16,
-  },
-  animatedLogo: {
-    width: 150,
-    height: 150,
-    borderRadius: 24,
   },
 });
 

@@ -8,9 +8,16 @@ import {
   TouchableOpacity,
   NativeSyntheticEvent,
   NativeScrollEvent,
-  Animated,
-  ActivityIndicator,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSequence,
+  withTiming,
+  Easing,
+/* eslint-disable import/no-unresolved */
+} from 'react-native-reanimated';
+/* eslint-enable import/no-unresolved */
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +31,7 @@ import HorizontalCarousel from '@/components/HorizontalCarousel';
 import { useOrders } from '@/hooks/orders-context';
 import { trpc } from '@/lib/trpc';
 import type { Meal } from '@/types';
+import { SkeletonMealList } from '@/components/SkeletonMealList';
 
 export default function HomeScreen() {
   useAuth();
@@ -82,7 +90,7 @@ export default function HomeScreen() {
   };
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useSharedValue(1);
 
   const topMeals = useMemo(() => {
     return [...meals]
@@ -92,24 +100,27 @@ export default function HomeScreen() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      Animated.sequence([
-        Animated.timing(fadeAnim, {
-          toValue: 0,
+      // Reanimated sequence runs on UI thread for smooth performance
+      fadeAnim.value = withSequence(
+        withTiming(0, {
           duration: 500,
-          useNativeDriver: true,
+          easing: Easing.out(Easing.quad),
         }),
-        Animated.timing(fadeAnim, {
-          toValue: 1,
+        withTiming(1, {
           duration: 500,
-          useNativeDriver: true,
-        }),
-      ]).start();
+          easing: Easing.in(Easing.quad),
+        })
+      );
 
       setCurrentImageIndex((prevIndex) => (prevIndex + 1) % topMeals.length);
     }, 8000);
 
     return () => clearInterval(interval);
   }, [topMeals.length, fadeAnim]);
+
+  const animatedImageStyle = useAnimatedStyle(() => ({
+    opacity: fadeAnim.value,
+  }));
 
   const currentMeal = topMeals[currentImageIndex];
 
@@ -145,7 +156,7 @@ export default function HomeScreen() {
             <Text style={styles.heroSubtitle}>Meals Near You</Text>
             
             {currentMeal && (
-              <Animated.View style={{ opacity: fadeAnim }}>
+              <Animated.View style={animatedImageStyle}>
                 <Image
                   source={{ uri: currentMeal.images[0] }}
                   style={styles.heroImage}
@@ -173,10 +184,7 @@ export default function HomeScreen() {
           )}
 
           {mealsLoading && (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={Colors.gradient.green} />
-              <Text style={styles.loadingText}>Loading meals...</Text>
-            </View>
+            <SkeletonMealList />
           )}
 
           {!mealsLoading && !mealsError && (

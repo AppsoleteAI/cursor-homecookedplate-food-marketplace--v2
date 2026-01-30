@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,6 +23,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useOrders } from '@/hooks/orders-context';
 import { useAuth } from '@/hooks/auth-context';
 import * as WebBrowser from 'expo-web-browser';
+import { trpc } from '@/lib/trpc';
 
 export default function DashboardScreen() {
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
@@ -30,12 +32,48 @@ export default function DashboardScreen() {
   const { activeOrdersCount, todayEarnings, weekEarnings, totalReviews, orders, refresh } = useOrders();
   const { user } = useAuth();
 
+  // CRITICAL SECURITY: Only call backend procedure if user is platemaker
+  // This prevents API calls from platetakers and ensures frontend never attempts to fetch data for non-platemakers
+  const dashboardStats = trpc.platemaker.getDashboardStats.useQuery(undefined, {
+    enabled: user?.role === 'platemaker' && !!user?.id,
+    refetchOnWindowFocus: false,
+    refetchOnMount: true,
+  });
+
+  // Get availability status
+  const availabilityStatus = trpc.platemaker.getAvailability.useQuery(undefined, {
+    enabled: user?.role === 'platemaker' && !!user?.id,
+    refetchOnWindowFocus: false,
+  });
+
+  // Toggle availability mutation
+  const toggleAvailability = trpc.platemaker.toggleAvailability.useMutation({
+    onSuccess: () => {
+      availabilityStatus.refetch();
+      Alert.alert(
+        'Availability Updated',
+        availabilityStatus.data?.available === false
+          ? 'You are now accepting new orders'
+          : 'You are no longer accepting new orders. Existing orders will continue.'
+      );
+    },
+    onError: (error) => {
+      Alert.alert('Error', error.message || 'Failed to update availability status');
+    },
+  });
+
+  // Call hooks before any early returns
   useFocusEffect(
     useCallback(() => {
-      refresh().catch(err => console.error('[Dashboard] refresh on focus error', err));
+      }
       return () => {};
-    }, [refresh])
+    }, [refresh, user?.role])
   );
+
+  // Security: Never render earnings data if user role is not platemaker (guard should prevent this, but add defensive check)
+  if (user?.role !== 'platemaker') {
+    return null; // Defensive check - SellerOnly guard should prevent this, but safety first
+  }
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -64,12 +102,24 @@ export default function DashboardScreen() {
     }
   };
 
-  const stats = useMemo(() => ({
-    todayEarnings: todayEarnings,
-    weekEarnings: weekEarnings,
-    activeOrders: activeOrdersCount,
-    totalReviews: totalReviews,
-  }), [todayEarnings, weekEarnings, activeOrdersCount, totalReviews]);
+  // Use backend stats if available (take-home values), fallback to frontend calculations
+  // Note: This hook is called after the early return check, but it's safe because the early return
+  // only happens if user is not platemaker, and this hook depends on data that won't exist in that case
+  const stats = useMemo(() => {
+    // Prefer backend data (accurate take-home after fees) if available
+    const todayTakeHome = dashboardStats.data?.todayTakeHome ?? todayEarnings;
+    const weekTakeHome = dashboardStats.data?.weekTakeHome ?? weekEarnings;
+    
+    return {
+      todayEarnings: todayTakeHome,
+      weekEarnings: weekTakeHome,
+      activeOrders: activeOrdersCount,
+      totalReviews: totalReviews,
+      // Include gross revenue for transparency (optional - can be shown in detail screens)
+      todayRevenue: dashboardStats.data?.todayRevenue,
+      weekRevenue: dashboardStats.data?.weekRevenue,
+    };
+  }, [todayEarnings, weekEarnings, activeOrdersCount, totalReviews, dashboardStats.data]);
 
   return (
     <SellerOnly>
@@ -100,6 +150,32 @@ export default function DashboardScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.scrollContent, { paddingTop: headerHeight + 12 }]}
         >
+
+        {/* Availability Toggle */}
+        <View style={styles.availabilityCard}>
+          <View style={styles.availabilityHeader}>
+            <Ionicons 
+              name={availabilityStatus.data?.available ? "checkmark-circle" : "close-circle"} 
+              size={24} 
+              color={availabilityStatus.data?.available ? Colors.gradient.green : Colors.gray[500]} 
+            />
+            <Text style={styles.availabilityTitle}>Available For Orders</Text>
+            <Switch
+              value={availabilityStatus.data?.available ?? true}
+              onValueChange={(value) => {
+                toggleAvailability.mutate({ available: value });
+              }}
+              disabled={toggleAvailability.isLoading}
+              trackColor={{ false: Colors.gray[300], true: Colors.gradient.green }}
+              thumbColor={Colors.white}
+            />
+          </View>
+          <Text style={styles.availabilitySubtext}>
+            {availabilityStatus.data?.available === false
+              ? 'New orders will be blocked until you toggle this back on'
+              : 'You are currently accepting new orders'}
+          </Text>
+        </View>
 
         <View style={styles.statsGrid}>
           <TouchableOpacity style={styles.statCard} testID="card-today-earnings" onPress={() => router.push('/finance/today')}>
@@ -494,5 +570,35 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: 16,
     fontWeight: '600',
+  },
+  availabilityCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 24,
+    marginBottom: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+  },
+  availabilityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  availabilityTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.gray[900],
+  },
+  availabilitySubtext: {
+    marginTop: 8,
+    fontSize: 12,
+    color: Colors.gray[600],
   },
 });

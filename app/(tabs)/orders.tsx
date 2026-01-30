@@ -19,6 +19,7 @@ import { useAuth } from '@/hooks/auth-context';
 import { useCart } from '@/hooks/cart-context';
 import { useFavorites } from '@/hooks/favorites-context';
 import { useRouter } from 'expo-router';
+import { SkeletonOrdersList } from '@/components/SkeletonOrdersList';
 
 export default function OrdersScreen() {
   const insets = useSafeAreaInsets();
@@ -115,9 +116,8 @@ export default function OrdersScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color={Colors.gray[400]} />
-        <Text style={styles.loadingText}>Loading orders...</Text>
+      <View style={styles.container}>
+        <SkeletonOrdersList />
       </View>
     );
   }
