@@ -91,7 +91,7 @@ View and inspect network requests made by your app.
 - Request/response headers, timings, and previews
 
 **Project-specific usage**:
-- Monitor tRPC calls to `https://plate-marketplace-api.appsolete.workers.dev`
+- Monitor tRPC calls to `https://homecookedplate.pages.dev`
 - Inspect Supabase API requests
 - Check Stripe payment requests
 - View image loading from Expo Image components

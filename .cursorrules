@@ -80,7 +80,7 @@ When analyzing logs or crashes, prioritize this sequence:
 - **Database Columns**: Follow same naming convention as metadata
 
 ### API Routing
-- **Custom Backend**: Hardcoded to `https://platetaker-api.appsolete.workers.dev` in `lib/trpc.ts`
+- **Custom Backend**: Hardcoded to `https://homecookedplate.pages.dev` in `lib/trpc.ts`
 - **Do NOT use**: `EXPO_PUBLIC_RORK_API_BASE_URL` (system-managed, often points to legacy endpoint)
 
 ## 🔍 Error Diagnosis Patterns

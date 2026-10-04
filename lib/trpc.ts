@@ -3,8 +3,6 @@ import { createTRPCProxyClient, httpLink } from "@trpc/client";
 import type { AppRouter } from "@/backend/trpc/app-router";
 import superjson from "superjson";
 import { Platform } from "react-native";
-import * as Device from "expo-device";
-import Constants from 'expo-constants';
 import { supabase } from "./supabase";
 
 export const trpc = createTRPCReact<AppRouter>();
@@ -18,7 +16,7 @@ const getBaseUrl = () => {
   const envUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
   
   // Fallback to production URL if env var not set
-  const baseUrl = envUrl || 'https://plate-marketplace-api.appsolete.workers.dev';
+  const baseUrl = envUrl || 'https://homecookedplate.pages.dev';
   
   if (__DEV__) {
     console.log("[tRPC] Development mode - Using backend:", baseUrl, envUrl ? "(from env)" : "(fallback)");
@@ -32,7 +30,7 @@ const getBaseUrl = () => {
 const baseUrl = getBaseUrl();
 // CRITICAL: URL must match backend route configuration
 // If backend mounts like this: app.use('/api/trpc/*', trpcServer({ ... }))
-// Then frontend URL MUST be: 'https://...workers.dev/api/trpc' (NO trailing slash)
+// Then frontend URL MUST be: 'https://homecookedplate.pages.dev/api/trpc' (NO trailing slash)
 // Define it once with trailing slash handling
 export const trpcUrl = baseUrl.endsWith('/') 
   ? `${baseUrl}api/trpc` 
@@ -53,9 +51,6 @@ if (typeof window !== 'undefined') {
     isDev: __DEV__,
   });
 }
-// #region agent log - HYPOTHESIS C, D: tRPC client initialization
-fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/trpc.ts:TRPC_CLIENT_INIT',message:'tRPC client initializing',data:{trpcUrl,platform:Platform.OS,isDev:__DEV__},timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'C,D'})}).catch(()=>{});
-// #endregion
 
 export const trpcClient = trpc.createClient({
   links: [
@@ -66,9 +61,6 @@ export const trpcClient = trpc.createClient({
       async headers() {
         const session = await supabase.auth.getSession();
         const token = session.data.session?.access_token;
-        // #region agent log - HYPOTHESIS D: tRPC request headers
-        fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/trpc.ts:TRPC_HEADERS',message:'tRPC request headers prepared',data:{hasToken:!!token},timestamp:Date.now(),sessionId:'debug-session',runId:'nav-debug',hypothesisId:'D'})}).catch(()=>{});
-        // #endregion
         return {
           'Content-Type': 'application/json',
           'x-trpc-source': 'expo-web', // Required for CORS validation
@@ -95,7 +87,7 @@ export const trpcClient = trpc.createClient({
               const urlObj = new URL(urlString);
               const path = urlObj.pathname + urlObj.search;
               // Build new URL with configured backend - ensure no double slash
-              const configuredBase = process.env.EXPO_PUBLIC_RORK_API_BASE_URL || 'https://plate-marketplace-api.appsolete.workers.dev';
+              const configuredBase = process.env.EXPO_PUBLIC_RORK_API_BASE_URL || 'https://homecookedplate.pages.dev';
               finalUrl = configuredBase.endsWith('/') && path.startsWith('/')
                 ? `${configuredBase}${path.slice(1)}`
                 : `${configuredBase}${path}`;
@@ -107,7 +99,7 @@ export const trpcClient = trpc.createClient({
               // If URL parsing fails, try simple string replacement as fallback
               // Preserve the full path including /api/trpc
               console.warn('[tRPC] URL parsing failed, using string replacement:', urlError);
-              const configuredBase = process.env.EXPO_PUBLIC_RORK_API_BASE_URL || 'https://plate-marketplace-api.appsolete.workers.dev';
+              const configuredBase = process.env.EXPO_PUBLIC_RORK_API_BASE_URL || 'https://homecookedplate.pages.dev';
               finalUrl = urlString.replace(/^http:\/\/[^/]+/, configuredBase);
               console.warn('[tRPC] Fallback fixed URL:', finalUrl);
             }
