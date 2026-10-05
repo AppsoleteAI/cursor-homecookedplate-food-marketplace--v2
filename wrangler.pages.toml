@@ -1,0 +1,8 @@
+name = "homecookedplate"
+pages_build_output_dir = "./dist"
+compatibility_date = "2024-09-23"
+
+# API routes on homecookedplate.pages.dev call the Worker. This file does not publish that Worker.
+[[services]]
+binding = "API"
+service = "plate-marketplace-api"

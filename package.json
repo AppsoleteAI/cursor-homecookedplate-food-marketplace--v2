@@ -8,6 +8,7 @@
     "start-web": "expo start --web --tunnel",
     "start-web-dev": "DEBUG=expo* expo start --web --tunnel",
     "lint": "expo lint",
+    "pages:build": "expo export --platform web --output-dir dist && node scripts/assemble-pages.mjs",
     "lint:fix": "expo lint --fix",
     "android": "expo run:android",
     "ios": "expo run:ios",
