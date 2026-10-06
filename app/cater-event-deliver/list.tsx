@@ -8,7 +8,7 @@ import { useCaterEvent } from '@/hooks/cater-event-store';
 import { evaluateCaterLicense, evaluateCaterPackage } from '@/lib/cater-event-license';
 
 export default function ListCaterPackageScreen() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const { license, publishPackage } = useCaterEvent();
   const [name, setName] = useState('');
   const [priceText, setPriceText] = useState('');
@@ -21,6 +21,9 @@ export default function ListCaterPackageScreen() {
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
+  }
+  if (!isLoading && user?.role !== 'platemaker' && user?.isAdmin !== true) {
+    return <Redirect href="/(tabs)/(home)/home" />;
   }
 
   const publish = () => {
@@ -42,7 +45,7 @@ export default function ListCaterPackageScreen() {
       setBlocks(result.blocks);
       return;
     }
-    router.replace('/cater-event-delivered/seller' as Href);
+    router.replace('/cater-event-deliver/seller' as Href);
   };
 
   return (
@@ -64,7 +67,7 @@ export default function ListCaterPackageScreen() {
       <TouchableOpacity style={styles.button} onPress={publish} testID="cater-publish">
         <Text style={styles.buttonText}>Publish the package</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => router.push('/cater-event-delivered/license' as Href)}>
+      <TouchableOpacity onPress={() => router.push('/cater-event-deliver/license' as Href)}>
         <Text style={styles.link}>Edit the license record</Text>
       </TouchableOpacity>
     </CaterEventScreen>

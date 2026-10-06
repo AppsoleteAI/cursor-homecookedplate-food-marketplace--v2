@@ -87,7 +87,7 @@ export function trackLabel(track: RegulatoryTrack): string {
     case 'csa_share':
       return 'CSA share';
     case 'cottage_non_tcs':
-      return 'Cottage food (non-TCS)';
+      return 'Homemade, shelf-stable';
     case 'shell_eggs':
       return 'Shell eggs';
     case 'temperature_control':

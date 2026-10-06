@@ -3,8 +3,9 @@ import { Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
 import { Colors } from '@/constants/colors';
-import { CATER_COMPANIES, companiesNearZip } from '@/constants/cater-event-delivered';
+import { CATER_COMPANIES, companiesNearZip } from '@/constants/cater-event-deliver';
 import { useCaterEvent } from '@/hooks/cater-event-store';
+import { useAuth } from '@/hooks/auth-context';
 import { stateName } from '@/lib/cottage-food';
 
 export default function CaterBoardScreen() {
@@ -12,6 +13,8 @@ export default function CaterBoardScreen() {
   const initialZip = typeof params.zip === 'string' ? params.zip : '';
   const [zip, setZip] = useState(initialZip);
   const { license, accepting, listings } = useCaterEvent();
+  const { user } = useAuth();
+  const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
   const companies = companiesNearZip(zip);
   const searching = zip.replace(/\D/g, '').length >= 3;
 
@@ -28,8 +31,8 @@ export default function CaterBoardScreen() {
         testID="cater-board-zip"
       />
       <Text style={styles.note}>This board is the company’s own switch. It is not a live truck map, and a posted calendar does not by itself accept an order.</Text>
-      {license ? (
-        <TouchableOpacity style={styles.card} onPress={() => router.push('/cater-event-delivered/seller' as Href)}>
+      {isMaker && license ? (
+        <TouchableOpacity style={styles.card} onPress={() => router.push('/cater-event-deliver/seller' as Href)}>
           <Text style={styles.name}>{license.companyName}</Text>
           <Text style={[styles.status, accepting ? styles.open : styles.closed]}>{accepting ? 'Accepting drop-offs' : 'Not accepting'}</Text>
           <Text style={styles.meta}>{license.city}, {stateName(license.stateCode)} · {listings.length} package{listings.length === 1 ? '' : 's'}</Text>
@@ -38,7 +41,7 @@ export default function CaterBoardScreen() {
       <Text style={styles.section}>{searching ? 'Companies in this ZIP area' : 'On the board'}</Text>
       {(searching ? companies : CATER_COMPANIES).length === 0 ? <Text style={styles.note}>No catering company shares the first three digits of that ZIP.</Text> : null}
       {(searching ? companies : CATER_COMPANIES).map((company) => (
-        <TouchableOpacity key={company.id} style={styles.card} onPress={() => router.push(`/cater-event-delivered/company/${company.id}` as Href)} testID={`board-company-${company.id}`}>
+        <TouchableOpacity key={company.id} style={styles.card} onPress={() => router.push(`/cater-event-deliver/company/${company.id}` as Href)} testID={`board-company-${company.id}`}>
           <Text style={styles.name}>{company.name}</Text>
           <Text style={[styles.status, company.accepting ? styles.open : styles.closed]}>{company.accepting ? 'Accepting drop-offs' : 'Not accepting'}</Text>
           <Text style={styles.meta}>{company.city}, {stateName(company.stateCode)} · {company.focus}</Text>

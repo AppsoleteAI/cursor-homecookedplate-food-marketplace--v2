@@ -6,18 +6,22 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
 import { Colors, monoGradients } from '@/constants/colors';
 import { useSitDown } from '@/hooks/sit-down-store';
+import { useAuth } from '@/hooks/auth-context';
 import { SIT_DOWN_RULE } from '@/lib/sit-down-license';
 
-const LINKS: { title: string; detail: string; href: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+const LINKS: { title: string; detail: string; href: string; icon: keyof typeof Ionicons.glyphMap; seller?: boolean }[] = [
   { title: 'Places', detail: 'Coffee, yogurt, ice cream, diners, and small cafes', href: '/sit-down-delicious/places', icon: 'storefront-outline' },
   { title: 'Table or takeout', detail: 'One restaurant per order. No courier.', href: '/sit-down-delicious/basket', icon: 'cafe-outline' },
   { title: 'Restaurant orders', detail: 'Separate from plates, farms, trucks, and catering', href: '/sit-down-delicious/orders', icon: 'list-outline' },
-  { title: 'Shop owner', detail: 'Open the dining room and see the payout', href: '/sit-down-delicious/seller', icon: 'restaurant-outline' },
-  { title: 'Retail food license', detail: 'Fixed address, independence, and the permit fee', href: '/sit-down-delicious/license', icon: 'document-text-outline' },
+  { title: 'Shop owner', detail: 'Open the dining room and see the payout', href: '/sit-down-delicious/seller', icon: 'restaurant-outline', seller: true },
+  { title: 'Retail food license', detail: 'Fixed address, independence, and the permit fee', href: '/sit-down-delicious/license', icon: 'document-text-outline', seller: true },
 ];
 
 export default function SitDownDeliciousHome() {
   const { itemCount } = useSitDown();
+  const { user } = useAuth();
+  const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
+  const links = LINKS.filter((link) => isMaker || !link.seller);
   const [zip, setZip] = useState('');
 
   return (
@@ -30,7 +34,7 @@ export default function SitDownDeliciousHome() {
           <Text style={styles.kicker}>Independent restaurants. Sit down or takeout.</Text>
           <Text style={styles.title}>SitDownDelicious</Text>
           <Text style={styles.lead}>
-            Small licensed shops: coffee, yogurt, ice cream, diners, and startup cafes. Franchises and corporate chains are not listed. You sit at a table or pick up at the counter.
+            Coffee, yogurt, ice cream, diners, and small cafes. Sit at a table or pick up at the counter. Chains are not listed.
           </Text>
           <View style={styles.zipRow}>
             <TextInput
@@ -54,12 +58,12 @@ export default function SitDownDeliciousHome() {
         </LinearGradient>
 
         <View style={styles.models}>
-          <Text style={styles.model}>Independently owned, at a licensed street address</Text>
+          <Text style={styles.model}>Independently owned. No chains.</Text>
           <Text style={styles.model}>Sit down, counter takeout, or both</Text>
           <Text style={styles.model}>Same 10% service fee. Rank is not for sale.</Text>
         </View>
 
-        {LINKS.map((link) => (
+        {links.map((link) => (
           <TouchableOpacity key={link.href} style={styles.card} onPress={() => router.push(link.href as Href)} testID={`sit-link-${link.title}`}>
             <Ionicons name={link.icon} size={22} color="#92400E" />
             <View style={styles.cardText}>
@@ -82,10 +86,10 @@ export default function SitDownDeliciousHome() {
         <TouchableOpacity onPress={() => router.push('/food-truck-popup' as Href)}>
           <Text style={styles.link}>Food trucks stay in FoodTruckPopup.</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push('/cater-event-delivered' as Href)}>
-          <Text style={styles.link}>Group catering stays in CaterEventDelivered.</Text>
+        <TouchableOpacity onPress={() => router.push('/cater-event-deliver' as Href)}>
+          <Text style={styles.link}>Group catering stays in CaterEventDeliver.</Text>
         </TouchableOpacity>
-        <Text style={styles.rule}>{SIT_DOWN_RULE}</Text>
+        {isMaker ? <Text style={styles.rule}>{SIT_DOWN_RULE}</Text> : null}
       </ScrollView>
     </SafeAreaView>
   );

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { hydrateCaterEvent } from '@/hooks/cater-event-store';
 
-export default function CaterEventDeliveredLayout() {
+export default function CaterEventDeliverLayout() {
   useEffect(() => {
     hydrateCaterEvent();
   }, []);

@@ -14,6 +14,16 @@ function LoadingFallback() {
   );
 }
 
+export function useSellerGate() {
+  const { isLoading, isAuthenticated, user } = useAuth();
+  if (isLoading) return <LoadingFallback />;
+  if (!isAuthenticated) return <Redirect href="/(auth)/login" />;
+  if (user?.role !== 'platemaker' && user?.isAdmin !== true) {
+    return <Redirect href="/(tabs)/(home)/home" />;
+  }
+  return null;
+}
+
 export function SellerOnly({ children }: GuardProps) {
   const { isLoading, isAuthenticated, user } = useAuth();
 

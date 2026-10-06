@@ -19,6 +19,9 @@ export default function CaterSellerScreen() {
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
   }
+  if (!isLoading && user?.role !== 'platemaker' && user?.isAdmin !== true) {
+    return <Redirect href="/(tabs)/(home)/home" />;
+  }
 
   return (
     <CaterEventScreen title="Catering company" subtitle="Drop-off payouts stay separate from plate earnings." testID="cater-seller">
@@ -44,13 +47,13 @@ export default function CaterSellerScreen() {
         )}
         {!licenseCheck.ok ? <Text style={styles.block}>{licenseCheck.blocks[0]}</Text> : <Text style={styles.ok}>License record is complete enough to list.</Text>}
       </View>
-      <TouchableOpacity style={styles.button} onPress={() => router.push('/cater-event-delivered/license' as Href)} testID="seller-license">
+      <TouchableOpacity style={styles.button} onPress={() => router.push('/cater-event-deliver/license' as Href)} testID="seller-license">
         <Text style={styles.buttonText}>License, kitchen, and fee</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.secondary} onPress={() => router.push('/cater-event-delivered/list' as Href)} testID="seller-list">
+      <TouchableOpacity style={styles.secondary} onPress={() => router.push('/cater-event-deliver/list' as Href)} testID="seller-list">
         <Text style={styles.secondaryText}>Add a per-person package</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.secondary} onPress={() => router.push('/cater-event-delivered/orders' as Href)}>
+      <TouchableOpacity style={styles.secondary} onPress={() => router.push('/cater-event-deliver/orders' as Href)}>
         <Text style={styles.secondaryText}>Orders and organization spend</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.secondary} onPress={() => router.push('/kitchen-rules' as Href)}>
@@ -64,7 +67,7 @@ export default function CaterSellerScreen() {
       <Text style={styles.section}>Your packages</Text>
       {listings.length === 0 ? <Text style={styles.meta}>Nothing listed yet.</Text> : null}
       {listings.map((item) => (
-        <TouchableOpacity key={item.id} style={styles.card} onPress={() => router.push(`/cater-event-delivered/package/${item.id}` as Href)}>
+        <TouchableOpacity key={item.id} style={styles.card} onPress={() => router.push(`/cater-event-deliver/package/${item.id}` as Href)}>
           <Text style={styles.itemName}>{item.name}</Text>
           <Text style={styles.meta}>${item.pricePerPerson.toFixed(2)} per person · minimum {item.minimumHeadcount} · {accepting ? 'On the board' : 'Hidden while you are closed'}</Text>
         </TouchableOpacity>

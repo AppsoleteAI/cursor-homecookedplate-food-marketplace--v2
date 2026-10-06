@@ -45,9 +45,11 @@ export default function CaterOrdersScreen() {
       <TouchableOpacity style={styles.button} onPress={() => router.push(dashboardHref)} testID="cater-orders-dashboard">
         <Text style={styles.buttonText}>{user?.role === 'platemaker' ? 'Plate maker dashboard' : 'Buyer dashboard'}</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => router.push('/cater-event-delivered/seller' as Href)}>
-        <Text style={styles.link}>Catering company</Text>
-      </TouchableOpacity>
+      {user?.role === 'platemaker' || user?.isAdmin ? (
+        <TouchableOpacity onPress={() => router.push('/cater-event-deliver/seller' as Href)}>
+          <Text style={styles.link}>Catering company</Text>
+        </TouchableOpacity>
+      ) : null}
     </CaterEventScreen>
   );
 }

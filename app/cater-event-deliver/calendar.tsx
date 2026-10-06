@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
 import { Colors } from '@/constants/colors';
-import { CATER_COMPANIES } from '@/constants/cater-event-delivered';
+import { CATER_COMPANIES } from '@/constants/cater-event-deliver';
 import { stateName } from '@/lib/cottage-food';
 
 export default function CaterCalendarScreen() {
@@ -20,7 +20,7 @@ export default function CaterCalendarScreen() {
             <Text key={`${company.id}-${window.day}-${window.hours}`} style={styles.stop}>{window.day} · {window.hours} · {window.place}</Text>
           ))}
           <Text style={styles.stop}>{company.dropoffNote}</Text>
-          <TouchableOpacity onPress={() => router.push(`/cater-event-delivered/company/${company.id}` as Href)}>
+          <TouchableOpacity onPress={() => router.push(`/cater-event-deliver/company/${company.id}` as Href)}>
             <Text style={styles.link}>Open the company</Text>
           </TouchableOpacity>
         </View>

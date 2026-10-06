@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Switch } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { FarmScreen } from '@/components/farm/FarmScreen';
+import { useSellerGate } from '@/components/RoleGuard';
 import { Colors } from '@/constants/colors';
 import { useFarmBasket } from '@/hooks/farm-basket-store';
 import {
@@ -47,6 +48,7 @@ const EMPTY: ComplianceRecord = {
 };
 
 export default function CottageLawScreen() {
+  const sellerGate = useSellerGate();
   const { compliance, saveCompliance } = useFarmBasket();
   const [draft, setDraft] = useState<ComplianceRecord>(compliance ?? EMPTY);
   const [query, setQuery] = useState('');
@@ -76,6 +78,8 @@ export default function CottageLawScreen() {
     setDraft(next);
     setSaved(true);
   };
+
+  if (sellerGate) return sellerGate;
 
   return (
     <FarmScreen title="Cottage food rules" subtitle="Your county, your test, and your fee." testID="farm-cottage-law">

@@ -6,21 +6,25 @@ import { Ionicons } from '@expo/vector-icons';
 import { router , type Href } from 'expo-router';
 import { Colors, monoGradients } from '@/constants/colors';
 import { useFarmBasket } from '@/hooks/farm-basket-store';
+import { useAuth } from '@/hooks/auth-context';
 import { PLATFORM_COTTAGE_RULE } from '@/lib/cottage-food';
 
-const LINKS: { title: string; detail: string; href: '/farm-grown-basket/market' | '/farm-grown-basket/farms' | '/farm-grown-basket/csa' | '/farm-grown-basket/logistics' | '/farm-grown-basket/cottage-law' | '/farm-grown-basket/seller' | '/farm-grown-basket/basket' | '/farm-grown-basket/orders'; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { title: 'Market', detail: 'Produce, eggs, honey, and cottage foods', href: '/farm-grown-basket/market', icon: 'leaf-outline' },
+const LINKS: { title: string; detail: string; href: '/farm-grown-basket/market' | '/farm-grown-basket/farms' | '/farm-grown-basket/csa' | '/farm-grown-basket/logistics' | '/farm-grown-basket/cottage-law' | '/farm-grown-basket/seller' | '/farm-grown-basket/basket' | '/farm-grown-basket/orders'; icon: keyof typeof Ionicons.glyphMap; seller?: boolean }[] = [
+  { title: 'Market', detail: 'Produce, eggs, honey, and homemade goods', href: '/farm-grown-basket/market', icon: 'leaf-outline' },
   { title: 'Farms and co-ops', detail: 'Find a stand by ZIP', href: '/farm-grown-basket/farms', icon: 'map-outline' },
   { title: 'CSA shares', detail: 'Current box, pause, and this week’s price', href: '/farm-grown-basket/csa', icon: 'cube-outline' },
   { title: 'Pickup and delivery', detail: 'Farm pickup, neighborhood handoff, or hub', href: '/farm-grown-basket/logistics', icon: 'bicycle-outline' },
-  { title: 'Cottage food rules', detail: 'Your state, your test, your permit fee', href: '/farm-grown-basket/cottage-law', icon: 'document-text-outline' },
-  { title: 'Seller stand', detail: 'List goods and see farm payouts', href: '/farm-grown-basket/seller', icon: 'storefront-outline' },
+  { title: 'Cottage food rules', detail: 'Your state, your test, your permit fee', href: '/farm-grown-basket/cottage-law', icon: 'document-text-outline', seller: true },
+  { title: 'Seller stand', detail: 'List goods and see farm payouts', href: '/farm-grown-basket/seller', icon: 'storefront-outline', seller: true },
   { title: 'Farm basket', detail: 'Separate from the cooked-plate cart', href: '/farm-grown-basket/basket', icon: 'basket-outline' },
   { title: 'Farm orders', detail: 'Opens your buyer dashboard after checkout', href: '/farm-grown-basket/orders', icon: 'receipt-outline' },
 ];
 
 export default function FarmGrownBasketHome() {
   const { itemCount } = useFarmBasket();
+  const { user } = useAuth();
+  const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
+  const links = LINKS.filter((link) => isMaker || !link.seller);
   const [zip, setZip] = useState('');
 
   return (
@@ -33,7 +37,7 @@ export default function FarmGrownBasketHome() {
           <Text style={styles.kicker}>Separate from cooked plates</Text>
           <Text style={styles.title}>FarmGrownBasket</Text>
           <Text style={styles.lead}>
-            A farm, garden, and co-op marketplace. Buyers meet local producers for produce, eggs, CSA boxes, and shelf-stable cottage foods.
+            Find produce, eggs, honey, and homemade goods. Pick them up from the farm or a neighborhood stand.
           </Text>
           <View style={styles.zipRow}>
             <TextInput
@@ -62,7 +66,7 @@ export default function FarmGrownBasketHome() {
           <Text style={styles.model}>Weekly hub for whole produce only</Text>
         </View>
 
-        {LINKS.map((link) => (
+        {links.map((link) => (
           <TouchableOpacity key={link.href} style={styles.card} onPress={() => router.push(link.href as Href)} testID={`farm-link-${link.title}`}>
             <Ionicons name={link.icon} size={22} color="#166534" />
             <View style={styles.cardText}>
@@ -79,13 +83,13 @@ export default function FarmGrownBasketHome() {
         <TouchableOpacity style={styles.plateLink} onPress={() => router.push('/(tabs)/(home)/home')} testID="farm-back-to-plates">
           <Text style={styles.plateLinkText}>Cooked plates stay on Home. They are not sold in this basket.</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.plateLink} onPress={() => router.push('/cater-event-delivered' as Href)}>
-          <Text style={styles.plateLinkText}>Group catering stays in CaterEventDelivered.</Text>
+        <TouchableOpacity style={styles.plateLink} onPress={() => router.push('/cater-event-deliver' as Href)}>
+          <Text style={styles.plateLinkText}>Group catering stays in CaterEventDeliver.</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.plateLink} onPress={() => router.push('/sit-down-delicious' as Href)}>
           <Text style={styles.plateLinkText}>Independent restaurants stay in SitDownDelicious.</Text>
         </TouchableOpacity>
-        <Text style={styles.rule}>{PLATFORM_COTTAGE_RULE}</Text>
+        {isMaker ? <Text style={styles.rule}>{PLATFORM_COTTAGE_RULE}</Text> : null}
       </ScrollView>
     </SafeAreaView>
   );

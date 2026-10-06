@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Switch } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { SitDownScreen } from '@/components/sit-down/SitDownScreen';
+import { useSellerGate } from '@/components/RoleGuard';
 import { Colors } from '@/constants/colors';
 import { useSitDown } from '@/hooks/sit-down-store';
 import { US_STATE_NAMES } from '@/lib/cottage-food';
@@ -30,6 +31,7 @@ const EMPTY: SitDownLicense = {
 };
 
 export default function SitLicenseScreen() {
+  const sellerGate = useSellerGate();
   const { license, saveLicense } = useSitDown();
   const [draft, setDraft] = useState<SitDownLicense>(license ?? EMPTY);
   const [query, setQuery] = useState('');
@@ -57,6 +59,8 @@ export default function SitLicenseScreen() {
     setDraft(next);
     setSaved(true);
   };
+
+  if (sellerGate) return sellerGate;
 
   return (
     <SitDownScreen title="Retail food license" subtitle="The street address, the independence check, and the fee." testID="sit-license">

@@ -19,6 +19,9 @@ export default function SitSellerScreen() {
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
   }
+  if (!isLoading && user?.role !== 'platemaker' && user?.isAdmin !== true) {
+    return <Redirect href="/(tabs)/(home)/home" />;
+  }
 
   return (
     <SitDownScreen title="Shop owner" subtitle="Restaurant payouts stay separate from plate earnings." testID="sit-seller">

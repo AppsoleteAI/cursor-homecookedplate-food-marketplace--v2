@@ -4,8 +4,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/auth-context';
 import { router } from 'expo-router';
-import { AuthGreen } from '@/constants/auth-palette';
-import { AuthGoldButton } from '@/components/auth/AuthChrome';
+import { AuthColors } from '@/constants/auth-palette';
+import { AuthBackground, AuthGoldButton } from '@/components/auth/AuthChrome';
 
 export default function HardwareMismatchScreen() {
   const insets = useSafeAreaInsets();
@@ -17,13 +17,14 @@ export default function HardwareMismatchScreen() {
   };
 
   return (
+    <AuthBackground>
     <View style={[styles.container, { paddingTop: insets.top + 12 }]}>
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.brandRow}>
-          <Ionicons name="lock-closed" size={28} color={AuthGreen.gold} />
+          <Ionicons name="lock-closed" size={28} color={AuthColors.maroon} />
           <Text style={styles.brand}>HomeCookedPlate</Text>
         </View>
 
@@ -54,6 +55,7 @@ export default function HardwareMismatchScreen() {
         </View>
       </ScrollView>
     </View>
+    </AuthBackground>
   );
 }
 
@@ -69,7 +71,7 @@ function Card({ title, children }: { title: string; children: string }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: AuthGreen.bg,
+    backgroundColor: 'transparent',
   },
   content: {
     paddingHorizontal: 16,
@@ -83,48 +85,51 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   brand: {
-    color: AuthGreen.gold,
+    color: AuthColors.brand,
     fontSize: 24,
     fontWeight: '700',
+    textShadowColor: 'rgba(70, 16, 0, 0.55)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   sheet: {
-    backgroundColor: AuthGreen.cream,
+    backgroundColor: 'transparent',
     borderRadius: 28,
     padding: 14,
     gap: 12,
   },
   panel: {
-    backgroundColor: AuthGreen.panel,
+    backgroundColor: AuthColors.card,
     borderRadius: 22,
     paddingHorizontal: 18,
     paddingVertical: 20,
   },
   title: {
-    color: AuthGreen.white,
+    color: AuthColors.ink,
     fontSize: 26,
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: 8,
   },
   subtitle: {
-    color: AuthGreen.muted,
+    color: AuthColors.muted,
     fontSize: 15,
     lineHeight: 22,
     textAlign: 'center',
   },
   card: {
-    backgroundColor: '#E7DFD2',
+    backgroundColor: AuthColors.field,
     borderRadius: 16,
     padding: 16,
   },
   cardTitle: {
-    color: AuthGreen.ink,
+    color: AuthColors.ink,
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 6,
   },
   cardText: {
-    color: AuthGreen.ink,
+    color: AuthColors.ink,
     fontSize: 14,
     lineHeight: 20,
   },

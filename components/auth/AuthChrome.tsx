@@ -1,25 +1,56 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Pressable,
   StyleSheet,
   Text,
-  TouchableOpacity,
   ViewStyle,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { AuthGreen } from '@/constants/auth-palette';
+import { AuthColors, authGradient } from '@/constants/auth-palette';
+
+type PressState = { pressed: boolean; hovered?: boolean };
+
+function lift(state: PressState) {
+  const hovered = Boolean(state.hovered);
+  return {
+    transform: [
+      { translateY: state.pressed ? 1 : hovered ? -2.5 : 0 },
+      { scale: state.pressed ? 0.985 : 1 },
+    ] as const,
+  };
+}
+
+export function AuthBackground({
+  children,
+  testID,
+}: {
+  children: React.ReactNode;
+  testID?: string;
+}) {
+  return (
+    <LinearGradient
+      colors={[...authGradient]}
+      locations={[0, 0.48, 1]}
+      style={styles.bg}
+      testID={testID}
+    >
+      {children}
+    </LinearGradient>
+  );
+}
 
 export function AuthBackButton({ onPress }: { onPress: () => void }) {
   return (
-    <TouchableOpacity
+    <Pressable
       onPress={onPress}
-      style={styles.back}
+      style={(state) => [styles.back, lift(state)]}
       accessibilityRole="button"
       accessibilityLabel="Back"
     >
-      <Ionicons name="arrow-back" size={22} color={AuthGreen.gold} />
-    </TouchableOpacity>
+      <Ionicons name="arrow-back" size={22} color={AuthColors.brand} />
+    </Pressable>
   );
 }
 
@@ -39,30 +70,26 @@ export function AuthGoldButton({
   style?: ViewStyle;
 }) {
   return (
-    <TouchableOpacity
-      style={[styles.button, disabled && styles.buttonDisabled, style]}
+    <Pressable
+      style={(state) => [styles.button, disabled && styles.buttonDisabled, lift(state), style]}
       onPress={onPress}
       disabled={disabled || loading}
       accessibilityRole="button"
       testID={testID}
     >
-      <LinearGradient
-        colors={disabled ? ['#8C8374', '#8C8374'] : ['#F0D48A', '#C6A15A']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.fill}
-      >
-        {loading ? (
-          <ActivityIndicator color={AuthGreen.ink} />
-        ) : (
-          <Text style={styles.label}>{title}</Text>
-        )}
-      </LinearGradient>
-    </TouchableOpacity>
+      {loading ? (
+        <ActivityIndicator color={AuthColors.ink} />
+      ) : (
+        <Text style={styles.label}>{title}</Text>
+      )}
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
+  bg: {
+    flex: 1,
+  },
   back: {
     width: 40,
     height: 40,
@@ -70,20 +97,25 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   button: {
-    borderRadius: 24,
-    overflow: 'hidden',
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  fill: {
     height: 50,
+    borderRadius: 25,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
+    backgroundColor: AuthColors.button,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.36)',
+    shadowColor: '#461C06',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    elevation: 5,
+  },
+  buttonDisabled: {
+    opacity: 0.55,
   },
   label: {
-    color: AuthGreen.ink,
+    color: AuthColors.ink,
     fontSize: 17,
     fontWeight: '700',
   },

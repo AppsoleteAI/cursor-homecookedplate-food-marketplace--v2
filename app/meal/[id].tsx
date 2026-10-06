@@ -338,6 +338,11 @@ export default function MealDetailScreen() {
                 </View>
               ))}
             </View>
+            {!isPlatemaker ? (
+              <Text style={styles.description}>
+                Ingredients and allergens are listed by the cook. Tell them about your allergies before you order. If something looks or smells wrong at pickup, do not eat it.
+              </Text>
+            ) : null}
           </View>
 
           <View style={styles.section}>

@@ -15,8 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/auth-context';
-import { AuthGreen } from '@/constants/auth-palette';
-import { AuthBackButton, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { AuthColors } from '@/constants/auth-palette';
+import { AuthBackground, AuthBackButton, AuthGoldButton } from '@/components/auth/AuthChrome';
 
 function validatePassword(password: string): { valid: boolean; message?: string } {
   if (password.length < 8) {
@@ -113,6 +113,7 @@ export default function ResetPasswordScreen() {
   };
 
   return (
+    <AuthBackground>
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
@@ -131,11 +132,11 @@ export default function ResetPasswordScreen() {
                 <Text style={styles.panelTitle}>New password</Text>
                 <Text style={styles.help}>Choose a password with at least 8 characters.</Text>
                 <View style={styles.field}>
-                  <Ionicons name="lock-closed-outline" size={18} color={AuthGreen.gold} />
+                  <Ionicons name="lock-closed-outline" size={18} color={AuthColors.maroon} />
                   <TextInput
                     style={styles.input}
                     placeholder="New password"
-                    placeholderTextColor={AuthGreen.muted}
+                    placeholderTextColor={AuthColors.placeholder}
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry
@@ -144,11 +145,11 @@ export default function ResetPasswordScreen() {
                   />
                 </View>
                 <View style={styles.field}>
-                  <Ionicons name="lock-closed-outline" size={18} color={AuthGreen.gold} />
+                  <Ionicons name="lock-closed-outline" size={18} color={AuthColors.maroon} />
                   <TextInput
                     style={styles.input}
                     placeholder="Confirm password"
-                    placeholderTextColor={AuthGreen.muted}
+                    placeholderTextColor={AuthColors.placeholder}
                     value={confirmPassword}
                     onChangeText={setConfirmPassword}
                     secureTextEntry
@@ -171,13 +172,14 @@ export default function ResetPasswordScreen() {
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
+    </AuthBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: AuthGreen.bg,
+    backgroundColor: 'transparent',
   },
   safeArea: {
     flex: 1,
@@ -191,34 +193,37 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
   },
   brand: {
-    color: AuthGreen.gold,
+    color: AuthColors.brand,
     fontSize: 26,
     fontWeight: '700',
     textAlign: 'center',
     fontFamily: Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia' }),
     marginBottom: 18,
+    textShadowColor: 'rgba(70, 16, 0, 0.55)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   sheet: {
-    backgroundColor: AuthGreen.cream,
+    backgroundColor: 'transparent',
     borderRadius: 28,
     padding: 14,
   },
   panel: {
-    backgroundColor: AuthGreen.panel,
+    backgroundColor: AuthColors.card,
     borderRadius: 22,
     paddingHorizontal: 16,
     paddingTop: 18,
     paddingBottom: 16,
   },
   panelTitle: {
-    color: AuthGreen.white,
+    color: AuthColors.ink,
     fontSize: 26,
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: 8,
   },
   help: {
-    color: AuthGreen.muted,
+    color: AuthColors.muted,
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
@@ -227,8 +232,7 @@ const styles = StyleSheet.create({
   field: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: AuthGreen.fieldLine,
+    backgroundColor: AuthColors.field,
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 50,
@@ -237,7 +241,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    color: AuthGreen.white,
+    color: AuthColors.ink,
     fontSize: 16,
     paddingVertical: 0,
   },
@@ -246,7 +250,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   loginLinkText: {
-    color: AuthGreen.gold,
+    color: AuthColors.maroon,
     fontSize: 14,
     fontWeight: '700',
   },

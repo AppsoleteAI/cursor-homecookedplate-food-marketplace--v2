@@ -33,9 +33,11 @@ export default function SitOrdersScreen() {
       <TouchableOpacity style={styles.button} onPress={() => router.push(dashboardHref)} testID="sit-orders-dashboard">
         <Text style={styles.buttonText}>{user?.role === 'platemaker' ? 'Plate maker dashboard' : 'Buyer dashboard'}</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => router.push('/sit-down-delicious/seller' as Href)}>
-        <Text style={styles.link}>Shop owner</Text>
-      </TouchableOpacity>
+      {user?.role === 'platemaker' || user?.isAdmin ? (
+        <TouchableOpacity onPress={() => router.push('/sit-down-delicious/seller' as Href)}>
+          <Text style={styles.link}>Shop owner</Text>
+        </TouchableOpacity>
+      ) : null}
     </SitDownScreen>
   );
 }

@@ -5,6 +5,7 @@ import { FarmScreen } from '@/components/farm/FarmScreen';
 import { Colors } from '@/constants/colors';
 import { getFarm, productsForFarm } from '@/constants/farm-grown-basket';
 import { useFarmBasket } from '@/hooks/farm-basket-store';
+import { useAuth } from '@/hooks/auth-context';
 import { frameworkForState, frameworkSummary, stateName, trackLabel } from '@/lib/cottage-food';
 
 export default function FarmProfileScreen() {
@@ -12,6 +13,8 @@ export default function FarmProfileScreen() {
   const farmId = Array.isArray(id) ? id[0] : id;
   const farm = farmId ? getFarm(farmId) : undefined;
   const { follows, toggleFollow } = useFarmBasket();
+  const { user } = useAuth();
+  const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
 
   if (!farm) {
     return (
@@ -32,13 +35,15 @@ export default function FarmProfileScreen() {
       <TouchableOpacity style={styles.follow} onPress={() => toggleFollow(farm.id)} testID="farm-follow">
         <Text style={styles.followText}>{following ? 'Following this stand' : 'Follow this stand'}</Text>
       </TouchableOpacity>
-      <View style={styles.rule}>
-        <Text style={styles.ruleTitle}>Local rule for this stand</Text>
-        <Text style={styles.body}>{frameworkSummary(framework)}</Text>
-        <TouchableOpacity onPress={() => router.push('/farm-grown-basket/cottage-law' as Href)}>
-          <Text style={styles.link}>Open the cottage food checklist</Text>
-        </TouchableOpacity>
-      </View>
+      {isMaker ? (
+        <View style={styles.rule}>
+          <Text style={styles.ruleTitle}>Local rule for this stand</Text>
+          <Text style={styles.body}>{frameworkSummary(framework)}</Text>
+          <TouchableOpacity onPress={() => router.push('/farm-grown-basket/cottage-law' as Href)}>
+            <Text style={styles.link}>Open the cottage food checklist</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
       <Text style={styles.section}>Goods from this stand</Text>
       {productsForFarm(farm.id).map((product) => (
         <TouchableOpacity key={product.id} style={styles.row} onPress={() => router.push(`/farm-grown-basket/product/${product.id}` as Href)}>

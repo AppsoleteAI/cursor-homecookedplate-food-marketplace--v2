@@ -111,7 +111,7 @@ export default function ProfileScreen() {
     {
       icon: 'leaf-outline',
       title: 'FarmGrownBasket',
-      subtitle: 'Farms, gardens, and cottage foods',
+      subtitle: 'Farms, gardens, and pickup',
       onPress: () => router.push('/farm-grown-basket' as Href),
     },
     {

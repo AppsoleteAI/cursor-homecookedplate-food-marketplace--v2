@@ -1,5 +1,5 @@
 export const CATER_EVENT_RULE =
-  'CaterEventDelivered is for licensed catering companies taking group orders. Packages are a fixed price per person, with a minimum headcount. The company drops off the food and sets it up. Cottage food laws do not cover hot catering. This app does not inspect the kitchen, issue the license, hire a driver, or add a 15% to 25% marketplace commission. The fee is the same 10% service fee as the rest of HomeCookedPlate.';
+  'CaterEventDeliver is for licensed catering companies taking group orders. Packages are a fixed price per person, with a minimum headcount. The company drops off the food and sets it up. Cottage food laws do not cover hot catering. This app does not inspect the kitchen, issue the license, hire a driver, or add a 15% to 25% marketplace commission. The fee is the same 10% service fee as the rest of HomeCookedPlate.';
 
 export const DROP_OFF_WINDOWS = [
   'Weekday lunch, 11:00–1:00',
@@ -57,7 +57,7 @@ export function evaluateCaterLicense(record: CaterLicenseRecord | null): { ok: b
   if (record.handlerCard.trim().length < 4) blocks.push('Record the food-handler or food-manager card, or the agency statement that none is required.');
   if (!record.regulationsConfirmed) blocks.push('Confirm that you read the current catering rule. The app has not verified it.');
   if (!record.cottageDoesNotApply) blocks.push('Confirm that cottage food law is not the license for this catering company.');
-  if (!record.companyArrangesDropoff) blocks.push('CaterEventDelivered orders are dropped off and set up by the catering company.');
+  if (!record.companyArrangesDropoff) blocks.push('CaterEventDeliver orders are dropped off and set up by the catering company.');
   if (ALCOHOL.test(`${record.companyName} ${record.statuteNote}`)) {
     blocks.push('Alcohol cannot be sold on HomeCookedPlate.');
   }
@@ -87,7 +87,7 @@ export function evaluateCaterPackage(
   if (item.ingredients.trim().length < 2) blocks.push('List the ingredients.');
   if (item.allergens.trim().length < 2) blocks.push('Declare major allergens, or write “none of the major allergens.”');
   if (ALCOHOL.test(`${item.name} ${item.ingredients} ${item.summary}`)) {
-    blocks.push('Alcohol cannot be listed on a CaterEventDelivered package.');
+    blocks.push('Alcohol cannot be listed on a CaterEventDeliver package.');
   }
   return { ok: blocks.length === 0, blocks };
 }

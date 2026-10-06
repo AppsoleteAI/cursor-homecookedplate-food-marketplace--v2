@@ -205,7 +205,7 @@ export default function BuyerDashboardScreen() {
             testID="buyer-farm-grown-basket"
           >
             <Text style={styles.farmTitle}>FarmGrownBasket</Text>
-            <Text style={styles.farmBody}>Farm goods, CSA shares, and cottage foods. They do not appear in your plate orders.</Text>
+            <Text style={styles.farmBody}>Produce, eggs, honey, and homemade goods. They do not appear in your plate orders.</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -219,10 +219,10 @@ export default function BuyerDashboardScreen() {
 
           <TouchableOpacity
             style={styles.caterCard}
-            onPress={() => router.push('/cater-event-delivered' as Href)}
-            testID="buyer-cater-event-delivered"
+            onPress={() => router.push('/cater-event-deliver' as Href)}
+            testID="buyer-cater-event-deliver"
           >
-            <Text style={styles.farmTitle}>CaterEventDelivered</Text>
+            <Text style={styles.farmTitle}>CaterEventDeliver</Text>
             <Text style={styles.farmBody}>Group packages for an office, clinic, or event. The company drops off and sets up. These orders are not plate orders.</Text>
           </TouchableOpacity>
 

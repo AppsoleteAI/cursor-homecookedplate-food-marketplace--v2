@@ -6,20 +6,24 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
 import { Colors, monoGradients } from '@/constants/colors';
 import { useFoodTruck } from '@/hooks/food-truck-store';
+import { useAuth } from '@/hooks/auth-context';
 import { FOOD_TRUCK_RULE } from '@/lib/food-truck-permit';
 
-const LINKS: { title: string; detail: string; href: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+const LINKS: { title: string; detail: string; href: string; icon: keyof typeof Ionicons.glyphMap; seller?: boolean }[] = [
   { title: 'Live board', detail: 'Trucks that have the window open', href: '/food-truck-popup/board', icon: 'radio-outline' },
   { title: 'Trucks', detail: 'Menus, lots, and neighborhoods', href: '/food-truck-popup/trucks', icon: 'bus-outline' },
   { title: 'Schedules', detail: 'Lot calendars for later today and this week', href: '/food-truck-popup/schedule', icon: 'calendar-outline' },
   { title: 'Window order', detail: 'One truck at a time. Pickup at the window.', href: '/food-truck-popup/basket', icon: 'receipt-outline' },
   { title: 'Truck orders', detail: 'Separate from plates and farm goods', href: '/food-truck-popup/orders', icon: 'list-outline' },
-  { title: 'Truck owner', detail: 'Mark the window open and see the payout', href: '/food-truck-popup/seller', icon: 'storefront-outline' },
-  { title: 'Mobile permit', detail: 'Health permit, commissary, and the fee', href: '/food-truck-popup/permit', icon: 'document-text-outline' },
+  { title: 'Truck owner', detail: 'Mark the window open and see the payout', href: '/food-truck-popup/seller', icon: 'storefront-outline', seller: true },
+  { title: 'Mobile permit', detail: 'Health permit, commissary, and the fee', href: '/food-truck-popup/permit', icon: 'document-text-outline', seller: true },
 ];
 
 export default function FoodTruckPopupHome() {
   const { itemCount } = useFoodTruck();
+  const { user } = useAuth();
+  const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
+  const links = LINKS.filter((link) => isMaker || !link.seller);
   const [zip, setZip] = useState('');
 
   return (
@@ -61,7 +65,7 @@ export default function FoodTruckPopupHome() {
           <Text style={styles.model}>Same 10% service fee. No courier commission.</Text>
         </View>
 
-        {LINKS.map((link) => (
+        {links.map((link) => (
           <TouchableOpacity key={link.href} style={styles.card} onPress={() => router.push(link.href as Href)} testID={`truck-link-${link.title}`}>
             <Ionicons name={link.icon} size={22} color="#C2410C" />
             <View style={styles.cardText}>
@@ -81,13 +85,13 @@ export default function FoodTruckPopupHome() {
         <TouchableOpacity onPress={() => router.push('/farm-grown-basket' as Href)}>
           <Text style={styles.link}>Farm goods stay in FarmGrownBasket.</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push('/cater-event-delivered' as Href)}>
-          <Text style={styles.link}>Group catering stays in CaterEventDelivered.</Text>
+        <TouchableOpacity onPress={() => router.push('/cater-event-deliver' as Href)}>
+          <Text style={styles.link}>Group catering stays in CaterEventDeliver.</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => router.push('/sit-down-delicious' as Href)}>
           <Text style={styles.link}>Independent restaurants stay in SitDownDelicious.</Text>
         </TouchableOpacity>
-        <Text style={styles.rule}>{FOOD_TRUCK_RULE}</Text>
+        {isMaker ? <Text style={styles.rule}>{FOOD_TRUCK_RULE}</Text> : null}
       </ScrollView>
     </SafeAreaView>
   );

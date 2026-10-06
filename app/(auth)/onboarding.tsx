@@ -8,17 +8,19 @@ import {
   Platform,
   ScrollView,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import * as WebBrowser from 'expo-web-browser';
 import * as Location from 'expo-location';
-import { router, useLocalSearchParams , type Href } from 'expo-router';
-import { AuthGreen } from '@/constants/auth-palette';
-import { AuthBackButton, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { router, useLocalSearchParams } from 'expo-router';
+import { AuthColors } from '@/constants/auth-palette';
+import { AuthBackButton, AuthBackground, AuthGoldButton } from '@/components/auth/AuthChrome';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 import { useSignupForm } from '@/hooks/useSignupForm';
 import { trpc } from '@/lib/trpc';
+
+const HOUSE_MARK = require('../../assets/house-mark.png');
 
 type Role = 'platetaker' | 'platemaker';
 type MetroStatus = 'idle' | 'finding' | 'found' | 'outside' | 'denied' | 'failed';
@@ -148,16 +150,16 @@ export default function OnboardingScreen() {
 
   if (isSigningUp) {
     return (
-      <View style={styles.container}>
+      <AuthBackground>
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.success}>
-            <Ionicons name="checkmark-circle" size={72} color={AuthGreen.gold} />
+            <Ionicons name="checkmark-circle" size={72} color={AuthColors.maroon} />
             <Text style={styles.successTitle}>Account created</Text>
             <Text style={styles.successText}>You can sign in with the email and password you just chose.</Text>
             <AuthGoldButton title="Go to sign in" onPress={() => router.replace('/(auth)/login')} />
           </View>
         </SafeAreaView>
-      </View>
+      </AuthBackground>
     );
   }
 
@@ -165,7 +167,7 @@ export default function OnboardingScreen() {
   const roleLine = role === 'platemaker' ? 'Cooking' : 'Ordering plates';
 
   return (
-    <View style={styles.container}>
+    <AuthBackground>
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -187,7 +189,16 @@ export default function OnboardingScreen() {
               }}
             />
 
-            <Text style={styles.brand}>HomeCookedPlate</Text>
+            <View style={styles.brandRow}>
+              <Image
+                source={HOUSE_MARK}
+                style={styles.brandMark}
+                resizeMode="contain"
+                tintColor={AuthColors.brand}
+                accessibilityIgnoresInvertColors
+              />
+              <Text style={styles.brand}>HomeCookedPlate</Text>
+            </View>
             <View style={styles.steps}>
               {STEPS.map((label, index) => (
                 <View key={label} style={styles.stepItem}>
@@ -367,29 +378,13 @@ export default function OnboardingScreen() {
                     </CheckRow>
                     <View style={styles.notice}>
                       <Text style={styles.checkText}>
-                        Review{' '}
-                        <Text
-                          style={styles.link}
-                          onPress={() => WebBrowser.openBrowserAsync('https://cottagefoodlaws.com')}
-                        >
-                          cottagefoodlaws.com
-                        </Text>
-                        {' '}and the food rules for your local, county, state, and federal area before using HomeCookedPlate. Cottage laws cover shelf-stable homemade foods only. Cooked plates and farm goods follow the rule that actually applies where they are made.
+                        Ingredients and allergens are listed by the cook. Tell them about your allergies before you order. If something looks or smells wrong at pickup, do not eat it.
                       </Text>
-                      <Text style={styles.link} onPress={() => router.push('/farm-grown-basket/cottage-law' as Href)}>
-                        FarmGrownBasket cottage food checklist
+                      <Text style={[styles.checkText, { marginTop: 8 }]}>
+                        Meet in a public place during daylight. Do not exchange phone numbers in the app. A prepaid delivery is brought by the cook with someone else along.
                       </Text>
-                      <Text style={[styles.link, { marginTop: 8 }]} onPress={() => router.push('/food-truck-popup/permit' as Href)}>
-                        FoodTruckPopup mobile permit checklist
-                      </Text>
-                      <Text style={[styles.link, { marginTop: 8 }]} onPress={() => router.push('/cater-event-delivered/license' as Href)}>
-                        CaterEventDelivered catering license checklist
-                      </Text>
-                      <Text style={[styles.link, { marginTop: 8 }]} onPress={() => router.push('/sit-down-delicious/license' as Href)}>
-                        SitDownDelicious retail food license checklist
-                      </Text>
-                      <Text style={styles.noticeNote}>
-                        HomeCookedPlate is not affiliated or in partnership with cottagefoodlaws.com.
+                      <Text style={[styles.checkText, { marginTop: 8 }]}>
+                        Eat the food promptly. Hot food should still be hot, and cold food still cold, when you get it.
                       </Text>
                     </View>
                     <CheckRow
@@ -403,7 +398,7 @@ export default function OnboardingScreen() {
                       testID="onboarding-food-safety"
                     >
                       <Text style={styles.checkText}>
-                        I acknowledge that I have reviewed cottagefoodlaws.com and understand that I must comply with all local, county, state and federal food laws. I understand that HomeCookedPlate does not allow anyone to violate those laws on this app.
+                        I understand these safety notes. I will check the ingredients, meet in a public place during daylight, and eat the food promptly.
                       </Text>
                     </CheckRow>
                     {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -441,7 +436,7 @@ export default function OnboardingScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
-    </View>
+    </AuthBackground>
   );
 }
 
@@ -457,10 +452,10 @@ function Field({
 }) {
   return (
     <View style={styles.field}>
-      <Ionicons name={icon} size={18} color={AuthGreen.gold} />
+      <Ionicons name={icon} size={18} color={AuthColors.maroon} />
       <TextInput
         {...inputProps}
-        placeholderTextColor={AuthGreen.muted}
+        placeholderTextColor={AuthColors.placeholder}
         style={styles.input}
       />
       {onToggleSecure ? (
@@ -468,7 +463,7 @@ function Field({
           <Ionicons
             name={secureVisible ? 'eye-off-outline' : 'eye-outline'}
             size={18}
-            color={AuthGreen.gold}
+            color={AuthColors.maroon}
           />
         </TouchableOpacity>
       ) : null}
@@ -496,18 +491,24 @@ function CheckRow({
       accessibilityState={{ checked }}
     >
       <View style={[styles.checkbox, checked && styles.checkboxOn]}>
-        {checked ? <Ionicons name="checkmark" size={14} color={AuthGreen.ink} /> : null}
+        {checked ? <Ionicons name="checkmark" size={14} color={AuthColors.ink} /> : null}
       </View>
       {children}
     </TouchableOpacity>
   );
 }
 
+const cardShadow = {
+  borderTopWidth: 1,
+  borderTopColor: 'rgba(255,255,255,0.36)',
+  shadowColor: '#461C06',
+  shadowOffset: { width: 0, height: 10 },
+  shadowOpacity: 0.22,
+  shadowRadius: 14,
+  elevation: 5,
+} as const;
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: AuthGreen.bg,
-  },
   safeArea: {
     flex: 1,
   },
@@ -519,13 +520,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 28,
   },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  brandMark: {
+    width: 46,
+    height: 38,
+  },
   brand: {
-    color: AuthGreen.gold,
+    color: AuthColors.brand,
     fontSize: 26,
     fontWeight: '700',
-    textAlign: 'center',
     fontFamily: Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia' }),
-    marginBottom: 16,
+    textShadowColor: 'rgba(70, 16, 0, 0.55)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   steps: {
     flexDirection: 'row',
@@ -541,46 +554,45 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#3D5C52',
+    backgroundColor: 'rgba(20,16,12,0.28)',
   },
   stepDotOn: {
-    backgroundColor: AuthGreen.gold,
+    backgroundColor: AuthColors.brand,
   },
   stepLabel: {
-    color: AuthGreen.muted,
+    color: AuthColors.ink,
     fontSize: 12,
     fontWeight: '600',
   },
   stepLabelOn: {
-    color: AuthGreen.gold,
+    color: AuthColors.white,
   },
   sheet: {
-    backgroundColor: AuthGreen.cream,
-    borderRadius: 28,
-    padding: 14,
+    backgroundColor: 'transparent',
   },
   panel: {
-    backgroundColor: AuthGreen.panel,
+    backgroundColor: AuthColors.card,
     borderRadius: 22,
     paddingHorizontal: 16,
     paddingTop: 18,
     paddingBottom: 16,
+    ...cardShadow,
   },
   panelTitle: {
-    color: AuthGreen.white,
+    color: AuthColors.ink,
     fontSize: 26,
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: 14,
   },
   question: {
-    color: AuthGreen.cream,
+    color: AuthColors.ink,
     fontSize: 18,
     fontWeight: '700',
     marginBottom: 8,
   },
   help: {
-    color: AuthGreen.muted,
+    color: AuthColors.muted,
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 14,
@@ -590,13 +602,13 @@ const styles = StyleSheet.create({
   },
   roleChoice: {
     borderWidth: 1,
-    borderColor: AuthGreen.fieldLine,
+    borderColor: 'rgba(72, 16, 30, 0.35)',
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
   },
   roleChoiceText: {
-    color: AuthGreen.gold,
+    color: AuthColors.maroon,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -607,17 +619,17 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   roleLineText: {
-    color: AuthGreen.cream,
+    color: AuthColors.ink,
     fontSize: 15,
     fontWeight: '600',
   },
   roleChange: {
-    color: AuthGreen.gold,
+    color: AuthColors.maroon,
     fontSize: 14,
     fontWeight: '700',
   },
   metroResult: {
-    color: AuthGreen.cream,
+    color: AuthColors.ink,
     fontSize: 15,
     lineHeight: 22,
     marginBottom: 12,
@@ -625,8 +637,7 @@ const styles = StyleSheet.create({
   field: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: AuthGreen.fieldLine,
+    backgroundColor: AuthColors.field,
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 50,
@@ -635,12 +646,12 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    color: AuthGreen.white,
+    color: AuthColors.ink,
     fontSize: 16,
     paddingVertical: 0,
   },
   hint: {
-    color: AuthGreen.gold,
+    color: AuthColors.maroon,
     fontSize: 12,
     marginTop: -6,
     marginBottom: 10,
@@ -656,40 +667,41 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: AuthGreen.gold,
+    borderColor: AuthColors.ink,
+    backgroundColor: AuthColors.field,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 1,
   },
   checkboxOn: {
-    backgroundColor: AuthGreen.gold,
+    backgroundColor: AuthColors.brand,
   },
   checkText: {
     flex: 1,
-    color: AuthGreen.cream,
+    color: AuthColors.ink,
     fontSize: 14,
     lineHeight: 20,
   },
   link: {
-    color: AuthGreen.gold,
+    color: AuthColors.maroon,
     fontWeight: '700',
   },
   notice: {
     borderWidth: 1,
-    borderColor: AuthGreen.fieldLine,
+    borderColor: 'rgba(72, 16, 30, 0.35)',
     borderRadius: 14,
     padding: 12,
     marginBottom: 14,
     gap: 8,
   },
   noticeNote: {
-    color: AuthGreen.muted,
+    color: AuthColors.muted,
     fontSize: 12,
     fontStyle: 'italic',
     lineHeight: 16,
   },
   errorText: {
-    color: AuthGreen.error,
+    color: AuthColors.error,
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 10,
@@ -698,7 +710,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   continueText: {
-    color: AuthGreen.gold,
+    color: AuthColors.maroon,
     fontSize: 15,
     fontWeight: '700',
     textAlign: 'center',
@@ -712,13 +724,16 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   successTitle: {
-    color: AuthGreen.gold,
+    color: AuthColors.brand,
     fontSize: 28,
     fontWeight: '700',
     marginTop: 8,
+    textShadowColor: 'rgba(70, 16, 0, 0.55)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   successText: {
-    color: AuthGreen.cream,
+    color: AuthColors.ink,
     fontSize: 16,
     lineHeight: 22,
     textAlign: 'center',

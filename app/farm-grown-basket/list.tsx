@@ -8,7 +8,7 @@ import { useFarmBasket } from '@/hooks/farm-basket-store';
 import { evaluateListing, trackLabel } from '@/lib/cottage-food';
 
 export default function ListFarmGoodScreen() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const { compliance, publishListing } = useFarmBasket();
   const [name, setName] = useState(compliance?.labelName ?? '');
   const [priceText, setPriceText] = useState('');
@@ -19,6 +19,9 @@ export default function ListFarmGoodScreen() {
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
+  }
+  if (!isLoading && user?.role !== 'platemaker' && user?.isAdmin !== true) {
+    return <Redirect href="/(tabs)/(home)/home" />;
   }
 
   const publish = () => {

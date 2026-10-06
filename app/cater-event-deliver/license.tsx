@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Switch } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
+import { useSellerGate } from '@/components/RoleGuard';
 import { Colors } from '@/constants/colors';
 import { useCaterEvent } from '@/hooks/cater-event-store';
 import { US_STATE_NAMES } from '@/lib/cottage-food';
@@ -31,6 +32,7 @@ const EMPTY: CaterLicenseRecord = {
 };
 
 export default function CaterLicenseScreen() {
+  const sellerGate = useSellerGate();
   const { license, saveLicense } = useCaterEvent();
   const [draft, setDraft] = useState<CaterLicenseRecord>(license ?? EMPTY);
   const [query, setQuery] = useState('');
@@ -58,6 +60,8 @@ export default function CaterLicenseScreen() {
     setDraft(next);
     setSaved(true);
   };
+
+  if (sellerGate) return sellerGate;
 
   return (
     <CaterEventScreen title="Catering license" subtitle="Commercial kitchen, service area, and the fee." testID="cater-license">

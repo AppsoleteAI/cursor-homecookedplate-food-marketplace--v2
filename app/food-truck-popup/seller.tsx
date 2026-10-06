@@ -19,6 +19,9 @@ export default function TruckSellerScreen() {
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
   }
+  if (!isLoading && user?.role !== 'platemaker' && user?.isAdmin !== true) {
+    return <Redirect href="/(tabs)/(home)/home" />;
+  }
 
   return (
     <FoodTruckScreen title="Truck owner" subtitle="Window payouts stay separate from plate earnings." testID="truck-seller">

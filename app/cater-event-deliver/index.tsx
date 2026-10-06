@@ -6,20 +6,24 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
 import { Colors, monoGradients } from '@/constants/colors';
 import { useCaterEvent } from '@/hooks/cater-event-store';
+import { useAuth } from '@/hooks/auth-context';
 import { CATER_EVENT_RULE } from '@/lib/cater-event-license';
 
-const LINKS: { title: string; detail: string; href: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { title: 'Open for orders', detail: 'Companies taking drop-offs right now', href: '/cater-event-delivered/board', icon: 'radio-outline' },
-  { title: 'Catering companies', detail: 'Kitchens, packages, and service areas', href: '/cater-event-delivered/companies', icon: 'business-outline' },
-  { title: 'Drop-off calendar', detail: 'Posted lunch and event windows', href: '/cater-event-delivered/calendar', icon: 'calendar-outline' },
-  { title: 'Group order', detail: 'One company. Price is per person.', href: '/cater-event-delivered/basket', icon: 'people-outline' },
-  { title: 'Catering orders', detail: 'Spend by organization, separate from plates', href: '/cater-event-delivered/orders', icon: 'receipt-outline' },
-  { title: 'Catering company', detail: 'Accept orders and see the payout', href: '/cater-event-delivered/seller', icon: 'storefront-outline' },
-  { title: 'Catering license', detail: 'Commercial kitchen, service area, and the fee', href: '/cater-event-delivered/license', icon: 'document-text-outline' },
+const LINKS: { title: string; detail: string; href: string; icon: keyof typeof Ionicons.glyphMap; seller?: boolean }[] = [
+  { title: 'Open for orders', detail: 'Companies taking drop-offs right now', href: '/cater-event-deliver/board', icon: 'radio-outline' },
+  { title: 'Catering companies', detail: 'Kitchens, packages, and service areas', href: '/cater-event-deliver/companies', icon: 'business-outline' },
+  { title: 'Drop-off calendar', detail: 'Posted lunch and event windows', href: '/cater-event-deliver/calendar', icon: 'calendar-outline' },
+  { title: 'Group order', detail: 'One company. Price is per person.', href: '/cater-event-deliver/basket', icon: 'people-outline' },
+  { title: 'Catering orders', detail: 'Spend by organization, separate from plates', href: '/cater-event-deliver/orders', icon: 'receipt-outline' },
+  { title: 'Catering company', detail: 'Accept orders and see the payout', href: '/cater-event-deliver/seller', icon: 'storefront-outline', seller: true },
+  { title: 'Catering license', detail: 'Commercial kitchen, service area, and the fee', href: '/cater-event-deliver/license', icon: 'document-text-outline', seller: true },
 ];
 
-export default function CaterEventDeliveredHome() {
+export default function CaterEventDeliverHome() {
   const { packageCount } = useCaterEvent();
+  const { user } = useAuth();
+  const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
+  const links = LINKS.filter((link) => isMaker || !link.seller);
   const [zip, setZip] = useState('');
 
   return (
@@ -30,7 +34,7 @@ export default function CaterEventDeliveredHome() {
             <Ionicons name="chevron-back" size={26} color={Colors.white} />
           </TouchableOpacity>
           <Text style={styles.kicker}>Group drop-off. Not a single plate.</Text>
-          <Text style={styles.title}>CaterEventDelivered</Text>
+          <Text style={styles.title}>CaterEventDeliver</Text>
           <Text style={styles.lead}>
             Offices, clinics, and event hosts order a fixed price per person. The catering company drops off the trays and sets them up.
           </Text>
@@ -47,7 +51,7 @@ export default function CaterEventDeliveredHome() {
             />
             <TouchableOpacity
               style={styles.zipButton}
-              onPress={() => router.push({ pathname: '/cater-event-delivered/board', params: { zip } } as unknown as Href)}
+              onPress={() => router.push({ pathname: '/cater-event-deliver/board', params: { zip } } as unknown as Href)}
               testID="cater-zip-go"
             >
               <Text style={styles.zipButtonText}>Find caterers</Text>
@@ -61,7 +65,7 @@ export default function CaterEventDeliveredHome() {
           <Text style={styles.model}>Same 10% service fee. No 15% to 25% marketplace commission.</Text>
         </View>
 
-        {LINKS.map((link) => (
+        {links.map((link) => (
           <TouchableOpacity key={link.href} style={styles.card} onPress={() => router.push(link.href as Href)} testID={`cater-link-${link.title}`}>
             <Ionicons name={link.icon} size={22} color="#6D28D9" />
             <View style={styles.cardText}>
@@ -87,7 +91,7 @@ export default function CaterEventDeliveredHome() {
         <TouchableOpacity onPress={() => router.push('/sit-down-delicious' as Href)}>
           <Text style={styles.link}>Independent restaurants stay in SitDownDelicious.</Text>
         </TouchableOpacity>
-        <Text style={styles.rule}>{CATER_EVENT_RULE}</Text>
+        {isMaker ? <Text style={styles.rule}>{CATER_EVENT_RULE}</Text> : null}
       </ScrollView>
     </SafeAreaView>
   );

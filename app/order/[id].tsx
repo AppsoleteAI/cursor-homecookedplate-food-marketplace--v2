@@ -110,6 +110,12 @@ export default function OrderDetailsPage() {
           </View>
         </View>
 
+        {user?.role !== 'platemaker' ? (
+          <View style={styles.section}>
+            <Text style={styles.title}>When you have it</Text>
+            <Text style={styles.value}>Eat the food promptly. Hot food should still be hot, and cold food still cold, when you get it. Meet in a public place during daylight.</Text>
+          </View>
+        ) : null}
         <View style={styles.section}>
           <Text style={styles.title}>Allergies</Text>
           <Text style={styles.value}>{order.allergies?.join(', ') ?? 'None'}</Text>

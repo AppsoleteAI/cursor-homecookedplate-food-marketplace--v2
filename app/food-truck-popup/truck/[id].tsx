@@ -5,6 +5,7 @@ import { FoodTruckScreen } from '@/components/food-truck/FoodTruckScreen';
 import { Colors } from '@/constants/colors';
 import { getTruck, menuForTruck } from '@/constants/food-truck-popup';
 import { useFoodTruck } from '@/hooks/food-truck-store';
+import { useAuth } from '@/hooks/auth-context';
 import { stateName } from '@/lib/cottage-food';
 import { commissaryExpected } from '@/lib/food-truck-permit';
 
@@ -13,6 +14,8 @@ export default function TruckProfileScreen() {
   const truckId = Array.isArray(id) ? id[0] : id;
   const truck = truckId ? getTruck(truckId) : undefined;
   const { follows, toggleFollow } = useFoodTruck();
+  const { user } = useAuth();
+  const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
 
   if (!truck) {
     return (
@@ -37,14 +40,18 @@ export default function TruckProfileScreen() {
         {truck.stops.map((stop) => (
           <Text key={`${stop.day}-${stop.place}`} style={styles.body}>{stop.day} · {stop.hours} · {stop.place} ({stop.lot})</Text>
         ))}
-        <Text style={styles.body}>
-          {commissaryExpected(truck.stateCode)
-            ? 'Published summaries expect a commissary agreement in this state before a mobile food license.'
-            : 'Confirm the commissary rule with the health department that covers this lot.'}
-        </Text>
-        <TouchableOpacity onPress={() => router.push('/food-truck-popup/permit' as Href)}>
-          <Text style={styles.link}>Mobile permit checklist</Text>
-        </TouchableOpacity>
+        {isMaker ? (
+          <>
+            <Text style={styles.body}>
+              {commissaryExpected(truck.stateCode)
+                ? 'Published summaries expect a commissary agreement in this state before a mobile food license.'
+                : 'Confirm the commissary rule with the health department that covers this lot.'}
+            </Text>
+            <TouchableOpacity onPress={() => router.push('/food-truck-popup/permit' as Href)}>
+              <Text style={styles.link}>Mobile permit checklist</Text>
+            </TouchableOpacity>
+          </>
+        ) : null}
       </View>
       <Text style={styles.section}>Menu</Text>
       {menuForTruck(truck.id).map((item) => (

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
 import { Colors } from '@/constants/colors';
-import { getCompany, getPackage } from '@/constants/cater-event-delivered';
+import { getCompany, getPackage } from '@/constants/cater-event-deliver';
 import { useCaterEvent } from '@/hooks/cater-event-store';
 import { calculateOrderSplit } from '@/lib/fees';
 
@@ -31,7 +31,7 @@ export default function CaterBasketScreen() {
       {lines.length === 0 ? (
         <View>
           <Text style={styles.empty}>No catering order yet.</Text>
-          <TouchableOpacity onPress={() => router.push('/cater-event-delivered/board' as Href)}>
+          <TouchableOpacity onPress={() => router.push('/cater-event-deliver/board' as Href)}>
             <Text style={styles.link}>See which companies are accepting</Text>
           </TouchableOpacity>
         </View>
@@ -69,7 +69,7 @@ export default function CaterBasketScreen() {
       <TouchableOpacity
         style={[styles.button, lines.length === 0 && styles.buttonOff]}
         disabled={lines.length === 0}
-        onPress={() => router.push('/cater-event-delivered/checkout' as Href)}
+        onPress={() => router.push('/cater-event-deliver/checkout' as Href)}
         testID="cater-basket-checkout"
       >
         <Text style={styles.buttonText}>Catering checkout</Text>

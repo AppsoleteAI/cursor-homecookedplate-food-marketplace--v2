@@ -21,18 +21,8 @@ import { router, type Href } from 'expo-router';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
 import { isLoginLegalBoxChecked, readLegalAgreement, setLoginLegalBoxChecked, clearLoginLegalBox, toCompletedLegalAgreement } from '@/lib/legal-agreement';
-
-const Green = {
-  bg: '#0E2A22',
-  panel: '#12372B',
-  cream: '#F3EDE2',
-  gold: '#E0C36A',
-  goldDeep: '#C6A15A',
-  ink: '#12372B',
-  fieldLine: '#C6A15A',
-  muted: '#C9BBA6',
-  error: '#FFFFFF',
-};
+import { AuthColors } from '@/constants/auth-palette';
+import { AuthBackground } from '@/components/auth/AuthChrome';
 
 const ORDER_PHOTO = require('../../assets/order-a-plate.png');
 const COOK_PHOTO = require('../../assets/start-cooking.png');
@@ -173,8 +163,8 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container} testID="login-screen">
-      <StatusBar style="light" />
+    <AuthBackground testID="login-screen">
+      <StatusBar style="dark" />
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -186,7 +176,7 @@ export default function LoginScreen() {
             keyboardShouldPersistTaps="handled"
           >
             <View style={styles.brand}>
-              <Image source={HOUSE_MARK} style={styles.brandMark} resizeMode="contain" accessibilityIgnoresInvertColors />
+              <Image source={HOUSE_MARK} style={styles.brandMark} resizeMode="contain" tintColor={AuthColors.brand} accessibilityIgnoresInvertColors />
               <Text style={styles.brandName}>HomeCookedPlate</Text>
             </View>
 
@@ -241,7 +231,7 @@ export default function LoginScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Sign in with Google"
               >
-                <Ionicons name="logo-google" size={18} color={Green.ink} />
+                <Ionicons name="logo-google" size={18} color={AuthColors.white} />
                 <Text style={styles.googleText}>Sign in with Google</Text>
               </TouchableOpacity>
 
@@ -253,11 +243,11 @@ export default function LoginScreen() {
                 <Text style={styles.panelTitle}>Sign in</Text>
 
                 <View style={styles.inputContainer}>
-                  <Ionicons name="mail-outline" size={18} color={Green.gold} />
+                  <Ionicons name="mail-outline" size={18} color={AuthColors.maroon} />
                   <TextInput
                     style={styles.input}
                     placeholder="Email"
-                    placeholderTextColor={Green.muted}
+                    placeholderTextColor={AuthColors.placeholder}
                     value={username}
                     onChangeText={(value) => {
                       setUsername(value);
@@ -272,11 +262,11 @@ export default function LoginScreen() {
                 </View>
 
                 <View style={styles.inputContainer}>
-                  <Ionicons name="lock-closed-outline" size={18} color={Green.gold} />
+                  <Ionicons name="lock-closed-outline" size={18} color={AuthColors.maroon} />
                   <TextInput
                     style={styles.input}
                     placeholder="Password"
-                    placeholderTextColor={Green.muted}
+                    placeholderTextColor={AuthColors.placeholder}
                     value={password}
                     onChangeText={(value) => {
                       setPassword(value);
@@ -296,7 +286,7 @@ export default function LoginScreen() {
                     <Ionicons
                       name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                       size={18}
-                      color={Green.gold}
+                      color={AuthColors.maroon}
                     />
                   </TouchableOpacity>
                 </View>
@@ -331,18 +321,13 @@ export default function LoginScreen() {
                   accessibilityRole="button"
                   testID="login-submit"
                 >
-                  <LinearGradient
-                    colors={['#F0D48A', '#C6A15A']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.signInFill}
-                  >
+                  <View style={styles.signInFill}>
                     {loading ? (
-                      <ActivityIndicator color={Green.ink} />
+                      <ActivityIndicator color={AuthColors.ink} />
                     ) : (
                       <Text style={styles.signInText}>Sign in</Text>
                     )}
-                  </LinearGradient>
+                  </View>
                 </TouchableOpacity>
 
                 <View style={styles.switchRow}>
@@ -370,7 +355,7 @@ export default function LoginScreen() {
                   style={styles.legalCheckHit}
                 >
                   <View style={[styles.legalCheckbox, legalChecked && styles.legalCheckboxOn]}>
-                    {legalChecked ? <Ionicons name="checkmark" size={14} color={Green.ink} /> : null}
+                    {legalChecked ? <Ionicons name="checkmark" size={14} color={AuthColors.ink} /> : null}
                   </View>
                 </TouchableOpacity>
                 <Text style={styles.legalAgreement}>
@@ -394,15 +379,11 @@ export default function LoginScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
-    </View>
+    </AuthBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Green.bg,
-  },
   safeArea: {
     flex: 1,
   },
@@ -429,9 +410,12 @@ const styles = StyleSheet.create({
   brandName: {
     fontSize: 26,
     fontWeight: '700',
-    color: Green.gold,
+    color: AuthColors.brand,
     letterSpacing: -0.4,
     fontFamily: Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia' }),
+    textShadowColor: 'rgba(70, 16, 0, 0.55)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   doors: {
     flexDirection: 'row',
@@ -444,7 +428,7 @@ const styles = StyleSheet.create({
     height: 148,
     borderRadius: 18,
     overflow: 'hidden',
-    backgroundColor: '#16382C',
+    backgroundColor: '#6B2A12',
     justifyContent: 'flex-end',
   },
   doorImage: {
@@ -473,15 +457,21 @@ const styles = StyleSheet.create({
   },
   sheet: {
     marginHorizontal: 16,
-    backgroundColor: Green.cream,
-    borderRadius: 28,
-    padding: 14,
+    backgroundColor: 'transparent',
+    paddingHorizontal: 4,
     gap: 10,
   },
   appleButton: {
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#111111',
+    backgroundColor: AuthColors.maroon,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.28)',
+    shadowColor: '#461C06',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    elevation: 4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -495,33 +485,47 @@ const styles = StyleSheet.create({
   googleButton: {
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: AuthColors.maroon,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.28)',
+    shadowColor: '#461C06',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    elevation: 4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   googleText: {
-    color: Green.ink,
+    color: AuthColors.white,
     fontSize: 15,
     fontWeight: '600',
   },
   providerNotice: {
-    color: Green.ink,
+    color: AuthColors.ink,
     fontSize: 13,
     lineHeight: 18,
     textAlign: 'center',
     paddingHorizontal: 8,
   },
   panel: {
-    backgroundColor: Green.panel,
+    backgroundColor: AuthColors.card,
     borderRadius: 22,
     paddingHorizontal: 16,
     paddingTop: 18,
     paddingBottom: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.36)',
+    shadowColor: '#461C06',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    elevation: 5,
   },
   panelTitle: {
-    color: '#FFFFFF',
+    color: AuthColors.ink,
     fontSize: 26,
     fontWeight: '700',
     textAlign: 'center',
@@ -530,18 +534,22 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Green.fieldLine,
+    backgroundColor: AuthColors.field,
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 50,
     marginBottom: 12,
+    shadowColor: '#461C06',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    elevation: 2,
   },
   input: {
     flex: 1,
     marginLeft: 10,
     fontSize: 16,
-    color: '#FFFFFF',
+    color: AuthColors.ink,
     paddingVertical: 0,
   },
   eyeIconButton: {
@@ -556,7 +564,7 @@ const styles = StyleSheet.create({
   forgotPasswordText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Green.gold,
+    color: AuthColors.maroon,
   },
   errorContainer: {
     borderRadius: 10,
@@ -565,7 +573,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   errorText: {
-    color: Green.error,
+    color: AuthColors.error,
     fontSize: 14,
     lineHeight: 20,
   },
@@ -573,21 +581,30 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   retryButtonText: {
-    color: Green.gold,
+    color: AuthColors.maroon,
     fontSize: 14,
     fontWeight: '700',
   },
   signInButton: {
     borderRadius: 24,
     overflow: 'hidden',
+    backgroundColor: AuthColors.button,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.36)',
+    shadowColor: '#461C06',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    elevation: 5,
   },
   signInFill: {
     height: 50,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: AuthColors.button,
   },
   signInText: {
-    color: Green.ink,
+    color: AuthColors.ink,
     fontSize: 17,
     fontWeight: '700',
   },
@@ -598,11 +615,11 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   switchMuted: {
-    color: Green.goldDeep,
+    color: AuthColors.ink,
     fontSize: 14,
   },
   switchLink: {
-    color: Green.gold,
+    color: AuthColors.maroon,
     fontSize: 14,
     fontWeight: '700',
   },
@@ -621,32 +638,32 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: Green.ink,
+    borderColor: AuthColors.ink,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Green.cream,
+    backgroundColor: AuthColors.field,
   },
   legalCheckboxOn: {
-    backgroundColor: Green.gold,
+    backgroundColor: AuthColors.brand,
   },
   legalAgreement: {
     flex: 1,
-    color: Green.ink,
+    color: AuthColors.ink,
     fontSize: 14,
     lineHeight: 20,
   },
   legalStar: {
-    color: Green.ink,
+    color: AuthColors.ink,
     fontWeight: '700',
   },
   legalText: {
-    color: Green.ink,
+    color: AuthColors.ink,
     fontSize: 14,
     fontWeight: '700',
     textDecorationLine: 'underline',
   },
   legalNotice: {
-    color: Green.ink,
+    color: AuthColors.ink,
     fontSize: 13,
     lineHeight: 18,
     paddingHorizontal: 8,
@@ -669,7 +686,7 @@ const styles = StyleSheet.create({
     height: 64,
   },
   creditText: {
-    color: Green.gold,
+    color: AuthColors.ink,
     fontSize: 14,
     fontWeight: '600',
   },

@@ -18,6 +18,9 @@ export default function FarmSellerScreen() {
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
   }
+  if (!isLoading && user?.role !== 'platemaker' && user?.isAdmin !== true) {
+    return <Redirect href="/(tabs)/(home)/home" />;
+  }
 
   return (
     <FarmScreen title="Seller stand" subtitle="Farm payouts stay separate from plate earnings." testID="farm-seller">

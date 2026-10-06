@@ -8,7 +8,7 @@ import { useSitDown } from '@/hooks/sit-down-store';
 import { evaluateSitDownItem, evaluateSitDownLicense } from '@/lib/sit-down-license';
 
 export default function ListSitItemScreen() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const { license, publishItem } = useSitDown();
   const [name, setName] = useState('');
   const [priceText, setPriceText] = useState('');
@@ -20,6 +20,9 @@ export default function ListSitItemScreen() {
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
+  }
+  if (!isLoading && user?.role !== 'platemaker' && user?.isAdmin !== true) {
+    return <Redirect href="/(tabs)/(home)/home" />;
   }
 
   const publish = () => {

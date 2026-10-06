@@ -3,9 +3,9 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router, type Href } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { AuthBackButton } from '@/components/auth/AuthChrome';
+import { AuthBackButton, AuthBackground } from '@/components/auth/AuthChrome';
 import { SellerOnly } from '@/components/RoleGuard';
-import { AuthGreen } from '@/constants/auth-palette';
+import { AuthColors } from '@/constants/auth-palette';
 import {
   COMMISSARY_DIRECTORIES,
   COMMISSARY_REQUIRED_STATES,
@@ -24,6 +24,7 @@ function openSource(url: string) {
 export default function KitchenRulesScreen() {
   return (
     <SellerOnly>
+    <AuthBackground>
     <SafeAreaView style={styles.safe} testID="kitchen-rules">
       <Stack.Screen options={{ title: 'Kitchen rules', headerShown: false }} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -191,6 +192,7 @@ export default function KitchenRulesScreen() {
         </Section>
       </ScrollView>
     </SafeAreaView>
+    </AuthBackground>
     </SellerOnly>
   );
 }
@@ -233,38 +235,46 @@ function SourceCard({ source }: { source: ExternalSource }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: AuthGreen.cream },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   content: { paddingHorizontal: 20, paddingBottom: 40 },
-  brand: { color: AuthGreen.ink, fontSize: 28, fontWeight: '700', marginTop: 8 },
-  audience: { color: AuthGreen.ink, fontSize: 15, marginTop: 4, marginBottom: 14 },
+  brand: {
+    color: AuthColors.brand,
+    fontSize: 28,
+    fontWeight: '700',
+    marginTop: 8,
+    textShadowColor: 'rgba(70, 16, 0, 0.55)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
+  },
+  audience: { color: AuthColors.ink, fontSize: 15, marginTop: 4, marginBottom: 14 },
   notice: {
-    backgroundColor: AuthGreen.panel,
+    backgroundColor: AuthColors.card,
     borderRadius: 16,
     padding: 16,
     marginBottom: 8,
   },
-  noticeTitle: { color: AuthGreen.gold, fontWeight: '700', fontSize: 16, marginBottom: 8 },
-  noticeBody: { color: AuthGreen.cream, lineHeight: 21, marginTop: 8 },
+  noticeTitle: { color: AuthColors.maroon, fontWeight: '700', fontSize: 16, marginBottom: 8 },
+  noticeBody: { color: AuthColors.ink, lineHeight: 21, marginTop: 8 },
   section: {
     backgroundColor: '#FFFBF5',
     borderRadius: 16,
     padding: 16,
     marginTop: 12,
   },
-  sectionTitle: { color: AuthGreen.ink, fontSize: 18, fontWeight: '700', marginBottom: 8 },
-  body: { color: AuthGreen.ink, lineHeight: 21, marginTop: 8 },
-  kicker: { color: AuthGreen.ink, fontWeight: '700', marginTop: 16 },
+  sectionTitle: { color: AuthColors.ink, fontSize: 18, fontWeight: '700', marginBottom: 8 },
+  body: { color: AuthColors.ink, lineHeight: 21, marginTop: 8 },
+  kicker: { color: AuthColors.ink, fontWeight: '700', marginTop: 16 },
   bulletRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  bulletMark: { color: AuthGreen.ink, lineHeight: 21 },
-  bulletText: { flex: 1, color: AuthGreen.ink, lineHeight: 21 },
+  bulletMark: { color: AuthColors.ink, lineHeight: 21 },
+  bulletText: { flex: 1, color: AuthColors.ink, lineHeight: 21 },
   rule: {
-    backgroundColor: '#F3EDE2',
+    backgroundColor: AuthColors.field,
     borderRadius: 12,
     padding: 12,
     marginTop: 10,
   },
-  ruleTitle: { color: AuthGreen.ink, fontWeight: '700' },
-  states: { color: AuthGreen.ink, lineHeight: 21, marginTop: 10 },
+  ruleTitle: { color: AuthColors.ink, fontWeight: '700' },
+  states: { color: AuthColors.ink, lineHeight: 21, marginTop: 10 },
   source: {
     borderWidth: 1,
     borderColor: '#E0D3BE',
@@ -272,7 +282,7 @@ const styles = StyleSheet.create({
     padding: 12,
     marginTop: 10,
   },
-  sourceName: { color: AuthGreen.ink, fontWeight: '700' },
-  sourceDetail: { color: AuthGreen.ink, lineHeight: 20, marginTop: 4 },
+  sourceName: { color: AuthColors.ink, fontWeight: '700' },
+  sourceDetail: { color: AuthColors.ink, lineHeight: 20, marginTop: 4 },
   sourceUrl: { color: '#166534', marginTop: 6 },
 });

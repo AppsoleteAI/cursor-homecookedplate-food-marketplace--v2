@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Image, TouchableOpacity, TextInput } from 'reac
 import { router, type Href } from 'expo-router';
 import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
 import { Colors } from '@/constants/colors';
-import { CATER_COMPANIES, companiesNearZip } from '@/constants/cater-event-delivered';
+import { CATER_COMPANIES, companiesNearZip } from '@/constants/cater-event-deliver';
 import { useCaterEvent } from '@/hooks/cater-event-store';
 import { stateName } from '@/lib/cottage-food';
 
@@ -28,7 +28,7 @@ export default function CaterCompaniesScreen() {
       />
       {searching && list.length === 0 ? <Text style={styles.empty}>No catering company matches that ZIP.</Text> : null}
       {list.map((company) => (
-        <TouchableOpacity key={company.id} style={styles.card} onPress={() => router.push(`/cater-event-delivered/company/${company.id}` as Href)} testID={`company-card-${company.id}`}>
+        <TouchableOpacity key={company.id} style={styles.card} onPress={() => router.push(`/cater-event-deliver/company/${company.id}` as Href)} testID={`company-card-${company.id}`}>
           <Image source={{ uri: company.image }} style={styles.image} />
           <View style={styles.copy}>
             <Text style={styles.name}>{company.name}</Text>

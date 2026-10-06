@@ -240,10 +240,10 @@ export default function DashboardScreen() {
 
         <TouchableOpacity
           style={styles.caterStandCard}
-          onPress={() => router.push('/cater-event-delivered/seller' as Href)}
+          onPress={() => router.push('/cater-event-deliver/seller' as Href)}
           testID="dashboard-cater-event"
         >
-          <Text style={styles.farmStandTitle}>CaterEventDelivered</Text>
+          <Text style={styles.farmStandTitle}>CaterEventDeliver</Text>
           <Text style={styles.farmStandText}>
             List per-person packages, accept group drop-offs, and see catering payouts. A commercial catering license is required before a package goes live.
           </Text>

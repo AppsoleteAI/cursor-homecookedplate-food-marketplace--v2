@@ -9,10 +9,10 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, router , type Href } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { AuthGreen } from '@/constants/auth-palette';
-import { AuthBackButton, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { AuthColors } from '@/constants/auth-palette';
+import { AuthBackground, AuthBackButton, AuthGoldButton } from '@/components/auth/AuthChrome';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
 import {
@@ -91,6 +91,7 @@ export default function LegalScreen() {
   };
 
   return (
+    <AuthBackground>
     <SafeAreaView style={styles.container} testID="legal-safe-area">
       <Stack.Screen
         options={{
@@ -103,7 +104,7 @@ export default function LegalScreen() {
           <AuthBackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/(auth)/login'))} />
           <Text style={styles.brand}>Legal & Safety</Text>
           <View style={styles.warningCard}>
-            <Ionicons name="warning" size={24} color={AuthGreen.goldDeep} />
+            <Ionicons name="warning" size={24} color={AuthColors.maroon} />
             <Text style={styles.warningTitle}>Important Legal Information</Text>
             <Text style={styles.warningText}>
               Check each section, then enter today&apos;s date to acknowledge this page.
@@ -112,27 +113,27 @@ export default function LegalScreen() {
 
           <LegalSection id="jurisdictional_law" checked={sections.jurisdictional_law} onToggle={toggle}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="shield-checkmark" size={20} color={AuthGreen.goldDeep} />
+              <Ionicons name="shield-checkmark" size={20} color={AuthColors.maroon} />
               <Text style={styles.sectionTitle}>Jurisdictional Law</Text>
             </View>
             <Text style={styles.sectionText}>
-              WARNING: Check your local jurisdictions for all laws and regulations related to food service, meal safety, commercial-grade commissary kitchens and cottage food operations. HomeCookedPlate does not verify compliance with local laws.
+              The cook is responsible for how the food is made. You are responsible for reading the ingredients, meeting safely, and deciding whether to eat what you pick up.
             </Text>
           </LegalSection>
 
           <LegalSection id="delivery_safety" checked={sections.delivery_safety} onToggle={toggle}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="information-circle" size={20} color={AuthGreen.goldDeep} />
+              <Ionicons name="information-circle" size={20} color={AuthColors.maroon} />
               <Text style={styles.sectionTitle}>Delivery & Safety</Text>
             </View>
             <Text style={styles.sectionText}>
-              STRICT POLICY: Hand-crafted meals should be exchanged in a public setting during daylight hours. If offering prepaid deliveries, a chaperone must accompany the PlateMaker, strictly.
+              Meet in a public place during daylight. Do not exchange phone numbers in the app. A prepaid delivery is brought by the cook with someone else along.
             </Text>
           </LegalSection>
 
           <LegalSection id="liability_waiver" checked={sections.liability_waiver} onToggle={toggle}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="warning" size={20} color={AuthGreen.goldDeep} />
+              <Ionicons name="warning" size={20} color={AuthColors.maroon} />
               <Text style={styles.sectionTitle}>Liability Waiver</Text>
             </View>
             <Text style={styles.sectionText}>
@@ -142,7 +143,7 @@ export default function LegalScreen() {
 
           <LegalSection id="legal_safety_financial" checked={sections.legal_safety_financial} onToggle={toggle}>
             <View style={styles.sectionHeader} testID="personal-info-waiver-section">
-              <Ionicons name="shield-checkmark" size={20} color={AuthGreen.goldDeep} />
+              <Ionicons name="shield-checkmark" size={20} color={AuthColors.maroon} />
               <Text style={styles.sectionTitle}>Legal, Safety, and Financial Integration</Text>
             </View>
             <View style={styles.noticeBox} accessibilityRole="text" testID="personal-info-waiver-text">
@@ -154,30 +155,15 @@ export default function LegalScreen() {
 
           <LegalSection id="allergy_food_safety" checked={sections.allergy_food_safety} onToggle={toggle}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="information-circle" size={20} color={AuthGreen.goldDeep} />
+              <Ionicons name="information-circle" size={20} color={AuthColors.maroon} />
               <Text style={styles.sectionTitle}>Allergy & Food Safety</Text>
             </View>
             <Text style={styles.sectionText}>
-              DISCLAIMER: HomeCookedPlate is a marketplace. PlateMakers are solely responsible for listing accurate ingredients for allergy awareness and the PlateMakers are solely responsible for ensuring food safety, proper temperature, expiration dates and prep time documentation, as well as compliance with all local, county, state and federal laws. NO ALCOHOLIC meals, pastries or beverages are permitted to be offered, sold or in any way distributed through the HomeCookedPlate app, including any illicit or illegal items. Any and all violations will result in a permanently banned account.
+              Ingredients and allergens are listed by the cook. Tell them about your allergies before you order. If something looks or smells wrong at pickup, do not eat it. Alcohol is not sold on HomeCookedPlate.
             </Text>
             <Text style={styles.sectionText}>
-              Cottage food laws apply to homemade, non-TCS, shelf-stable foods sold by the maker directly to the consumer. A cooked plate that must be kept hot or cold is not a cottage food. Whole produce is a farm product, not a cottage food. Eggs, meat, and dairy follow their own licenses. FarmGrownBasket is the section for farm, garden, and co-op goods. Before any of those goods are listed, the seller records the state and county rule, the testing protocol, and the permit fee from their own agency. HomeCookedPlate does not verify those three.
+              Eat the food promptly. Hot food should still be hot, and cold food still cold, when you get it.
             </Text>
-            <TouchableOpacity onPress={() => router.push('/farm-grown-basket/cottage-law' as Href)} testID="legal-cottage-law">
-              <Text style={styles.sectionText}>Open the FarmGrownBasket cottage food checklist.</Text>
-            </TouchableOpacity>
-            <Text style={styles.sectionText}>
-              A food truck is a licensed mobile food unit. Cottage food law does not cover it. FoodTruckPopup orders are picked up at the service window. Before a truck menu goes live, the owner records the health permit for the city where the window opens, the commissary answer, and the permit fee from that agency.
-            </Text>
-            <TouchableOpacity onPress={() => router.push('/food-truck-popup/permit' as Href)} testID="legal-food-truck">
-              <Text style={styles.sectionText}>Open the FoodTruckPopup mobile permit checklist.</Text>
-            </TouchableOpacity>
-            <Text style={styles.sectionText}>
-              SitDownDelicious is for fully licensed, independently owned restaurants and small food shops, including coffee, yogurt, ice cream, and diners. Franchises and corporate chains are not listed. Cottage food law and a mobile-unit permit do not cover this kitchen. Before a menu goes live, the owner records the retail food permit for the street address, the inspection note, and the permit fee from that agency.
-            </Text>
-            <TouchableOpacity onPress={() => router.push('/sit-down-delicious/license' as Href)} testID="legal-sit-down">
-              <Text style={styles.sectionText}>Open the SitDownDelicious retail food license checklist.</Text>
-            </TouchableOpacity>
           </LegalSection>
 
           <LegalSection id="fee_structure" checked={sections.fee_structure} onToggle={toggle}>
@@ -231,7 +217,7 @@ export default function LegalScreen() {
               }}
               editable={!recordedOn}
               placeholder={todayDisplay()}
-              placeholderTextColor={AuthGreen.muted}
+              placeholderTextColor={AuthColors.placeholder}
               autoCapitalize="none"
               keyboardType="numbers-and-punctuation"
               testID="legal-acknowledgment-date"
@@ -257,6 +243,7 @@ export default function LegalScreen() {
         </View>
       </ScrollView>
     </SafeAreaView>
+    </AuthBackground>
   );
 }
 
@@ -282,7 +269,7 @@ function LegalSection({
         testID={`legal-check-${id}`}
       >
         <View style={[styles.checkbox, checked && styles.checkboxOn]}>
-          {checked ? <Ionicons name="checkmark" size={14} color={AuthGreen.ink} /> : null}
+          {checked ? <Ionicons name="checkmark" size={14} color={AuthColors.ink} /> : null}
         </View>
       </TouchableOpacity>
       <View style={styles.sectionBody}>{children}</View>
@@ -293,21 +280,24 @@ function LegalSection({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: AuthGreen.bg,
+    backgroundColor: 'transparent',
   },
   content: {
     paddingHorizontal: 16,
     paddingBottom: 32,
   },
   brand: {
-    color: AuthGreen.gold,
+    color: AuthColors.brand,
     fontSize: 28,
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: 16,
+    textShadowColor: 'rgba(70, 16, 0, 0.55)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   warningCard: {
-    backgroundColor: AuthGreen.panel,
+    backgroundColor: AuthColors.card,
     borderRadius: 22,
     padding: 20,
     marginBottom: 16,
@@ -316,19 +306,19 @@ const styles = StyleSheet.create({
   warningTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: AuthGreen.gold,
+    color: AuthColors.maroon,
     marginTop: 12,
     marginBottom: 8,
     textAlign: 'center',
   },
   warningText: {
     fontSize: 14,
-    color: AuthGreen.cream,
+    color: AuthColors.ink,
     textAlign: 'center',
     lineHeight: 20,
   },
   section: {
-    backgroundColor: AuthGreen.cream,
+    backgroundColor: 'transparent',
     borderRadius: 18,
     paddingTop: 14,
     paddingRight: 16,
@@ -347,14 +337,14 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: AuthGreen.goldDeep,
+    borderColor: AuthColors.maroon,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: AuthGreen.cream,
+    backgroundColor: 'transparent',
   },
   checkboxOn: {
-    backgroundColor: AuthGreen.gold,
-    borderColor: AuthGreen.goldDeep,
+    backgroundColor: AuthColors.button,
+    borderColor: AuthColors.maroon,
   },
   sectionBody: {
     flex: 1,
@@ -368,12 +358,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: AuthGreen.ink,
+    color: AuthColors.ink,
     flex: 1,
   },
   sectionText: {
     fontSize: 14,
-    color: AuthGreen.ink,
+    color: AuthColors.ink,
     lineHeight: 22,
   },
   feeItem: {
@@ -386,25 +376,25 @@ const styles = StyleSheet.create({
   },
   feeLabel: {
     fontSize: 14,
-    color: AuthGreen.ink,
+    color: AuthColors.ink,
     flex: 1,
   },
   feeValue: {
     fontSize: 14,
     fontWeight: '700',
-    color: AuthGreen.ink,
+    color: AuthColors.ink,
     flexShrink: 1,
     textAlign: 'right',
   },
   feeNote: {
     fontSize: 12,
-    color: AuthGreen.ink,
+    color: AuthColors.ink,
     marginTop: 8,
     lineHeight: 18,
   },
   noticeBox: {
-    backgroundColor: '#E7DFD2',
-    borderColor: AuthGreen.goldDeep,
+    backgroundColor: AuthColors.field,
+    borderColor: AuthColors.maroon,
     borderWidth: 1,
     padding: 16,
     borderRadius: 12,
@@ -412,34 +402,33 @@ const styles = StyleSheet.create({
   },
   noticeText: {
     fontSize: 14,
-    color: AuthGreen.ink,
+    color: AuthColors.ink,
     lineHeight: 22,
   },
   finalCard: {
-    backgroundColor: AuthGreen.panel,
+    backgroundColor: AuthColors.card,
     borderRadius: 22,
     padding: 18,
     marginTop: 8,
   },
   finalTitle: {
-    color: AuthGreen.gold,
+    color: AuthColors.maroon,
     fontSize: 18,
     fontWeight: '700',
     marginBottom: 10,
   },
   finalText: {
-    color: AuthGreen.cream,
+    color: AuthColors.ink,
     fontSize: 14,
     lineHeight: 21,
     marginBottom: 14,
   },
   dateInput: {
-    borderWidth: 1,
-    borderColor: AuthGreen.fieldLine,
+    backgroundColor: AuthColors.field,
     borderRadius: 14,
     height: 50,
     paddingHorizontal: 14,
-    color: AuthGreen.white,
+    color: AuthColors.ink,
     fontSize: 16,
     marginBottom: 12,
   },
@@ -447,13 +436,13 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   recorded: {
-    color: AuthGreen.gold,
+    color: AuthColors.maroon,
     fontSize: 14,
     fontWeight: '700',
     marginTop: 12,
   },
   notice: {
-    color: AuthGreen.white,
+    color: AuthColors.ink,
     fontSize: 14,
     lineHeight: 20,
     marginTop: 10,

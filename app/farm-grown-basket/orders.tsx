@@ -28,9 +28,11 @@ export default function FarmOrdersScreen() {
       <TouchableOpacity style={styles.button} onPress={() => router.push(dashboardHref)} testID="farm-orders-dashboard">
         <Text style={styles.buttonText}>{user?.role === 'platemaker' ? 'Plate maker dashboard' : 'Buyer dashboard'}</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => router.push('/farm-grown-basket/seller' as Href)}>
-        <Text style={styles.link}>Seller stand and payouts</Text>
-      </TouchableOpacity>
+      {user?.role === 'platemaker' || user?.isAdmin ? (
+        <TouchableOpacity onPress={() => router.push('/farm-grown-basket/seller' as Href)}>
+          <Text style={styles.link}>Seller stand and payouts</Text>
+        </TouchableOpacity>
+      ) : null}
     </FarmScreen>
   );
 }

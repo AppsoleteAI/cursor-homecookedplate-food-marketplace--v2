@@ -27,9 +27,11 @@ export default function TruckOrdersScreen() {
       <TouchableOpacity style={styles.button} onPress={() => router.push(dashboardHref)} testID="truck-orders-dashboard">
         <Text style={styles.buttonText}>{user?.role === 'platemaker' ? 'Plate maker dashboard' : 'Buyer dashboard'}</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => router.push('/food-truck-popup/seller' as Href)}>
-        <Text style={styles.link}>Truck owner</Text>
-      </TouchableOpacity>
+      {user?.role === 'platemaker' || user?.isAdmin ? (
+        <TouchableOpacity onPress={() => router.push('/food-truck-popup/seller' as Href)}>
+          <Text style={styles.link}>Truck owner</Text>
+        </TouchableOpacity>
+      ) : null}
     </FoodTruckScreen>
   );
 }

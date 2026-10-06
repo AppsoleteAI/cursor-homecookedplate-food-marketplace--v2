@@ -38,8 +38,8 @@ export default function Index() {
   // Phase 5: Index Redirect Decision - Only renders AFTER Phase 3 (Auth) and Phase 4 (Navigation) are complete
   // The <Redirect /> component is "safe" because it only renders AFTER the RootLayout's appIsReady check has passed
   if (!isAuthenticated) {
-    navLogger.authDecision('app/index.tsx:REDIRECT_CHECK', false, undefined, '/(auth)/login');
-    return <Redirect href="/(auth)/login" />;
+    navLogger.authDecision('app/index.tsx:REDIRECT_CHECK', false, undefined, '/(auth)/welcome');
+    return <Redirect href={{ pathname: '/(auth)/welcome', params: { entry: 'gate' } }} />;
   }
 
   // 3. Additional check: Ensure session is fully loaded before redirecting

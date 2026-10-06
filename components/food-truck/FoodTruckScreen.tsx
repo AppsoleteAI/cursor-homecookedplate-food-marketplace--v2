@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, monoGradients } from '@/constants/colors';
 import { useFoodTruck } from '@/hooks/food-truck-store';
+import { useAuth } from '@/hooks/auth-context';
 
 type FoodTruckScreenProps = {
   title: string;
@@ -17,6 +18,8 @@ type FoodTruckScreenProps = {
 
 export function FoodTruckScreen({ title, subtitle, children, testID, showBasket = true }: FoodTruckScreenProps) {
   const { itemCount } = useFoodTruck();
+  const { user } = useAuth();
+  const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']} testID={testID}>
@@ -49,7 +52,9 @@ export function FoodTruckScreen({ title, subtitle, children, testID, showBasket 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {children}
         <Text style={styles.legal}>
-          FoodTruckPopup does not inspect trucks, issue mobile-unit permits, or confirm a commissary agreement. Pickup is at the service window. Confirm the health rule and the fee for the city where the window is open.
+          {isMaker
+            ? 'FoodTruckPopup does not inspect trucks, issue mobile-unit permits, or confirm a commissary agreement. Pickup is at the service window. Confirm the health rule and the fee for the city where the window is open.'
+            : 'Order ahead, then pick the food up at the service window.'}
         </Text>
       </ScrollView>
     </SafeAreaView>

@@ -3,7 +3,7 @@ import { useSyncExternalStore } from 'react';
 import type { CaterLicenseRecord, DropOffWindow } from '@/lib/cater-event-license';
 import { evaluateCaterPackage } from '@/lib/cater-event-license';
 
-const STORAGE_KEY = 'cater_event_delivered_v1';
+const STORAGE_KEY = 'cater_event_deliver_v1';
 
 export type CaterCartLine = {
   packageId: string;

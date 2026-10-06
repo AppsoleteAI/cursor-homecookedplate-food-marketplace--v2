@@ -3,8 +3,8 @@ import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Alert } fr
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { trpc } from '@/lib/trpc';
-import { AuthGreen } from '@/constants/auth-palette';
-import { AuthGoldButton } from '@/components/auth/AuthChrome';
+import { AuthColors } from '@/constants/auth-palette';
+import { AuthBackground, AuthGoldButton } from '@/components/auth/AuthChrome';
 
 export default function VerifyEmailScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
@@ -58,12 +58,13 @@ export default function VerifyEmailScreen() {
   };
 
   return (
+    <AuthBackground>
     <View style={styles.container}>
       <View style={styles.sheet}>
         <View style={styles.panel}>
           {verificationStatus === 'verifying' && (
             <>
-              <ActivityIndicator size="large" color={AuthGreen.gold} style={styles.spinner} />
+              <ActivityIndicator size="large" color={AuthColors.maroon} style={styles.spinner} />
               <Text style={styles.title}>Verifying your email</Text>
               <Text style={styles.subtitle}>This takes a moment.</Text>
             </>
@@ -71,7 +72,7 @@ export default function VerifyEmailScreen() {
 
           {verificationStatus === 'success' && (
             <>
-              <Ionicons name="checkmark-circle" size={64} color={AuthGreen.gold} />
+              <Ionicons name="checkmark-circle" size={64} color={AuthColors.maroon} />
               <Text style={styles.title}>Email verified</Text>
               <Text style={styles.subtitle}>You can sign in with this address now.</Text>
               <AuthGoldButton title="Go to sign in" onPress={handleGoToLogin} />
@@ -80,7 +81,7 @@ export default function VerifyEmailScreen() {
 
           {verificationStatus === 'error' && (
             <>
-              <Ionicons name="alert-circle" size={64} color={AuthGreen.error} />
+              <Ionicons name="alert-circle" size={64} color={AuthColors.error} />
               <Text style={styles.title}>Verification failed</Text>
               <Text style={styles.subtitle}>{errorMessage}</Text>
               {token ? (
@@ -98,23 +99,24 @@ export default function VerifyEmailScreen() {
         </View>
       </View>
     </View>
+    </AuthBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: AuthGreen.bg,
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     padding: 16,
   },
   sheet: {
-    backgroundColor: AuthGreen.cream,
+    backgroundColor: 'transparent',
     borderRadius: 28,
     padding: 14,
   },
   panel: {
-    backgroundColor: AuthGreen.panel,
+    backgroundColor: AuthColors.card,
     borderRadius: 22,
     paddingHorizontal: 20,
     paddingVertical: 28,
@@ -125,13 +127,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   title: {
-    color: AuthGreen.white,
+    color: AuthColors.ink,
     fontSize: 26,
     fontWeight: '700',
     textAlign: 'center',
   },
   subtitle: {
-    color: AuthGreen.muted,
+    color: AuthColors.muted,
     fontSize: 15,
     lineHeight: 22,
     textAlign: 'center',
@@ -141,7 +143,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   loginLinkText: {
-    color: AuthGreen.gold,
+    color: AuthColors.maroon,
     fontSize: 15,
     fontWeight: '700',
   },

@@ -8,7 +8,7 @@ import { useFoodTruck } from '@/hooks/food-truck-store';
 import { evaluateTruckMenuItem, evaluateTruckPermit } from '@/lib/food-truck-permit';
 
 export default function ListTruckItemScreen() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const { permit, publishItem } = useFoodTruck();
   const [name, setName] = useState('');
   const [priceText, setPriceText] = useState('');
@@ -20,6 +20,9 @@ export default function ListTruckItemScreen() {
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
+  }
+  if (!isLoading && user?.role !== 'platemaker' && user?.isAdmin !== true) {
+    return <Redirect href="/(tabs)/(home)/home" />;
   }
 
   const publish = () => {

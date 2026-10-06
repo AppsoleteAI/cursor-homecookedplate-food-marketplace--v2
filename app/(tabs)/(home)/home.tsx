@@ -209,7 +209,7 @@ export default function HomeScreen() {
           >
             <Text style={styles.farmKicker}>FarmGrownBasket</Text>
             <Text style={styles.farmTitle}>Farms, gardens, and co-ops</Text>
-            <Text style={styles.farmBody}>Produce, CSA shares, and cottage foods. Separate from cooked plates.</Text>
+            <Text style={styles.farmBody}>Produce, eggs, honey, and homemade goods. Pick them up from the farm.</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.truckEntry}
@@ -222,10 +222,10 @@ export default function HomeScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.caterEntry}
-            onPress={() => router.push('/cater-event-delivered' as Href)}
-            testID="open-cater-event-delivered"
+            onPress={() => router.push('/cater-event-deliver' as Href)}
+            testID="open-cater-event-deliver"
           >
-            <Text style={styles.caterKicker}>CaterEventDelivered</Text>
+            <Text style={styles.caterKicker}>CaterEventDeliver</Text>
             <Text style={styles.farmTitle}>Catering and event drop-off</Text>
             <Text style={styles.farmBody}>Per-person packages for offices, clinics, and events. Separate from plates, farms, and trucks.</Text>
           </TouchableOpacity>
@@ -236,7 +236,7 @@ export default function HomeScreen() {
           >
             <Text style={styles.sitKicker}>SitDownDelicious</Text>
             <Text style={styles.farmTitle}>Independent restaurants</Text>
-            <Text style={styles.farmBody}>Coffee, yogurt, ice cream, and small licensed shops. Sit down or take out. Separate from plates, farms, trucks, and catering.</Text>
+            <Text style={styles.farmBody}>Coffee, yogurt, ice cream, and small restaurants. Sit down or take out.</Text>
           </TouchableOpacity>
           {mealsError && (
             <View style={styles.errorContainer}>

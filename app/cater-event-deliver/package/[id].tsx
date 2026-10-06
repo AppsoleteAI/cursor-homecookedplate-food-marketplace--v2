@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
 import { Colors } from '@/constants/colors';
-import { getCompany, getPackage } from '@/constants/cater-event-delivered';
+import { getCompany, getPackage } from '@/constants/cater-event-deliver';
 import { useCaterEvent } from '@/hooks/cater-event-store';
 import { calculateOrderSplit } from '@/lib/fees';
 
@@ -45,7 +45,7 @@ export default function CaterPackageScreen() {
       <Text style={[styles.status, open ? styles.open : styles.closed]}>{open ? 'Accepting this drop-off' : 'Not accepting orders'}</Text>
       <Text style={styles.body}>{summary}</Text>
       {company ? (
-        <TouchableOpacity onPress={() => router.push(`/cater-event-delivered/company/${company.id}` as Href)}>
+        <TouchableOpacity onPress={() => router.push(`/cater-event-deliver/company/${company.id}` as Href)}>
           <Text style={styles.link}>Back to {company.name}</Text>
         </TouchableOpacity>
       ) : null}
@@ -80,7 +80,7 @@ export default function CaterPackageScreen() {
       </TouchableOpacity>
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
       {notice === 'Added to the group order.' ? (
-        <TouchableOpacity onPress={() => router.push('/cater-event-delivered/basket' as Href)}>
+        <TouchableOpacity onPress={() => router.push('/cater-event-deliver/basket' as Href)}>
           <Text style={styles.link}>Go to the group order</Text>
         </TouchableOpacity>
       ) : null}

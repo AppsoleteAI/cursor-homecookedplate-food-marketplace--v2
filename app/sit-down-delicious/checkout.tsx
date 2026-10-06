@@ -118,7 +118,6 @@ export default function SitCheckoutScreen() {
         <Text style={styles.totalLine}>Food ${baseAmount.toFixed(2)}</Text>
         <Text style={styles.totalLine}>Service fee ${(split.totalCaptured - baseAmount).toFixed(2)}</Text>
         <Text style={styles.totalStrong}>You pay ${split.totalCaptured.toFixed(2)}</Text>
-        <Text style={styles.totalLine}>Restaurant payout ${split.sellerPayout.toFixed(2)}</Text>
       </View>
       <Text style={styles.note}>This order is served at the restaurant. A 15% to 30% courier commission is not added, and paying more does not move a shop up the list.</Text>
       <TouchableOpacity

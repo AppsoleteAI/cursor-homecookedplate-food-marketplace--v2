@@ -109,9 +109,8 @@ export default function FarmCheckoutScreen() {
         <Text style={styles.totalLine}>Goods ${baseAmount.toFixed(2)}</Text>
         <Text style={styles.totalLine}>Service fee ${(split.totalCaptured - baseAmount).toFixed(2)}</Text>
         <Text style={styles.totalStrong}>You pay ${split.totalCaptured.toFixed(2)}</Text>
-        <Text style={styles.totalLine}>Producer payout ${split.sellerPayout.toFixed(2)}</Text>
       </View>
-      <Text style={styles.note}>Mail shipping is not offered. Cottage foods stay with the person who made them.</Text>
+      <Text style={styles.note}>Mail shipping is not offered. The person who made the food hands it to you.</Text>
       <TouchableOpacity
         style={[styles.button, (Boolean(block) || lines.length === 0) && styles.buttonOff]}
         disabled={Boolean(block) || lines.length === 0}

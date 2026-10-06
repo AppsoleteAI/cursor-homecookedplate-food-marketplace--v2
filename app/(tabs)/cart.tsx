@@ -38,8 +38,8 @@ export default function CartScreen() {
             <TouchableOpacity onPress={() => router.push('/food-truck-popup' as Href)} testID="empty-cart-truck">
               <Text style={styles.farmLinkDark}>Looking for a food truck? Open FoodTruckPopup.</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/cater-event-delivered' as Href)} testID="empty-cart-cater">
-              <Text style={styles.farmLinkDark}>Ordering for a group? Open CaterEventDelivered.</Text>
+            <TouchableOpacity onPress={() => router.push('/cater-event-deliver' as Href)} testID="empty-cart-cater">
+              <Text style={styles.farmLinkDark}>Ordering for a group? Open CaterEventDeliver.</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push('/sit-down-delicious' as Href)} testID="empty-cart-sit">
               <Text style={styles.farmLinkDark}>Looking for a local restaurant? Open SitDownDelicious.</Text>
@@ -73,8 +73,8 @@ export default function CartScreen() {
               <TouchableOpacity onPress={() => router.push('/food-truck-popup/basket' as Href)} testID="cart-truck-basket">
                 <Text style={styles.farmLink}>Food trucks use FoodTruckPopup</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => router.push('/cater-event-delivered/basket' as Href)} testID="cart-cater-basket">
-                <Text style={styles.farmLink}>Group catering uses CaterEventDelivered</Text>
+              <TouchableOpacity onPress={() => router.push('/cater-event-deliver/basket' as Href)} testID="cart-cater-basket">
+                <Text style={styles.farmLink}>Group catering uses CaterEventDeliver</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => router.push('/sit-down-delicious/basket' as Href)} testID="cart-sit-basket">
                 <Text style={styles.farmLink}>Restaurants use SitDownDelicious</Text>

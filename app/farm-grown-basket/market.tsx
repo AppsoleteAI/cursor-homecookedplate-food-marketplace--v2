@@ -94,7 +94,7 @@ export default function FarmMarketScreen() {
           );
         })
       )}
-      <Text style={styles.note}>{FARM_STANDS.length} stands in the directory. Meat, dairy, and hot meals are not offered as cottage foods here.</Text>
+      <Text style={styles.note}>{FARM_STANDS.length} stands in the directory. This market is produce, eggs, honey, and homemade goods. Hot meals are on Home.</Text>
     </FarmScreen>
   );
 }

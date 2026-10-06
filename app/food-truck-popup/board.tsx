@@ -5,6 +5,7 @@ import { FoodTruckScreen } from '@/components/food-truck/FoodTruckScreen';
 import { Colors } from '@/constants/colors';
 import { FOOD_TRUCKS, trucksNearZip } from '@/constants/food-truck-popup';
 import { useFoodTruck } from '@/hooks/food-truck-store';
+import { useAuth } from '@/hooks/auth-context';
 import { stateName } from '@/lib/cottage-food';
 
 export default function TruckBoardScreen() {
@@ -12,6 +13,8 @@ export default function TruckBoardScreen() {
   const initialZip = typeof params.zip === 'string' ? params.zip : '';
   const [zip, setZip] = useState(initialZip);
   const { permit, ownerActive, listings } = useFoodTruck();
+  const { user } = useAuth();
+  const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
   const trucks = trucksNearZip(zip);
   const searching = zip.replace(/\D/g, '').length >= 3;
 
@@ -28,7 +31,7 @@ export default function TruckBoardScreen() {
         testID="board-zip"
       />
       <Text style={styles.note}>This board is the truck’s own Active switch and posted lot. It is not a live GPS feed from the vehicle.</Text>
-      {permit ? (
+      {isMaker && permit ? (
         <TouchableOpacity style={styles.card} onPress={() => router.push('/food-truck-popup/seller' as Href)}>
           <Text style={styles.name}>{permit.truckName}</Text>
           <Text style={[styles.status, ownerActive ? styles.open : styles.closed]}>{ownerActive ? 'Active' : 'Window closed'}</Text>

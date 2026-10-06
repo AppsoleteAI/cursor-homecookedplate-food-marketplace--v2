@@ -5,6 +5,7 @@ import { SitDownScreen } from '@/components/sit-down/SitDownScreen';
 import { Colors } from '@/constants/colors';
 import { SIT_DOWN_PLACES, SHOP_KIND_LABEL, placesNearZip, type ShopKind } from '@/constants/sit-down-delicious';
 import { useSitDown } from '@/hooks/sit-down-store';
+import { useAuth } from '@/hooks/auth-context';
 import { stateName } from '@/lib/cottage-food';
 import { evaluateSitDownLicense } from '@/lib/sit-down-license';
 
@@ -23,6 +24,8 @@ export default function PlacesScreen() {
   const [zip, setZip] = useState(initialZip);
   const [kind, setKind] = useState<ShopKind | 'all'>('all');
   const { follows, license, ownerOpen, listings } = useSitDown();
+  const { user } = useAuth();
+  const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
   const searching = zip.replace(/\D/g, '').length >= 3;
   const nearby = searching ? placesNearZip(zip) : SIT_DOWN_PLACES;
   const list = kind === 'all' ? nearby : nearby.filter((place) => place.kind === kind);
@@ -47,7 +50,7 @@ export default function PlacesScreen() {
           </TouchableOpacity>
         ))}
       </View>
-      {ownerReady && kind === 'all' && !searching ? (
+      {isMaker && ownerReady && kind === 'all' && !searching ? (
         <TouchableOpacity style={styles.card} onPress={() => router.push('/sit-down-delicious/seller' as Href)} testID="owner-place-card">
           <View style={styles.copy}>
             <Text style={styles.name}>{license?.placeName}</Text>

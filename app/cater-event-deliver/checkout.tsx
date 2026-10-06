@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-nativ
 import { Redirect, router, type Href } from 'expo-router';
 import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
 import { Colors } from '@/constants/colors';
-import { getCompany, getPackage } from '@/constants/cater-event-delivered';
+import { getCompany, getPackage } from '@/constants/cater-event-deliver';
 import { useAuth } from '@/hooks/auth-context';
 import { useCaterEvent, type CaterOrderLine } from '@/hooks/cater-event-store';
 import { DROP_OFF_WINDOWS, type DropOffWindow } from '@/lib/cater-event-license';
@@ -82,7 +82,7 @@ export default function CaterCheckoutScreen() {
     return (
       <CaterEventScreen title="Drop-off booked" subtitle={organization.trim() || 'Organization order'} showOrder={false} testID="cater-checkout-done">
         <Text style={styles.lead}>{companyName} has order {orderId}. They drop off and set up during {dropoffWindow}. Nothing is sent to a courier from this app.</Text>
-        <TouchableOpacity style={styles.button} onPress={() => router.push('/cater-event-delivered/orders' as Href)}>
+        <TouchableOpacity style={styles.button} onPress={() => router.push('/cater-event-deliver/orders' as Href)}>
           <Text style={styles.buttonText}>Catering orders</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.secondary} onPress={() => router.push(user?.role === 'platemaker' ? '/(tabs)/dashboard' : '/(tabs)/buyer-dashboard')}>
@@ -95,7 +95,7 @@ export default function CaterCheckoutScreen() {
   return (
     <CaterEventScreen title="Catering checkout" subtitle="Drop-off and setup. Same fee split as the rest of the app." testID="cater-checkout">
       {lines.length === 0 ? (
-        <TouchableOpacity onPress={() => router.push('/cater-event-delivered/board' as Href)}>
+        <TouchableOpacity onPress={() => router.push('/cater-event-deliver/board' as Href)}>
           <Text style={styles.link}>Choose a company that is accepting orders.</Text>
         </TouchableOpacity>
       ) : (
@@ -136,7 +136,6 @@ export default function CaterCheckoutScreen() {
         <Text style={styles.totalLine}>Food ${baseAmount.toFixed(2)}</Text>
         <Text style={styles.totalLine}>Service fee ${(split.totalCaptured - baseAmount).toFixed(2)}</Text>
         <Text style={styles.totalStrong}>You pay ${split.totalCaptured.toFixed(2)}</Text>
-        <Text style={styles.totalLine}>Caterer payout ${split.sellerPayout.toFixed(2)}</Text>
       </View>
       <Text style={styles.note}>The catering company arranges drop-off and tray setup. A 15% to 25% marketplace commission is not added.</Text>
       {block ? <Text style={styles.block}>{block}</Text> : null}

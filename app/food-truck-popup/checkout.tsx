@@ -91,7 +91,6 @@ export default function TruckCheckoutScreen() {
         <Text style={styles.totalLine}>Food ${baseAmount.toFixed(2)}</Text>
         <Text style={styles.totalLine}>Service fee ${(split.totalCaptured - baseAmount).toFixed(2)}</Text>
         <Text style={styles.totalStrong}>You pay ${split.totalCaptured.toFixed(2)}</Text>
-        <Text style={styles.totalLine}>Truck payout ${split.sellerPayout.toFixed(2)}</Text>
       </View>
       <Text style={styles.note}>Dedicated truck ordering here is pickup only. A 15% to 30% courier commission is not added.</Text>
       <TouchableOpacity

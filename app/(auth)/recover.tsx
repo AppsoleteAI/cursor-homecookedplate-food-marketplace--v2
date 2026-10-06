@@ -14,8 +14,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '@/hooks/auth-context';
-import { AuthGreen } from '@/constants/auth-palette';
-import { AuthBackButton, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { AuthColors } from '@/constants/auth-palette';
+import { AuthBackground, AuthBackButton, AuthGoldButton } from '@/components/auth/AuthChrome';
 
 type RecoveryMode = 'password' | 'reactivate';
 
@@ -64,6 +64,7 @@ export default function RecoverScreen() {
   };
 
   return (
+    <AuthBackground>
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
@@ -90,7 +91,7 @@ export default function RecoverScreen() {
                   <Ionicons
                     name="lock-closed-outline"
                     size={18}
-                    color={mode === 'password' ? AuthGreen.ink : AuthGreen.ink}
+                    color={mode === 'password' ? AuthColors.ink : AuthColors.ink}
                   />
                   <Text style={[styles.modeText, mode === 'password' && styles.modeTextOn]}>Reset password</Text>
                 </TouchableOpacity>
@@ -100,7 +101,7 @@ export default function RecoverScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Reactivate account"
                 >
-                  <Ionicons name="refresh-outline" size={18} color={AuthGreen.ink} />
+                  <Ionicons name="refresh-outline" size={18} color={AuthColors.ink} />
                   <Text style={[styles.modeText, mode === 'reactivate' && styles.modeTextOn]}>Reactivate</Text>
                 </TouchableOpacity>
               </View>
@@ -115,11 +116,11 @@ export default function RecoverScreen() {
                     : 'If this address was paused, we will turn the account back on.'}
                 </Text>
                 <View style={styles.field}>
-                  <Ionicons name="mail-outline" size={18} color={AuthGreen.gold} />
+                  <Ionicons name="mail-outline" size={18} color={AuthColors.maroon} />
                   <TextInput
                     style={styles.input}
                     placeholder="Email"
-                    placeholderTextColor={AuthGreen.muted}
+                    placeholderTextColor={AuthColors.placeholder}
                     value={email}
                     onChangeText={setEmail}
                     keyboardType="email-address"
@@ -143,13 +144,14 @@ export default function RecoverScreen() {
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
+    </AuthBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: AuthGreen.bg,
+    backgroundColor: 'transparent',
   },
   safeArea: {
     flex: 1,
@@ -163,15 +165,18 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
   },
   brand: {
-    color: AuthGreen.gold,
+    color: AuthColors.brand,
     fontSize: 26,
     fontWeight: '700',
     textAlign: 'center',
     fontFamily: Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia' }),
     marginBottom: 18,
+    textShadowColor: 'rgba(70, 16, 0, 0.55)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   sheet: {
-    backgroundColor: AuthGreen.cream,
+    backgroundColor: 'transparent',
     borderRadius: 28,
     padding: 14,
     gap: 12,
@@ -184,7 +189,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 48,
     borderRadius: 16,
-    backgroundColor: '#E7DFD2',
+    backgroundColor: AuthColors.field,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -192,10 +197,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   modeButtonOn: {
-    backgroundColor: AuthGreen.gold,
+    backgroundColor: AuthColors.button,
   },
   modeText: {
-    color: AuthGreen.ink,
+    color: AuthColors.ink,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -203,21 +208,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   panel: {
-    backgroundColor: AuthGreen.panel,
+    backgroundColor: AuthColors.card,
     borderRadius: 22,
     paddingHorizontal: 16,
     paddingTop: 18,
     paddingBottom: 16,
   },
   panelTitle: {
-    color: AuthGreen.white,
+    color: AuthColors.ink,
     fontSize: 26,
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: 8,
   },
   help: {
-    color: AuthGreen.muted,
+    color: AuthColors.muted,
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
@@ -226,8 +231,7 @@ const styles = StyleSheet.create({
   field: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: AuthGreen.fieldLine,
+    backgroundColor: AuthColors.field,
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 50,
@@ -236,7 +240,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    color: AuthGreen.white,
+    color: AuthColors.ink,
     fontSize: 16,
     paddingVertical: 0,
   },
@@ -245,7 +249,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   loginLinkText: {
-    color: AuthGreen.gold,
+    color: AuthColors.maroon,
     fontSize: 14,
     fontWeight: '700',
   },

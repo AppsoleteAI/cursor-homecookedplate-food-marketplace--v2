@@ -5,12 +5,15 @@ import { FarmScreen } from '@/components/farm/FarmScreen';
 import { Colors } from '@/constants/colors';
 import { getCatalogProduct, getFarm } from '@/constants/farm-grown-basket';
 import { useFarmBasket } from '@/hooks/farm-basket-store';
+import { useAuth } from '@/hooks/auth-context';
 import { HOMEMADE_DISCLAIMER, frameworkForState, regulationDuty, stateName, trackLabel } from '@/lib/cottage-food';
 
 export default function FarmProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const productId = Array.isArray(id) ? id[0] : id;
   const { listings, addItem } = useFarmBasket();
+  const { user } = useAuth();
+  const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
   const catalog = productId ? getCatalogProduct(productId) : undefined;
   const listing = listings.find((item) => item.id === productId);
   const [quantity, setQuantity] = useState(1);
@@ -48,8 +51,12 @@ export default function FarmProductScreen() {
         </TouchableOpacity>
       ) : null}
       <View style={styles.panel}>
-        <Text style={styles.panelTitle}>What rule applies</Text>
-        <Text style={styles.body}>{regulationDuty(track, framework)}</Text>
+        {isMaker ? (
+          <>
+            <Text style={styles.panelTitle}>What rule applies</Text>
+            <Text style={styles.body}>{regulationDuty(track, framework)}</Text>
+          </>
+        ) : null}
         <Text style={styles.label}>Ingredients</Text>
         <Text style={styles.body}>{ingredients}</Text>
         <Text style={styles.label}>Allergens</Text>

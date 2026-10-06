@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, monoGradients } from '@/constants/colors';
 import { useSitDown } from '@/hooks/sit-down-store';
+import { useAuth } from '@/hooks/auth-context';
 
 type SitDownScreenProps = {
   title: string;
@@ -17,6 +18,8 @@ type SitDownScreenProps = {
 
 export function SitDownScreen({ title, subtitle, children, testID, showBasket = true }: SitDownScreenProps) {
   const { itemCount } = useSitDown();
+  const { user } = useAuth();
+  const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']} testID={testID}>
@@ -49,7 +52,9 @@ export function SitDownScreen({ title, subtitle, children, testID, showBasket = 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {children}
         <Text style={styles.legal}>
-          SitDownDelicious does not inspect restaurants or issue retail food licenses. Chains and franchises are not listed. Confirm the health permit and the fee for the street address before you sell.
+          {isMaker
+            ? 'SitDownDelicious does not inspect restaurants or issue retail food licenses. Chains and franchises are not listed. Confirm the health permit and the fee for the street address before you sell.'
+            : 'Sit at a table or pick the food up at the counter. Chains are not listed.'}
         </Text>
       </ScrollView>
     </SafeAreaView>

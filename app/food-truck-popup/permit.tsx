@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, Switch } from 'rea
 import { router, type Href } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { FoodTruckScreen } from '@/components/food-truck/FoodTruckScreen';
+import { useSellerGate } from '@/components/RoleGuard';
 import { Colors } from '@/constants/colors';
 import { useFoodTruck } from '@/hooks/food-truck-store';
 import { US_STATE_NAMES } from '@/lib/cottage-food';
@@ -34,6 +35,7 @@ const EMPTY: TruckPermitRecord = {
 };
 
 export default function TruckPermitScreen() {
+  const sellerGate = useSellerGate();
   const { permit, savePermit } = useFoodTruck();
   const [draft, setDraft] = useState<TruckPermitRecord>(permit ?? EMPTY);
   const [query, setQuery] = useState('');
@@ -62,6 +64,8 @@ export default function TruckPermitScreen() {
     setDraft(next);
     setSaved(true);
   };
+
+  if (sellerGate) return sellerGate;
 
   return (
     <FoodTruckScreen title="Mobile permit" subtitle="The city where the window opens, the commissary, and the fee." testID="truck-permit">

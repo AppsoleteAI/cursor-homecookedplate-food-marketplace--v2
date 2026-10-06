@@ -5,6 +5,7 @@ import { SitDownScreen } from '@/components/sit-down/SitDownScreen';
 import { Colors } from '@/constants/colors';
 import { SHOP_KIND_LABEL, getPlace, menuForPlace } from '@/constants/sit-down-delicious';
 import { useSitDown } from '@/hooks/sit-down-store';
+import { useAuth } from '@/hooks/auth-context';
 import { stateName } from '@/lib/cottage-food';
 import { SERVICE_LABEL } from '@/lib/sit-down-license';
 
@@ -13,6 +14,8 @@ export default function PlaceScreen() {
   const placeId = Array.isArray(id) ? id[0] : id;
   const place = placeId ? getPlace(placeId) : undefined;
   const { follows, toggleFollow } = useSitDown();
+  const { user } = useAuth();
+  const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
 
   if (!place) {
     return (
@@ -36,9 +39,11 @@ export default function PlaceScreen() {
       <View style={styles.panel}>
         <Text style={styles.panelTitle}>Licensed at this address</Text>
         <Text style={styles.body}>The retail food permit belongs to this street. Cottage food law and a food-truck permit do not authorize this kitchen. Rank on this list is not for sale.</Text>
-        <TouchableOpacity onPress={() => router.push('/sit-down-delicious/license' as Href)}>
-          <Text style={styles.link}>Retail food license checklist</Text>
-        </TouchableOpacity>
+        {isMaker ? (
+          <TouchableOpacity onPress={() => router.push('/sit-down-delicious/license' as Href)}>
+            <Text style={styles.link}>Retail food license checklist</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
       <Text style={styles.section}>Menu</Text>
       {menuForPlace(place.id).map((item) => (

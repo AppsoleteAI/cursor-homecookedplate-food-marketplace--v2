@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, monoGradients } from '@/constants/colors';
 import { useFarmBasket } from '@/hooks/farm-basket-store';
+import { useAuth } from '@/hooks/auth-context';
 
 type FarmScreenProps = {
   title: string;
@@ -18,6 +19,8 @@ type FarmScreenProps = {
 
 export function FarmScreen({ title, subtitle, children, footer, testID, showBasket = true }: FarmScreenProps) {
   const { itemCount } = useFarmBasket();
+  const { user } = useAuth();
+  const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']} testID={testID}>
@@ -50,7 +53,9 @@ export function FarmScreen({ title, subtitle, children, footer, testID, showBask
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {children}
         <Text style={styles.legal}>
-          FarmGrownBasket does not inspect kitchens, issue permits, or confirm that a listing meets your cottage, food-freedom, or farm-stand law. Confirm the statute, the test, and the fee with your state and county before you sell.
+          {isMaker
+            ? 'FarmGrownBasket does not inspect kitchens, issue permits, or confirm that a listing meets your cottage, food-freedom, or farm-stand law. Confirm the statute, the test, and the fee with your state and county before you sell.'
+            : 'Ingredients are listed on each item. Pick the food up from the farm or the place named on your order.'}
         </Text>
       </ScrollView>
       {footer ? <View style={styles.footer}>{footer}</View> : null}

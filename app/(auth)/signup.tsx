@@ -15,9 +15,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
-import { router, useLocalSearchParams , type Href } from 'expo-router';
-import { AuthGreen } from '@/constants/auth-palette';
-import { AuthGoldButton } from '@/components/auth/AuthChrome';
+import { router, useLocalSearchParams } from 'expo-router';
+import { AuthColors } from '@/constants/auth-palette';
+import { AuthBackground, AuthGoldButton } from '@/components/auth/AuthChrome';
 import { MetroProgressBar } from '@/components/Registration/MetroProgressBar';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 import { useSignupForm } from '@/hooks/useSignupForm';
@@ -79,10 +79,11 @@ export default function SignupScreen() {
   // If no session, user can manually navigate to login
   if (isSigningUp) {
     return (
+      <AuthBackground>
       <View style={styles.container}>
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.successContainer}>
-            <Ionicons name="checkmark-circle" size={80} color={AuthGreen.gold} />
+            <Ionicons name="checkmark-circle" size={80} color={AuthColors.maroon} />
             <Text style={styles.successTitle}>Account Created!</Text>
             <Text style={styles.successText}>You can now sign in to your account.</Text>
             <TouchableOpacity
@@ -94,11 +95,13 @@ export default function SignupScreen() {
           </View>
         </SafeAreaView>
       </View>
+      </AuthBackground>
     );
   }
 
 
   return (
+    <AuthBackground>
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
@@ -126,7 +129,7 @@ export default function SignupScreen() {
                   <Ionicons
                     name="bag-outline"
                     size={20}
-                    color={formData.role === 'platetaker' ? AuthGreen.ink : AuthGreen.gold}
+                    color={formData.role === 'platetaker' ? AuthColors.ink : AuthColors.maroon}
                   />
                   <Text
                     style={[
@@ -149,7 +152,7 @@ export default function SignupScreen() {
                   <Ionicons
                     name="restaurant-outline"
                     size={20}
-                    color={formData.role === 'platemaker' ? AuthGreen.ink : AuthGreen.gold}
+                    color={formData.role === 'platemaker' ? AuthColors.ink : AuthColors.maroon}
                   />
                   <Text
                     style={[
@@ -167,27 +170,27 @@ export default function SignupScreen() {
             <View style={styles.membershipContainer}>
               <View style={styles.membershipHeader}>
                 <View style={styles.membershipInfo}>
-                  <Ionicons name="star" size={20} color={AuthGreen.goldDeep} />
+                  <Ionicons name="star" size={20} color={AuthColors.maroon} />
                   <Text style={styles.membershipTitle}>Enroll in HomeCooked Premium</Text>
                 </View>
                 <Switch
                   value={isMembershipEnabled}
                   onValueChange={handleToggleMembership}
-                  trackColor={{ false: '#3D5C52', true: AuthGreen.gold }}
-                  thumbColor={isMembershipEnabled ? AuthGreen.cream : AuthGreen.muted}
+                  trackColor={{ false: '#8A7568', true: AuthColors.brand }}
+                  thumbColor={isMembershipEnabled ? AuthColors.field : AuthColors.muted}
                   disabled={checkingEligibility}
                 />
               </View>
               {checkingEligibility && (
                 <View style={styles.eligibilityLoading}>
-                  <ActivityIndicator size="small" color={AuthGreen.gold} />
+                  <ActivityIndicator size="small" color={AuthColors.maroon} />
                   <Text style={styles.eligibilityLoadingText}>Checking eligibility...</Text>
                 </View>
               )}
               {isEligibleForTrial && trialMeta && trialMeta.metro && !checkingEligibility && (
                 <View style={styles.progressBarContainer}>
                   <View style={styles.eligibilityMessage}>
-                    <Ionicons name="checkmark-circle" size={20} color={AuthGreen.gold} />
+                    <Ionicons name="checkmark-circle" size={20} color={AuthColors.maroon} />
                     <Text style={styles.eligibilityText}>
                       Congrats! You qualify for Early Bird trial in {trialMeta.metro}!
                     </Text>
@@ -201,7 +204,7 @@ export default function SignupScreen() {
               )}
               {isMembershipEnabled && !isEligibleForTrial && !checkingEligibility && trialMeta === null && (
                 <View style={styles.eligibilityMessage}>
-                  <Ionicons name="information-circle" size={20} color={AuthGreen.gold} />
+                  <Ionicons name="information-circle" size={20} color={AuthColors.maroon} />
                   <Text style={styles.eligibilityTextNeutral}>
                     Premium membership: $4.99/month after trial
                   </Text>
@@ -209,7 +212,7 @@ export default function SignupScreen() {
               )}
               {isMembershipEnabled && !isEligibleForTrial && trialMeta && !checkingEligibility && (
                 <View style={styles.eligibilityMessage}>
-                  <Ionicons name="close-circle" size={20} color={AuthGreen.muted} />
+                  <Ionicons name="close-circle" size={20} color={AuthColors.muted} />
                   <Text style={styles.eligibilityTextNeutral}>
                     {trialMeta.metro ? `All spots taken in ${trialMeta.metro}` : 'Not eligible for trial in your area'}
                   </Text>
@@ -219,11 +222,11 @@ export default function SignupScreen() {
 
             <View style={styles.formContainer}>
               <View style={styles.inputContainer}>
-                <Ionicons name="person-outline" size={20} color={AuthGreen.gold} />
+                <Ionicons name="person-outline" size={20} color={AuthColors.maroon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Username"
-                  placeholderTextColor={AuthGreen.muted}
+                  placeholderTextColor={AuthColors.placeholder}
                   value={username}
                   onChangeText={(text) => setFormData({ ...formData, username: text })}
                   autoCapitalize="none"
@@ -235,25 +238,25 @@ export default function SignupScreen() {
               {username.length >= 3 && (
                 <View style={{ marginTop: 4, marginLeft: 40 }}>
                   {isCheckingUsername ? (
-                    <Text style={{ fontSize: 12, color: AuthGreen.muted }}>Checking...</Text>
+                    <Text style={{ fontSize: 12, color: AuthColors.muted }}>Checking...</Text>
                   ) : usernameError ? (
-                    <Text style={{ fontSize: 12, color: AuthGreen.error }}>
+                    <Text style={{ fontSize: 12, color: AuthColors.error }}>
                       {usernameError}
                     </Text>
                   ) : isUsernameAvailable === true ? (
-                    <Text style={{ fontSize: 12, color: AuthGreen.gold }}>✓ Username available</Text>
+                    <Text style={{ fontSize: 12, color: AuthColors.brand }}>✓ Username available</Text>
                   ) : isUsernameAvailable === false ? (
-                    <Text style={{ fontSize: 12, color: AuthGreen.error }}>✗ Username taken</Text>
+                    <Text style={{ fontSize: 12, color: AuthColors.error }}>✗ Username taken</Text>
                   ) : null}
                 </View>
               )}
 
               <View style={styles.inputContainer}>
-                <Ionicons name="mail-outline" size={20} color={AuthGreen.gold} />
+                <Ionicons name="mail-outline" size={20} color={AuthColors.maroon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Email"
-                  placeholderTextColor={AuthGreen.muted}
+                  placeholderTextColor={AuthColors.placeholder}
                   value={email}
                   onChangeText={(text) => setFormData({ ...formData, email: text })}
                   keyboardType="email-address"
@@ -263,11 +266,11 @@ export default function SignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Ionicons name="lock-closed-outline" size={20} color={AuthGreen.gold} />
+                <Ionicons name="lock-closed-outline" size={20} color={AuthColors.maroon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Password"
-                  placeholderTextColor={AuthGreen.muted}
+                  placeholderTextColor={AuthColors.placeholder}
                   value={password}
                   onChangeText={(text) => setFormData({ ...formData, password: text })}
                   secureTextEntry={!showPassword}
@@ -281,7 +284,7 @@ export default function SignupScreen() {
                   <Ionicons
                     name={showPassword ? "eye-off-outline" : "eye-outline"}
                     size={20}
-                    color={AuthGreen.gold}
+                    color={AuthColors.maroon}
                   />
                 </TouchableOpacity>
               </View>
@@ -289,11 +292,11 @@ export default function SignupScreen() {
               {password.length > 0 && <PasswordStrengthMeter password={password} />}
 
               <View style={styles.inputContainer}>
-                <Ionicons name="lock-closed-outline" size={20} color={AuthGreen.gold} />
+                <Ionicons name="lock-closed-outline" size={20} color={AuthColors.maroon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Confirm Password"
-                  placeholderTextColor={AuthGreen.muted}
+                  placeholderTextColor={AuthColors.placeholder}
                   value={confirmPassword}
                   onChangeText={(text) => setFormData({ ...formData, confirmPassword: text })}
                   secureTextEntry={!showConfirmPassword}
@@ -307,7 +310,7 @@ export default function SignupScreen() {
                   <Ionicons
                     name={showConfirmPassword ? "eye-off-outline" : "eye-outline"}
                     size={20}
-                    color={AuthGreen.gold}
+                    color={AuthColors.maroon}
                   />
                 </TouchableOpacity>
               </View>
@@ -334,44 +337,16 @@ export default function SignupScreen() {
               {/* Cottage Laws Warning - ALWAYS SHOWN for ALL users */}
               <View style={styles.foodSafetyContainer}>
                 <View style={styles.foodSafetyInfoBox}>
-                  <Ionicons name="information-circle" size={20} color={AuthGreen.gold} />
+                  <Ionicons name="information-circle" size={20} color={AuthColors.maroon} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.foodSafetyInfoText}>
-                      We recommend every user review{' '}
-                      <Text
-                        style={styles.foodSafetyLink}
-                        onPress={() => WebBrowser.openBrowserAsync('https://cottagefoodlaws.com')}
-                      >
-                        cottagefoodlaws.com
-                      </Text>
-                      {' '}and do your due diligence to meet all food safety requirements from your local, county, state and federal laws before using the HomeCookedPlate platform. Cottage rules cover homemade shelf-stable foods sold direct to the consumer. Cooked plates that must stay hot or cold are not cottage foods. Farm goods use FarmGrownBasket, which asks for your state rule, testing protocol, and permit fee before a listing opens.
+                      Ingredients and allergens are listed by the cook. Tell them about your allergies before you order. If something looks or smells wrong at pickup, do not eat it.
                     </Text>
-                    <Text
-                      style={styles.foodSafetyLink}
-                      onPress={() => router.push('/farm-grown-basket/cottage-law' as Href)}
-                    >
-                      FarmGrownBasket cottage food checklist
+                    <Text style={[styles.foodSafetyInfoText, { marginTop: 8 }]}>
+                      Meet in a public place during daylight. Do not exchange phone numbers in the app. A prepaid delivery is brought by the cook with someone else along.
                     </Text>
-                    <Text
-                      style={[styles.foodSafetyLink, { marginTop: 8 }]}
-                      onPress={() => router.push('/food-truck-popup/permit' as Href)}
-                    >
-                      FoodTruckPopup mobile permit checklist
-                    </Text>
-                    <Text
-                      style={[styles.foodSafetyLink, { marginTop: 8 }]}
-                      onPress={() => router.push('/cater-event-delivered/license' as Href)}
-                    >
-                      CaterEventDelivered catering license checklist
-                    </Text>
-                    <Text
-                      style={[styles.foodSafetyLink, { marginTop: 8 }]}
-                      onPress={() => router.push('/sit-down-delicious/license' as Href)}
-                    >
-                      SitDownDelicious retail food license checklist
-                    </Text>
-                    <Text style={[styles.foodSafetyInfoText, { marginTop: 8, fontSize: 11, fontStyle: 'italic' }]}>
-                      HomeCookedPlate is not affiliated or in partnership with cottagefoodlaws.com.
+                    <Text style={[styles.foodSafetyInfoText, { marginTop: 8 }]}>
+                      Eat the food promptly. Hot food should still be hot, and cold food still cold, when you get it.
                     </Text>
                   </View>
                 </View>
@@ -383,7 +358,7 @@ export default function SignupScreen() {
                     {foodSafetyAcknowledged && <Text style={styles.checkmark}>✓</Text>}
                   </View>
                   <Text style={styles.termsText}>
-                    I acknowledge that I have reviewed cottagefoodlaws.com and understand that I must comply with all local, county, state and federal food laws. I understand that HomeCookedPlate does not allow anyone to violate their local, county, state and/or federal food laws on the HomeCookedPlate App.
+                    I understand these safety notes. I will check the ingredients, meet in a public place during daylight, and eat the food promptly.
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -391,7 +366,7 @@ export default function SignupScreen() {
               {/* Error message display */}
               {error && (
                 <View style={styles.errorContainer}>
-                  <Ionicons name="alert-circle" size={20} color={AuthGreen.error} />
+                  <Ionicons name="alert-circle" size={20} color={AuthColors.error} />
                   <Text style={styles.errorText}>{error}</Text>
                   {retryCount < 3 && (
                     <TouchableOpacity
@@ -433,7 +408,7 @@ export default function SignupScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.successIconContainer}>
-              <Ionicons name="checkmark-circle" size={64} color={AuthGreen.gold} />
+              <Ionicons name="checkmark-circle" size={64} color={AuthColors.maroon} />
             </View>
             <Text style={styles.modalTitle}>Successfully Signed Up!</Text>
             <Text style={styles.modalMessage}>
@@ -443,13 +418,14 @@ export default function SignupScreen() {
         </View>
       </Modal>
     </View>
+    </AuthBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: AuthGreen.bg,
+    backgroundColor: 'transparent',
   },
   safeArea: {
     flex: 1,
@@ -466,12 +442,15 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: '700',
-    color: AuthGreen.gold,
+    color: AuthColors.brand,
+    textShadowColor: 'rgba(70, 16, 0, 0.45)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: AuthGreen.cream,
+    color: AuthColors.ink,
     marginBottom: 32,
   },
   roleContainer: {
@@ -480,7 +459,7 @@ const styles = StyleSheet.create({
   roleLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: AuthGreen.cream,
+    color: AuthColors.ink,
     marginBottom: 12,
   },
   roleButtons: {
@@ -496,33 +475,33 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: AuthGreen.fieldLine,
-    backgroundColor: AuthGreen.panel,
+    borderColor: 'rgba(72, 16, 30, 0.35)',
+    backgroundColor: AuthColors.card,
   },
   roleButtonActive: {
     borderColor: 'transparent',
   },
   roleButtonActivePlatetaker: {
-    backgroundColor: AuthGreen.gold,
+    backgroundColor: AuthColors.button,
   },
   roleButtonActivePlatemaker: {
-    backgroundColor: AuthGreen.gold,
+    backgroundColor: AuthColors.button,
   },
   roleButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: AuthGreen.gold,
+    color: AuthColors.maroon,
   },
   roleButtonTextActive: {
-    color: AuthGreen.ink,
+    color: AuthColors.ink,
   },
   membershipContainer: {
     marginBottom: 24,
     padding: 16,
-    backgroundColor: AuthGreen.cream,
+    backgroundColor: 'transparent',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: AuthGreen.goldDeep,
+    borderColor: AuthColors.maroon,
   },
   membershipHeader: {
     flexDirection: 'row',
@@ -539,7 +518,7 @@ const styles = StyleSheet.create({
   membershipTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: AuthGreen.ink,
+    color: AuthColors.ink,
   },
   eligibilityLoading: {
     flexDirection: 'row',
@@ -549,7 +528,7 @@ const styles = StyleSheet.create({
   },
   eligibilityLoadingText: {
     fontSize: 14,
-    color: AuthGreen.ink,
+    color: AuthColors.ink,
   },
   eligibilityMessage: {
     flexDirection: 'row',
@@ -563,13 +542,13 @@ const styles = StyleSheet.create({
   eligibilityText: {
     flex: 1,
     fontSize: 14,
-    color: AuthGreen.ink,
+    color: AuthColors.ink,
     fontWeight: '500',
   },
   eligibilityTextNeutral: {
     flex: 1,
     fontSize: 14,
-    color: AuthGreen.ink,
+    color: AuthColors.ink,
   },
   eligibilityTextContainer: {
     flex: 1,
@@ -583,9 +562,7 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: AuthGreen.panel,
-    borderWidth: 1,
-    borderColor: AuthGreen.fieldLine,
+    backgroundColor: AuthColors.field,
     borderRadius: 12,
     paddingHorizontal: 16,
     marginBottom: 16,
@@ -595,7 +572,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 12,
     fontSize: 16,
-    color: AuthGreen.white,
+    color: AuthColors.ink,
   },
   eyeIconButton: {
     position: 'absolute',
@@ -611,29 +588,29 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderWidth: 2,
-    borderColor: AuthGreen.gold,
+    borderColor: AuthColors.brand,
     borderRadius: 4,
     marginRight: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkboxActive: {
-    backgroundColor: AuthGreen.gold,
-    borderColor: AuthGreen.gold,
+    backgroundColor: AuthColors.button,
+    borderColor: AuthColors.brand,
   },
   checkmark: {
-    color: AuthGreen.ink,
+    color: AuthColors.ink,
     fontSize: 14,
     fontWeight: '700',
   },
   termsText: {
     flex: 1,
     fontSize: 14,
-    color: AuthGreen.cream,
+    color: AuthColors.ink,
     lineHeight: 20,
   },
   termsLink: {
-    color: AuthGreen.gold,
+    color: AuthColors.maroon,
     textDecorationLine: 'underline',
   },
   foodSafetyContainer: {
@@ -643,9 +620,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    backgroundColor: AuthGreen.panel,
+    backgroundColor: AuthColors.card,
     borderWidth: 1,
-    borderColor: AuthGreen.fieldLine,
+    borderColor: 'rgba(72, 16, 30, 0.35)',
     borderRadius: 12,
     padding: 12,
     marginBottom: 12,
@@ -653,11 +630,11 @@ const styles = StyleSheet.create({
   foodSafetyInfoText: {
     flex: 1,
     fontSize: 13,
-    color: AuthGreen.cream,
+    color: AuthColors.ink,
     lineHeight: 18,
   },
   foodSafetyLink: {
-    color: AuthGreen.gold,
+    color: AuthColors.maroon,
     textDecorationLine: 'underline',
     fontWeight: '600',
   },
@@ -672,7 +649,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   modalContent: {
-    backgroundColor: AuthGreen.cream,
+    backgroundColor: 'transparent',
     borderRadius: 20,
     padding: 32,
     alignItems: 'center',
@@ -685,13 +662,13 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: AuthGreen.ink,
+    color: AuthColors.ink,
     marginBottom: 12,
     textAlign: 'center',
   },
   modalMessage: {
     fontSize: 16,
-    color: AuthGreen.ink,
+    color: AuthColors.ink,
     textAlign: 'center',
     lineHeight: 24,
   },
@@ -704,13 +681,16 @@ const styles = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: AuthGreen.gold,
+    color: AuthColors.brand,
     marginTop: 24,
     marginBottom: 8,
+    textShadowColor: 'rgba(70, 16, 0, 0.55)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   successText: {
     fontSize: 16,
-    color: AuthGreen.cream,
+    color: AuthColors.ink,
     textAlign: 'center',
     marginBottom: 24,
   },
@@ -719,13 +699,13 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 32,
     borderRadius: 24,
-    backgroundColor: AuthGreen.gold,
+    backgroundColor: AuthColors.button,
     alignItems: 'center',
     justifyContent: 'center',
     minWidth: 200,
   },
   loginButtonText: {
-    color: AuthGreen.ink,
+    color: AuthColors.ink,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -733,7 +713,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: AuthGreen.error,
+    borderColor: AuthColors.error,
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
@@ -742,14 +722,14 @@ const styles = StyleSheet.create({
   errorText: {
     flex: 1,
     fontSize: 14,
-    color: AuthGreen.error,
+    color: AuthColors.error,
   },
   retryButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
   retryButtonText: {
-    color: AuthGreen.gold,
+    color: AuthColors.brand,
     fontSize: 12,
     fontWeight: '700',
   },

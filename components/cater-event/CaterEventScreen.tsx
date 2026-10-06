@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, monoGradients } from '@/constants/colors';
 import { useCaterEvent } from '@/hooks/cater-event-store';
+import { useAuth } from '@/hooks/auth-context';
 
 type CaterEventScreenProps = {
   title: string;
@@ -17,24 +18,26 @@ type CaterEventScreenProps = {
 
 export function CaterEventScreen({ title, subtitle, children, testID, showOrder = true }: CaterEventScreenProps) {
   const { packageCount } = useCaterEvent();
+  const { user } = useAuth();
+  const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']} testID={testID}>
       <LinearGradient colors={monoGradients.purple} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
         <TouchableOpacity
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/cater-event-delivered' as Href))}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/cater-event-deliver' as Href))}
           accessibilityLabel="Back"
           testID="cater-back"
         >
           <Ionicons name="chevron-back" size={26} color={Colors.white} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.kicker}>CaterEventDelivered</Text>
+          <Text style={styles.kicker}>CaterEventDeliver</Text>
           <Text style={styles.title}>{title}</Text>
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
         {showOrder ? (
-          <TouchableOpacity onPress={() => router.push('/cater-event-delivered/basket' as Href)} accessibilityLabel="Open catering order" testID="cater-order-button">
+          <TouchableOpacity onPress={() => router.push('/cater-event-deliver/basket' as Href)} accessibilityLabel="Open catering order" testID="cater-order-button">
             <Ionicons name="people-outline" size={24} color={Colors.white} />
             {packageCount > 0 ? (
               <View style={styles.badge}>
@@ -49,7 +52,9 @@ export function CaterEventScreen({ title, subtitle, children, testID, showOrder 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {children}
         <Text style={styles.legal}>
-          CaterEventDelivered does not inspect kitchens, issue catering licenses, or book a driver. The catering company drops off the food and sets it up. Confirm the commercial license and the fee for the city where the food is prepared. Cottage food rules do not cover hot catering.
+          {isMaker
+            ? 'CaterEventDeliver does not inspect kitchens, issue catering licenses, or book a driver. The catering company drops off the food and sets it up. Confirm the commercial license and the fee for the city where the food is prepared.'
+            : 'The catering company drops off the food and sets it up.'}
         </Text>
       </ScrollView>
     </SafeAreaView>

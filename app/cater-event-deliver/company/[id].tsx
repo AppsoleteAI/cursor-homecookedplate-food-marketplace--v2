@@ -3,15 +3,18 @@ import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
 import { Colors } from '@/constants/colors';
-import { getCompany, packagesForCompany } from '@/constants/cater-event-delivered';
+import { getCompany, packagesForCompany } from '@/constants/cater-event-deliver';
 import { useCaterEvent } from '@/hooks/cater-event-store';
 import { stateName } from '@/lib/cottage-food';
+import { useAuth } from '@/hooks/auth-context';
 
 export default function CaterCompanyScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const companyId = Array.isArray(id) ? id[0] : id;
   const company = companyId ? getCompany(companyId) : undefined;
   const { follows, toggleFollow } = useCaterEvent();
+  const { user } = useAuth();
+  const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
 
   if (!company) {
     return (
@@ -39,13 +42,15 @@ export default function CaterCompanyScreen() {
           <Text key={`${window.day}-${window.place}`} style={styles.body}>{window.day} · {window.hours} · {window.place}</Text>
         ))}
         <Text style={styles.body}>A window on the calendar is a plan. The order goes through only while the company is accepting drop-offs.</Text>
-        <TouchableOpacity onPress={() => router.push('/cater-event-delivered/license' as Href)}>
-          <Text style={styles.link}>Catering license checklist</Text>
-        </TouchableOpacity>
+        {isMaker ? (
+          <TouchableOpacity onPress={() => router.push('/cater-event-deliver/license' as Href)}>
+            <Text style={styles.link}>Catering license checklist</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
       <Text style={styles.section}>Packages</Text>
       {packagesForCompany(company.id).map((item) => (
-        <TouchableOpacity key={item.id} style={styles.row} onPress={() => router.push(`/cater-event-delivered/package/${item.id}` as Href)}>
+        <TouchableOpacity key={item.id} style={styles.row} onPress={() => router.push(`/cater-event-deliver/package/${item.id}` as Href)}>
           <Text style={styles.name}>{item.name}</Text>
           <Text style={styles.meta}>${item.pricePerPerson.toFixed(2)} per person · minimum {item.minimumHeadcount} · {company.accepting ? 'Order' : 'Not accepting'}</Text>
         </TouchableOpacity>
