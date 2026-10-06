@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { publicProcedure } from '../../../create-context';
+import { TRPCError } from '@trpc/server';
+import { protectedProcedure } from '../../../create-context';
 import { calculateFees } from '../../../../lib/fees';
 
 const inputSchema = z.object({
@@ -10,13 +11,64 @@ const inputSchema = z.object({
   platformFeePercent: z.number().min(0).max(100).default(10),
 });
 
-export const createPaymentIntentProcedure = publicProcedure
+export const createPaymentIntentProcedure = protectedProcedure
   .input(inputSchema)
   .mutation(async ({ input, ctx }) => {
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
     if (!stripeSecretKey) {
       throw new Error('Stripe secret key not configured');
+    }
+
+    if (!input.orderIds || input.orderIds.length === 0) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Payment requires the orders being checked out',
+      });
+    }
+
+    const { data: orders, error: ordersError } = await ctx.supabaseAdmin
+      .from('orders')
+      .select('id, buyer_id, seller_id, total_price, paid')
+      .in('id', input.orderIds);
+
+    if (ordersError || !orders || orders.length !== input.orderIds.length) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'One or more orders could not be found',
+      });
+    }
+
+    for (const order of orders) {
+      if (order.buyer_id !== ctx.userId) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'You can only pay for your own orders',
+        });
+      }
+      if (order.seller_id !== input.sellerId) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'All orders in one payment must be from the same cook',
+        });
+      }
+      if (order.paid) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'This order is already paid',
+        });
+      }
+    }
+
+    const serverBaseAmount = Math.round(
+      orders.reduce((sum, order) => sum + parseFloat(order.total_price), 0) * 100
+    ) / 100;
+
+    if (!Number.isFinite(serverBaseAmount) || serverBaseAmount <= 0) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Order total is invalid',
+      });
     }
 
     const isLive = stripeSecretKey.startsWith('sk_live_');
@@ -44,7 +96,8 @@ export const createPaymentIntentProcedure = publicProcedure
     // - Buyer pays: base + 10% fee
     // - Platform gets: 10% buyer fee + 10% seller fee = 20% total
     // - Seller gets: base - 10% fee (handled by Stripe Connect)
-    const fees = calculateFees(input.amount, input.platformFeePercent, input.platformFeePercent);
+    // Client amount and fee percent are ignored. total_price is the base plate price.
+    const fees = calculateFees(serverBaseAmount, 10, 10);
     
     const totalChargeInCents = Math.round(fees.totalCharge * 100);
     const appTotalRevenueInCents = Math.round(fees.appTotalRevenue * 100);

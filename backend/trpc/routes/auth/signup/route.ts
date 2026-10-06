@@ -1,22 +1,15 @@
 // CODE VERSION: v4-insert-then-update-20250118 (forces module reload)
-// #region agent log - MODULE LOAD: Verify new code is loaded
-fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'backend/trpc/routes/auth/signup/route.ts:MODULE_LOAD',message:'NEW CODE v4 INSERT-THEN-UPDATE LOADED',data:{codeVersion:'v4-insert-then-update-20250118',timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'module-load',hypothesisId:'I'})}).catch(()=>{});
-// #endregion
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { randomBytes } from "crypto";
-// eslint-disable-next-line import/no-unresolved
-import { sendEmailConfirmation } from "../../../lib/email";
+import { randomBytes } from "node:crypto";
+import { sendEmailConfirmation } from "@/backend/lib/email";
 // Use process.stdout.write directly for critical logs (bypasses Bun buffering)
 
 // Force module reload by adding version to export
 const SIGNUP_PROCEDURE_VERSION = `v4-insert-then-update-20250118-${Date.now()}`;
 
-// #region agent log - PROCEDURE_EXPORT: Log when procedure is exported
 console.log('[Signup Route] PROCEDURE_EXPORT - Version:', SIGNUP_PROCEDURE_VERSION);
-fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'backend/trpc/routes/auth/signup/route.ts:PROCEDURE_EXPORT',message:'Signup procedure being exported',data:{version:SIGNUP_PROCEDURE_VERSION,timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'module-export',hypothesisId:'I'})}).catch(()=>{});
-// #endregion
 
 // Strict password validation schema - matches frontend PasswordStrengthMeter requirements
 // Export for reuse in other routes (e.g., password reset, password change)
@@ -43,9 +36,6 @@ const createSignupProcedure = () => {
       })
     )
     .mutation(async ({ input, ctx }) => {
-      // #region agent log - MUTATION_ENTRY: Signup mutation handler entered
-      fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'backend/trpc/routes/auth/signup/route.ts:MUTATION_ENTRY',message:'NEW CODE v4 INSERT-THEN-UPDATE: Signup mutation handler entered',data:{email:input.email,username:input.username,codeVersion:SIGNUP_PROCEDURE_VERSION},timestamp:Date.now(),sessionId:'debug-session',runId:'signup-attempt',hypothesisId:'I'})}).catch(()=>{});
-      // #endregion
 
       console.log('[Signup] Starting signup for:', input.email);
 
@@ -67,9 +57,6 @@ const createSignupProcedure = () => {
         authData = { user: result.data.user, session: null };
         authError = result.error;
 
-        // #region agent log - ADMIN_CREATE_RESULT
-        fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'backend/trpc/routes/auth/signup/route.ts:ADMIN_CREATE_RESULT',message:'admin.createUser result',data:{hasError:!!result.error,hasUser:!!result.data?.user,errorMessage:result.error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'signup-attempt',hypothesisId:'I'})}).catch(()=>{});
-        // #endregion
       } catch (error: any) {
         authError = error;
         authData = { user: null, session: null };
@@ -187,9 +174,6 @@ const createSignupProcedure = () => {
       // V4 PATTERN: INSERT-then-UPDATE (Catch 23505)
       // The Supabase profile trigger creates a record instantly. We MUST catch the unique constraint
       // error and perform an UPDATE to finalize metro_area and trial_ends_at fields.
-      // #region agent log - BEFORE_PROFILE_CREATE_OR_UPDATE
-      fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'backend/trpc/routes/auth/signup/route.ts:BEFORE_PROFILE_CREATE_OR_UPDATE',message:'About to create/update profile (handles trigger race condition)',data:{userId:authData.user.id,username:input.username,email:input.email,metroArea:assignedMetro,trialEndsAt:trialEndDate?.toISOString()},timestamp:Date.now(),sessionId:'debug-session',runId:'signup-attempt',hypothesisId:'I'})}).catch(()=>{});
-      // #endregion
 
       // Prepare profile data with finalized metro_area, trial_ends_at, and membership_tier
       const profileData = {
@@ -215,9 +199,6 @@ const createSignupProcedure = () => {
 
       // If insert fails with duplicate key (23505), trigger already created profile - UPDATE to finalize
       if (profileError?.code === '23505') {
-        // #region agent log - PROFILE_EXISTS_UPDATE
-        fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'backend/trpc/routes/auth/signup/route.ts:PROFILE_EXISTS_UPDATE',message:'Profile exists (trigger created it), updating with finalized metro_area and trial_ends_at',data:{userId:authData.user.id,metroArea:assignedMetro,trialEndsAt:trialEndDate?.toISOString()},timestamp:Date.now(),sessionId:'debug-session',runId:'signup-attempt',hypothesisId:'I'})}).catch(()=>{});
-        // #endregion
         process.stdout.write(`[SIGNUP_V4] Profile exists (23505), performing UPDATE to finalize metro_area, trial_ends_at, and membership_tier\n`);
         // Use ctx.supabaseAdmin (service role) for profile updates during signup (system operation)
         const updateResult = await ctx.supabaseAdmin
@@ -240,9 +221,6 @@ const createSignupProcedure = () => {
         process.stdout.write(`[SIGNUP_V4] UPDATE completed. metro_area=${profile?.metro_area}, trial_ends_at=${profile?.trial_ends_at || 'null'}, membership_tier=${profile?.membership_tier}\n`);
       }
 
-      // #region agent log - AFTER_PROFILE_CREATE_OR_UPDATE
-      fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'backend/trpc/routes/auth/signup/route.ts:AFTER_PROFILE_CREATE_OR_UPDATE',message:'Profile create/update completed',data:{hasProfile:!!profile,hasError:!!profileError,errorCode:profileError?.code,errorMessage:profileError?.message?.substring(0,100),profileId:profile?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'signup-attempt',hypothesisId:'I'})}).catch(()=>{});
-      // #endregion
 
       if (profileError || !profile) {
         console.error('[Signup] Profile upsert failed:', profileError);
@@ -258,9 +236,6 @@ const createSignupProcedure = () => {
         });
       }
 
-      // #region agent log - SIGNUP_SUCCESS
-      fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'backend/trpc/routes/auth/signup/route.ts:SIGNUP_SUCCESS',message:'Signup completed successfully',data:{profileId:profile.id,userId:authData.user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'signup-attempt',hypothesisId:'I'})}).catch(()=>{});
-      // #endregion
       console.log('[Signup] Profile created successfully with admin client');
 
       // Generate email confirmation token and send via Resend (production email service)

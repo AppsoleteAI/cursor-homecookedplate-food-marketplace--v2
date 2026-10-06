@@ -41,9 +41,10 @@ export const checkTrialEligibilityProcedure = publicProcedure
     if (countsError || !counts) {
       await ctx.supabaseAdmin
         .from('metro_area_counts')
-        .insert({ metro_name: metroName, platemaker_count: 0, platetaker_count: 0 })
-        .onConflict('metro_name')
-        .merge();
+        .upsert(
+          { metro_name: metroName, platemaker_count: 0, platetaker_count: 0 },
+          { onConflict: 'metro_name' }
+        );
 
       // Retry the query using anon key (read operation)
       const { data: retryCounts } = await ctx.supabase

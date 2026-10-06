@@ -1,17 +1,40 @@
 import { z } from 'zod';
-import { publicProcedure } from '../../../create-context';
+import { TRPCError } from '@trpc/server';
+import { protectedProcedure } from '../../../create-context';
 
 const inputSchema = z.object({
   paymentIntentId: z.string(),
 });
 
-export const confirmPaymentProcedure = publicProcedure
+export const confirmPaymentProcedure = protectedProcedure
   .input(inputSchema)
   .query(async ({ input, ctx }) => {
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
     if (!stripeSecretKey) {
       throw new Error('Stripe secret key not configured');
+    }
+
+    const { data: ownedOrders, error: ownedError } = await ctx.supabaseAdmin
+      .from('orders')
+      .select('id, buyer_id, seller_id')
+      .eq('payment_intent_id', input.paymentIntentId);
+
+    if (ownedError || !ownedOrders || ownedOrders.length === 0) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'Payment not found',
+      });
+    }
+
+    const isParty = ownedOrders.some(
+      (order) => order.buyer_id === ctx.userId || order.seller_id === ctx.userId
+    );
+    if (!isParty) {
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'You cannot view this payment',
+      });
     }
 
     const response = await fetch(

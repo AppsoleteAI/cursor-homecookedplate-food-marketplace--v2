@@ -47,21 +47,25 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
     { 
       enabled: debouncedUsername.length >= 3,
       retry: false, // Stop infinite "checking..." on CORS/network errors
-      onSuccess: (data) => {
-        setIsUsernameAvailable(data.available);
-        setUsernameError(null);
-      },
-      onError: (error) => {
-        setIsUsernameAvailable(null);
-        // Check if it's a network/CORS error
-        const isNetworkError = error.message?.includes('fetch') || 
-                               error.message?.includes('CORS') ||
-                               error.message?.includes('Network') ||
-                               error.message?.includes('Failed to fetch');
-        setUsernameError(isNetworkError ? 'Server unreachable. Check connection.' : 'Unable to check username.');
-      },
     }
   );
+
+  useEffect(() => {
+    if (!checkUsernameQuery.data) return;
+    setIsUsernameAvailable(checkUsernameQuery.data.available);
+    setUsernameError(null);
+  }, [checkUsernameQuery.data]);
+
+  useEffect(() => {
+    const queryError = checkUsernameQuery.error;
+    if (!queryError) return;
+    setIsUsernameAvailable(null);
+    const isNetworkError = queryError.message?.includes('fetch') ||
+                           queryError.message?.includes('CORS') ||
+                           queryError.message?.includes('Network') ||
+                           queryError.message?.includes('Failed to fetch');
+    setUsernameError(isNetworkError ? 'Server unreachable. Check connection.' : 'Unable to check username.');
+  }, [checkUsernameQuery.error]);
 
   // Reset availability status and errors while typing
   useEffect(() => {
@@ -73,10 +77,6 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
 
   // 2. Trial Eligibility Check
   const checkEligibilityMutation = trpc.trials.checkEligibility.useMutation();
-  const eligibilityQuery = trpc.auth.checkEligibility.useQuery(
-    { lat: userLocation?.lat ?? 0, lng: userLocation?.lng ?? 0 },
-    { enabled: !!userLocation && isMembershipEnabled }
-  );
 
   const handleToggleMembership = useCallback(async (value: boolean) => {
     console.log('[Signup] Toggle membership:', value, 'Platform:', Platform.OS);
@@ -109,11 +109,7 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
       
       if (status !== 'granted') {
         const message = 'We need your location to check if you qualify for the free trial. You can still sign up for premium after creating your account.';
-        if (Platform.OS === 'web') {
-          window.alert(message);
-        } else {
-          Alert.alert('Location Permission Required', message);
-        }
+        Alert.alert('Location Permission Required', message);
         setIsMembershipEnabled(false);
         setCheckingEligibility(false);
         return;
@@ -153,11 +149,7 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
     } catch (error) {
       console.error('[Signup] Eligibility check error:', error);
       const message = 'Could not check trial eligibility. You can still sign up for premium after creating your account.';
-      if (Platform.OS === 'web') {
-        window.alert(message);
-      } else {
-        Alert.alert('Location Error', message);
-      }
+      Alert.alert('Location Error', message);
       setIsEligibleForTrial(false);
       setTrialMeta(null);
       setIsMembershipEnabled(false);
@@ -293,7 +285,7 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
     console.log("[Signup] Mutating...", { isRetry, retryCount });
     
     // Add timeout for stuck network requests (15 seconds for signup)
-    let timeoutId: NodeJS.Timeout | null = null;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
     const timeoutPromise = new Promise<never>((_, reject) => {
       timeoutId = setTimeout(() => {
         reject(new Error('Request timed out. Please check your connection and try again.'));
@@ -443,7 +435,7 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
     signup, 
     options,
     retryCount,
-    error
+    isMembershipEnabled,
   ]);
 
   return {
@@ -479,5 +471,6 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
     
     // Location
     userLocation,
+    setUserLocation,
   };
 };

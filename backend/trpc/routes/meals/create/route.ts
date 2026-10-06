@@ -1,8 +1,8 @@
 import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-// eslint-disable-next-line import/no-unresolved
-import { calculateOrderBreakdown, calculateOrderSplit } from "../../../lib/fees";
+import { calculateOrderBreakdown, calculateOrderSplit } from "@/backend/lib/fees";
+import { sanitizeTextField, sanitizeTextArray } from "../../../../lib/text-security";
 
 export const createMealProcedure = protectedProcedure
   .input(
@@ -43,20 +43,58 @@ export const createMealProcedure = protectedProcedure
       });
     }
 
+    // Sanitize and validate all user-supplied text fields for prompt injection,
+    // invisible characters, and bidirectional overrides before storing.
+    const nameResult = sanitizeTextField(input.name);
+    const descResult = sanitizeTextField(input.description);
+    const cuisineResult = sanitizeTextField(input.cuisine);
+    const ingredientsResult = sanitizeTextArray(input.ingredients);
+    const tagsResult = input.tags ? sanitizeTextArray(input.tags) : { values: [], blocked: false, flags: [] };
+
+    const textBlocked =
+      nameResult.blocked ||
+      descResult.blocked ||
+      cuisineResult.blocked ||
+      ingredientsResult.blocked ||
+      tagsResult.blocked;
+
+    if (textBlocked) {
+      const allFlags = [
+        ...nameResult.flags,
+        ...descResult.flags,
+        ...cuisineResult.flags,
+        ...ingredientsResult.flags,
+        ...tagsResult.flags,
+      ];
+      await Promise.resolve(
+        ctx.supabaseAdmin
+          .from('audit_logs')
+          .insert({
+            action: 'MEAL_TEXT_BLOCKED',
+            user_id: ctx.userId,
+            new_data: { flags: [...new Set(allFlags)] },
+          })
+      ).catch(() => {});
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Meal content contains disallowed text. Please review your submission.',
+      });
+    }
+
     const { data, error } = await ctx.supabase
       .from('meals')
       .insert({
         user_id: ctx.userId,
-        name: input.name,
-        description: input.description,
+        name: nameResult.value,
+        description: descResult.value,
         price: input.price,
         images: input.images,
-        ingredients: input.ingredients,
-        cuisine: input.cuisine,
+        ingredients: ingredientsResult.values,
+        cuisine: cuisineResult.value,
         category: input.category,
         dietary_options: input.dietaryOptions || [],
         preparation_time: input.preparationTime,
-        tags: input.tags || [],
+        tags: tagsResult.values,
         expiry_date: input.expiryDate,
         receipt_date: input.receiptDate,
       })

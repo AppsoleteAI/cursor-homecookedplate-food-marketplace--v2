@@ -103,9 +103,8 @@ export default function ActiveOrdersModal() {
 
   const handleRefund = (order: any) => {
     // Calculate refund amount (90% of base)
-    const baseAmount = order.totalPrice / 1.10;
-    const { sellerPayout } = calculateOrderSplit(baseAmount);
-    const platformFeeKept = order.totalPrice - sellerPayout;
+    const { sellerPayout, appRevenue } = calculateOrderSplit(order.totalPrice);
+    const platformFeeKept = appRevenue;
 
     setSelectedOrder({
       ...order,
@@ -243,7 +242,7 @@ export default function ActiveOrdersModal() {
                       <TouchableOpacity
                         style={[styles.actionButton, styles.denyButton]}
                         onPress={() => handleDeny(order)}
-                        disabled={denyOrderMutation.isLoading}
+                        disabled={denyOrderMutation.isPending}
                       >
                         <Ionicons name="close-circle" size={20} color={Colors.white} />
                         <Text style={styles.actionButtonText}>Deny</Text>
@@ -254,7 +253,7 @@ export default function ActiveOrdersModal() {
                     <TouchableOpacity
                       style={[styles.actionButton, styles.refundButton]}
                       onPress={() => handleRefund(order)}
-                      disabled={refundOrderMutation.isLoading}
+                      disabled={refundOrderMutation.isPending}
                     >
                       <Ionicons name="return-down-back" size={20} color={Colors.white} />
                       <Text style={styles.actionButtonText}>Refund</Text>
@@ -298,7 +297,7 @@ export default function ActiveOrdersModal() {
               setSelectedOrder(null);
             }}
             onConfirm={handleRefundConfirm}
-            isProcessing={refundOrderMutation.isLoading}
+            isProcessing={refundOrderMutation.isPending}
           />
         )}
       </View>

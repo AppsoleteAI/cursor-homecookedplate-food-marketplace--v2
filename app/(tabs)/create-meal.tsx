@@ -16,7 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Colors, monoGradients } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
 import { cuisineTypes } from '@/mocks/data';
-import { router } from 'expo-router';
+import { router , type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMeals } from '@/hooks/meals-context';
 import { useAuth } from '@/hooks/auth-context';
@@ -845,6 +845,21 @@ export default function CreateMealScreen() {
               </Text>
               <Text style={[styles.foodSafetyInfoText, { marginTop: 8, fontSize: 11, fontStyle: 'italic' }]}>
                 HomeCookedPlate is not affiliated or in partnership with cottagefoodlaws.com.
+              </Text>
+              <Text style={[styles.foodSafetyInfoText, { marginTop: 8 }]}>
+                Cottage food laws cover shelf-stable, non-TCS foods only. A cooked plate that needs refrigeration or hot-holding is not a cottage food. Produce, CSA shares, and cottage goods are listed in FarmGrownBasket, and that listing stays closed until you record your state rule, testing protocol, and permit fee.
+              </Text>
+              <Text style={styles.foodSafetyLink} onPress={() => router.push('/farm-grown-basket/cottage-law' as Href)}>
+                Open the cottage food checklist
+              </Text>
+              <Text style={[styles.foodSafetyLink, { marginTop: 8 }]} onPress={() => router.push('/food-truck-popup/permit' as Href)}>
+                Food trucks list in FoodTruckPopup and need a mobile-unit permit
+              </Text>
+              <Text style={[styles.foodSafetyLink, { marginTop: 8 }]} onPress={() => router.push('/sit-down-delicious/license' as Href)}>
+                Independent restaurants list in SitDownDelicious and need a retail food license
+              </Text>
+              <Text style={[styles.foodSafetyLink, { marginTop: 8 }]} onPress={() => router.push('/kitchen-rules' as Href)}>
+                Kitchen rules for cooked plates and commissary kitchens
               </Text>
             </View>
           </View>

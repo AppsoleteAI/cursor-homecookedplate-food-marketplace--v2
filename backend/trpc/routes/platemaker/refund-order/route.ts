@@ -92,9 +92,8 @@ export const refundOrderProcedure = protectedProcedure
       });
     }
 
-    // Calculate base amount (remove buyer fee: total_price includes 10% buyer fee)
-    // Formula: total_price = baseAmount * 1.10, so baseAmount = total_price / 1.10
-    const baseAmount = orderTotalPrice / 1.10;
+    // orders.total_price is the plate base (DB trigger). Seller share is 90% of that base.
+    const baseAmount = orderTotalPrice;
 
     // Calculate platemaker's 90% share using calculateOrderSplit
     let refundAmount: number;

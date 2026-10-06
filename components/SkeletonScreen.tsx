@@ -8,9 +8,7 @@ import Animated, {
   withTiming,
   interpolate,
   Easing,
-/* eslint-disable import/no-unresolved */
 } from 'react-native-reanimated';
-/* eslint-enable import/no-unresolved */
 
 interface SkeletonProps {
   width?: number | string;
@@ -55,7 +53,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
     <View
       style={[
         {
-          width,
+          width: width as ViewStyle['width'],
           height,
           borderRadius,
           backgroundColor: '#E5E7EB',

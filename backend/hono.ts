@@ -14,8 +14,12 @@ type Bindings = {
   RATE_LIMIT_KV?: KVNamespace;
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
+  EXPO_PUBLIC_SUPABASE_ANON_KEY?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
+  METRO_WEBHOOK_SECRET?: string;
+  // Cloudflare Workers AI binding for image NSFW moderation
+  AI?: Ai;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -51,7 +55,7 @@ const rateLimit = (maxRequests: number, windowMs: number) => {
         }
         record.count++;
         await kv.put(key, JSON.stringify(record), {
-          expirationTtl: Math.ceil((record.resetTime - now) / 1000),
+          expirationTtl: Math.max(60, Math.ceil((record.resetTime - now) / 1000)),
         });
       } else {
         const newRecord = {
@@ -59,7 +63,7 @@ const rateLimit = (maxRequests: number, windowMs: number) => {
           resetTime: now + windowMs,
         };
         await kv.put(key, JSON.stringify(newRecord), {
-          expirationTtl: Math.ceil(windowMs / 1000),
+          expirationTtl: Math.max(60, Math.ceil(windowMs / 1000)),
         });
       }
     } else {
@@ -101,10 +105,11 @@ app.use(
     origin: (origin) => {
       // Allow all origins in development (includes Expo tunnel URLs like *.exp.direct, *.expo.dev)
       if (process.env.NODE_ENV !== 'production') {
-        return true; // Allow all origins in development
+        // Return actual origin if present, fallback to '*' only if no origin (for credentials compatibility)
+        return origin || '*';
       }
       // Production: Allow specific Expo origins
-      if (!origin) return true; // Allow requests without origin (e.g., Postman, curl)
+      if (!origin) return '*'; // Allow requests without origin (e.g., Postman, curl) - '*' is OK here since no credentials without origin
       const allowedOrigins = [
         'https://homecookedplate.com',
         'https://www.homecookedplate.com',
@@ -112,10 +117,11 @@ app.use(
         // Add your production Expo web URL here when deployed
       ];
       // Also allow Expo tunnel URLs in production (for testing)
+      // CRITICAL: Must return exact origin (not true/*) when credentials: true is set
       if (origin.includes('.exp.direct') || origin.includes('.expo.dev')) {
-        return true;
+        return origin;
       }
-      return allowedOrigins.includes(origin);
+      return allowedOrigins.includes(origin) ? origin : null;
     },
     allowMethods: ['POST', 'GET', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization', 'x-trpc-source'],
@@ -207,6 +213,12 @@ app.post("/webhook/stripe", async (c) => {
     if (computedSignature !== signature) {
       console.error('[Stripe Webhook] Signature verification failed');
       return c.json({ error: 'Invalid signature' }, 400);
+    }
+
+    const eventTimestamp = Number(timestamp);
+    if (!Number.isFinite(eventTimestamp) || Math.abs(Date.now() / 1000 - eventTimestamp) > 300) {
+      console.error('[Stripe Webhook] Timestamp outside tolerance');
+      return c.json({ error: 'Timestamp outside tolerance' }, 400);
     }
 
     event = JSON.parse(payload);
@@ -472,6 +484,13 @@ app.post("/webhook/stripe", async (c) => {
 // Database webhook endpoint for metro cap reached notifications
 // Triggered by Supabase Database Webhooks when metro_area_counts.platemaker_count or platetaker_count hits max_cap
 app.post("/webhook/metro-cap-reached", async (c) => {
+  const metroWebhookSecret = c.env?.METRO_WEBHOOK_SECRET || process.env.METRO_WEBHOOK_SECRET;
+  const providedSecret = c.req.header('x-metro-webhook-secret');
+  if (!metroWebhookSecret || providedSecret !== metroWebhookSecret) {
+    console.error('[Metro Cap Webhook] Missing or invalid webhook secret');
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
   const supabaseUrl = c.env?.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const supabaseServiceKey = c.env?.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -563,6 +582,8 @@ app.use(
         SUPABASE_SERVICE_ROLE_KEY: c.env?.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY,
         EXPO_PUBLIC_SUPABASE_ANON_KEY: c.env?.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
         EXPO_PUBLIC_WEB_URL: c.env?.EXPO_PUBLIC_WEB_URL ?? process.env.EXPO_PUBLIC_WEB_URL,
+        // Cloudflare Workers AI binding — only available in CF runtime (undefined in local Bun dev)
+        AI: c.env?.AI,
       };
       return await createContext(opts, env);
     },
@@ -620,7 +641,7 @@ app.get("/health", async (c) => {
     });
 
     // Test connection with a simple count query on profiles table
-    const { count, error: queryError } = await supabaseAdmin
+    const { error: queryError } = await supabaseAdmin
       .from('profiles')
       .select('*', { count: 'exact', head: true });
 

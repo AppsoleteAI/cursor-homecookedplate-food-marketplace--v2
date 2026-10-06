@@ -94,6 +94,15 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, onPress, sizeVariant =
           <Text style={styles.featuredText}>Featured</Text>
         </View>
       )}
+      {!meal.featured && meal.rating >= 4.5 && (meal.reviewCount || 0) >= 3 && (
+        <View style={styles.featuredBadge}>
+          <Text style={styles.featuredText}>Popular</Text>
+        </View>
+      )}
+      <View style={[styles.timeBadge, sizeVariant === 'featured' ? styles.timeBadgeFeatured : styles.timeBadgeGrid]}>
+        <Clock size={12} color={Colors.gray[900]} />
+        <Text style={styles.timeBadgeText}>{meal.preparationTime} min</Text>
+      </View>
       {isPromoActive && PromoIcon && (
         <View style={styles.promoBadge}>
           <PromoIcon size={12} color={Colors.white} />
@@ -107,6 +116,15 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, onPress, sizeVariant =
         <Text style={styles.plateMaker} numberOfLines={1}>
           {meal.plateMakerName}
         </Text>
+        {(meal.dietaryOptions?.length ?? 0) > 0 && (
+          <View style={styles.dietRow}>
+            {meal.dietaryOptions.slice(0, 2).map((option) => (
+              <View key={option} style={styles.dietChip}>
+                <Text style={styles.dietChipText} numberOfLines={1}>{option}</Text>
+              </View>
+            ))}
+          </View>
+        )}
         <View style={styles.info}>
           <TouchableOpacity
             style={styles.rating}
@@ -121,10 +139,6 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, onPress, sizeVariant =
             <Text style={styles.ratingText}>{aggregates.average || meal.rating}</Text>
             <Text style={styles.reviewCount}>({aggregates.count || meal.reviewCount})</Text>
           </TouchableOpacity>
-          <View style={styles.time}>
-            <Clock size={14} color={Colors.gray[500]} />
-            <Text style={styles.timeText}>{meal.preparationTime}min</Text>
-          </View>
         </View>
         <View style={styles.priceRow}>
           <LinearGradient
@@ -148,15 +162,10 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, onPress, sizeVariant =
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: Colors.gray[100],
+    backgroundColor: Colors.white,
     borderRadius: 16,
     overflow: 'hidden',
     marginBottom: 16,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
     borderWidth: 1,
     borderColor: Colors.gray[200],
   },
@@ -202,8 +211,48 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   content: {
-    padding: 14,
-    backgroundColor: Colors.gray[50],
+    padding: 16,
+    backgroundColor: Colors.white,
+  },
+  dietRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 10,
+  },
+  dietChip: {
+    backgroundColor: Colors.gray[100],
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    maxWidth: '48%',
+  },
+  dietChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.gray[700],
+  },
+  timeBadge: {
+    position: 'absolute',
+    left: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.white,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  timeBadgeGrid: {
+    top: 88,
+  },
+  timeBadgeFeatured: {
+    top: 124,
+  },
+  timeBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.gray[900],
   },
   name: {
     fontSize: 16,

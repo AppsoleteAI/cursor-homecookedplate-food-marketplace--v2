@@ -1,7 +1,26 @@
-import { protectedProcedure } from "../../../create-context";
-import { z } from "zod";
+import { protectedProcedure } from '../../../create-context';
+import { z } from 'zod';
+import { TRPCError } from '@trpc/server';
 import { decode } from 'base64-arraybuffer';
+import { scanImage } from '../../../../lib/image-security';
 
+/**
+ * Upload Meal Media Procedure
+ *
+ * Uploads an image or video for a meal to the `meal-media` Supabase Storage bucket.
+ * Images are run through the full security scanner before any storage write:
+ *   - Magic bytes MIME validation
+ *   - File size check (≤ 10 MB)
+ *   - Metadata prompt injection scan (EXIF/JPEG comments, PNG text chunks)
+ *   - Trailing data / steganography detection
+ *   - NSFW moderation via Cloudflare Workers AI (when binding is available)
+ *
+ * Video files bypass image-specific checks but are still size-validated by the
+ * Supabase bucket policy (50 MB limit, video/mp4 and video/quicktime only).
+ *
+ * Storage path: {userId}/{mealId}/{timestamp}.{ext}
+ * Also inserts a row into `media_attachments` for cleanup tracking.
+ */
 export const uploadMediaProcedure = protectedProcedure
   .input(
     z.object({
@@ -9,14 +28,78 @@ export const uploadMediaProcedure = protectedProcedure
       base64Data: z.string(),
       mimeType: z.string(),
       type: z.enum(['image', 'video']),
-    })
+    }),
   )
   .mutation(async ({ input, ctx }) => {
+    const { data: meal, error: mealError } = await ctx.supabaseAdmin
+      .from('meals')
+      .select('id, user_id')
+      .eq('id', input.mealId)
+      .single();
+
+    if (mealError || !meal || meal.user_id !== ctx.userId) {
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'You can only upload media for your own meals',
+      });
+    }
+
+    const arrayBuffer = decode(input.base64Data);
+
+    // Run security scan on image uploads (video scanning not yet supported)
+    if (input.type === 'image') {
+      const scanResult = await scanImage(
+        arrayBuffer,
+        input.base64Data,
+        'meal',
+        input.mimeType,
+        ctx.ai,
+      );
+
+      if (!scanResult.allowed) {
+        await Promise.resolve(
+          ctx.supabaseAdmin
+            .from('audit_logs')
+            .insert({
+              action: 'MEAL_IMAGE_BLOCKED',
+              user_id: ctx.userId,
+              new_data: {
+                reason: scanResult.reason,
+                flags: scanResult.flags,
+                mealId: input.mealId,
+                declaredMimeType: input.mimeType,
+                detectedMimeType: scanResult.detectedMime,
+              },
+            })
+        ).catch(() => {});
+
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: scanResult.reason ?? 'Image failed security check',
+        });
+      }
+
+      // Audit non-trivial flag sets (MIME mismatch, large-file skip, etc.)
+      if (scanResult.flags.length > 0) {
+        await Promise.resolve(
+          ctx.supabaseAdmin
+            .from('audit_logs')
+            .insert({
+              action: 'MEAL_IMAGE_SCANNED',
+              user_id: ctx.userId,
+              new_data: {
+                flags: scanResult.flags,
+                mealId: input.mealId,
+                detectedMimeType: scanResult.detectedMime,
+              },
+            })
+        ).catch(() => {});
+      }
+    }
+
     const fileExt = input.mimeType.split('/')[1];
     const fileName = `${ctx.userId}/${input.mealId}/${Date.now()}.${fileExt}`;
     const bucketName = 'meal-media';
-
-    const arrayBuffer = decode(input.base64Data);
 
     const { data: uploadData, error: uploadError } = await ctx.supabase.storage
       .from(bucketName)

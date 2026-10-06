@@ -1,6 +1,3 @@
-// #region agent log - ROUTER_LOAD: Track when router is created
-fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'backend/trpc/app-router.ts:ROUTER_LOAD',message:'Router module loading - importing signupProcedure',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'router-load',hypothesisId:'F'})}).catch(()=>{});
-// #endregion
 import { createTRPCRouter } from "./create-context";
 import hiRoute from "./routes/example/hi/route";
 import { supabaseTestProcedure } from "./routes/supabase-test/route";
@@ -9,16 +6,6 @@ import { dbHealthProcedure } from "./routes/system/db-health/route";
 import { signupProcedure } from "./routes/auth/signup/route";
 import { checkEligibilityProcedure } from "./routes/auth/check-eligibility/route";
 import { checkUsernameProcedure } from "./routes/auth/check-username/route";
-// #region agent log - ROUTER_LOAD: Signup procedure imported
-// Log procedure details to verify which version is imported
-const procedureDetails = {
-  hasSignupProcedure: !!signupProcedure,
-  procedureType: typeof signupProcedure,
-  procedureKeys: signupProcedure ? Object.keys(signupProcedure).join(',') : 'null',
-  timestamp: Date.now()
-};
-fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'backend/trpc/app-router.ts:ROUTER_LOAD_AFTER_IMPORT',message:'Signup procedure imported into router',data:procedureDetails,timestamp:Date.now(),sessionId:'debug-session',runId:'router-load',hypothesisId:'F'})}).catch(()=>{});
-// #endregion
 import { loginProcedure } from "./routes/auth/login/route";
 import { logoutProcedure } from "./routes/auth/logout/route";
 import { meProcedure } from "./routes/auth/me/route";
@@ -39,6 +26,7 @@ import { updatePaymentIntentProcedure } from "./routes/orders/update-payment-int
 import { createReviewProcedure } from "./routes/reviews/create/route";
 import { listReviewsProcedure } from "./routes/reviews/list/route";
 import { uploadMediaProcedure } from "./routes/media/upload/route";
+import { uploadProfileImageProcedure } from "./routes/media/upload-profile/route";
 import { createPaymentIntentProcedure } from "./routes/payments/create-payment-intent/route";
 import { confirmPaymentProcedure } from "./routes/payments/confirm-payment/route";
 import { createConnectAccountProcedure } from "./routes/payments/create-connect-account/route";
@@ -64,6 +52,7 @@ import { processMediaCleanupProcedure } from "./routes/admin/process-media-clean
 import { promoteToAdminProcedure } from "./routes/admin/promote-to-admin/route";
 import { getMetroAvailabilityProcedure } from "./routes/metro/get-availability/route";
 import { hardwareAuditProcedure } from "./routes/auth/hardware-audit/route";
+import { deleteAccountProcedure } from "./routes/auth/delete-account/route";
 import { markAsReadyProcedure } from "./routes/platemaker/mark-as-ready/route";
 import { toggleAvailabilityProcedure } from "./routes/platemaker/toggle-availability/route";
 import { getAvailabilityProcedure } from "./routes/platemaker/get-availability/route";
@@ -98,6 +87,7 @@ export const appRouter = createTRPCRouter({
     checkEligibility: checkEligibilityProcedure,
     checkUsername: checkUsernameProcedure,
     hardwareAudit: hardwareAuditProcedure,
+    deleteAccount: deleteAccountProcedure,
     verifyEmail: verifyEmailProcedure,
     resendVerificationEmail: resendVerificationEmailProcedure,
   }),
@@ -119,6 +109,7 @@ export const appRouter = createTRPCRouter({
   }),
   media: createTRPCRouter({
     upload: uploadMediaProcedure,
+    uploadProfile: uploadProfileImageProcedure,
   }),
   payments: createTRPCRouter({
     createPaymentIntent: createPaymentIntentProcedure,

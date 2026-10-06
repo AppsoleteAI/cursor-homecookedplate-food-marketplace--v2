@@ -86,6 +86,18 @@ The `--tunnel` flag should help, but if it's not working:
 2. Use LAN connection instead
 3. Check firewall settings
 
+### If the tunnel URL loads the wrong app
+This machine runs multiple Expo apps under the same ngrok account. The ngrok local API (`http://localhost:4040/api/tunnels`) returns whichever tunnel is active — it does not know which app you intend.
+
+**Always read the tunnel URL from the Metro terminal output** (the `Tunnel ready. https://...` line), never from the ngrok API. Verify with:
+
+```bash
+curl -s "https://<your-tunnel-url>/status"
+# Should return: {"status":"packager-status:running"}
+```
+
+See `NGROK_TUNNEL_VERIFICATION.md` for the full protocol.
+
 ## Verification
 Once fixed, you should see debug logs from:
 - `app/index.tsx:RENDER`

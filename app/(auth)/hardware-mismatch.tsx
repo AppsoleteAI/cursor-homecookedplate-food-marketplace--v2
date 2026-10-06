@@ -1,11 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, monoGradients } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { router } from 'expo-router';
+import { AuthGreen } from '@/constants/auth-palette';
+import { AuthGoldButton } from '@/components/auth/AuthChrome';
 
 export default function HardwareMismatchScreen() {
   const insets = useSafeAreaInsets();
@@ -17,61 +17,51 @@ export default function HardwareMismatchScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={monoGradients.red}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={[styles.header, { paddingTop: insets.top + 20 }]}
-      >
-        <Ionicons name="lock-closed" size={64} color={Colors.white} />
-        <Text style={styles.title}>Hardware Mismatch</Text>
-        <Text style={styles.subtitle}>Device Lock Verification Failed</Text>
-      </LinearGradient>
-
+    <View style={[styles.container, { paddingTop: insets.top + 12 }]}>
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>What happened?</Text>
-          <Text style={styles.cardText}>
-            Your lifetime membership is device-locked and non-transferable. The device you&apos;re currently using doesn&apos;t match the device that was registered when you signed up.
-          </Text>
+        <View style={styles.brandRow}>
+          <Ionicons name="lock-closed" size={28} color={AuthGreen.gold} />
+          <Text style={styles.brand}>HomeCookedPlate</Text>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Why is this happening?</Text>
-          <Text style={styles.cardText}>
-            Lifetime memberships are tied to a specific device to prevent unauthorized transfers. This security measure protects your account and ensures fair use of promotional lifetime slots.
-          </Text>
-        </View>
+        <View style={styles.sheet}>
+          <View style={styles.panel}>
+            <Text style={styles.title}>Hardware mismatch</Text>
+            <Text style={styles.subtitle}>This device does not match the one locked to the membership.</Text>
+          </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>What can I do?</Text>
-          <Text style={styles.cardText}>
-            If you believe this is an error, please contact our support team. They can help verify your account and assist with device registration issues.
-          </Text>
-          <Text style={styles.supportText}>
-            Support: support@homecookedplate.com
-          </Text>
-        </View>
+          <Card title="What happened?">
+            Your lifetime membership is device-locked and non-transferable. The device you are using does not match the device registered at signup.
+          </Card>
+          <Card title="Why this happens">
+            Lifetime memberships stay on one device so a promotional slot cannot be moved to someone else.
+          </Card>
+          <Card title="What you can do">
+            If this looks wrong, write to support@homecookedplate.com. Support can check the account and the registered device.
+          </Card>
+          <Card title="Emulator testing">
+            An Android emulator lock follows that emulator&apos;s Android ID. Use the same emulator instance that created the account.
+          </Card>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Testing Note</Text>
-          <Text style={styles.cardText}>
-            If you&apos;re testing on an Android emulator, make sure you&apos;re using the same emulator instance that was used during signup. Each emulator has a unique Android ID that gets locked to your account.
-          </Text>
+          <AuthGoldButton
+            title="Return to sign in"
+            onPress={handleLogout}
+            testID="hardware-mismatch-logout"
+          />
         </View>
-
-        <TouchableOpacity
-          style={styles.button}
-          onPress={handleLogout}
-          testID="hardware-mismatch-logout"
-        >
-          <Text style={styles.buttonText}>Return to Login</Text>
-        </TouchableOpacity>
       </ScrollView>
+    </View>
+  );
+}
+
+function Card({ title, children }: { title: string; children: string }) {
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>{title}</Text>
+      <Text style={styles.cardText}>{children}</Text>
     </View>
   );
 }
@@ -79,66 +69,63 @@ export default function HardwareMismatchScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: AuthGreen.bg,
   },
-  header: {
-    paddingHorizontal: 24,
-    paddingBottom: 32,
+  content: {
+    paddingHorizontal: 16,
+    paddingBottom: 40,
+  },
+  brandRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  brand: {
+    color: AuthGreen.gold,
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  sheet: {
+    backgroundColor: AuthGreen.cream,
+    borderRadius: 28,
+    padding: 14,
+    gap: 12,
+  },
+  panel: {
+    backgroundColor: AuthGreen.panel,
+    borderRadius: 22,
+    paddingHorizontal: 18,
+    paddingVertical: 20,
   },
   title: {
-    fontSize: 28,
+    color: AuthGreen.white,
+    fontSize: 26,
     fontWeight: '700',
-    color: Colors.white,
-    marginTop: 16,
+    textAlign: 'center',
     marginBottom: 8,
   },
   subtitle: {
-    fontSize: 16,
-    color: Colors.white,
-    opacity: 0.9,
-  },
-  content: {
-    padding: 24,
-    paddingBottom: 40,
+    color: AuthGreen.muted,
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
   },
   card: {
-    backgroundColor: Colors.gray[50],
+    backgroundColor: '#E7DFD2',
     borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+    padding: 16,
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.gray[900],
-    marginBottom: 12,
-  },
-  cardText: {
-    fontSize: 14,
-    color: Colors.gray[700],
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  supportText: {
-    fontSize: 14,
-    color: Colors.gradient.green,
-    fontWeight: '600',
-    marginTop: 8,
-  },
-  button: {
-    backgroundColor: Colors.gradient.red,
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonText: {
+    color: AuthGreen.ink,
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.white,
+    marginBottom: 6,
+  },
+  cardText: {
+    color: AuthGreen.ink,
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

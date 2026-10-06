@@ -15,13 +15,11 @@ import Animated, {
   withSequence,
   withTiming,
   Easing,
-/* eslint-disable import/no-unresolved */
 } from 'react-native-reanimated';
-/* eslint-enable import/no-unresolved */
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router , type Href } from 'expo-router';
 import { Colors, monoGradients } from '@/constants/colors';
 import { MealCard } from '@/components/MealCard';
 import { cuisineTypes, dietaryOptions } from '@/mocks/data';
@@ -34,7 +32,7 @@ import type { Meal } from '@/types';
 import { SkeletonMealList } from '@/components/SkeletonMealList';
 
 export default function HomeScreen() {
-  useAuth();
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const { bellCount, markBellSeen } = useOrders();
   const [selectedCuisine, setSelectedCuisine] = useState<string | null>(null);
@@ -71,7 +69,35 @@ export default function HomeScreen() {
     }));
   }, [mealsData]);
 
+  const recentOrders = trpc.orders.list.useQuery(
+    { role: 'buyer' },
+    { enabled: user?.role === 'platetaker' }
+  );
+
+  const reorderShelf = useMemo(() => {
+    const seen = new Set<string>();
+    const shelf: { mealId: string; mealName: string; mealImage: string; status: string }[] = [];
+    for (const order of recentOrders.data || []) {
+      if (seen.has(order.mealId)) continue;
+      seen.add(order.mealId);
+      shelf.push({
+        mealId: order.mealId,
+        mealName: order.mealName,
+        mealImage: order.mealImage,
+        status: order.status,
+      });
+      if (shelf.length === 3) break;
+    }
+    return shelf;
+  }, [recentOrders.data]);
+
   const featuredMeals = useMemo(() => meals.filter(meal => meal.featured), [meals]);
+  const lovedMeals = useMemo(() => {
+    return [...meals]
+      .filter((meal) => (meal.reviewCount || 0) > 0)
+      .sort((a, b) => (b.reviewCount || 0) - (a.reviewCount || 0) || b.rating - a.rating)
+      .slice(0, 8);
+  }, [meals]);
   const filteredMeals = useMemo(() => {
     let list = meals;
     if (selectedCuisine) {
@@ -138,7 +164,7 @@ export default function HomeScreen() {
               <Text style={styles.greeting}>Hello, plate!</Text>
               <View style={styles.location}>
                 <Ionicons name="location-outline" size={16} color={Colors.white} />
-                <Text style={styles.locationText}>Brooklyn, NY</Text>
+                <Text style={styles.locationText}>{user?.metroArea || 'Pickup near you'}</Text>
               </View>
             </View>
             <TouchableOpacity style={styles.notificationButton} onPress={() => { markBellSeen().catch(()=>{}); router.push('/notifications-bell'); }} testID="open-notifications-bell">
@@ -175,6 +201,43 @@ export default function HomeScreen() {
         onScroll={handleScroll}
         scrollEventThrottle={16}
       >
+          <View>
+          <TouchableOpacity
+            style={styles.farmEntry}
+            onPress={() => router.push('/farm-grown-basket' as Href)}
+            testID="open-farm-grown-basket"
+          >
+            <Text style={styles.farmKicker}>FarmGrownBasket</Text>
+            <Text style={styles.farmTitle}>Farms, gardens, and co-ops</Text>
+            <Text style={styles.farmBody}>Produce, CSA shares, and cottage foods. Separate from cooked plates.</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.truckEntry}
+            onPress={() => router.push('/food-truck-popup' as Href)}
+            testID="open-food-truck-popup"
+          >
+            <Text style={styles.truckKicker}>FoodTruckPopup</Text>
+            <Text style={styles.farmTitle}>Food trucks, open windows</Text>
+            <Text style={styles.farmBody}>Order ahead and pick up at the truck. Separate from plates and farm goods.</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.caterEntry}
+            onPress={() => router.push('/cater-event-delivered' as Href)}
+            testID="open-cater-event-delivered"
+          >
+            <Text style={styles.caterKicker}>CaterEventDelivered</Text>
+            <Text style={styles.farmTitle}>Catering and event drop-off</Text>
+            <Text style={styles.farmBody}>Per-person packages for offices, clinics, and events. Separate from plates, farms, and trucks.</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.sitEntry}
+            onPress={() => router.push('/sit-down-delicious' as Href)}
+            testID="open-sit-down-delicious"
+          >
+            <Text style={styles.sitKicker}>SitDownDelicious</Text>
+            <Text style={styles.farmTitle}>Independent restaurants</Text>
+            <Text style={styles.farmBody}>Coffee, yogurt, ice cream, and small licensed shops. Sit down or take out. Separate from plates, farms, trucks, and catering.</Text>
+          </TouchableOpacity>
           {mealsError && (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>
@@ -187,8 +250,52 @@ export default function HomeScreen() {
             <SkeletonMealList />
           )}
 
+          {!mealsLoading && !mealsError && reorderShelf.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Order again</Text>
+              <HorizontalCarousel contentContainerStyle={styles.horizontalScroll} testID="reorder-carousel">
+                {reorderShelf.map((order) => (
+                  <TouchableOpacity
+                    key={order.mealId}
+                    style={styles.reorderCard}
+                    onPress={() => router.push(`/meal/${order.mealId}` as const)}
+                  >
+                    {order.mealImage ? (
+                      <Image source={{ uri: order.mealImage }} style={styles.reorderImage} />
+                    ) : (
+                      <View style={[styles.reorderImage, styles.reorderPlaceholder]} />
+                    )}
+                    <Text style={styles.reorderName} numberOfLines={1}>{order.mealName}</Text>
+                    <Text style={styles.reorderStatus}>{order.status}</Text>
+                  </TouchableOpacity>
+                ))}
+              </HorizontalCarousel>
+            </View>
+          )}
+
+          {!mealsLoading && !mealsError && topMeals.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>What sounds good</Text>
+              <HorizontalCarousel contentContainerStyle={styles.horizontalScroll} testID="craving-carousel">
+                {topMeals.map((meal) => (
+                  <TouchableOpacity
+                    key={`craving-${meal.id}`}
+                    style={styles.cravingItem}
+                    onPress={() => router.push(`/meal/${meal.id}` as const)}
+                  >
+                    {meal.images[0] ? (
+                      <Image source={{ uri: meal.images[0] }} style={styles.cravingImage} />
+                    ) : (
+                      <View style={[styles.cravingImage, styles.reorderPlaceholder]} />
+                    )}
+                    <Text style={styles.cravingLabel} numberOfLines={2}>{meal.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </HorizontalCarousel>
+            </View>
+          )}
+
           {!mealsLoading && !mealsError && (
-            <>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Featured Meals</Text>
             {featuredMeals.length > 0 ? (
@@ -205,66 +312,78 @@ export default function HomeScreen() {
               </View>
             )}
           </View>
+          )}
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Browse by Cuisine</Text>
-            <HorizontalCarousel contentContainerStyle={styles.cuisineScroll} testID="cuisine-carousel">
-              {cuisineBrowse.map(cuisine => (
-                <TouchableOpacity
-                  key={cuisine}
-                  testID={`cuisine-chip-${cuisine}`}
-                  style={[
-                    styles.cuisineChip,
-                    selectedCuisine === cuisine && styles.cuisineChipActive,
-                  ]}
-                  onPress={() => setSelectedCuisine(
-                    selectedCuisine === cuisine ? null : cuisine
-                  )}
-                >
-                  <Text
-                    style={[
-                      styles.cuisineChipText,
-                      selectedCuisine === cuisine && styles.cuisineChipTextActive,
-                    ]}
-                  >
-                    {cuisine}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </HorizontalCarousel>
+          {!mealsLoading && !mealsError && lovedMeals.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Most loved</Text>
+              <HorizontalCarousel contentContainerStyle={styles.horizontalScroll} testID="loved-carousel">
+                {lovedMeals.map(meal => (
+                  <View key={`loved-${meal.id}`} style={styles.featuredCard}>
+                    <MealCard meal={meal} sizeVariant="featured" />
+                  </View>
+                ))}
+              </HorizontalCarousel>
+            </View>
+          )}
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Browse by Dietary Restrictions</Text>
-            <HorizontalCarousel contentContainerStyle={styles.cuisineScroll} testID="dietary-carousel">
-              {dietaryBrowse.map(option => (
-                <TouchableOpacity
-                  key={option}
-                  testID={`dietary-chip-${option}`}
+          <View style={styles.stickyFilters}>
+          <Text style={styles.filterLabel}>Cuisine</Text>
+          <HorizontalCarousel contentContainerStyle={styles.cuisineScroll} testID="cuisine-carousel">
+            {cuisineBrowse.map(cuisine => (
+              <TouchableOpacity
+                key={cuisine}
+                testID={`cuisine-chip-${cuisine}`}
+                style={[
+                  styles.cuisineChip,
+                  selectedCuisine === cuisine && styles.cuisineChipActive,
+                ]}
+                onPress={() => setSelectedCuisine(
+                  selectedCuisine === cuisine ? null : cuisine
+                )}
+              >
+                <Text
                   style={[
-                    styles.cuisineChip,
-                    selectedDietary === option && styles.cuisineChipActive,
+                    styles.cuisineChipText,
+                    selectedCuisine === cuisine && styles.cuisineChipTextActive,
                   ]}
-                  onPress={() => setSelectedDietary(
-                    selectedDietary === option ? null : option
-                  )}
                 >
-                  <Text
-                    style={[
-                      styles.cuisineChipText,
-                      selectedDietary === option && styles.cuisineChipTextActive,
-                    ]}
-                  >
-                    {option}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </HorizontalCarousel>
+                  {cuisine}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </HorizontalCarousel>
+          <Text style={styles.filterLabel}>Dietary</Text>
+          <HorizontalCarousel contentContainerStyle={styles.cuisineScroll} testID="dietary-carousel">
+            {dietaryBrowse.map(option => (
+              <TouchableOpacity
+                key={option}
+                testID={`dietary-chip-${option}`}
+                style={[
+                  styles.cuisineChip,
+                  selectedDietary === option && styles.cuisineChipActive,
+                ]}
+                onPress={() => setSelectedDietary(
+                  selectedDietary === option ? null : option
+                )}
+              >
+                <Text
+                  style={[
+                    styles.cuisineChipText,
+                    selectedDietary === option && styles.cuisineChipTextActive,
+                  ]}
+                >
+                  {option}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </HorizontalCarousel>
           </View>
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>All Meals</Text>
-            {filteredMeals.length > 0 ? (
+            {!mealsLoading && !mealsError && filteredMeals.length > 0 ? (
               <View style={styles.mealGrid}>
                 {filteredMeals.map(meal => (
                   <MealCard key={meal.id} meal={meal} />
@@ -272,12 +391,10 @@ export default function HomeScreen() {
               </View>
             ) : (
               <View style={styles.emptySection}>
-                <Text style={styles.emptyText}>No meals available</Text>
+                <Text style={styles.emptyText}>{mealsLoading ? 'Loading plates' : 'No meals available'}</Text>
               </View>
             )}
           </View>
-          </>
-          )}
         </ScrollView>
     </View>
   );
@@ -400,6 +517,70 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     gap: 12,
   },
+  stickyFilters: {
+    backgroundColor: Colors.white,
+    paddingTop: 8,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray[200],
+  },
+  filterLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.gray[600],
+    paddingHorizontal: 24,
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  reorderCard: {
+    width: 148,
+    marginRight: 12,
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+    overflow: 'hidden',
+  },
+  reorderImage: {
+    width: '100%',
+    height: 96,
+    backgroundColor: Colors.gray[100],
+  },
+  reorderPlaceholder: {
+    backgroundColor: Colors.gray[200],
+  },
+  reorderName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.gray[900],
+    paddingHorizontal: 10,
+    paddingTop: 8,
+  },
+  reorderStatus: {
+    fontSize: 12,
+    color: Colors.gray[600],
+    paddingHorizontal: 10,
+    paddingBottom: 10,
+    textTransform: 'capitalize',
+  },
+  cravingItem: {
+    width: 88,
+    marginRight: 14,
+    alignItems: 'center',
+  },
+  cravingImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.gray[200],
+  },
+  cravingLabel: {
+    marginTop: 8,
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.gray[800],
+    textAlign: 'center',
+  },
   cuisineChip: {
     paddingHorizontal: 20,
     paddingVertical: 10,
@@ -457,5 +638,74 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
     color: Colors.gray[500],
+  },
+  farmEntry: {
+    marginHorizontal: 24,
+    marginTop: 16,
+    marginBottom: 8,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  farmKicker: {
+    color: '#166534',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  farmTitle: {
+    color: Colors.gray[900],
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  farmBody: {
+    color: Colors.gray[600],
+    fontSize: 14,
+    marginTop: 4,
+    lineHeight: 20,
+  },
+  truckEntry: {
+    marginHorizontal: 24,
+    marginBottom: 8,
+    backgroundColor: '#FFF7ED',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+  },
+  truckKicker: {
+    color: '#C2410C',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  caterEntry: {
+    marginHorizontal: 24,
+    marginBottom: 8,
+    backgroundColor: '#F5F3FF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+  },
+  caterKicker: {
+    color: '#6D28D9',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  sitEntry: {
+    marginHorizontal: 24,
+    marginBottom: 8,
+    backgroundColor: '#FFFBEB',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  sitKicker: {
+    color: '#92400E',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

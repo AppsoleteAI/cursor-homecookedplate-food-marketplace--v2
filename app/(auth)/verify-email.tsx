@@ -1,22 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { trpc } from '@/lib/trpc';
-import { Colors } from '@/constants/colors';
+import { AuthGreen } from '@/constants/auth-palette';
+import { AuthGoldButton } from '@/components/auth/AuthChrome';
 
-/**
- * Email Verification Screen
- * 
- * Handles email verification via token from confirmation email.
- * Users are redirected here after clicking the confirmation link in their email.
- * 
- * Flow:
- * 1. User signs up → receives confirmation email via Resend
- * 2. User clicks link → navigates here with token in URL
- * 3. This screen calls verifyEmail procedure
- * 4. On success → redirects to login
- */
 export default function VerifyEmailScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const router = useRouter();
@@ -46,8 +35,6 @@ export default function VerifyEmailScreen() {
   });
 
   useEffect(() => {
-    // Handle token from URL query parameter or deep link
-    // This runs once when the component mounts with a token
     if (token && verificationStatus === 'idle') {
       setVerificationStatus('verifying');
       verifyEmail.mutate({ token });
@@ -56,7 +43,7 @@ export default function VerifyEmailScreen() {
       setErrorMessage('No verification token provided. Please check your email and try again.');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]); // Only depend on token - verificationStatus changes are handled internally
+  }, [token]);
 
   const handleRetry = () => {
     if (token) {
@@ -71,132 +58,91 @@ export default function VerifyEmailScreen() {
   };
 
   return (
-    <LinearGradient
-      colors={[Colors.gradient.purple, Colors.gradient.blue]}
-      style={styles.container}
-    >
-      <View style={styles.content}>
-        {verificationStatus === 'verifying' && (
-          <>
-            <ActivityIndicator size="large" color={Colors.white} style={styles.spinner} />
-            <Text style={styles.title}>Verifying Your Email</Text>
-            <Text style={styles.subtitle}>Please wait while we verify your email address...</Text>
-          </>
-        )}
+    <View style={styles.container}>
+      <View style={styles.sheet}>
+        <View style={styles.panel}>
+          {verificationStatus === 'verifying' && (
+            <>
+              <ActivityIndicator size="large" color={AuthGreen.gold} style={styles.spinner} />
+              <Text style={styles.title}>Verifying your email</Text>
+              <Text style={styles.subtitle}>This takes a moment.</Text>
+            </>
+          )}
 
-        {verificationStatus === 'success' && (
-          <>
-            <Text style={styles.successIcon}>✓</Text>
-            <Text style={styles.title}>Email Verified!</Text>
-            <Text style={styles.subtitle}>
-              Your email has been verified successfully. You can now log in to your account.
-            </Text>
-            <TouchableOpacity
-              style={styles.button}
-              onPress={handleGoToLogin}
-            >
-              <Text style={styles.buttonText}>Go to Login</Text>
-            </TouchableOpacity>
-          </>
-        )}
+          {verificationStatus === 'success' && (
+            <>
+              <Ionicons name="checkmark-circle" size={64} color={AuthGreen.gold} />
+              <Text style={styles.title}>Email verified</Text>
+              <Text style={styles.subtitle}>You can sign in with this address now.</Text>
+              <AuthGoldButton title="Go to sign in" onPress={handleGoToLogin} />
+            </>
+          )}
 
-        {verificationStatus === 'error' && (
-          <>
-            <Text style={styles.errorIcon}>✗</Text>
-            <Text style={styles.title}>Verification Failed</Text>
-            <Text style={styles.subtitle}>{errorMessage}</Text>
-            <View style={styles.buttonContainer}>
-              {token && (
-                <TouchableOpacity
-                  style={[styles.button, styles.retryButton]}
+          {verificationStatus === 'error' && (
+            <>
+              <Ionicons name="alert-circle" size={64} color={AuthGreen.error} />
+              <Text style={styles.title}>Verification failed</Text>
+              <Text style={styles.subtitle}>{errorMessage}</Text>
+              {token ? (
+                <AuthGoldButton
+                  title={verifyEmail.isPending ? 'Trying again' : 'Try again'}
                   onPress={handleRetry}
-                  disabled={verifyEmail.isLoading}
-                >
-                  <Text style={styles.buttonText}>
-                    {verifyEmail.isLoading ? 'Retrying...' : 'Try Again'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity
-                style={[styles.button, styles.secondaryButton]}
-                onPress={handleGoToLogin}
-              >
-                <Text style={[styles.buttonText, styles.secondaryButtonText]}>Go to Login</Text>
+                  loading={verifyEmail.isPending}
+                />
+              ) : null}
+              <TouchableOpacity onPress={handleGoToLogin} style={styles.loginLink}>
+                <Text style={styles.loginLinkText}>Go to sign in</Text>
               </TouchableOpacity>
-            </View>
-          </>
-        )}
+            </>
+          )}
+        </View>
       </View>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: AuthGreen.bg,
     justifyContent: 'center',
+    padding: 16,
+  },
+  sheet: {
+    backgroundColor: AuthGreen.cream,
+    borderRadius: 28,
+    padding: 14,
+  },
+  panel: {
+    backgroundColor: AuthGreen.panel,
+    borderRadius: 22,
+    paddingHorizontal: 20,
+    paddingVertical: 28,
     alignItems: 'center',
-    padding: 20,
-  },
-  content: {
-    width: '100%',
-    maxWidth: 400,
-    alignItems: 'center',
-  },
-  spinner: {
-    marginBottom: 20,
-  },
-  successIcon: {
-    fontSize: 80,
-    color: Colors.white,
-    marginBottom: 20,
-  },
-  errorIcon: {
-    fontSize: 80,
-    color: '#ff4444',
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: Colors.white,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: Colors.white,
-    textAlign: 'center',
-    marginBottom: 32,
-    opacity: 0.9,
-    lineHeight: 24,
-  },
-  buttonContainer: {
-    width: '100%',
     gap: 12,
   },
-  button: {
-    backgroundColor: Colors.white,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    alignItems: 'center',
-    width: '100%',
+  spinner: {
+    marginBottom: 8,
   },
-  retryButton: {
-    backgroundColor: Colors.white,
+  title: {
+    color: AuthGreen.white,
+    fontSize: 26,
+    fontWeight: '700',
+    textAlign: 'center',
   },
-  secondaryButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: Colors.white,
+  subtitle: {
+    color: AuthGreen.muted,
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 8,
   },
-  buttonText: {
-    color: Colors.gradient.purple,
-    fontSize: 16,
-    fontWeight: '600',
+  loginLink: {
+    paddingVertical: 8,
   },
-  secondaryButtonText: {
-    color: Colors.white,
+  loginLinkText: {
+    color: AuthGreen.gold,
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

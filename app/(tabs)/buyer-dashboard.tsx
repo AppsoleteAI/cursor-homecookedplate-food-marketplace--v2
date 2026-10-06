@@ -5,11 +5,10 @@ import { Colors, monoGradients } from '@/constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { mockMeals } from '@/mocks/data';
 import StarRating from '@/components/StarRating';
 import { useFavorites } from '@/hooks/favorites-context';
 import { useCart } from '@/hooks/cart-context';
-import { router } from 'expo-router';
+import { router , type Href } from 'expo-router';
 import { trpc } from '@/lib/trpc';
 import HorizontalCarousel from '@/components/HorizontalCarousel';
 
@@ -27,7 +26,14 @@ export default function BuyerDashboardScreen() {
     }
   );
 
-  const purchases = mockMeals.slice(1, 4);
+  const purchases = useMemo(() => {
+    const seen = new Set<string>();
+    return (orders || []).filter((order) => {
+      if (seen.has(order.mealId)) return false;
+      seen.add(order.mealId);
+      return true;
+    }).slice(0, 3);
+  }, [orders]);
 
   const handleReorderFromFavorite = async (meal: typeof favorites[0]) => {
     if (!meal) return;
@@ -84,7 +90,7 @@ export default function BuyerDashboardScreen() {
           />
           <View testID="buyer-dashboard-header" style={styles.header}> 
             <Text style={styles.title}>Your Dashboard</Text>
-            <Text style={styles.subtitle}>Purchases, favorites, and shipping details</Text>
+            <Text style={styles.subtitle}>Orders, favorites, and pickup</Text>
           </View>
         </View>
         <ScrollView
@@ -94,32 +100,37 @@ export default function BuyerDashboardScreen() {
 
           <View style={[styles.section, styles.firstSection]}>
             <Text testID="recent-purchases-title" style={styles.sectionTitle}>Recent Purchases</Text>
+            {purchases.length === 0 ? (
+              <Text style={[styles.emptySubtext, { paddingHorizontal: 24 }]}>Your orders will show up here.</Text>
+            ) : (
             <HorizontalCarousel contentContainerStyle={styles.horizontal}>
-              {purchases.map(m => (
+              {purchases.map(order => (
                 <TouchableOpacity 
-                  key={`p-${m.id}`} 
+                  key={`p-${order.id}`} 
                   style={styles.card}
                   onPress={() => {
                     try {
-                      router.push(`/meal/${m.id}` as const);
+                      router.push(`/order/${order.id}` as const);
                     } catch (error) {
-                      console.error('[buyer-dashboard] Error navigating to meal:', error);
+                      console.error('[buyer-dashboard] Error navigating to order:', error);
                     }
                   }}
                 >
-                  <Image source={{ uri: m.images[0] }} style={styles.cardImage} />
+                  {order.mealImage ? (
+                    <Image source={{ uri: order.mealImage }} style={styles.cardImage} />
+                  ) : (
+                    <View style={styles.cardImage} />
+                  )}
                   <View style={styles.cardContent}>
-                    <Text style={styles.cardTitle} numberOfLines={1}>{m.name}</Text>
+                    <Text style={styles.cardTitle} numberOfLines={1}>{order.mealName}</Text>
                     <View style={styles.row}>
-                      <Ionicons name="time-outline" size={14} color={Colors.gray[500]} />
-                      <Text style={styles.meta}>{m.preparationTime} min</Text>
-                      <Ionicons name="location-outline" size={14} color={Colors.gray[500]} />
-                      <Text style={styles.meta}>2.1 mi</Text>
+                      <Text style={styles.meta}>{order.status}</Text>
                     </View>
                   </View>
                 </TouchableOpacity>
               ))}
             </HorizontalCarousel>
+            )}
           </View>
 
         <View style={styles.section}>
@@ -181,15 +192,48 @@ export default function BuyerDashboardScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Shipping Details</Text>
+          <Text style={styles.sectionTitle}>Pickup</Text>
           <View style={styles.cardWide}>
-            <Text style={styles.label}>Default Address</Text>
-            <Text style={styles.value}>123 Main St, Brooklyn, NY 11211</Text>
-            <TouchableOpacity style={styles.editButton}>
-              <Text style={styles.editText}>Edit</Text>
-            </TouchableOpacity>
+            <Text style={styles.label}>How you get the plate</Text>
+            <Text style={styles.value}>Plates are picked up from your cook. Open an order to see the pickup time and message them.</Text>
           </View>
         </View>
+
+          <TouchableOpacity
+            style={styles.farmCard}
+            onPress={() => router.push('/farm-grown-basket' as Href)}
+            testID="buyer-farm-grown-basket"
+          >
+            <Text style={styles.farmTitle}>FarmGrownBasket</Text>
+            <Text style={styles.farmBody}>Farm goods, CSA shares, and cottage foods. They do not appear in your plate orders.</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.truckCard}
+            onPress={() => router.push('/food-truck-popup' as Href)}
+            testID="buyer-food-truck-popup"
+          >
+            <Text style={styles.farmTitle}>FoodTruckPopup</Text>
+            <Text style={styles.farmBody}>Order ahead from a truck and pick it up at the window. These tickets are not plate orders.</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.caterCard}
+            onPress={() => router.push('/cater-event-delivered' as Href)}
+            testID="buyer-cater-event-delivered"
+          >
+            <Text style={styles.farmTitle}>CaterEventDelivered</Text>
+            <Text style={styles.farmBody}>Group packages for an office, clinic, or event. The company drops off and sets up. These orders are not plate orders.</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.sitCard}
+            onPress={() => router.push('/sit-down-delicious' as Href)}
+            testID="buyer-sit-down-delicious"
+          >
+            <Text style={styles.farmTitle}>SitDownDelicious</Text>
+            <Text style={styles.farmBody}>Independent coffee, yogurt, ice cream, and small restaurants. Sit down or take out. These orders are not plate orders.</Text>
+          </TouchableOpacity>
 
           <View style={styles.bottomSpacer} />
         </ScrollView>
@@ -225,6 +269,44 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 16, fontWeight: '600', color: Colors.gray[700], marginTop: 16 },
   emptySubtext: { fontSize: 14, color: Colors.gray[500], marginTop: 8, textAlign: 'center' },
   bottomSpacer: { height: 24 },
+  farmCard: {
+    marginHorizontal: 24,
+    marginBottom: 16,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  farmTitle: { fontSize: 16, fontWeight: '700', color: Colors.gray[900] },
+  farmBody: { fontSize: 14, color: Colors.gray[600], marginTop: 6, lineHeight: 20 },
+  truckCard: {
+    marginHorizontal: 24,
+    marginBottom: 16,
+    backgroundColor: '#FFF7ED',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+  },
+  caterCard: {
+    marginHorizontal: 24,
+    marginBottom: 16,
+    backgroundColor: '#F5F3FF',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+  },
+  sitCard: {
+    marginHorizontal: 24,
+    marginBottom: 16,
+    backgroundColor: '#FFFBEB',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
   reorderButton: {
     marginTop: 8,
     borderRadius: 8,

@@ -97,7 +97,7 @@ export const subscribeProcedure = protectedProcedure
     // Get user profile
     const { data: profile, error: profileError } = await ctx.supabase
       .from('profiles')
-      .select('id, email, username, role, location, metro_area, trial_ends_at, stripe_customer_id, stripe_subscription_id')
+      .select('id, email, username, role, location, metro_area, trial_ends_at, stripe_customer_id, stripe_subscription_id, membership_tier')
       .eq('id', ctx.userId)
       .single();
 
@@ -127,7 +127,7 @@ export const subscribeProcedure = protectedProcedure
     }
 
     // Check if email/username is already tied to another membership
-    const { data: existingMembership } = await supabaseAdmin
+    const { data: existingMembership } = await ctx.supabaseAdmin
       .from('profiles')
       .select('id, email, username')
       .or(`email.eq.${profile.email},username.eq.${profile.username}`)
@@ -141,7 +141,7 @@ export const subscribeProcedure = protectedProcedure
     }
 
     // Get promotion config
-    const { data: config, error: configError } = await supabaseAdmin
+    const { data: config, error: configError } = await ctx.supabaseAdmin
       .from('promotion_configs')
       .select('*')
       .eq('promo_name', 'EARLY_BIRD')
@@ -200,9 +200,10 @@ export const subscribeProcedure = protectedProcedure
           // Use ctx.supabaseAdmin (service role) ONLY for writes - this is a system operation
           await ctx.supabaseAdmin
             .from('metro_area_counts')
-            .insert({ metro_name: metroName, platemaker_count: 0, platetaker_count: 0 })
-            .onConflict('metro_name')
-            .merge();
+            .upsert(
+              { metro_name: metroName, platemaker_count: 0, platetaker_count: 0 },
+              { onConflict: 'metro_name' }
+            );
 
           // Retry the query using anon key (read operation)
           const { data: retryCounts } = await ctx.supabase
@@ -340,8 +341,9 @@ export const subscribeProcedure = protectedProcedure
     }
 
     // Determine Early Bird status and get appropriate price ID
-    const isEarlyBird = trialDays > 0 && metroName && metroName !== 'Remote/Other';
-    const membershipTier = trialDays > 0 ? 'premium' : (profile.membership_tier || 'free');
+    const isEarlyBird = trialDays > 0 && !!metroName && metroName !== 'Remote/Other';
+    const membershipTier: 'premium' | 'free' =
+      trialDays > 0 || profile.membership_tier === 'premium' ? 'premium' : 'free';
     const priceId = getStripePriceId(membershipTier, isEarlyBird);
 
     // Create subscription

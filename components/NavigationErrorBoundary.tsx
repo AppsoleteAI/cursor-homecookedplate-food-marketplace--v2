@@ -18,13 +18,15 @@ interface State {
 }
 
 export class NavigationErrorBoundary extends Component<Props, State> {
-  private retryTimeout: NodeJS.Timeout | null = null;
+  private retryTimeout: ReturnType<typeof setTimeout> | null = null;
   
   constructor(props: Props) {
     super(props);
     this.state = { 
-      hasError: false, 
+      hasError: false,
+      error: null,
       retryCount: 0,
+      shouldRetry: false,
     };
   }
 

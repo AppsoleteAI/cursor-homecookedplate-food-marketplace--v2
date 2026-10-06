@@ -8,7 +8,7 @@ Run these commands to verify your secrets are properly configured:
 
 ```bash
 # Set your access token (replace with your actual token)
-export SUPABASE_ACCESS_TOKEN=sbp_c675d3f70db7cfe9cddc8d2c49c10484458ee5ec
+export SUPABASE_ACCESS_TOKEN=sbp_your_token_here
 
 # List all secrets and filter for Stripe/Subscription related ones
 npx supabase secrets list --project-ref tsrjtiunqbocmjgozeew | grep -E "(STRIPE_PRICE_ID|SUBSCRIPTION_PRICE|STRIPE_SECRET)"

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, monoGradients } from '@/constants/colors';
 import { MealCard } from '@/components/MealCard';
-import { mockMeals } from '@/mocks/data';
+import { trpc } from '@/lib/trpc';
+import type { Meal } from '@/types';
 import { useRouter } from 'expo-router';
 
 export default function SearchScreen() {
@@ -50,12 +51,41 @@ export default function SearchScreen() {
     router.push('/filter');
   }, [router]);
 
-  const filteredMeals = mockMeals.filter(meal => {
-    if (!isSearchActive) return true;
-    const matchesSearch = meal.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      meal.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSearch;
-  });
+  const { data: mealsData, isLoading, error } = trpc.meals.list.useQuery();
+  const meals: Meal[] = useMemo(() => {
+    return (mealsData || []).map((meal) => ({
+      id: meal.id,
+      plateMakerId: meal.plateMakerId,
+      plateMakerName: meal.plateMakerName,
+      name: meal.name,
+      description: meal.description,
+      price: meal.price,
+      images: meal.images || [],
+      ingredients: meal.ingredients || [],
+      cuisine: meal.cuisine,
+      category: meal.category as Meal['category'],
+      dietaryOptions: meal.dietaryOptions || [],
+      preparationTime: meal.preparationTime,
+      available: meal.available,
+      rating: meal.rating,
+      reviewCount: meal.reviewCount,
+      featured: meal.featured || false,
+      tags: meal.tags || [],
+    }));
+  }, [mealsData]);
+
+  const filteredMeals = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!isSearchActive || !query) return meals;
+    return meals.filter((meal) => {
+      const diet = (meal.dietaryOptions || []).join(' ').toLowerCase();
+      return meal.name.toLowerCase().includes(query)
+        || meal.description.toLowerCase().includes(query)
+        || meal.cuisine.toLowerCase().includes(query)
+        || meal.plateMakerName.toLowerCase().includes(query)
+        || diet.includes(query);
+    });
+  }, [meals, searchQuery, isSearchActive]);
 
   return (
     <View style={styles.container}>
@@ -75,7 +105,7 @@ export default function SearchScreen() {
                 </TouchableOpacity>
                 <TextInput
                   style={styles.searchInput}
-                  placeholder="Search for meals..."
+                  placeholder="Meals, cooks, or cuisines"
                   placeholderTextColor={Colors.gray[200]}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
@@ -118,7 +148,7 @@ export default function SearchScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         <Text style={styles.resultCount}>
-          {filteredMeals.length} meals found
+          {isLoading ? 'Loading plates' : error ? 'Could not load plates' : `${filteredMeals.length} meals found`}
         </Text>
         <View style={styles.mealGrid}>
           {filteredMeals.map(meal => (

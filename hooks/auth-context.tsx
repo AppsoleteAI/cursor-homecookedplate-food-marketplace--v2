@@ -1,6 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { clearLoginLegalBox } from '@/lib/legal-agreement';
 // Import expo-secure-store with platform-specific shim for web compatibility
 // Metro will automatically resolve to lib/expo-secure-store.web.ts on web platform
 import * as SecureStore from '@/lib/expo-secure-store';
@@ -54,7 +55,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const requestPlatemakerRoleMutation = trpc.auth.requestPlatemakerRole.useMutation();
   const resetPasswordMutation = trpc.auth.resetPassword.useMutation();
   const reactivateAccountMutation = trpc.auth.reactivateAccount.useMutation();
-  const { data: meData, refetch: refetchMe, error: meError, isLoading: meLoading } = trpc.auth.me.useQuery(undefined, {
+  const deleteAccountMutation = trpc.auth.deleteAccount.useMutation();
+  const { data: meData, refetch: refetchMe } = trpc.auth.me.useQuery(undefined, {
     enabled: !!session,
     retry: false,
   });
@@ -199,7 +201,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           SecureStore.deleteItemAsync(SESSION_KEY).catch(() => {}), // Graceful cleanup
           AsyncStorage.removeItem(STORAGE_KEY),
         ]);
-      } catch (cleanupError) {
+      } catch {
         // Ignore cleanup errors
       }
     } finally {
@@ -481,6 +483,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, [signupMutation, persistUser, persistSession]);
 
   const logout = useCallback(async () => {
+    clearLoginLegalBox();
     try {
       await logoutMutation.mutateAsync();
     } catch (error) {
@@ -564,11 +567,24 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, [user, persistUser]);
 
   const deleteAccount = useCallback(async () => {
-    if (mountedRef.current) {
-      setUser(null);
+    try {
+      // Server-side: cancel Stripe, delete media, anonymize messages,
+      // delete meals/reviews, then delete the Supabase Auth user.
+      // Required by Apple Guideline 5.1.1(v) and applicable privacy law.
+      await deleteAccountMutation.mutateAsync(undefined);
+    } catch (err) {
+      console.error('[deleteAccount] Server-side deletion failed:', err);
+      // Surface the error to the caller so the UI can inform the user
+      throw err;
+    } finally {
+      // Always clear local state regardless of server outcome
+      if (mountedRef.current) {
+        setUser(null);
+      }
+      await persistUser(null);
+      await SecureStore.deleteItemAsync('lifetime_binding_token').catch(() => {});
     }
-    await persistUser(null);
-  }, [persistUser]);
+  }, [deleteAccountMutation, persistUser]);
 
   const setTwoFactorEnabled = useCallback(async (enabled: boolean) => {
     if (!mountedRef.current || !user) return;
@@ -616,7 +632,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   const resetPassword = useCallback(async (email: string) => {
     try {
-      const result = await resetPasswordMutation.mutateAsync({ email });
+      await resetPasswordMutation.mutateAsync({ email });
       addBreadcrumb('Password reset requested', 'auth', { email });
       // The mutation always returns success for security (doesn't reveal if email exists)
       // We can show the message to the user
@@ -629,7 +645,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   const reactivateAccount = useCallback(async (email: string) => {
     try {
-      const result = await reactivateAccountMutation.mutateAsync({ email });
+      await reactivateAccountMutation.mutateAsync({ email });
       addBreadcrumb('Account reactivation requested', 'auth', { email });
       // The mutation returns success/error message
       return;

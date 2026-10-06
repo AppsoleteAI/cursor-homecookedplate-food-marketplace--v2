@@ -18,7 +18,7 @@ import { Colors, monoGradients } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
 
 
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect , type Href } from 'expo-router';
 
 import { useOrders } from '@/hooks/orders-context';
 import { useAuth } from '@/hooks/auth-context';
@@ -73,6 +73,21 @@ export default function DashboardScreen() {
     }, [refresh, user?.role])
   );
 
+  // Use backend stats if available (take-home values), fallback to frontend calculations
+  const stats = useMemo(() => {
+    const todayTakeHome = dashboardStats.data?.todayTakeHome ?? todayEarnings;
+    const weekTakeHome = dashboardStats.data?.weekTakeHome ?? weekEarnings;
+
+    return {
+      todayEarnings: todayTakeHome,
+      weekEarnings: weekTakeHome,
+      activeOrders: activeOrdersCount,
+      totalReviews: totalReviews,
+      todayRevenue: dashboardStats.data?.todayRevenue,
+      weekRevenue: dashboardStats.data?.weekRevenue,
+    };
+  }, [todayEarnings, weekEarnings, activeOrdersCount, totalReviews, dashboardStats.data]);
+
   // Security: Never render earnings data if user role is not platemaker (guard should prevent this, but add defensive check)
   if (user?.role !== 'platemaker') {
     return null; // Defensive check - SellerOnly guard should prevent this, but safety first
@@ -104,25 +119,6 @@ export default function DashboardScreen() {
       Alert.alert('Success', 'Photo uploaded successfully!');
     }
   };
-
-  // Use backend stats if available (take-home values), fallback to frontend calculations
-  // Note: This hook is called after the early return check, but it's safe because the early return
-  // only happens if user is not platemaker, and this hook depends on data that won't exist in that case
-  const stats = useMemo(() => {
-    // Prefer backend data (accurate take-home after fees) if available
-    const todayTakeHome = dashboardStats.data?.todayTakeHome ?? todayEarnings;
-    const weekTakeHome = dashboardStats.data?.weekTakeHome ?? weekEarnings;
-    
-    return {
-      todayEarnings: todayTakeHome,
-      weekEarnings: weekTakeHome,
-      activeOrders: activeOrdersCount,
-      totalReviews: totalReviews,
-      // Include gross revenue for transparency (optional - can be shown in detail screens)
-      todayRevenue: dashboardStats.data?.todayRevenue,
-      weekRevenue: dashboardStats.data?.weekRevenue,
-    };
-  }, [todayEarnings, weekEarnings, activeOrdersCount, totalReviews, dashboardStats.data]);
 
   return (
     <SellerOnly>
@@ -174,7 +170,7 @@ export default function DashboardScreen() {
               onValueChange={(value) => {
                 toggleAvailability.mutate({ available: value });
               }}
-              disabled={toggleAvailability.isLoading}
+              disabled={toggleAvailability.isPending}
               trackColor={{ false: Colors.gray[300], true: Colors.gradient.green }}
               thumbColor={Colors.white}
             />
@@ -220,6 +216,50 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
 
+        <TouchableOpacity
+          style={styles.farmStandCard}
+          onPress={() => router.push('/farm-grown-basket/seller' as Href)}
+          testID="dashboard-farm-stand"
+        >
+          <Text style={styles.farmStandTitle}>FarmGrownBasket stand</Text>
+          <Text style={styles.farmStandText}>
+            List produce, CSA shares, and cottage foods. Farm checkout is separate from cooked plates. Confirm your state rule, test, and permit fee before a farm good goes live.
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.truckStandCard}
+          onPress={() => router.push('/food-truck-popup/seller' as Href)}
+          testID="dashboard-food-truck"
+        >
+          <Text style={styles.farmStandTitle}>FoodTruckPopup</Text>
+          <Text style={styles.farmStandText}>
+            Mark the service window open, list the truck menu, and take order-ahead pickup. A mobile-unit permit and commissary answer are required before an item goes live.
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.caterStandCard}
+          onPress={() => router.push('/cater-event-delivered/seller' as Href)}
+          testID="dashboard-cater-event"
+        >
+          <Text style={styles.farmStandTitle}>CaterEventDelivered</Text>
+          <Text style={styles.farmStandText}>
+            List per-person packages, accept group drop-offs, and see catering payouts. A commercial catering license is required before a package goes live.
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.sitStandCard}
+          onPress={() => router.push('/sit-down-delicious/seller' as Href)}
+          testID="dashboard-sit-down"
+        >
+          <Text style={styles.farmStandTitle}>SitDownDelicious</Text>
+          <Text style={styles.farmStandText}>
+            Open the dining room, list the menu, and take sit-down or takeout orders. A retail food license for that street address is required before an item goes live.
+          </Text>
+        </TouchableOpacity>
+
         {user && !user.foodSafetyAcknowledged && (
           <View style={styles.foodSafetyBanner}>
             <View style={styles.foodSafetyBannerHeader}>
@@ -238,6 +278,12 @@ export default function DashboardScreen() {
             </Text>
             <Text style={[styles.foodSafetyBannerText, { marginTop: 8, fontSize: 11, fontStyle: 'italic' }]}>
               HomeCookedPlate is not affiliated or in partnership with cottagefoodlaws.com.
+            </Text>
+            <Text
+              style={[styles.foodSafetyBannerLink, { marginBottom: 12 }]}
+              onPress={() => router.push('/kitchen-rules' as Href)}
+            >
+              Kitchen rules for cooked plates and commissary kitchens
             </Text>
             <TouchableOpacity
               style={styles.foodSafetyBannerButton}
@@ -404,6 +450,53 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.gray[600],
     textAlign: 'center',
+  },
+  farmStandCard: {
+    marginHorizontal: 24,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  farmStandTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.gray[900],
+    marginBottom: 6,
+  },
+  farmStandText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: Colors.gray[700],
+  },
+  truckStandCard: {
+    marginHorizontal: 24,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+  },
+  caterStandCard: {
+    marginHorizontal: 24,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#F5F3FF',
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+  },
+  sitStandCard: {
+    marginHorizontal: 24,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
   },
   uploadSection: {
     marginHorizontal: 24,

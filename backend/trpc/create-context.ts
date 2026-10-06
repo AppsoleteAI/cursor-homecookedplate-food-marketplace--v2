@@ -3,12 +3,15 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { z } from "zod";
 import { createServerSupabaseClient, createSupabaseAdmin } from "../lib/supabase";
+import type { CloudflareAI } from "../lib/image-security";
 
 type EnvBindings = {
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   EXPO_PUBLIC_SUPABASE_ANON_KEY?: string;
   EXPO_PUBLIC_WEB_URL?: string;
+  // Cloudflare Workers AI binding for image NSFW moderation (optional)
+  AI?: CloudflareAI;
 };
 
 /**
@@ -33,12 +36,6 @@ type EnvBindings = {
  * @returns Context object with supabase (anon), supabaseAdmin (service role), and userId
  */
 export const createContext = async (opts: FetchCreateContextFnOptions, env?: EnvBindings) => {
-  // #region agent log - HYPOTHESIS G, H: Track tRPC context creation
-  const path = opts.req.url;
-  const method = opts.req.method;
-  fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'backend/trpc/create-context.ts:CONTEXT_CREATE',message:'tRPC context created',data:{path,method,hasAuthHeader:!!opts.req.headers.get('authorization')},timestamp:Date.now(),sessionId:'debug-session',runId:'trpc-request',hypothesisId:'G,H'})}).catch(()=>{});
-  // #endregion
-  
   const authHeader = opts.req.headers.get('authorization');
   const token = authHeader?.replace('Bearer ', '');
 
@@ -80,10 +77,18 @@ export const createContext = async (opts: FetchCreateContextFnOptions, env?: Env
     supabaseAdmin, // SERVICE ROLE KEY - Use ONLY for admin/system operations (bypasses RLS)
     userId,
     webUrl: env?.EXPO_PUBLIC_WEB_URL || 'https://homecookedplate.com', // Web URL for redirects (password reset, etc.)
+    ai: env?.AI, // Cloudflare Workers AI binding — available in CF Workers, undefined in local Bun dev
   };
 };
 
 export type Context = Awaited<ReturnType<typeof createContext>>;
+
+function isUniqueViolation(cause: unknown): boolean {
+  if (!cause || typeof cause !== 'object') return false;
+  const code = 'code' in cause ? cause.code : undefined;
+  const message = 'message' in cause && typeof cause.message === 'string' ? cause.message : '';
+  return code === '23505' || message.includes('UNIQUE constraint failed');
+}
 
 const t = initTRPC.context<Context>().create({
   transformer: superjson,
@@ -92,7 +97,7 @@ const t = initTRPC.context<Context>().create({
 
     // 1. Handle Zod Validation Errors (like the password rules)
     if (error.code === 'BAD_REQUEST' && error.cause instanceof z.ZodError) {
-      const fieldErrors = error.cause.flatten().fieldErrors;
+      const fieldErrors = error.cause.flatten().fieldErrors as Partial<Record<string, string[]>>;
       message = fieldErrors.password?.[0] 
                 || fieldErrors.email?.[0]
                 || fieldErrors.username?.[0]
@@ -100,8 +105,8 @@ const t = initTRPC.context<Context>().create({
     }
     // 2. Handle Unique DB Constraints (PostgreSQL error code 23505)
     // Check both error code (more reliable) and message (for field-specific messages)
-    else if (error.cause?.code === '23505' || error.cause?.message?.includes('UNIQUE constraint failed')) {
-      const errorMessage = error.cause.message || '';
+    else if (isUniqueViolation(error.cause)) {
+      const errorMessage = error.cause?.message || '';
       if (errorMessage.includes('email') || errorMessage.includes('users.email') || errorMessage.includes('profiles.email')) {
         message = "That email is already registered.";
       } else if (errorMessage.includes('username') || errorMessage.includes('users.username') || errorMessage.includes('profiles.username')) {
@@ -147,8 +152,6 @@ const isAuthenticated = t.middleware(async ({ ctx, next }) => {
     });
   }
 
-  const token = authHeader.split(' ')[1];
-  
   // Verify the JWT token using Supabase (already done in context, but we double-check)
   // The token was verified in createContext() via supabase.auth.getUser(token)
   // If userId is not set, it means the token verification failed

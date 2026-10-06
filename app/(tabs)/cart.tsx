@@ -11,19 +11,19 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router , type Href } from 'expo-router';
 import { Colors, monoGradients } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
 import { useCart } from '@/hooks/cart-context';
+import { calculateOrderSplit } from '@/lib/fees';
 
 export default function CartScreen() {
   const { items, totalPrice, updateQuantity, removeFromCart } = useCart();
   const insets = useSafeAreaInsets();
 
-  const serviceFee = totalPrice * 0.15;
-  const stripeFee = totalPrice * 0.029 + 0.30;
-  const deliveryFee = 5.99;
-  const finalTotal = totalPrice + serviceFee + stripeFee + deliveryFee;
+  const split = calculateOrderSplit(totalPrice);
+  const serviceFee = split.totalCaptured - totalPrice;
+  const finalTotal = split.totalCaptured;
 
   if (items.length === 0) {
     return (
@@ -32,6 +32,18 @@ export default function CartScreen() {
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyTitle}>Your cart is empty</Text>
             <Text style={styles.emptyText}>Add some delicious meals to get started!</Text>
+            <TouchableOpacity onPress={() => router.push('/farm-grown-basket' as Href)} testID="empty-cart-farm">
+              <Text style={styles.farmLinkDark}>Looking for farm goods? Open FarmGrownBasket.</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/food-truck-popup' as Href)} testID="empty-cart-truck">
+              <Text style={styles.farmLinkDark}>Looking for a food truck? Open FoodTruckPopup.</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/cater-event-delivered' as Href)} testID="empty-cart-cater">
+              <Text style={styles.farmLinkDark}>Ordering for a group? Open CaterEventDelivered.</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/sit-down-delicious' as Href)} testID="empty-cart-sit">
+              <Text style={styles.farmLinkDark}>Looking for a local restaurant? Open SitDownDelicious.</Text>
+            </TouchableOpacity>
             <GradientButton
               title="Browse Meals"
               onPress={() => router.push('/(tabs)/(home)/home')}
@@ -55,6 +67,18 @@ export default function CartScreen() {
           >
             <View style={styles.headerInner}>
               <Text style={styles.headerTitle}>Your Cart</Text>
+              <TouchableOpacity onPress={() => router.push('/farm-grown-basket/basket' as Href)} testID="cart-farm-basket">
+                <Text style={styles.farmLink}>Farm goods use FarmGrownBasket</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/food-truck-popup/basket' as Href)} testID="cart-truck-basket">
+                <Text style={styles.farmLink}>Food trucks use FoodTruckPopup</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/cater-event-delivered/basket' as Href)} testID="cart-cater-basket">
+                <Text style={styles.farmLink}>Group catering uses CaterEventDelivered</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/sit-down-delicious/basket' as Href)} testID="cart-sit-basket">
+                <Text style={styles.farmLink}>Restaurants use SitDownDelicious</Text>
+              </TouchableOpacity>
             </View>
           </LinearGradient>
         </View>
@@ -108,19 +132,11 @@ export default function CartScreen() {
           </View>
           
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Service Fee (15%)</Text>
+            <Text style={styles.summaryLabel}>Service fee (10%)</Text>
             <Text style={styles.summaryValue}>${serviceFee.toFixed(2)}</Text>
           </View>
-          
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Processing Fee</Text>
-            <Text style={styles.summaryValue}>${stripeFee.toFixed(2)}</Text>
-          </View>
-          
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Delivery Fee</Text>
-            <Text style={styles.summaryValue}>${deliveryFee.toFixed(2)}</Text>
-          </View>
+
+          <Text style={styles.summaryNote}>Pickup from your cook. No delivery fee is added.</Text>
           
           <View style={styles.divider} />
           
@@ -185,6 +201,17 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     color: Colors.white,
+  },
+  farmLink: {
+    color: Colors.white,
+    marginTop: 6,
+    fontWeight: '600',
+  },
+  farmLinkDark: {
+    color: '#166534',
+    marginTop: 12,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   scrollContentWithHeader: {
     paddingTop: 120,
@@ -303,6 +330,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: Colors.gray[900],
+  },
+  summaryNote: {
+    fontSize: 13,
+    color: Colors.gray[500],
+    marginBottom: 4,
   },
   divider: {
     height: 1,

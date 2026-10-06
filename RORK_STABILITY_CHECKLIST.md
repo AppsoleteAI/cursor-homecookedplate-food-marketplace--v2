@@ -312,6 +312,16 @@ Before committing navigation changes, verify:
 - [ ] Web platform uses `NavigationContainer` with `independent: true`
 - [ ] Native platform does NOT use manual `NavigationContainer`
 
+## Tunnel URL Checklist
+
+Before sharing a tunnel URL with a device or collaborator:
+
+- [ ] URL was copied from the Metro terminal `Tunnel ready` line — NOT from `http://localhost:4040/api/tunnels`
+- [ ] `curl -s https://<url>/status` returns `{"status":"packager-status:running"}`
+- [ ] `lsof -i :8081` shows exactly one Metro process and it belongs to this project
+
+See `NGROK_TUNNEL_VERIFICATION.md` for the full incident record and protocol.
+
 ---
 
 ## Related Documentation
@@ -319,3 +329,5 @@ Before committing navigation changes, verify:
 - `docs/NAVIGATION_FIXES_SUMMARY.md` - Detailed analysis of navigation issues and fixes
 - `lib/nav-logger.ts` - Navigation logging utility
 - `components/NavigationErrorBoundary.tsx` - Error boundary with Sentry integration
+- `NGROK_TUNNEL_VERIFICATION.md` - Ngrok tunnel URL verification protocol (multi-app machines)
+- `METRO_CONNECTION_FIX.md` - Metro bundler connectivity troubleshooting

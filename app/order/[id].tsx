@@ -77,6 +77,29 @@ export default function OrderDetailsPage() {
         </View>
         <View style={styles.section}>
           <Text style={styles.title}>Status</Text>
+          {order.status === 'cancelled' ? (
+            <Text style={[styles.value, { color: Colors.error }]}>Cancelled</Text>
+          ) : (
+            <View style={styles.stageRow}>
+              {(['pending', 'accepted', 'preparing', 'ready', 'completed'] as const).map((stage, index, stages) => {
+                const current = stages.indexOf(order.status as typeof stage);
+                const reached = current >= index;
+                const labels: Record<typeof stage, string> = {
+                  pending: 'Confirming',
+                  accepted: 'Accepted',
+                  preparing: 'Preparing',
+                  ready: 'Ready',
+                  completed: 'Done',
+                };
+                return (
+                  <View key={stage} style={styles.stageItem}>
+                    <View style={[styles.stageDot, reached && styles.stageDotReached]} />
+                    <Text style={[styles.stageLabel, reached && styles.stageLabelReached]}>{labels[stage]}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
           <View style={styles.statusRow}>
             <Text style={styles.value}>{order.status}</Text>
             {isActive ? (
@@ -157,7 +180,13 @@ const styles = StyleSheet.create({
   sectionHalf: { flex: 1 },
   title: { fontSize: 12, color: Colors.gray[500], textTransform: 'uppercase' as const, fontWeight: '700' as const },
   value: { fontSize: 16, color: Colors.gray[900], marginTop: 4 },
-  statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+  stageRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
+  stageItem: { alignItems: 'center', flex: 1 },
+  stageDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: Colors.gray[300], marginBottom: 6 },
+  stageDotReached: { backgroundColor: Colors.gradient.green },
+  stageLabel: { fontSize: 10, color: Colors.gray[500], textAlign: 'center' },
+  stageLabelReached: { color: Colors.gray[900], fontWeight: '700' },
   completeBtn: { backgroundColor: Colors.gradient.green, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
   completeBtnText: { color: Colors.white, fontWeight: '700' as const },
   badge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, overflow: 'hidden' as const },

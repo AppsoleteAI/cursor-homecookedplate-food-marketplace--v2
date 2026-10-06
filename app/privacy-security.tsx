@@ -16,8 +16,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
-import { Lock, Eye, Shield, Trash2, Download, ChevronRight, Pause, AlertTriangle, X } from 'lucide-react-native';
+import { Lock, Eye, Shield, Trash2, Download, ChevronRight, Pause, AlertTriangle, X, ExternalLink } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '@/constants/urls';
 import { useAuth } from '@/hooks/auth-context';
 
 
@@ -282,6 +283,44 @@ export default function PrivacySecurityScreen() {
                 thumbColor={Colors.white}
               />
             </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Legal Documents</Text>
+
+            <TouchableOpacity
+              testID="btn-privacy-policy"
+              style={styles.actionItem}
+              onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+            >
+              <View style={styles.settingLeft}>
+                <View style={styles.iconContainer}>
+                  <ExternalLink size={20} color={Colors.gradient.green} />
+                </View>
+                <View style={styles.settingText}>
+                  <Text style={styles.settingTitle}>Privacy Policy</Text>
+                  <Text style={styles.settingDescription}>How we collect and use your data</Text>
+                </View>
+              </View>
+              <ChevronRight size={20} color={Colors.gray[400]} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              testID="btn-terms"
+              style={styles.actionItem}
+              onPress={() => Linking.openURL(TERMS_OF_SERVICE_URL)}
+            >
+              <View style={styles.settingLeft}>
+                <View style={styles.iconContainer}>
+                  <ExternalLink size={20} color={Colors.gradient.green} />
+                </View>
+                <View style={styles.settingText}>
+                  <Text style={styles.settingTitle}>Terms of Service</Text>
+                  <Text style={styles.settingDescription}>Rules governing use of the platform</Text>
+                </View>
+              </View>
+              <ChevronRight size={20} color={Colors.gray[400]} />
+            </TouchableOpacity>
           </View>
 
           <View style={styles.section}>

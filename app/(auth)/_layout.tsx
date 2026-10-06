@@ -15,6 +15,20 @@ export default function AuthLayout() {
           gestureEnabled: true,
         }} 
       />
+      <Stack.Screen
+        name="welcome"
+        options={{
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen
+        name="onboarding"
+        options={{
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
       <Stack.Screen 
         name="recover" 
         options={{ 

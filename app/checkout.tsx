@@ -20,21 +20,20 @@ import Animated, {
   interpolate,
   Easing,
   runOnJS,
-/* eslint-disable import/no-unresolved */
 } from 'react-native-reanimated';
-/* eslint-enable import/no-unresolved */
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/hooks/auth-context';
 import { Colors, monoGradients } from '@/constants/colors';
 import { trpc } from '@/lib/trpc';
 import { useCart } from '@/hooks/cart-context';
+import { calculateOrderSplit } from '@/lib/fees';
 import { CartItem } from '@/types';
 
 import { ScheduleTimePicker } from '@/components/ScheduleTimePicker';
 
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter , type Href } from 'expo-router';
 
 import { useStripe } from '@/lib/stripe';
 type ConfettiBurstProps = { headerOffset: number; onEnd: () => void };
@@ -173,7 +172,7 @@ function ConfettiBurst({ headerOffset, onEnd }: ConfettiBurstProps) {
 
   useEffect(() => {
     // Track when all animations finish (worklet function)
-    const checkFinished = (finished: boolean) => {
+    const checkFinished = (finished?: boolean) => {
       'worklet';
       if (finished) {
         finishedCount.value += 1;
@@ -204,7 +203,9 @@ function ConfettiBurst({ headerOffset, onEnd }: ConfettiBurstProps) {
         })
       );
     });
-  }, [particles, onEnd, anims, finishedCount]);
+    // anims is a fresh array of stable shared values; including it would restart the burst every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [particles, onEnd, finishedCount]);
 
   return (
     <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: headerOffset, bottom: 0, zIndex: 9 }} testID="confetti-overlay">
@@ -259,6 +260,7 @@ function CongratsFlash({ visible, footerOffset, onEnd }: CongratsFlashProps) {
 
 export default function CheckoutScreen() {
   const { items, clearCart, totalPrice, updatePickupTime, updateSpecialInstructions, updateAllergies, updateCookingTemperature } = useCart();
+  const checkoutSplit = calculateOrderSplit(totalPrice || 0);
   const { user } = useAuth();
   const [accepted, setAccepted] = useState<boolean>(false);
   const [showThankYou, setShowThankYou] = useState<boolean>(false);
@@ -464,17 +466,37 @@ export default function CheckoutScreen() {
             <Text style={styles.sectionTitle}>Payment Method</Text>
             <View style={styles.paymentCard}>
               <View style={styles.paymentRow}>
-                <Text style={styles.paymentLabel}>Total Amount:</Text>
+                <Text style={styles.paymentLabel}>Plate subtotal</Text>
+                <Text style={styles.paymentInfo}>${totalPrice.toFixed(2)}</Text>
+              </View>
+              <View style={styles.paymentRow}>
+                <Text style={styles.paymentLabel}>Service fee (10%)</Text>
+                <Text style={styles.paymentInfo}>${(checkoutSplit.totalCaptured - totalPrice).toFixed(2)}</Text>
+              </View>
+              <View style={styles.paymentRow}>
+                <Text style={styles.paymentLabel}>You pay</Text>
                 <LinearGradient
                   colors={monoGradients.gold}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.priceGradient}
                 >
-                  <Text style={styles.paymentAmount}>${totalPrice.toFixed(2)}</Text>
+                  <Text style={styles.paymentAmount}>${checkoutSplit.totalCaptured.toFixed(2)}</Text>
                 </LinearGradient>
               </View>
-              <Text style={styles.paymentInfo}>Payment will be processed securely via Stripe</Text>
+              <Text style={styles.paymentInfo}>Pickup from your cook. Stripe charges the total above, which includes the 10% service fee.</Text>
+              <TouchableOpacity onPress={() => router.push('/farm-grown-basket/checkout' as Href)} testID="checkout-farm-link">
+                <Text style={styles.farmCheckoutLink}>Farm, garden, and cottage foods check out in FarmGrownBasket. They are not in this plate order.</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/food-truck-popup/checkout' as Href)} testID="checkout-truck-link">
+                <Text style={styles.farmCheckoutLink}>Food truck order-ahead checks out in FoodTruckPopup. Pickup is at the service window.</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/cater-event-delivered/checkout' as Href)} testID="checkout-cater-link">
+                <Text style={styles.farmCheckoutLink}>Group catering checks out in CaterEventDelivered. The company drops off and sets up.</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/sit-down-delicious/checkout' as Href)} testID="checkout-sit-link">
+                <Text style={styles.farmCheckoutLink}>Independent restaurants check out in SitDownDelicious. Sit down or take out at the shop.</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -678,6 +700,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.gray[500],
     fontStyle: 'italic',
+  },
+  farmCheckoutLink: {
+    marginTop: 10,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#166534',
+    fontWeight: '600',
   },
   footer: {
     padding: 24,

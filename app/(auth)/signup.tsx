@@ -8,24 +8,23 @@ import {
   Platform,
   ScrollView,
   TouchableOpacity,
-  Alert,
   Modal,
   Switch,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
-import { router } from 'expo-router';
-import { Colors } from '@/constants/colors';
-import { GradientButton } from '@/components/GradientButton';
+import { router, useLocalSearchParams , type Href } from 'expo-router';
+import { AuthGreen } from '@/constants/auth-palette';
+import { AuthGoldButton } from '@/components/auth/AuthChrome';
 import { MetroProgressBar } from '@/components/Registration/MetroProgressBar';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 import { useSignupForm } from '@/hooks/useSignupForm';
-import { trpc } from '@/lib/trpc';
 
 export default function SignupScreen() {
+  const params = useLocalSearchParams<{ role?: string | string[] }>();
+  const roleParam = typeof params.role === 'string' ? params.role : undefined;
   // Local UI state (not part of form logic)
   const [showSuccessModal] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -47,7 +46,6 @@ export default function SignupScreen() {
     handleSignup,
     isLoading: loading,
     isSigningUp,
-    signupUserRole,
     error,
     retryCount,
   } = useSignupForm({
@@ -70,19 +68,21 @@ export default function SignupScreen() {
     WebBrowser.maybeCompleteAuthSession();
   }, []);
 
+  useEffect(() => {
+    if (roleParam === 'platetaker' || roleParam === 'platemaker') {
+      setFormData((current) => ({ ...current, role: roleParam }));
+    }
+  }, [roleParam, setFormData]);
+
   // Show success message during signup
   // Don't auto-redirect - let auth context handle navigation if session was created
   // If no session, user can manually navigate to login
   if (isSigningUp) {
     return (
       <View style={styles.container}>
-        <LinearGradient
-          colors={[Colors.white, Colors.gray[50]]}
-          style={StyleSheet.absoluteFillObject}
-        />
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.successContainer}>
-            <Ionicons name="checkmark-circle" size={80} color={Colors.gradient.green} />
+            <Ionicons name="checkmark-circle" size={80} color={AuthGreen.gold} />
             <Text style={styles.successTitle}>Account Created!</Text>
             <Text style={styles.successText}>You can now sign in to your account.</Text>
             <TouchableOpacity
@@ -100,10 +100,6 @@ export default function SignupScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={[Colors.white, Colors.gray[50]]}
-        style={StyleSheet.absoluteFillObject}
-      />
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -130,7 +126,7 @@ export default function SignupScreen() {
                   <Ionicons
                     name="bag-outline"
                     size={20}
-                    color={formData.role === 'platetaker' ? Colors.white : Colors.gray[600]}
+                    color={formData.role === 'platetaker' ? AuthGreen.ink : AuthGreen.gold}
                   />
                   <Text
                     style={[
@@ -153,7 +149,7 @@ export default function SignupScreen() {
                   <Ionicons
                     name="restaurant-outline"
                     size={20}
-                    color={formData.role === 'platemaker' ? Colors.white : Colors.gray[600]}
+                    color={formData.role === 'platemaker' ? AuthGreen.ink : AuthGreen.gold}
                   />
                   <Text
                     style={[
@@ -171,27 +167,27 @@ export default function SignupScreen() {
             <View style={styles.membershipContainer}>
               <View style={styles.membershipHeader}>
                 <View style={styles.membershipInfo}>
-                  <Ionicons name="star" size={20} color={Colors.gradient.darkGold} />
+                  <Ionicons name="star" size={20} color={AuthGreen.goldDeep} />
                   <Text style={styles.membershipTitle}>Enroll in HomeCooked Premium</Text>
                 </View>
                 <Switch
                   value={isMembershipEnabled}
                   onValueChange={handleToggleMembership}
-                  trackColor={{ false: Colors.gray[300], true: Colors.gradient.yellow[1] }}
-                  thumbColor={isMembershipEnabled ? Colors.gradient.darkGold : Colors.gray[500]}
+                  trackColor={{ false: '#3D5C52', true: AuthGreen.gold }}
+                  thumbColor={isMembershipEnabled ? AuthGreen.cream : AuthGreen.muted}
                   disabled={checkingEligibility}
                 />
               </View>
               {checkingEligibility && (
                 <View style={styles.eligibilityLoading}>
-                  <ActivityIndicator size="small" color={Colors.gradient.darkGold} />
+                  <ActivityIndicator size="small" color={AuthGreen.gold} />
                   <Text style={styles.eligibilityLoadingText}>Checking eligibility...</Text>
                 </View>
               )}
               {isEligibleForTrial && trialMeta && trialMeta.metro && !checkingEligibility && (
                 <View style={styles.progressBarContainer}>
                   <View style={styles.eligibilityMessage}>
-                    <Ionicons name="checkmark-circle" size={20} color={Colors.gradient.green} />
+                    <Ionicons name="checkmark-circle" size={20} color={AuthGreen.gold} />
                     <Text style={styles.eligibilityText}>
                       Congrats! You qualify for Early Bird trial in {trialMeta.metro}!
                     </Text>
@@ -205,7 +201,7 @@ export default function SignupScreen() {
               )}
               {isMembershipEnabled && !isEligibleForTrial && !checkingEligibility && trialMeta === null && (
                 <View style={styles.eligibilityMessage}>
-                  <Ionicons name="information-circle" size={20} color={Colors.gray[500]} />
+                  <Ionicons name="information-circle" size={20} color={AuthGreen.gold} />
                   <Text style={styles.eligibilityTextNeutral}>
                     Premium membership: $4.99/month after trial
                   </Text>
@@ -213,7 +209,7 @@ export default function SignupScreen() {
               )}
               {isMembershipEnabled && !isEligibleForTrial && trialMeta && !checkingEligibility && (
                 <View style={styles.eligibilityMessage}>
-                  <Ionicons name="close-circle" size={20} color={Colors.gray[500]} />
+                  <Ionicons name="close-circle" size={20} color={AuthGreen.muted} />
                   <Text style={styles.eligibilityTextNeutral}>
                     {trialMeta.metro ? `All spots taken in ${trialMeta.metro}` : 'Not eligible for trial in your area'}
                   </Text>
@@ -223,12 +219,11 @@ export default function SignupScreen() {
 
             <View style={styles.formContainer}>
               <View style={styles.inputContainer}>
-                <Ionicons name="person-outline" size={20} color={Colors.gray[400]} />
+                <Ionicons name="person-outline" size={20} color={AuthGreen.gold} />
                 <TextInput
-                  id="username"
-                  name="username"
                   style={styles.input}
                   placeholder="Username"
+                  placeholderTextColor={AuthGreen.muted}
                   value={username}
                   onChangeText={(text) => setFormData({ ...formData, username: text })}
                   autoCapitalize="none"
@@ -240,26 +235,25 @@ export default function SignupScreen() {
               {username.length >= 3 && (
                 <View style={{ marginTop: 4, marginLeft: 40 }}>
                   {isCheckingUsername ? (
-                    <Text style={{ fontSize: 12, color: Colors.gray[400] }}>Checking...</Text>
+                    <Text style={{ fontSize: 12, color: AuthGreen.muted }}>Checking...</Text>
                   ) : usernameError ? (
-                    <Text style={{ fontSize: 12, color: '#ff4d4d' }}>
+                    <Text style={{ fontSize: 12, color: AuthGreen.error }}>
                       {usernameError}
                     </Text>
                   ) : isUsernameAvailable === true ? (
-                    <Text style={{ fontSize: 12, color: '#2eb82e' }}>✓ Username available</Text>
+                    <Text style={{ fontSize: 12, color: AuthGreen.gold }}>✓ Username available</Text>
                   ) : isUsernameAvailable === false ? (
-                    <Text style={{ fontSize: 12, color: '#ff4d4d' }}>✗ Username taken</Text>
+                    <Text style={{ fontSize: 12, color: AuthGreen.error }}>✗ Username taken</Text>
                   ) : null}
                 </View>
               )}
 
               <View style={styles.inputContainer}>
-                <Ionicons name="mail-outline" size={20} color={Colors.gray[400]} />
+                <Ionicons name="mail-outline" size={20} color={AuthGreen.gold} />
                 <TextInput
-                  id="email"
-                  name="email"
                   style={styles.input}
                   placeholder="Email"
+                  placeholderTextColor={AuthGreen.muted}
                   value={email}
                   onChangeText={(text) => setFormData({ ...formData, email: text })}
                   keyboardType="email-address"
@@ -269,12 +263,11 @@ export default function SignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Ionicons name="lock-closed-outline" size={20} color={Colors.gray[400]} />
+                <Ionicons name="lock-closed-outline" size={20} color={AuthGreen.gold} />
                 <TextInput
-                  id="password"
-                  name="password"
                   style={styles.input}
                   placeholder="Password"
+                  placeholderTextColor={AuthGreen.muted}
                   value={password}
                   onChangeText={(text) => setFormData({ ...formData, password: text })}
                   secureTextEntry={!showPassword}
@@ -288,7 +281,7 @@ export default function SignupScreen() {
                   <Ionicons
                     name={showPassword ? "eye-off-outline" : "eye-outline"}
                     size={20}
-                    color={Colors.gray[400]}
+                    color={AuthGreen.gold}
                   />
                 </TouchableOpacity>
               </View>
@@ -296,12 +289,11 @@ export default function SignupScreen() {
               {password.length > 0 && <PasswordStrengthMeter password={password} />}
 
               <View style={styles.inputContainer}>
-                <Ionicons name="lock-closed-outline" size={20} color={Colors.gray[400]} />
+                <Ionicons name="lock-closed-outline" size={20} color={AuthGreen.gold} />
                 <TextInput
-                  id="confirmPassword"
-                  name="confirmPassword"
                   style={styles.input}
                   placeholder="Confirm Password"
+                  placeholderTextColor={AuthGreen.muted}
                   value={confirmPassword}
                   onChangeText={(text) => setFormData({ ...formData, confirmPassword: text })}
                   secureTextEntry={!showConfirmPassword}
@@ -315,7 +307,7 @@ export default function SignupScreen() {
                   <Ionicons
                     name={showConfirmPassword ? "eye-off-outline" : "eye-outline"}
                     size={20}
-                    color={Colors.gray[400]}
+                    color={AuthGreen.gold}
                   />
                 </TouchableOpacity>
               </View>
@@ -342,7 +334,7 @@ export default function SignupScreen() {
               {/* Cottage Laws Warning - ALWAYS SHOWN for ALL users */}
               <View style={styles.foodSafetyContainer}>
                 <View style={styles.foodSafetyInfoBox}>
-                  <Ionicons name="information-circle" size={20} color={Colors.gradient.yellow} />
+                  <Ionicons name="information-circle" size={20} color={AuthGreen.gold} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.foodSafetyInfoText}>
                       We recommend every user review{' '}
@@ -352,7 +344,31 @@ export default function SignupScreen() {
                       >
                         cottagefoodlaws.com
                       </Text>
-                      {' '}and do your due diligence to meet all food safety requirements from your local, county, state and federal laws before using the HomeCookedPlate platform.
+                      {' '}and do your due diligence to meet all food safety requirements from your local, county, state and federal laws before using the HomeCookedPlate platform. Cottage rules cover homemade shelf-stable foods sold direct to the consumer. Cooked plates that must stay hot or cold are not cottage foods. Farm goods use FarmGrownBasket, which asks for your state rule, testing protocol, and permit fee before a listing opens.
+                    </Text>
+                    <Text
+                      style={styles.foodSafetyLink}
+                      onPress={() => router.push('/farm-grown-basket/cottage-law' as Href)}
+                    >
+                      FarmGrownBasket cottage food checklist
+                    </Text>
+                    <Text
+                      style={[styles.foodSafetyLink, { marginTop: 8 }]}
+                      onPress={() => router.push('/food-truck-popup/permit' as Href)}
+                    >
+                      FoodTruckPopup mobile permit checklist
+                    </Text>
+                    <Text
+                      style={[styles.foodSafetyLink, { marginTop: 8 }]}
+                      onPress={() => router.push('/cater-event-delivered/license' as Href)}
+                    >
+                      CaterEventDelivered catering license checklist
+                    </Text>
+                    <Text
+                      style={[styles.foodSafetyLink, { marginTop: 8 }]}
+                      onPress={() => router.push('/sit-down-delicious/license' as Href)}
+                    >
+                      SitDownDelicious retail food license checklist
                     </Text>
                     <Text style={[styles.foodSafetyInfoText, { marginTop: 8, fontSize: 11, fontStyle: 'italic' }]}>
                       HomeCookedPlate is not affiliated or in partnership with cottagefoodlaws.com.
@@ -375,7 +391,7 @@ export default function SignupScreen() {
               {/* Error message display */}
               {error && (
                 <View style={styles.errorContainer}>
-                  <Ionicons name="alert-circle" size={20} color="#ff4444" />
+                  <Ionicons name="alert-circle" size={20} color={AuthGreen.error} />
                   <Text style={styles.errorText}>{error}</Text>
                   {retryCount < 3 && (
                     <TouchableOpacity
@@ -389,7 +405,7 @@ export default function SignupScreen() {
                 </View>
               )}
 
-              <GradientButton
+              <AuthGoldButton
                 title="Create Account"
                 onPress={() => {
                   handleSignup(false);
@@ -403,7 +419,6 @@ export default function SignupScreen() {
                   isUsernameAvailable === false
                 }
                 style={styles.signupButton}
-                baseColor="gold"
               />
             </View>
           </ScrollView>
@@ -418,7 +433,7 @@ export default function SignupScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.successIconContainer}>
-              <Ionicons name="checkmark-circle" size={64} color={Colors.gradient.green} />
+              <Ionicons name="checkmark-circle" size={64} color={AuthGreen.gold} />
             </View>
             <Text style={styles.modalTitle}>Successfully Signed Up!</Text>
             <Text style={styles.modalMessage}>
@@ -434,7 +449,7 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: AuthGreen.bg,
   },
   safeArea: {
     flex: 1,
@@ -445,18 +460,18 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 120,
+    paddingTop: 48,
     paddingBottom: 32,
   },
   title: {
     fontSize: 32,
     fontWeight: '700',
-    color: Colors.gray[900],
+    color: AuthGreen.gold,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: Colors.gray[600],
+    color: AuthGreen.cream,
     marginBottom: 32,
   },
   roleContainer: {
@@ -465,7 +480,7 @@ const styles = StyleSheet.create({
   roleLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.gray[900],
+    color: AuthGreen.cream,
     marginBottom: 12,
   },
   roleButtons: {
@@ -481,33 +496,33 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: Colors.gradient.yellow,
-    backgroundColor: Colors.white,
+    borderColor: AuthGreen.fieldLine,
+    backgroundColor: AuthGreen.panel,
   },
   roleButtonActive: {
     borderColor: 'transparent',
   },
   roleButtonActivePlatetaker: {
-    backgroundColor: Colors.gradient.yellow,
+    backgroundColor: AuthGreen.gold,
   },
   roleButtonActivePlatemaker: {
-    backgroundColor: Colors.gradient.yellow,
+    backgroundColor: AuthGreen.gold,
   },
   roleButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.gray[600],
+    color: AuthGreen.gold,
   },
   roleButtonTextActive: {
-    color: Colors.white,
+    color: AuthGreen.ink,
   },
   membershipContainer: {
     marginBottom: 24,
     padding: 16,
-    backgroundColor: Colors.gray[50],
+    backgroundColor: AuthGreen.cream,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.gray[200],
+    borderColor: AuthGreen.goldDeep,
   },
   membershipHeader: {
     flexDirection: 'row',
@@ -524,7 +539,7 @@ const styles = StyleSheet.create({
   membershipTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.gray[900],
+    color: AuthGreen.ink,
   },
   eligibilityLoading: {
     flexDirection: 'row',
@@ -534,7 +549,7 @@ const styles = StyleSheet.create({
   },
   eligibilityLoadingText: {
     fontSize: 14,
-    color: Colors.gray[600],
+    color: AuthGreen.ink,
   },
   eligibilityMessage: {
     flexDirection: 'row',
@@ -543,18 +558,18 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: Colors.gray[200],
+    borderTopColor: '#E4D8C4',
   },
   eligibilityText: {
     flex: 1,
     fontSize: 14,
-    color: Colors.gradient.green,
+    color: AuthGreen.ink,
     fontWeight: '500',
   },
   eligibilityTextNeutral: {
     flex: 1,
     fontSize: 14,
-    color: Colors.gray[600],
+    color: AuthGreen.ink,
   },
   eligibilityTextContainer: {
     flex: 1,
@@ -568,9 +583,9 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: AuthGreen.panel,
     borderWidth: 1,
-    borderColor: Colors.gradient.yellow,
+    borderColor: AuthGreen.fieldLine,
     borderRadius: 12,
     paddingHorizontal: 16,
     marginBottom: 16,
@@ -580,7 +595,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 12,
     fontSize: 16,
-    color: Colors.gray[900],
+    color: AuthGreen.white,
   },
   eyeIconButton: {
     position: 'absolute',
@@ -596,29 +611,29 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderWidth: 2,
-    borderColor: Colors.gray[300],
+    borderColor: AuthGreen.gold,
     borderRadius: 4,
     marginRight: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkboxActive: {
-    backgroundColor: Colors.gradient.green,
-    borderColor: Colors.gradient.green,
+    backgroundColor: AuthGreen.gold,
+    borderColor: AuthGreen.gold,
   },
   checkmark: {
-    color: Colors.white,
+    color: AuthGreen.ink,
     fontSize: 14,
     fontWeight: '700',
   },
   termsText: {
     flex: 1,
     fontSize: 14,
-    color: Colors.gray[600],
+    color: AuthGreen.cream,
     lineHeight: 20,
   },
   termsLink: {
-    color: Colors.gradient.green,
+    color: AuthGreen.gold,
     textDecorationLine: 'underline',
   },
   foodSafetyContainer: {
@@ -628,9 +643,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    backgroundColor: Colors.gray[50],
+    backgroundColor: AuthGreen.panel,
     borderWidth: 1,
-    borderColor: Colors.gradient.yellow,
+    borderColor: AuthGreen.fieldLine,
     borderRadius: 12,
     padding: 12,
     marginBottom: 12,
@@ -638,11 +653,11 @@ const styles = StyleSheet.create({
   foodSafetyInfoText: {
     flex: 1,
     fontSize: 13,
-    color: Colors.gray[700],
+    color: AuthGreen.cream,
     lineHeight: 18,
   },
   foodSafetyLink: {
-    color: Colors.gradient.green,
+    color: AuthGreen.gold,
     textDecorationLine: 'underline',
     fontWeight: '600',
   },
@@ -657,17 +672,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   modalContent: {
-    backgroundColor: Colors.white,
+    backgroundColor: AuthGreen.cream,
     borderRadius: 20,
     padding: 32,
     alignItems: 'center',
     width: '100%',
     maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 10,
   },
   successIconContainer: {
     marginBottom: 20,
@@ -675,13 +685,13 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: Colors.gray[900],
+    color: AuthGreen.ink,
     marginBottom: 12,
     textAlign: 'center',
   },
   modalMessage: {
     fontSize: 16,
-    color: Colors.gray[600],
+    color: AuthGreen.ink,
     textAlign: 'center',
     lineHeight: 24,
   },
@@ -694,13 +704,13 @@ const styles = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: Colors.gray[900],
+    color: AuthGreen.gold,
     marginTop: 24,
     marginBottom: 8,
   },
   successText: {
     fontSize: 16,
-    color: Colors.gray[600],
+    color: AuthGreen.cream,
     textAlign: 'center',
     marginBottom: 24,
   },
@@ -708,23 +718,22 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingVertical: 14,
     paddingHorizontal: 32,
-    borderRadius: 12,
-    backgroundColor: Colors.gradient.green,
+    borderRadius: 24,
+    backgroundColor: AuthGreen.gold,
     alignItems: 'center',
     justifyContent: 'center',
     minWidth: 200,
   },
   loginButtonText: {
-    color: Colors.white,
+    color: AuthGreen.ink,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff5f5',
     borderWidth: 1,
-    borderColor: '#ff4444',
+    borderColor: AuthGreen.error,
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
@@ -733,17 +742,15 @@ const styles = StyleSheet.create({
   errorText: {
     flex: 1,
     fontSize: 14,
-    color: '#ff4444',
+    color: AuthGreen.error,
   },
   retryButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#ff4444',
-    borderRadius: 6,
   },
   retryButtonText: {
-    color: Colors.white,
+    color: AuthGreen.gold,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

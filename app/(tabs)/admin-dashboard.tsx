@@ -445,13 +445,13 @@ const AdminPromotionView = () => {
 
       <TouchableOpacity 
         onPress={handlePromote}
-        disabled={promoteMutation.isLoading || !targetUserId.trim()}
+        disabled={promoteMutation.isPending || !targetUserId.trim()}
         style={[
           styles.promotionButton,
-          (promoteMutation.isLoading || !targetUserId.trim()) && styles.promotionButtonDisabled
+          (promoteMutation.isPending || !targetUserId.trim()) && styles.promotionButtonDisabled
         ]}
       >
-        {promoteMutation.isLoading ? (
+        {promoteMutation.isPending ? (
           <ActivityIndicator color="#fff" />
         ) : (
           <Text style={styles.promotionButtonText}>Grant Admin Privileges</Text>

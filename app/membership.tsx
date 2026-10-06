@@ -18,6 +18,7 @@ import * as Location from 'expo-location';
 import { Colors, monoGradients } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
 import { MembershipPromoBanner } from '@/components/MembershipPromoBanner';
+import { IAP_REQUIRED } from '@/lib/iap';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
 
@@ -220,8 +221,8 @@ export default function MembershipScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, initPaymentSheet, presentPaymentSheet, userMetro, isEligibleForTrial]);
 
-  const membershipBadgeColor = membershipTier === 'premium' 
-    ? monoGradients.gold 
+  const membershipBadgeColor: readonly [string, string] = membershipTier === 'premium'
+    ? monoGradients.gold
     : [Colors.gray[400], Colors.gray[500]];
 
   return (
@@ -337,6 +338,16 @@ export default function MembershipScreen() {
           {membershipTier === 'free' && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Subscribe</Text>
+              {IAP_REQUIRED && (
+                <View style={styles.iapWarningCard}>
+                  <Ionicons name="alert-circle" size={20} color={Colors.gradient.orange} />
+                  <Text style={styles.iapWarningText}>
+                    App Store compliance: membership subscriptions on iOS must be processed
+                    through Apple In-App Purchase. StoreKit integration is pending.
+                    See lib/iap.ios.ts for setup instructions.
+                  </Text>
+                </View>
+              )}
               <View style={styles.pricingCard}>
                 <View style={styles.pricingHeader}>
                   <Text style={styles.price}>$4.99</Text>
@@ -398,6 +409,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.white,
+  },
+  iapWarningCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: Colors.gradient.orange + '15',
+    borderColor: Colors.gradient.orange + '40',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+  },
+  iapWarningText: {
+    flex: 1,
+    fontSize: 12,
+    color: Colors.gray[700],
+    lineHeight: 18,
   },
   scrollView: {
     flex: 1,

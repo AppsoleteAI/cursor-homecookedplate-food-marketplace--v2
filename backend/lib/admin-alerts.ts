@@ -48,6 +48,11 @@ export async function logAdminAlert(
     const severity = options?.severity || 'medium';
     const metadata = options?.metadata || {};
 
+    if (!supabaseAdmin) {
+      console.error('[Admin Alerts] Supabase admin client is not configured');
+      return false;
+    }
+
     const { error } = await supabaseAdmin
       .from('admin_system_alerts')
       .insert({
@@ -56,7 +61,7 @@ export async function logAdminAlert(
         title,
         message,
         metadata,
-      });
+      } as never);
 
     if (error) {
       console.error('[Admin Alerts] Failed to log alert:', error);

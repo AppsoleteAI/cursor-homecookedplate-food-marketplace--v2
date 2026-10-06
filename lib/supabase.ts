@@ -12,7 +12,5 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    // Ensures OAuth/browser-based auth flows return to the app after sign-in
-    redirectTo: 'homecookedplate://(auth)/login',
   },
 });

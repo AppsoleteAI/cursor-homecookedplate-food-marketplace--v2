@@ -6,7 +6,7 @@
  * No external third-party dependencies (Slack/Discord).
  */
 
-import { createSupabaseAdmin, type SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 type AlertType =
   | 'metro_cap_reached'

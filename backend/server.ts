@@ -1,5 +1,12 @@
-import { stdout } from "node:process";
 import app from "./hono";
+
+declare const Bun: {
+  serve(options: {
+    port: number;
+    hostname: string;
+    fetch: typeof app.fetch;
+  }): { hostname: string; port: number };
+};
 
 /**
  * Critical logs must use process.stdout.write to bypass Bun buffering.
@@ -12,9 +19,6 @@ export const flushLog = (message: string) => {
   process.stdout.write(message + '\n');
 };
 
-// #region agent log - HYPOTHESIS A, C: Check env vars and port at server start
-fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'backend/server.ts:SERVER_START',message:'Server starting - checking environment',data:{port:Number(process.env.PORT)||3000,hasSupabaseUrl:!!process.env.SUPABASE_URL,hasServiceKey:!!process.env.SUPABASE_SERVICE_ROLE_KEY,hasAnonKey:!!process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY},timestamp:Date.now(),sessionId:'debug-session',runId:'server-start',hypothesisId:'A,C'})}).catch(()=>{});
-// #endregion
 
 const port = Number(process.env.PORT) || 3000;
 
@@ -33,8 +37,5 @@ const server = Bun.serve({
   fetch: app.fetch,
 });
 
-// #region agent log - HYPOTHESIS C: Server started successfully
-fetch('http://127.0.0.1:7242/ingest/c5a3c12c-6414-4e0d-9ac0-7bf2d7cf2278',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'backend/server.ts:SERVER_READY',message:'Server started successfully with Bun.serve',data:{port:server.port,hostname:server.hostname},timestamp:Date.now(),sessionId:'debug-session',runId:'server-start',hypothesisId:'C'})}).catch(()=>{});
-// #endregion
 
 console.log(`✅ Server is running on http://${server.hostname}:${server.port}`);

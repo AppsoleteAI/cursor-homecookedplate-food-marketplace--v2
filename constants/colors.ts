@@ -31,6 +31,7 @@ export const Colors = {
     orange: '#F97316',
     red: '#EF4444',
     darkGold: '#8B6914',
+    purple: '#7C3AED',
   },
   success: '#10B981',
   error: '#EF4444',
@@ -38,7 +39,7 @@ export const Colors = {
   info: '#3B82F6',
 } as const;
 
-export type BaseColor = 'green' | 'yellow' | 'orange' | 'red' | 'gold' | 'purple';
+export type BaseColor = 'green' | 'yellow' | 'orange' | 'red' | 'gold' | 'purple' | 'blue';
 
 export const monoGradients: Record<BaseColor, [string, string]> = {
   green: ['#16A34A', '#86EFAC'],
@@ -47,6 +48,7 @@ export const monoGradients: Record<BaseColor, [string, string]> = {
   red: ['#B91C1C', '#FECACA'],
   gold: ['#8B6914', '#D4AF37'],
   purple: ['#7C3AED', '#C4B5FD'],
+  blue: ['#2563EB', '#93C5FD'],
 } as const;
 
 export const gradientColors = [

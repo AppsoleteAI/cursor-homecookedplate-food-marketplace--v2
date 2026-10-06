@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router , type Href } from 'expo-router';
 import { Colors, monoGradients } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -67,6 +67,8 @@ export default function ProfileScreen() {
     );
   };
 
+  const membershipTier = user?.membershipTier || 'free';
+
   const menuItems: {
     icon: keyof typeof Ionicons.glyphMap;
     title: string;
@@ -99,6 +101,31 @@ export default function ProfileScreen() {
       title: 'Legal & Safety',
       onPress: () => router.push('/legal'),
     },
+    ...(user?.role === 'platemaker'
+      ? [{
+          icon: 'restaurant-outline' as const,
+          title: 'Kitchen rules',
+          onPress: () => router.push('/kitchen-rules' as Href),
+        }]
+      : []),
+    {
+      icon: 'leaf-outline',
+      title: 'FarmGrownBasket',
+      subtitle: 'Farms, gardens, and cottage foods',
+      onPress: () => router.push('/farm-grown-basket' as Href),
+    },
+    {
+      icon: 'bus-outline',
+      title: 'FoodTruckPopup',
+      subtitle: 'Order ahead for the service window',
+      onPress: () => router.push('/food-truck-popup' as Href),
+    },
+    {
+      icon: 'cafe-outline',
+      title: 'SitDownDelicious',
+      subtitle: 'Independent sit-down and takeout shops',
+      onPress: () => router.push('/sit-down-delicious' as Href),
+    },
     {
       icon: 'help-circle-outline',
       title: 'Help & Support',
@@ -111,7 +138,6 @@ export default function ProfileScreen() {
     },
   ];
 
-  const membershipTier = user?.membershipTier || 'free';
   const userLocation = user?.phone || user?.bio || null; // Using profile location if available
 
   return (
@@ -198,6 +224,12 @@ export default function ProfileScreen() {
               <Text style={[styles.foodSafetyDescription, { marginTop: 8, fontSize: 11, fontStyle: 'italic' }]}>
                 HomeCookedPlate is not affiliated or in partnership with cottagefoodlaws.com.
               </Text>
+              <Text
+                style={[styles.foodSafetyLink, { marginTop: 8 }]}
+                onPress={() => router.push('/kitchen-rules' as Href)}
+              >
+                Kitchen rules for cooked plates, MEHKO, and commissary kitchens
+              </Text>
               <View style={styles.acknowledgmentStatusContainer}>
                 <View style={styles.acknowledgmentStatusRow}>
                   <Ionicons
@@ -213,10 +245,10 @@ export default function ProfileScreen() {
                   <TouchableOpacity
                     style={styles.acknowledgmentButton}
                     onPress={() => handleAcknowledgmentUpdate(true)}
-                    disabled={updateProfileMutation.isLoading}
+                    disabled={updateProfileMutation.isPending}
                   >
                     <Text style={styles.acknowledgmentButtonText}>
-                      {updateProfileMutation.isLoading ? 'Updating...' : 'Acknowledge Now'}
+                      {updateProfileMutation.isPending ? 'Updating...' : 'Acknowledge Now'}
                     </Text>
                   </TouchableOpacity>
                 )}

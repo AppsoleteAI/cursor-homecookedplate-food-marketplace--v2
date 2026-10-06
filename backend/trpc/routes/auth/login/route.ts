@@ -21,6 +21,10 @@ export const loginProcedure = publicProcedure
   )
   .mutation(async ({ input }) => {
     // Use supabase client (anon key) for login - correct for user authentication
+    if (!supabase) {
+      throw new Error('Supabase client is not configured');
+    }
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email: input.email,
       password: input.password,

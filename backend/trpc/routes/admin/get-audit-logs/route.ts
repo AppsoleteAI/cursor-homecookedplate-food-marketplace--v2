@@ -5,8 +5,8 @@ import { TRPCError } from "@trpc/server";
 export const getAuditLogsProcedure = adminProcedure
   .input(
     z.object({ 
-      limit: z.number().default(20).min(1).max(100),
-      offset: z.number().default(0).min(0),
+      limit: z.number().min(1).max(100).default(20),
+      offset: z.number().min(0).default(0),
     }).optional()
   )
   .query(async ({ ctx, input }) => {

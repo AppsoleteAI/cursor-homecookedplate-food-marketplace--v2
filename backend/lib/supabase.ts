@@ -1,11 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Check if we're in a Cloudflare Worker environment (process is not defined)
-const isCloudflareWorker = typeof process === 'undefined';
+// Check if we're in a Cloudflare Worker environment
+// During build, process exists but we're not in runtime, so check for Worker-specific globals
+const isCloudflareWorker = typeof process === 'undefined' || 
+  (typeof globalThis !== 'undefined' && 'caches' in globalThis && 'Request' in globalThis && !('require' in globalThis));
 
 // Helper to get env vars - works in both Bun/Node and Cloudflare Workers
 function getEnvVar(key: string, fallback?: string): string | undefined {
-  if (isCloudflareWorker) {
+  if (isCloudflareWorker || typeof process === 'undefined') {
     // In Cloudflare Workers, env vars come from bindings, not process.env
     // Return undefined here - callers should pass env from context
     return fallback;
@@ -24,8 +26,13 @@ const supabaseServiceKey = getEnvVar('SUPABASE_SERVICE_ROLE_KEY');
 let supabase: ReturnType<typeof createClient> | null = null;
 let supabaseAdmin: ReturnType<typeof createClient> | null = null;
 
-if (!isCloudflareWorker) {
-  // Validate all required environment variables are present (Bun/Node only)
+// Only validate and create clients if we have the env vars AND we're not in a Worker build
+// During wrangler build, process exists but env vars aren't available, so skip validation
+const hasEnvVars = supabaseUrl && supabaseAnonKey && supabaseServiceKey;
+const isBuildTime = typeof process !== 'undefined' && process.env && !process.env.SUPABASE_URL;
+
+if (!isCloudflareWorker && hasEnvVars && !isBuildTime) {
+  // Validate all required environment variables are present (Bun/Node only, not during build)
   if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
     throw new Error('❌ Missing Supabase environment variables in backend/.env. Required: SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY');
   }

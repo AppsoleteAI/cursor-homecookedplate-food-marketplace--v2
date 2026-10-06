@@ -1,6 +1,6 @@
 name = "plate-marketplace-api"
 main = "backend/hono.ts"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
 [observability]
@@ -10,6 +10,10 @@ enabled = true
 binding = "RATE_LIMIT_KV"
 id = "1aa88018164e4706905b964789217850"
 preview_id = "c985bfb57b2942de9a204dc3df91121b"
+
+# Cloudflare Workers AI — used for NSFW image moderation (LLaVA vision model)
+[ai]
+binding = "AI"
 
 [vars]
 ENVIRONMENT = "production"
@@ -22,6 +26,9 @@ name = "plate-marketplace-api"
 binding = "RATE_LIMIT_KV"
 id = "1aa88018164e4706905b964789217850"
 preview_id = "c985bfb57b2942de9a204dc3df91121b"
+
+[env.production.ai]
+binding = "AI"
 
 [env.production.vars]
 ENVIRONMENT = "production"

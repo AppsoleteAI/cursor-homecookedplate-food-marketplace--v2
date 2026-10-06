@@ -11,12 +11,11 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '@/hooks/auth-context';
-import { Colors } from '@/constants/colors';
-import { GradientButton } from '@/components/GradientButton';
+import { AuthGreen } from '@/constants/auth-palette';
+import { AuthBackButton, AuthGoldButton } from '@/components/auth/AuthChrome';
 
 type RecoveryMode = 'password' | 'reactivate';
 
@@ -32,10 +31,8 @@ export default function RecoverScreen() {
       return;
     }
 
-    // Sanitize email input
     const cleanEmail = email.trim().toLowerCase();
-    
-    // Pre-flight validation with regex
+
     if (!cleanEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
       Alert.alert('Invalid Email', 'Please check for hidden spaces or typos in: ' + cleanEmail);
       return;
@@ -52,7 +49,6 @@ export default function RecoverScreen() {
         );
       } else {
         await reactivateAccount(cleanEmail);
-        // The backend returns a message, but we'll show a generic success
         Alert.alert(
           'Account Reactivation',
           'If your account was paused, it has been reactivated. You can now log in normally.',
@@ -69,10 +65,6 @@ export default function RecoverScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={[Colors.white, Colors.gray[50]]}
-        style={StyleSheet.absoluteFillObject}
-      />
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -81,93 +73,71 @@ export default function RecoverScreen() {
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color={Colors.gray[900]} />
-            </TouchableOpacity>
+            <AuthBackButton onPress={() => router.back()} />
 
-            <View style={styles.headerContainer}>
-              <Text style={styles.title}>Account Recovery</Text>
-              <Text style={styles.subtitle}>Choose how you&apos;d like to recover your account</Text>
-            </View>
+            <Text style={styles.brand}>HomeCookedPlate</Text>
 
-            <View style={styles.modeContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.modeButton,
-                  mode === 'password' && styles.modeButtonActive,
-                ]}
-                onPress={() => setMode('password')}
-              >
-                <Ionicons
-                  name="lock-closed-outline"
-                  size={24}
-                  color={mode === 'password' ? Colors.white : Colors.gray[600]}
-                />
-                <Text
-                  style={[
-                    styles.modeButtonText,
-                    mode === 'password' && styles.modeButtonTextActive,
-                  ]}
+            <View style={styles.sheet}>
+              <View style={styles.modeRow}>
+                <TouchableOpacity
+                  style={[styles.modeButton, mode === 'password' && styles.modeButtonOn]}
+                  onPress={() => setMode('password')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Reset password"
                 >
-                  Reset Password
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.modeButton,
-                  mode === 'reactivate' && styles.modeButtonActive,
-                ]}
-                onPress={() => setMode('reactivate')}
-              >
-                <Ionicons
-                  name="refresh-outline"
-                  size={24}
-                  color={mode === 'reactivate' ? Colors.white : Colors.gray[600]}
-                />
-                <Text
-                  style={[
-                    styles.modeButtonText,
-                    mode === 'reactivate' && styles.modeButtonTextActive,
-                  ]}
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={18}
+                    color={mode === 'password' ? AuthGreen.ink : AuthGreen.ink}
+                  />
+                  <Text style={[styles.modeText, mode === 'password' && styles.modeTextOn]}>Reset password</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modeButton, mode === 'reactivate' && styles.modeButtonOn]}
+                  onPress={() => setMode('reactivate')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Reactivate account"
                 >
-                  Reactivate Account
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.formContainer}>
-              <View style={styles.inputContainer}>
-                <Ionicons name="mail-outline" size={20} color={Colors.gray[400]} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="name@example.com"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
+                  <Ionicons name="refresh-outline" size={18} color={AuthGreen.ink} />
+                  <Text style={[styles.modeText, mode === 'reactivate' && styles.modeTextOn]}>Reactivate</Text>
+                </TouchableOpacity>
               </View>
 
-              <GradientButton
-                title={mode === 'password' ? 'Send Reset Link' : 'Reactivate Account'}
-                onPress={handleSubmit}
-                loading={loading}
-                style={styles.submitButton}
-                baseColor="gold"
-              />
-
-              <TouchableOpacity
-                onPress={() => router.back()}
-                style={styles.backToLoginButton}
-              >
-                <Text style={styles.backToLoginText}>Back to Login</Text>
-              </TouchableOpacity>
+              <View style={styles.panel}>
+                <Text style={styles.panelTitle}>
+                  {mode === 'password' ? 'Forgot password' : 'Reactivate account'}
+                </Text>
+                <Text style={styles.help}>
+                  {mode === 'password'
+                    ? 'We will email a reset link if this address has an account.'
+                    : 'If this address was paused, we will turn the account back on.'}
+                </Text>
+                <View style={styles.field}>
+                  <Ionicons name="mail-outline" size={18} color={AuthGreen.gold} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Email"
+                    placeholderTextColor={AuthGreen.muted}
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    testID="recover-email"
+                  />
+                </View>
+                <AuthGoldButton
+                  title={mode === 'password' ? 'Send reset link' : 'Reactivate account'}
+                  onPress={handleSubmit}
+                  loading={loading}
+                  testID="recover-submit"
+                />
+                <TouchableOpacity onPress={() => router.replace('/(auth)/login')} style={styles.loginLink}>
+                  <Text style={styles.loginLinkText}>Back to sign in</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -179,7 +149,7 @@ export default function RecoverScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: AuthGreen.bg,
   },
   safeArea: {
     flex: 1,
@@ -189,89 +159,94 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 32,
+    paddingHorizontal: 16,
+    paddingBottom: 28,
   },
-  backButton: {
-    marginBottom: 20,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-  },
-  headerContainer: {
-    marginBottom: 32,
-  },
-  title: {
-    fontSize: 32,
+  brand: {
+    color: AuthGreen.gold,
+    fontSize: 26,
     fontWeight: '700',
-    color: Colors.gray[900],
-    marginBottom: 8,
+    textAlign: 'center',
+    fontFamily: Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia' }),
+    marginBottom: 18,
   },
-  subtitle: {
-    fontSize: 16,
-    color: Colors.gray[600],
-  },
-  modeContainer: {
-    flexDirection: 'row',
+  sheet: {
+    backgroundColor: AuthGreen.cream,
+    borderRadius: 28,
+    padding: 14,
     gap: 12,
-    marginBottom: 32,
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: 8,
   },
   modeButton: {
     flex: 1,
+    minHeight: 48,
+    borderRadius: 16,
+    backgroundColor: '#E7DFD2',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: Colors.gradient.yellow,
-    backgroundColor: Colors.white,
+    gap: 6,
+    paddingHorizontal: 8,
   },
-  modeButtonActive: {
-    backgroundColor: Colors.gradient.yellow,
-    borderColor: 'transparent',
+  modeButtonOn: {
+    backgroundColor: AuthGreen.gold,
   },
-  modeButtonText: {
-    fontSize: 16,
+  modeText: {
+    color: AuthGreen.ink,
+    fontSize: 14,
     fontWeight: '600',
-    color: Colors.gray[600],
   },
-  modeButtonTextActive: {
-    color: Colors.white,
+  modeTextOn: {
+    fontWeight: '700',
   },
-  formContainer: {
-    marginBottom: 32,
+  panel: {
+    backgroundColor: AuthGreen.panel,
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 16,
   },
-  inputContainer: {
+  panelTitle: {
+    color: AuthGreen.white,
+    fontSize: 26,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  help: {
+    color: AuthGreen.muted,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  field: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: Colors.gradient.darkGold,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    marginBottom: 16,
-    height: 56,
+    borderColor: AuthGreen.fieldLine,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 50,
+    marginBottom: 14,
+    gap: 10,
   },
   input: {
     flex: 1,
-    marginLeft: 12,
+    color: AuthGreen.white,
     fontSize: 16,
-    color: Colors.gray[900],
+    paddingVertical: 0,
   },
-  submitButton: {
-    marginTop: 8,
-  },
-  backToLoginButton: {
-    marginTop: 16,
+  loginLink: {
     alignItems: 'center',
+    marginTop: 14,
   },
-  backToLoginText: {
+  loginLinkText: {
+    color: AuthGreen.gold,
     fontSize: 14,
-    color: Colors.gray[600],
-    textDecorationLine: 'underline',
+    fontWeight: '700',
   },
 });

@@ -111,6 +111,21 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="orders"
+        options={{
+          href: null,
+          title: "Order history",
+        }}
+      />
+      <Tabs.Screen
+        name="admin-dashboard"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
+        name="panic-dashboard"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",

@@ -13,10 +13,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, Stack } from 'expo-router';
-import { Star, Clock, MapPin, Heart } from 'lucide-react-native';
+import { Star, Clock, Heart } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
-import { mockMeals, allergyOptions, cookingTemperatures } from '@/mocks/data';
+import { allergyOptions, cookingTemperatures } from '@/mocks/data';
+import { trpc } from '@/lib/trpc';
+import { calculateOrderSplit } from '@/lib/fees';
+import type { Meal } from '@/types';
 import { useCart } from '@/hooks/cart-context';
 import { useFavorites } from '@/hooks/favorites-context';
 import StarRating from '@/components/StarRating';
@@ -31,9 +34,36 @@ const { width } = Dimensions.get('window');
 
 export default function MealDetailScreen() {
   const { id } = useLocalSearchParams();
+  const mealId = typeof id === 'string' ? id : Array.isArray(id) ? id[0] : '';
   const { addToCart } = useCart();
   const { isFavorite, toggleFavorite } = useFavorites();
-  const meal = useMemo(() => mockMeals.find(m => m.id === id), [id]);
+  const mealQuery = trpc.meals.get.useQuery(
+    { id: mealId },
+    { enabled: mealId.length > 0 }
+  );
+  const meal = useMemo<Meal | undefined>(() => {
+    const data = mealQuery.data;
+    if (!data) return undefined;
+    return {
+      id: data.id,
+      plateMakerId: data.plateMakerId,
+      plateMakerName: data.plateMakerName,
+      name: data.name,
+      description: data.description,
+      price: data.price,
+      images: data.images || [],
+      ingredients: data.ingredients || [],
+      cuisine: data.cuisine,
+      category: data.category as Meal['category'],
+      dietaryOptions: data.dietaryOptions || [],
+      preparationTime: data.preparationTime,
+      available: data.available,
+      rating: data.rating,
+      reviewCount: data.reviewCount,
+      featured: data.featured || false,
+      tags: data.tags || [],
+    };
+  }, [mealQuery.data]);
   const { getAggregates } = useReviewsContext();
   const aggregates = meal ? getAggregates(meal.id) : { average: 0, count: 0 };
 
@@ -83,7 +113,7 @@ export default function MealDetailScreen() {
 
   // Enhanced error handling with logging
   useEffect(() => {
-    if (!meal && id) {
+    if (!mealQuery.isLoading && !meal && mealId) {
       const error = new Error(`Meal not found: ${id}`);
       navLogger.error('app/meal/[id].tsx:MEAL_NOT_FOUND', error, `/meal/${id}`, {
         mealId: id,
@@ -95,7 +125,18 @@ export default function MealDetailScreen() {
         platform: Platform.OS,
       });
     }
-  }, [meal, id]);
+  }, [meal, mealId, mealQuery.isLoading, id]);
+
+  if (mealQuery.isLoading) {
+    return (
+      <ErrorBoundary>
+        <SafeAreaView style={styles.container} edges={Platform.OS === 'android' ? ['top', 'bottom'] : undefined}>
+          <Stack.Screen options={{ headerShown: true, title: 'Meal Details' }} />
+          <SkeletonMealDetail />
+        </SafeAreaView>
+      </ErrorBoundary>
+    );
+  }
 
   if (!meal) {
     return (
@@ -225,6 +266,15 @@ export default function MealDetailScreen() {
             <View style={styles.titleSection}>
               <Text style={styles.name}>{meal.name}</Text>
               <Text style={styles.plateMaker}>{meal.plateMakerName}</Text>
+              {(meal.dietaryOptions?.length ?? 0) > 0 && (
+                <View style={styles.dietRow}>
+                  {meal.dietaryOptions.map((option) => (
+                    <View key={option} style={styles.dietChip}>
+                      <Text style={styles.dietChipText}>{option}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
             {!isPlatemaker && (
               <TouchableOpacity 
@@ -268,8 +318,7 @@ export default function MealDetailScreen() {
               <Text style={styles.timeText}>{meal.preparationTime} min</Text>
             </View>
             <View style={styles.location}>
-              <MapPin size={16} color={Colors.gray[500]} />
-              <Text style={styles.locationText}>2.5 mi</Text>
+              <Text style={styles.locationText}>{meal.cuisine}</Text>
             </View>
           </View>
 
@@ -385,8 +434,8 @@ export default function MealDetailScreen() {
       {!isPlatemaker && (
         <View style={styles.footer}>
           <View style={styles.totalSection}>
-            <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalPrice}>${(meal.price * quantity).toFixed(2)}</Text>
+            <Text style={styles.totalLabel}>Plate ${ (meal.price * quantity).toFixed(2) }</Text>
+            <Text style={styles.totalPrice}>${calculateOrderSplit(meal.price * quantity).totalCaptured.toFixed(2)}</Text>
           </View>
           <GradientButton
             title="Add to Plate"
@@ -452,6 +501,23 @@ const styles = StyleSheet.create({
   plateMaker: {
     fontSize: 16,
     color: Colors.gray[600],
+  },
+  dietRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  dietChip: {
+    backgroundColor: Colors.gray[100],
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  dietChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.gray[700],
   },
   favoriteButton: {
     padding: 8,

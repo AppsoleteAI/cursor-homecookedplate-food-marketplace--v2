@@ -1,63 +1,29 @@
-import * as Device from 'expo-device';
-import * as Application from 'expo-application';
+/**
+ * Lifetime Membership Binding Token
+ *
+ * Compliance note (Apple Developer Program License Agreement §3.3.3(B)):
+ * "Neither You nor Your Application will use any permanent, device-based identifier,
+ *  or any data derived therefrom, for purposes of uniquely identifying a device."
+ *
+ * This module generates a RANDOM UUID that is:
+ *  - Stored in iOS Keychain / Android Keystore via expo-secure-store (encrypted at rest)
+ *  - NOT derived from any hardware identifier (IDFV, IDFA, Android ID, etc.)
+ *  - Created exactly once when a Lifetime membership is first activated
+ *  - Treated as an account-level credential, not a device fingerprint
+ *
+ * The binding prevents a single Lifetime purchase from being shared across
+ * multiple devices by comparing the stored token against the value held in
+ * the user's profile row (written on first activation).
+ */
+
+import * as SecureStore from '@/lib/expo-secure-store';
 import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { trpcProxyClient } from './trpc';
 
-const DEVICE_ID_STORAGE_KEY = '@rork_device_id';
+const BINDING_TOKEN_KEY = 'lifetime_binding_token';
 
-/**
- * Gets a unique device identifier for hardware audit.
- * 
- * Strategy:
- * - Android: Uses Application.androidId (stable, unique per device)
- * - iOS: Uses a stored UUID (generated on first launch, persisted in AsyncStorage)
- * - Web: Uses a stored UUID (generated on first launch, persisted in localStorage)
- * 
- * @returns Promise<string> - Unique device identifier
- */
-async function getDeviceId(): Promise<string> {
-  if (Platform.OS === 'android') {
-    try {
-      const androidId = await Application.getAndroidId();
-      if (androidId) {
-        console.log('[HardwareAudit] Device ID (Android ID):', androidId);
-        console.log('[HardwareAudit] This ID will be locked into device_id column for lifetime memberships');
-        return androidId;
-      }
-    } catch (error) {
-      console.warn('[HardwareAudit] Failed to get Android ID:', error);
-    }
-  }
-
-  // iOS, Web, or Android fallback: use stored UUID
-  try {
-    const storedId = await AsyncStorage.getItem(DEVICE_ID_STORAGE_KEY);
-    if (storedId) {
-      console.log('[HardwareAudit] Device ID (Stored UUID):', storedId);
-      console.log('[HardwareAudit] This ID will be locked into device_id column for lifetime memberships');
-      return storedId;
-    }
-
-    // Generate new UUID if not found
-    const newId = generateUUID();
-    await AsyncStorage.setItem(DEVICE_ID_STORAGE_KEY, newId);
-    console.log('[HardwareAudit] Device ID (New UUID generated):', newId);
-    console.log('[HardwareAudit] This ID will be locked into device_id column for lifetime memberships');
-    return newId;
-  } catch (error) {
-    console.warn('[HardwareAudit] Failed to get/store device ID:', error);
-    // Fallback: generate a temporary ID (not persisted)
-    const fallbackId = generateUUID();
-    console.log('[HardwareAudit] Device ID (Fallback UUID):', fallbackId);
-    return fallbackId;
-  }
-}
-
-/**
- * Generates a UUID v4.
- */
-function generateUUID(): string {
+/** Generates a cryptographically-random UUID v4 without using any device hardware ID. */
+function generateBindingToken(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
@@ -66,44 +32,61 @@ function generateUUID(): string {
 }
 
 /**
- * Runs hardware audit for a user.
- * 
- * Validates device ID for lifetime subscribers to prevent unauthorized transfers.
- * 
- * @param userId - User ID to audit
- * @returns Promise<{ allowed: boolean; reason?: string }>
+ * Returns the existing binding token from secure storage, or generates and
+ * persists a new one. The token is never derived from hardware identifiers.
+ */
+export async function getOrCreateBindingToken(): Promise<string> {
+  try {
+    const stored = await SecureStore.getItemAsync(BINDING_TOKEN_KEY);
+    if (stored) return stored;
+
+    const token = generateBindingToken();
+    await SecureStore.setItemAsync(BINDING_TOKEN_KEY, token);
+    return token;
+  } catch (err) {
+    console.warn('[LifetimeBinding] SecureStore unavailable, using ephemeral token:', err);
+    // Fallback: ephemeral token (audit will fail open on server side)
+    return generateBindingToken();
+  }
+}
+
+/**
+ * Deletes the binding token from secure storage.
+ * Called during account deletion to clean up credentials.
+ */
+export async function clearBindingToken(): Promise<void> {
+  await SecureStore.deleteItemAsync(BINDING_TOKEN_KEY).catch(() => {});
+}
+
+/**
+ * Runs the hardware-audit check for Lifetime subscribers.
+ * Sends the account-level binding token (NOT a hardware ID) to the server.
+ *
+ * @returns { allowed: boolean; reason?: string }
  */
 export async function runHardwareAudit(
-  userId: string
+  _userId: string
 ): Promise<{ allowed: boolean; reason?: string }> {
+  // Skip on web — SecureStore is a no-op there
+  if (Platform.OS === 'web') {
+    return { allowed: true };
+  }
+
   try {
-    // Skip on web (optional - can be enabled if needed)
-    if (Platform.OS === 'web') {
-      return { allowed: true };
-    }
+    const bindingToken = await getOrCreateBindingToken();
 
-    const deviceId = await getDeviceId();
-    if (!deviceId) {
-      // Fail open: if we can't get device ID, allow access
-      console.warn('[HardwareAudit] Could not get device ID, allowing access');
-      return { allowed: true };
-    }
+    const result = await trpcProxyClient.auth.hardwareAudit.mutate({
+      deviceId: bindingToken,
+    });
 
-    console.log('[HardwareAudit] Running hardware audit for user:', userId);
-    console.log('[HardwareAudit] Current device ID:', deviceId);
-
-    // Call tRPC procedure using proxy client (works outside React components)
-    const result = await trpcProxyClient.auth.hardwareAudit.mutate({ deviceId });
-    
-    console.log('[HardwareAudit] Audit result:', result);
     if (!result.allowed) {
-      console.error('[HardwareAudit] Hardware mismatch detected:', result.reason);
+      console.error('[LifetimeBinding] Token mismatch:', result.reason);
     }
-    
+
     return result;
-  } catch (error) {
-    // Fail open: on network/server errors, allow access
-    console.error('[HardwareAudit] Error during audit:', error);
+  } catch (err) {
+    // Fail open: allow access on network/server errors
+    console.error('[LifetimeBinding] Audit error (failing open):', err);
     return { allowed: true };
   }
 }

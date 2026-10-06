@@ -100,9 +100,8 @@ export const getDashboardStatsProcedure = protectedProcedure
         continue;
       }
 
-      // Calculate base amount (remove buyer fee: total_price includes 10% buyer fee)
-      // Formula: total_price = baseAmount * 1.10, so baseAmount = total_price / 1.10
-      const baseAmount = orderTotalPrice / 1.10;
+      // orders.total_price is the plate base (DB trigger). Do not divide by 1.10.
+      const baseAmount = orderTotalPrice;
 
       // Calculate take-home using calculateOrderSplit (90% of base after 10% seller fee)
       let orderTakeHome = 0;
