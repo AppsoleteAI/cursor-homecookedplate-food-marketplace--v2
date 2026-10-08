@@ -1,0 +1,47 @@
+# Worker for the already-deployed plate-marketplace-api.
+# Deploy with: npx wrangler deploy --config wrangler.worker.toml
+# Moving this file does not redeploy the Worker.
+name = "plate-marketplace-api"
+main = "backend/hono.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat", "nodejs_compat_populate_process_env"]
+
+[observability]
+enabled = true
+
+[triggers]
+crons = ["15 * * * *"]
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "1aa88018164e4706905b964789217850"
+preview_id = "c985bfb57b2942de9a204dc3df91121b"
+
+# Cloudflare Workers AI — used for NSFW image moderation (LLaVA vision model)
+[ai]
+binding = "AI"
+
+[vars]
+ENVIRONMENT = "production"
+EXPO_PUBLIC_WEB_URL = "https://homecookedplate.com"
+
+[env.production]
+name = "plate-marketplace-api"
+
+[env.production.triggers]
+crons = ["15 * * * *"]
+
+[[env.production.kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "1aa88018164e4706905b964789217850"
+preview_id = "c985bfb57b2942de9a204dc3df91121b"
+
+[env.production.ai]
+binding = "AI"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+EXPO_PUBLIC_WEB_URL = "https://homecookedplate.com"
+
+[env.staging]
+name = "plate-marketplace-api-staging"

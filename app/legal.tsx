@@ -16,7 +16,7 @@ import { BUYER_AFTER_NOTE } from '@/lib/buyer-safety';
 import { AuthBackground, AuthBackButton, AuthGoldButton } from '@/components/auth/AuthChrome';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
-import { GlassPressable } from '@/components/glass-surface';
+import { GlassPressable, GlassTop } from '@/components/glass-surface';
 import {
   allSectionsAgreed,
   emptyLegalSections,
@@ -106,6 +106,7 @@ export default function LegalScreen() {
           <AuthBackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/(auth)/login'))} />
           <Text style={styles.brand}>Legal & Safety</Text>
           <View style={styles.warningCard}>
+            <GlassTop />
             <Ionicons name="warning" size={24} color={AuthColors.maroon} />
             <Text style={styles.warningTitle}>Important Legal Information</Text>
             <Text style={styles.warningText}>
@@ -221,6 +222,7 @@ export default function LegalScreen() {
           </LegalSection>
 
           <View style={styles.finalCard}>
+            <GlassTop />
             <Text style={styles.finalTitle}>Final agreement and acknowledgment</Text>
             <View style={styles.noticeBox}>
               <Text style={styles.noticeText}>{FINAL_AGREEMENT}</Text>
@@ -277,6 +279,7 @@ function LegalSection({
 }) {
   return (
     <View style={styles.section}>
+      <GlassTop />
       <GlassPressable
         style={styles.sectionCheck}
         onPress={() => onToggle(id)}
@@ -304,7 +307,7 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   brand: {
-    color: AuthColors.brand,
+    color: AuthColors.ink,
     fontSize: 28,
     fontWeight: '700',
     textAlign: 'center',
@@ -319,6 +322,9 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 16,
     alignItems: 'center',
+    overflow: 'hidden',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.55)',
   },
   warningTitle: {
     fontSize: 18,
@@ -343,6 +349,9 @@ const styles = StyleSheet.create({
     paddingLeft: 48,
     marginBottom: 12,
     position: 'relative',
+    overflow: 'hidden',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.55)',
   },
   sectionCheck: {
     position: 'absolute',
@@ -427,6 +436,9 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     padding: 18,
     marginTop: 8,
+    overflow: 'hidden',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.55)',
   },
   finalTitle: {
     color: AuthColors.maroon,

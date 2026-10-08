@@ -19,7 +19,7 @@ import { useSignupForm } from '@/hooks/useSignupForm';
 import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { BUYER_AFTER_NOTE } from '@/lib/buyer-safety';
 import { trpc } from '@/lib/trpc';
-import { GlassPressable } from '@/components/glass-surface';
+import { GlassPressable, GlassTop } from '@/components/glass-surface';
 
 type Role = 'platetaker' | 'platemaker';
 type MetroStatus = 'idle' | 'finding' | 'found' | 'outside' | 'denied' | 'failed';
@@ -200,6 +200,7 @@ export default function OnboardingScreen() {
 
             <View style={styles.sheet}>
               <View style={styles.panel}>
+                <GlassTop />
                 {step === 0 ? (
                   <>
                     <Text style={styles.panelTitle}>Your Location</Text>
@@ -254,7 +255,9 @@ export default function OnboardingScreen() {
                           </Text>
                         ) : null}
                         {metroStatus === 'failed' ? (
-                          <Text style={styles.errorText}>Could not look up your location. You can continue and try again later.</Text>
+                          <Text style={styles.errorText}>
+                            Could not look up your location. A Mac or Windows computer has no GPS, so Location Services must be on and this browser allowed. On iPhone or Android, allow location for the app. An editor preview usually has no position. You can continue and try again later.
+                          </Text>
                         ) : null}
                         <AuthGoldButton
                           title={
@@ -525,18 +528,18 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.35)',
+    backgroundColor: 'rgba(20, 16, 12, 0.28)',
   },
   stepDotOn: {
-    backgroundColor: AuthColors.brand,
+    backgroundColor: AuthColors.gold,
   },
   stepLabel: {
-    color: AuthColors.onDark,
+    color: AuthColors.muted,
     fontSize: 12,
     fontWeight: '600',
   },
   stepLabelOn: {
-    color: AuthColors.brand,
+    color: AuthColors.ink,
   },
   sheet: {
     backgroundColor: 'transparent',
@@ -547,7 +550,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 18,
     paddingBottom: 16,
+    overflow: 'hidden',
     ...cardShadow,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.55)',
   },
   panelTitle: {
     color: AuthColors.ink,
@@ -709,7 +715,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   successTitle: {
-    color: AuthColors.brand,
+    color: AuthColors.ink,
     fontSize: 28,
     fontWeight: '700',
     marginTop: 8,
@@ -718,7 +724,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 6,
   },
   successText: {
-    color: AuthColors.onDark,
+    color: AuthColors.ink,
     fontSize: 16,
     lineHeight: 22,
     textAlign: 'center',

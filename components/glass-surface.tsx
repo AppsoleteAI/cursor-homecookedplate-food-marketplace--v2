@@ -1,5 +1,6 @@
 import React, { createContext, useContext } from 'react';
 import { Pressable, PressableProps, StyleProp, StyleSheet, ViewStyle } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   SharedValue,
   useAnimatedReaction,
@@ -16,6 +17,18 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const springIn = { damping: 14, stiffness: 420, mass: 0.35 };
 const springOut = { damping: 7, stiffness: 260, mass: 0.45 };
+
+/** Light caught on the top of a gold card, matching the top of the $4.99 button. */
+export function GlassTop() {
+  return (
+    <LinearGradient
+      pointerEvents="none"
+      colors={['rgba(255,255,255,0.72)', 'rgba(246,204,62,0.38)', 'rgba(240,192,72,0)']}
+      locations={[0, 0.42, 1]}
+      style={styles.glassTop}
+    />
+  );
+}
 
 /** Same floating glass edge used on the sign-in card and gold button. */
 export const glassSurface = {
@@ -201,6 +214,13 @@ export function GlassBadge({
 }
 
 const styles = StyleSheet.create({
+  glassTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 36,
+  },
   icon: {
     width: 36,
     height: 36,

@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
   content: { paddingHorizontal: 20, paddingBottom: 40 },
   brand: {
-    color: AuthColors.brand,
+    color: AuthColors.ink,
     fontSize: 28,
     fontWeight: '700',
     marginTop: 8,
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 6,
   },
-  audience: { color: AuthColors.onDark, fontSize: 15, marginTop: 4, marginBottom: 14 },
+  audience: { color: AuthColors.ink, fontSize: 15, marginTop: 4, marginBottom: 14 },
   notice: {
     backgroundColor: AuthColors.card,
     borderRadius: 16,

@@ -1,12 +1,13 @@
 name: Deploy Pages
 
+# Cloudflare Pages publishes homecookedplate from the Git connection.
+# This workflow does not run on push, so GitHub does not upload a second copy.
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
   deploy:
+    if: false
     runs-on: ubuntu-latest
     env:
       CI: "1"
@@ -37,4 +38,4 @@ jobs:
 
       - run: npm ci
       - run: npm run pages:build
-      - run: npx wrangler --config wrangler.pages.toml pages deploy dist --project-name homecookedplate --branch main --commit-hash "$GITHUB_SHA"
+      - run: npx wrangler --config wrangler.toml pages deploy dist --project-name homecookedplate --branch main --commit-hash "$GITHUB_SHA"

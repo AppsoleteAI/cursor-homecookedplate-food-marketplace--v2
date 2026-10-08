@@ -86,7 +86,7 @@ export default function MembershipScreen() {
       console.error('[Membership] Location error:', error);
       Alert.alert(
         'Location Error',
-        'Failed to get your location. You can still subscribe without the trial.'
+        'Could not look up your location. A Mac or Windows computer has no GPS, so Location Services must be on and this browser allowed. On iPhone or Android, allow location for the app. An editor preview usually has no position. You can still subscribe without the trial.'
       );
       return null;
     }

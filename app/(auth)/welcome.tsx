@@ -16,7 +16,7 @@ import { useAuth } from '@/hooks/auth-context';
 import { BUYER_AFTER_NOTE, BUYER_FOOD_NOTE, BUYER_MEETING_NOTE } from '@/lib/buyer-safety';
 import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { titleCase } from '@/lib/title-case';
-import { GlassPressable, glassSurface } from '@/components/glass-surface';
+import { GlassPressable, GlassTop, glassSurface } from '@/components/glass-surface';
 
 type Role = 'platetaker' | 'platemaker';
 
@@ -161,6 +161,7 @@ export default function WelcomeScreen() {
 
           <View style={styles.sheet}>
             <View style={styles.panel}>
+              <GlassTop />
               {step === 0 ? (
                 <>
                   <Text style={styles.panelTitle}>Home-Cooked Plates, Near You</Text>
@@ -344,18 +345,18 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.35)',
+    backgroundColor: 'rgba(20, 16, 12, 0.28)',
   },
   stepDotOn: {
-    backgroundColor: AuthColors.brand,
+    backgroundColor: AuthColors.gold,
   },
   stepLabel: {
-    color: AuthColors.onDark,
+    color: AuthColors.muted,
     fontSize: 12,
     fontWeight: '600',
   },
   stepLabelOn: {
-    color: AuthColors.brand,
+    color: AuthColors.ink,
   },
   sheet: {
     backgroundColor: 'transparent',
@@ -366,6 +367,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 18,
     paddingBottom: 16,
+    overflow: 'hidden',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.55)',
     ...cardShadow,
   },
   panelTitle: {

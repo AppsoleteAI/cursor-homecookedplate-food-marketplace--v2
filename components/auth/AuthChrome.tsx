@@ -2,10 +2,12 @@ import React from 'react';
 import {
   ActivityIndicator,
   Image,
+  ImageStyle,
   Platform,
   Pressable,
   StyleSheet,
   Text,
+  TextStyle,
   View,
   ViewStyle,
 } from 'react-native';
@@ -17,6 +19,11 @@ import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { titleCase } from '@/lib/title-case';
 
 const HOUSE_MARK = require('../../assets/house-mark.png');
+
+/** One shadow for the house and the word, so the two read as a pair. */
+const brandDepth = Platform.OS === 'web'
+  ? { filter: 'drop-shadow(0px 2px 2px rgba(70, 28, 6, 0.55))' }
+  : null;
 
 export function AuthBackground({
   children,
@@ -45,7 +52,7 @@ export function AuthBackButton({ onPress }: { onPress: () => void }) {
       accessibilityRole="button"
       accessibilityLabel="Back"
     >
-      <Ionicons name="arrow-back" size={22} color={AuthColors.brand} />
+      <Ionicons name="arrow-back" size={22} color={AuthColors.ink} />
     </GlassPressable>
   );
 }
@@ -53,14 +60,26 @@ export function AuthBackButton({ onPress }: { onPress: () => void }) {
 export function AuthBrand({ toSignIn = true }: { toSignIn?: boolean }) {
   const mark = (
     <View style={styles.brandRow}>
-      <Image
-        source={HOUSE_MARK}
-        style={styles.brandMark}
-        resizeMode="contain"
-        tintColor={AuthColors.gold}
-        accessibilityIgnoresInvertColors
-      />
-      <Text style={styles.brandWord}>HomeCookedPlate</Text>
+      <View style={styles.brandMarkWrap}>
+        {Platform.OS === 'web' ? null : (
+          <Image
+            source={HOUSE_MARK}
+            style={styles.brandMarkShade}
+            resizeMode="contain"
+            tintColor="rgba(70, 28, 6, 0.55)"
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+          />
+        )}
+        <Image
+          source={HOUSE_MARK}
+          style={[styles.brandMark, brandDepth as ImageStyle]}
+          resizeMode="contain"
+          tintColor={AuthColors.white}
+          accessibilityIgnoresInvertColors
+        />
+      </View>
+      <Text style={[styles.brandWord, brandDepth as TextStyle]}>HomeCookedPlate</Text>
     </View>
   );
   if (!toSignIn) return mark;
@@ -120,6 +139,7 @@ export function AuthGoldButton({
 const styles = StyleSheet.create({
   bg: {
     flex: 1,
+    backgroundColor: AuthColors.gradientBottom,
   },
   back: {
     width: 40,
@@ -134,18 +154,29 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 16,
   },
+  brandMarkWrap: {
+    width: 46,
+    height: 42,
+  },
   brandMark: {
     width: 46,
     height: 38,
   },
+  brandMarkShade: {
+    position: 'absolute',
+    width: 46,
+    height: 38,
+    top: 2,
+    left: 0,
+  },
   brandWord: {
-    color: AuthColors.gold,
+    color: AuthColors.white,
     fontSize: 26,
     fontWeight: '700',
     fontFamily: Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia' }),
-    textShadowColor: 'rgba(70, 16, 0, 0.55)',
+    textShadowColor: Platform.OS === 'web' ? 'transparent' : 'rgba(70, 28, 6, 0.55)',
     textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
+    textShadowRadius: Platform.OS === 'web' ? 0 : 2,
   },
   button: {
     height: 50,
