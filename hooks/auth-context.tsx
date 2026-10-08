@@ -56,6 +56,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const resetPasswordMutation = trpc.auth.resetPassword.useMutation();
   const reactivateAccountMutation = trpc.auth.reactivateAccount.useMutation();
   const deleteAccountMutation = trpc.auth.deleteAccount.useMutation();
+  const setAccountSecurityMutation = trpc.auth.setAccountSecurity.useMutation();
   const { data: meData, refetch: refetchMe } = trpc.auth.me.useQuery(undefined, {
     enabled: !!session,
     retry: false,
@@ -553,18 +554,22 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, [user, requestPlatemakerRoleMutation, persistUser, refetchMe]);
 
   const pauseAccount = useCallback(async () => {
-    if (!mountedRef.current || !user) return;
-    const pausedUser = { ...user, isPaused: true };
-    setUser(pausedUser);
+    if (!user) throw new Error('Sign in to pause your account.');
+    const result = await setAccountSecurityMutation.mutateAsync({ isPaused: true });
+    if (!result.isPaused) throw new Error('Pause was not saved on the server.');
+    const pausedUser = { ...user, isPaused: result.isPaused, twoFactorEnabled: result.twoFactorEnabled };
+    if (mountedRef.current) setUser(pausedUser);
     await persistUser(pausedUser);
-  }, [user, persistUser]);
+  }, [user, persistUser, setAccountSecurityMutation]);
 
   const unpauseAccount = useCallback(async () => {
-    if (!mountedRef.current || !user) return;
-    const unpausedUser = { ...user, isPaused: false };
-    setUser(unpausedUser);
+    if (!user) throw new Error('Sign in to unpause your account.');
+    const result = await setAccountSecurityMutation.mutateAsync({ isPaused: false });
+    if (result.isPaused) throw new Error('Pause was not saved on the server.');
+    const unpausedUser = { ...user, isPaused: result.isPaused, twoFactorEnabled: result.twoFactorEnabled };
+    if (mountedRef.current) setUser(unpausedUser);
     await persistUser(unpausedUser);
-  }, [user, persistUser]);
+  }, [user, persistUser, setAccountSecurityMutation]);
 
   const deleteAccount = useCallback(async () => {
     try {
@@ -587,11 +592,13 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, [deleteAccountMutation, persistUser]);
 
   const setTwoFactorEnabled = useCallback(async (enabled: boolean) => {
-    if (!mountedRef.current || !user) return;
-    const updated = { ...user, twoFactorEnabled: enabled };
-    setUser(updated);
+    if (!user) throw new Error('Sign in to update two-factor.');
+    const result = await setAccountSecurityMutation.mutateAsync({ twoFactorEnabled: enabled });
+    if (result.twoFactorEnabled !== enabled) throw new Error('Two-factor was not saved on the server.');
+    const updated = { ...user, isPaused: result.isPaused, twoFactorEnabled: result.twoFactorEnabled };
+    if (mountedRef.current) setUser(updated);
     await persistUser(updated);
-  }, [user, persistUser]);
+  }, [user, persistUser, setAccountSecurityMutation]);
 
   const changePassword = useCallback(async (current: string, newPassword: string) => {
     if (!user || !session) return false;

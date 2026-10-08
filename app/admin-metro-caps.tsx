@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   TextInput,
   Alert,
   RefreshControl,
@@ -17,6 +16,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { Colors, monoGradients } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
+import { GlassPressable } from '@/components/glass-surface';
 
 interface MetroCount {
   metro_name: string;
@@ -65,12 +65,12 @@ export default function AdminMetroCapsScreen() {
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Access Denied</Text>
           <Text style={styles.errorSubtext}>Admin privileges required</Text>
-          <TouchableOpacity
+          <GlassPressable
             style={styles.backButton}
             onPress={() => router.back()}
           >
             <Text style={styles.backButtonText}>Go Back</Text>
-          </TouchableOpacity>
+          </GlassPressable>
         </View>
       </View>
     );
@@ -132,12 +132,12 @@ export default function AdminMetroCapsScreen() {
           style={[styles.headerGradient, { paddingTop: insets.top }]}
         >
           <View style={styles.headerContent}>
-            <TouchableOpacity
+            <GlassPressable
               style={styles.backButton}
               onPress={() => router.back()}
             >
               <Ionicons name="arrow-back" size={24} color={Colors.white} />
-            </TouchableOpacity>
+            </GlassPressable>
             <Text style={styles.headerTitle}>Metro Cap Management</Text>
             <View style={styles.headerSpacer} />
           </View>
@@ -176,7 +176,7 @@ export default function AdminMetroCapsScreen() {
                   <View style={styles.metroHeader}>
                     <Text style={styles.metroName}>{metro.metro_name}</Text>
                     {!isSelected && (
-                      <TouchableOpacity
+                      <GlassPressable
                         style={styles.editButton}
                         onPress={() => {
                           setSelectedMetro(metro.metro_name);
@@ -185,7 +185,7 @@ export default function AdminMetroCapsScreen() {
                         }}
                       >
                         <Ionicons name="pencil" size={18} color={Colors.blue[600]} />
-                      </TouchableOpacity>
+                      </GlassPressable>
                     )}
                   </View>
 
@@ -248,7 +248,7 @@ export default function AdminMetroCapsScreen() {
                           placeholderTextColor={Colors.gray[400]}
                         />
                         <View style={styles.editActions}>
-                          <TouchableOpacity
+                          <GlassPressable
                             style={styles.cancelButton}
                             onPress={() => {
                               setSelectedMetro(null);
@@ -257,8 +257,8 @@ export default function AdminMetroCapsScreen() {
                             }}
                           >
                             <Text style={styles.cancelButtonText}>Cancel</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
+                          </GlassPressable>
+                          <GlassPressable
                             style={styles.saveButton}
                             onPress={handleUpdateMaxCap}
                             disabled={updateMaxCapMutation.isPending}
@@ -271,7 +271,7 @@ export default function AdminMetroCapsScreen() {
                             ) : (
                               <Text style={styles.saveButtonText}>Save</Text>
                             )}
-                          </TouchableOpacity>
+                          </GlassPressable>
                         </View>
                       </View>
                     )}

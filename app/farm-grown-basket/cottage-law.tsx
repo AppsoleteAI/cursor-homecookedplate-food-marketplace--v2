@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Switch } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Switch } from 'react-native';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import * as WebBrowser from 'expo-web-browser';
 import { FarmScreen } from '@/components/farm/FarmScreen';
 import { useSellerGate } from '@/components/RoleGuard';
@@ -115,9 +116,9 @@ export default function CottageLawScreen() {
       />
       <View style={styles.chips}>
         {states.map((state) => (
-          <TouchableOpacity key={state.code} style={[styles.chip, draft.stateCode === state.code && styles.chipOn]} onPress={() => set({ stateCode: state.code })}>
+          <GlassPressable key={state.code} style={[styles.chip, draft.stateCode === state.code && styles.chipOn]} onPress={() => set({ stateCode: state.code })}>
             <Text style={[styles.chipText, draft.stateCode === state.code && styles.chipTextOn]}>{state.name}</Text>
-          </TouchableOpacity>
+          </GlassPressable>
         ))}
       </View>
       {states.length === 0 ? <Text style={styles.note}>Type a state name, such as Pennsylvania, Utah, or California.</Text> : null}
@@ -144,9 +145,9 @@ export default function CottageLawScreen() {
 
       <Text style={styles.label}>Product type</Text>
       {TRACKS.map((track) => (
-        <TouchableOpacity key={track} style={[styles.option, draft.track === track && styles.optionOn]} onPress={() => set({ track })}>
+        <GlassPressable key={track} style={[styles.option, draft.track === track && styles.optionOn]} onPress={() => set({ track })}>
           <Text style={[styles.optionText, draft.track === track && styles.optionTextOn]}>{trackLabel(track)}</Text>
-        </TouchableOpacity>
+        </GlassPressable>
       ))}
       {draft.stateCode ? <Text style={styles.body}>{regulationDuty(draft.track, framework)}</Text> : null}
 
@@ -189,9 +190,9 @@ export default function CottageLawScreen() {
           ))}
         </View>
       ) : null}
-      <TouchableOpacity style={styles.button} onPress={save} testID="save-cottage-record">
-        <Text style={styles.buttonText}>Save local record</Text>
-      </TouchableOpacity>
+      <GlassPressable style={styles.button} onPress={save} testID="save-cottage-record">
+        <Text style={styles.buttonText}>Save Local Record</Text>
+      </GlassPressable>
     </FarmScreen>
   );
 }
@@ -223,7 +224,7 @@ function Toggle({ label, value, onValueChange }: { label: string; value: boolean
 
 const styles = StyleSheet.create({
   lead: { color: Colors.gray[800], lineHeight: 20, marginBottom: 8 },
-  card: { backgroundColor: Colors.white, borderRadius: 14, padding: 14, marginTop: 10 },
+  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 14, padding: 14, marginTop: 10  },
   cardTitle: { fontWeight: '700', color: Colors.gray[900], marginBottom: 6 },
   body: { color: Colors.gray[700], lineHeight: 20, marginTop: 6 },
   step: { color: Colors.gray[700], lineHeight: 20, marginTop: 6 },
@@ -238,7 +239,7 @@ const styles = StyleSheet.create({
   },
   area: { minHeight: 80, textAlignVertical: 'top' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  chip: { backgroundColor: Colors.white, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
+  chip: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
   chipOn: { backgroundColor: '#166534' },
   chipText: { color: Colors.gray[800] },
   chipTextOn: { color: Colors.white, fontWeight: '700' },
@@ -252,6 +253,6 @@ const styles = StyleSheet.create({
   toggleLabel: { flex: 1, color: Colors.gray[800], lineHeight: 20 },
   block: { color: '#9A3412', marginTop: 8, lineHeight: 20 },
   ok: { color: '#166534', marginTop: 8, fontWeight: '700' },
-  button: { marginTop: 16, backgroundColor: '#166534', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  button: { ...glassSurface, marginTop: 16, backgroundColor: '#166534', borderRadius: 14, paddingVertical: 14, alignItems: 'center'  },
   buttonText: { color: Colors.white, fontWeight: '700' },
 });

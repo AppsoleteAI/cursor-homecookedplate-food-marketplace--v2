@@ -1,6 +1,7 @@
 import React, { Component, ReactNode } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { captureException } from '@/lib/sentry';
+import { GlassPressable } from '@/components/glass-surface';
 
 interface Props {
   children: ReactNode;
@@ -48,16 +49,16 @@ export class ErrorBoundary extends Component<Props, State> {
 
       return (
         <View style={styles.container}>
-          <Text style={styles.title}>Something went wrong</Text>
+          <Text style={styles.title}>Something Went Wrong</Text>
           <Text style={styles.message}>
             {this.state.error?.message ?? 'An unexpected error occurred'}
           </Text>
           <Text style={styles.message}>
             Error: {this.state.error?.name ?? 'Unknown'}
           </Text>
-          <TouchableOpacity style={styles.button} onPress={this.handleReset}>
+          <GlassPressable style={styles.button} onPress={this.handleReset}>
             <Text style={styles.buttonText}>Try Again</Text>
-          </TouchableOpacity>
+          </GlassPressable>
         </View>
       );
     }

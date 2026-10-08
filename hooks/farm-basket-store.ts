@@ -160,6 +160,7 @@ export function publishFarmListing(input: {
 }
 
 export function placeFarmOrder(input: {
+  id?: string;
   channel: FarmChannel;
   lines: FarmOrderLine[];
   baseAmount: number;
@@ -167,7 +168,7 @@ export function placeFarmOrder(input: {
   sellerPayout: number;
 }): FarmOrder {
   const order: FarmOrder = {
-    id: `fgb-${Date.now()}`,
+    id: input.id ?? `fgb-${Date.now()}`,
     createdAt: new Date().toISOString(),
     channel: input.channel,
     lines: input.lines,

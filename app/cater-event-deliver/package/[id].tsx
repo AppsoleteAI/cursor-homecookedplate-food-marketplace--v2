@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
+import { titleCase } from '@/lib/title-case';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
 import { Colors } from '@/constants/colors';
@@ -45,9 +47,9 @@ export default function CaterPackageScreen() {
       <Text style={[styles.status, open ? styles.open : styles.closed]}>{open ? 'Accepting this drop-off' : 'Not accepting orders'}</Text>
       <Text style={styles.body}>{summary}</Text>
       {company ? (
-        <TouchableOpacity onPress={() => router.push(`/cater-event-deliver/company/${company.id}` as Href)}>
-          <Text style={styles.link}>Back to {company.name}</Text>
-        </TouchableOpacity>
+        <GlassPressable onPress={() => router.push(`/cater-event-deliver/company/${company.id}` as Href)}>
+          <Text style={styles.link}>Back to {titleCase(company.name)}</Text>
+        </GlassPressable>
       ) : null}
       <View style={styles.panel}>
         <Text style={styles.label}>Ingredients</Text>
@@ -58,15 +60,15 @@ export default function CaterPackageScreen() {
         <Text style={styles.body}>The catering company drops this off and sets it up. It is not a cooked plate and not a farm good.</Text>
       </View>
       <View style={styles.qtyRow}>
-        <TouchableOpacity style={styles.qty} onPress={() => setHeadcount((value) => Math.max(minimum, value - 1))}>
+        <GlassPressable style={styles.qty} onPress={() => setHeadcount((value) => Math.max(minimum, value - 1))}>
           <Text style={styles.qtyText}>−</Text>
-        </TouchableOpacity>
+        </GlassPressable>
         <Text style={styles.qtyValue}>{people} people</Text>
-        <TouchableOpacity style={styles.qty} onPress={() => setHeadcount((value) => Math.min(500, value + 1))}>
+        <GlassPressable style={styles.qty} onPress={() => setHeadcount((value) => Math.min(500, value + 1))}>
           <Text style={styles.qtyText}>+</Text>
-        </TouchableOpacity>
+        </GlassPressable>
       </View>
-      <TouchableOpacity
+      <GlassPressable
         style={[styles.add, !open && styles.addOff]}
         disabled={!open}
         testID="add-cater-package"
@@ -76,20 +78,20 @@ export default function CaterPackageScreen() {
           setNotice(result.ok ? 'Added to the group order.' : result.reason);
         }}
       >
-        <Text style={styles.addText}>{open ? 'Add to the group order' : 'Not accepting orders'}</Text>
-      </TouchableOpacity>
+        <Text style={styles.addText}>{open ? 'Add to the Group Order' : 'Not Accepting Orders'}</Text>
+      </GlassPressable>
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
       {notice === 'Added to the group order.' ? (
-        <TouchableOpacity onPress={() => router.push('/cater-event-deliver/basket' as Href)}>
-          <Text style={styles.link}>Go to the group order</Text>
-        </TouchableOpacity>
+        <GlassPressable onPress={() => router.push('/cater-event-deliver/basket' as Href)}>
+          <Text style={styles.link}>Go to the Group Order</Text>
+        </GlassPressable>
       ) : null}
     </CaterEventScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  hero: { width: '100%', height: 200, borderRadius: 16, backgroundColor: Colors.gray[200] },
+  hero: { ...glassSurface, width: '100%', height: 200, borderRadius: 16, backgroundColor: Colors.gray[200]  },
   price: { marginTop: 12, fontSize: 22, fontWeight: '700', color: '#6D28D9' },
   status: { marginTop: 4, fontWeight: '700' },
   open: { color: '#166534' },
@@ -99,10 +101,10 @@ const styles = StyleSheet.create({
   panel: { marginTop: 16, backgroundColor: Colors.white, borderRadius: 16, padding: 14 },
   label: { marginTop: 8, fontWeight: '700', color: Colors.gray[800] },
   qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 16 },
-  qty: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.white, alignItems: 'center', justifyContent: 'center' },
+  qty: { ...glassSurface, width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.white, alignItems: 'center', justifyContent: 'center'  },
   qtyText: { fontSize: 22, color: Colors.gray[900] },
   qtyValue: { fontSize: 18, fontWeight: '700' },
-  add: { marginTop: 16, backgroundColor: '#6D28D9', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  add: { ...glassSurface, marginTop: 16, backgroundColor: '#6D28D9', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
   addOff: { backgroundColor: Colors.gray[400] },
   addText: { color: Colors.white, fontWeight: '700', fontSize: 16 },
   notice: { marginTop: 10, color: Colors.gray[800], lineHeight: 20 },

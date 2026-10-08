@@ -1,28 +1,31 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import {
   View,
   Text,
   StyleSheet,
   TextInput,
   ScrollView,
-  TouchableOpacity,
   BackHandler,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, monoGradients } from '@/constants/colors';
+import { Colors, inAppHeaderBand, monoGradients, pagePastel } from '@/constants/colors';
 import { MealCard } from '@/components/MealCard';
 import { trpc } from '@/lib/trpc';
+import { useAuth } from '@/hooks/auth-context';
 import type { Meal } from '@/types';
 import { useRouter } from 'expo-router';
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isInputFocused, setIsInputFocused] = useState<boolean>(false);
   const [isSearchActive, setIsSearchActive] = useState<boolean>(false);
+  const [headerHeight, setHeaderHeight] = useState(0);
 
   const doSearch = useCallback(() => {
     if (searchQuery.trim()) {
@@ -51,7 +54,9 @@ export default function SearchScreen() {
     router.push('/filter');
   }, [router]);
 
-  const { data: mealsData, isLoading, error } = trpc.meals.list.useQuery();
+  const { data: mealsData, isLoading, error } = trpc.meals.list.useQuery({
+    metroArea: user?.metroArea || undefined,
+  });
   const meals: Meal[] = useMemo(() => {
     return (mealsData || []).map((meal) => ({
       id: meal.id,
@@ -71,6 +76,7 @@ export default function SearchScreen() {
       reviewCount: meal.reviewCount,
       featured: meal.featured || false,
       tags: meal.tags || [],
+      isSample: meal.isSample === true,
     }));
   }, [mealsData]);
 
@@ -89,24 +95,36 @@ export default function SearchScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.staticHeader}>
+      <View style={[styles.staticHeader, { top: insets.top }]}>
         <LinearGradient
           colors={monoGradients.orange}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={[styles.headerCard, { paddingTop: insets.top }]}
+          style={styles.headerCard}
+          onLayout={(event) => {
+            const next = event.nativeEvent.layout.height ?? 0;
+            if (next !== headerHeight) setHeaderHeight(next);
+          }}
         >
           <View style={styles.headerInner}>
             <Text style={styles.title}>Search Meals</Text>
+          </View>
+        </LinearGradient>
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + headerHeight + 12 }]}
+      >
             <View style={styles.searchContainer}>
               <View style={[styles.searchBar, isInputFocused ? styles.searchBarFocused : null]} testID="search-bar">
-                <TouchableOpacity onPress={doSearch} accessibilityRole="button" testID="execute-search">
-                  <Ionicons name="search" size={20} color={Colors.gray[200]} />
-                </TouchableOpacity>
+                <GlassPressable onPress={doSearch} accessibilityRole="button" testID="execute-search">
+                  <Ionicons name="search" size={20} color={Colors.gray[600]} />
+                </GlassPressable>
                 <TextInput
                   style={styles.searchInput}
                   placeholder="Meals, cooks, or cuisines"
-                  placeholderTextColor={Colors.gray[200]}
+                  placeholderTextColor={Colors.gray[500]}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   onSubmitEditing={doSearch}
@@ -119,34 +137,26 @@ export default function SearchScreen() {
                   onBlur={() => setIsInputFocused(false)}
                 />
               </View>
-              <TouchableOpacity
+              <GlassPressable
                 style={styles.filterButton}
                 onPress={openFilter}
                 accessibilityRole="button"
                 testID="toggle-filters"
               >
-                <Ionicons name="options-outline" size={20} color={Colors.white} />
-              </TouchableOpacity>
+                <Ionicons name="options-outline" size={20} color={Colors.gray[800]} />
+              </GlassPressable>
             </View>
             {isSearchActive && (
-              <TouchableOpacity
+              <GlassPressable
                 style={styles.resetButton}
                 onPress={resetSearch}
                 accessibilityRole="button"
                 testID="reset-search"
               >
-                <Ionicons name="close" size={16} color={Colors.white} />
+                <Ionicons name="close" size={16} color={Colors.gray[800]} />
                 <Text style={styles.resetButtonText}>Back to Search</Text>
-              </TouchableOpacity>
+              </GlassPressable>
             )}
-          </View>
-        </LinearGradient>
-      </View>
-
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
         <Text style={styles.resultCount}>
           {isLoading ? 'Loading plates' : error ? 'Could not load plates' : `${filteredMeals.length} meals found`}
         </Text>
@@ -163,7 +173,7 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: pagePastel.orange,
   },
   staticHeader: {
     position: 'absolute',
@@ -173,40 +183,40 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   headerCard: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingHorizontal: inAppHeaderBand.paddingHorizontal,
+    paddingTop: inAppHeaderBand.paddingTop,
+    paddingBottom: inAppHeaderBand.paddingBottom,
+    minHeight: inAppHeaderBand.minHeight,
+    justifyContent: 'center',
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    ...glassSurface,
   },
   headerInner: {
-    paddingVertical: 16,
+    paddingVertical: 0,
   },
   title: {
-    fontSize: 28,
+    fontSize: inAppHeaderBand.titleSize,
     fontWeight: '700',
     color: Colors.white,
-    marginBottom: 12,
+    marginBottom: 0,
   },
   searchContainer: {
     flexDirection: 'row',
     gap: 12,
     alignItems: 'center',
+    paddingHorizontal: 16,
   },
   searchBar: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: Colors.white,
     borderRadius: 12,
     paddingHorizontal: 16,
     height: 48,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
   },
   searchBarFocused: {
     borderColor: '#2F6BFF',
@@ -223,13 +233,14 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   scrollContent: {
-    paddingTop: 240,
     paddingBottom: 100,
   },
   resultCount: {
@@ -249,7 +260,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -259,6 +272,6 @@ const styles = StyleSheet.create({
   resetButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.white,
+    color: Colors.gray[800],
   },
 });

@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TextInput,
-  TouchableOpacity,
   Image,
   Alert,
   Platform,
@@ -13,13 +13,16 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import { Colors, monoGradients } from '@/constants/colors';
+import { Colors, inAppHeaderBand, monoGradients, pagePastel } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
 import { cuisineTypes } from '@/mocks/data';
 import { router , type Href } from 'expo-router';
+import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMeals } from '@/hooks/meals-context';
 import { useAuth } from '@/hooks/auth-context';
+import { trpc } from '@/lib/trpc';
+import { readLocalMedia } from '@/lib/read-local-media';
 import { Ionicons } from '@expo/vector-icons';
 import { calculateOrderBreakdown, calculateOrderSplit } from '@/lib/fees';
 
@@ -89,6 +92,7 @@ interface FormState {
 export default function CreateMealScreen() {
   const { user, isLoading: authLoading } = useAuth();
   const insets = useSafeAreaInsets();
+  const [headerHeight, setHeaderHeight] = useState(0);
   const [form, setForm] = useState<FormState>({
     name: '',
     category: '',
@@ -101,6 +105,8 @@ export default function CreateMealScreen() {
     availabilityWindows: [],
   });
   const { addMeal } = useMeals();
+  const createMeal = trpc.meals.create.useMutation();
+  const uploadMedia = trpc.media.upload.useMutation();
   const [saving, setSaving] = useState<boolean>(false);
   const [countdown, setCountdown] = useState<number>(0);
   const [foodSafetyAcknowledged, setFoodSafetyAcknowledged] = useState<boolean>(false);
@@ -395,14 +401,39 @@ export default function CreateMealScreen() {
     if (!isValid) return;
     try {
       setSaving(true);
-      await new Promise(resolve => setTimeout(resolve, 600));
+      const cuisine = form.category.trim();
+      const ingredients = form.ingredientList.split(',').map(s => s.trim()).filter(Boolean);
+      const created = await createMeal.mutateAsync({
+        name: form.name.trim(),
+        description: ingredients.join(', '),
+        price: Number(priceNumber),
+        images: [],
+        ingredients,
+        cuisine,
+        category: cuisine === 'Bakery' ? 'dessert' : 'dinner',
+        preparationTime: 30,
+        expiryDate: form.freshnessExpiryDate || undefined,
+        receiptDate: form.freshnessReceiptDate || undefined,
+      });
+      const media: { uri: string; type: MediaType }[] = [];
+      for (const item of form.media) {
+        const file = await readLocalMedia(item.uri, item.type);
+        const uploaded = await uploadMedia.mutateAsync({
+          mealId: created.id,
+          base64Data: file.base64,
+          mimeType: file.mimeType,
+          type: item.type,
+        });
+        media.push({ uri: uploaded.uri, type: uploaded.type === 'video' ? 'video' : 'image' });
+      }
       await addMeal({
+        id: created.id,
         ownerId: user?.id ?? 'unknown',
         name: form.name.trim(),
         category: form.category.trim(),
         price: Number(priceNumber),
-        ingredients: form.ingredientList.split(',').map(s => s.trim()).filter(Boolean),
-        media: form.media.map(m => ({ uri: m.uri, type: m.type })),
+        ingredients,
+        media,
         freshness: {
           expiryDate: form.freshnessExpiryDate || undefined,
           receiptDate: form.freshnessReceiptDate || undefined,
@@ -411,12 +442,13 @@ export default function CreateMealScreen() {
       });
       Alert.alert('Saved', 'Meal published successfully');
       router.back();
-    } catch {
-      Alert.alert('Error', 'Failed to save meal. Please try again.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save meal. Please try again.';
+      Alert.alert('Error', message);
     } finally {
       setSaving(false);
     }
-  }, [isValid, addMeal, user?.id, form, priceNumber]);
+  }, [isValid, addMeal, createMeal, uploadMedia, user?.id, form, priceNumber]);
 
   const serviceDisclosure = 'Fee Structure: Customer pays listed price + 10% (buyer fee). You receive listed price - 10% (seller fee). Platform total: 20%.';
 
@@ -435,12 +467,16 @@ export default function CreateMealScreen() {
   if (showOnboarding) {
     return (
       <View style={styles.container}>
-        <View style={styles.staticHeader}>
+        <View style={[styles.staticHeader, { top: insets.top }]}>
           <LinearGradient
             colors={monoGradients.orange}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={[styles.headerCard, { paddingTop: insets.top }]}
+            style={styles.headerCard}
+            onLayout={(event) => {
+              const next = event.nativeEvent.layout.height ?? 0;
+              if (next !== headerHeight) setHeaderHeight(next);
+            }}
           >
             <View style={styles.headerInner}>
               <Text style={styles.title}>Become a PlateMaker</Text>
@@ -448,7 +484,7 @@ export default function CreateMealScreen() {
             </View>
           </LinearGradient>
         </View>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.onboardingContent}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.onboardingContent, { paddingTop: insets.top + headerHeight + 12 }]}>
           <View style={styles.onboardingSection}>
             <Text style={styles.onboardingTitle}>Why Become a PlateMaker?</Text>
             <View style={styles.benefitsList}>
@@ -508,7 +544,7 @@ export default function CreateMealScreen() {
           </View>
 
           <View style={styles.onboardingFooter}>
-            <TouchableOpacity
+            <GlassPressable
               onPress={handleBecomeSeller}
               disabled={isUpgrading}
               style={styles.becomeSellerButton}
@@ -525,7 +561,7 @@ export default function CreateMealScreen() {
                   <Text style={styles.becomeSellerText}>Become a Seller</Text>
                 )}
               </LinearGradient>
-            </TouchableOpacity>
+            </GlassPressable>
             <Text style={styles.disclaimerText}>
               Note: Account upgrades require admin approval for security. You&apos;ll be notified once your request is processed.
             </Text>
@@ -538,12 +574,16 @@ export default function CreateMealScreen() {
   // Show the meal creation form for platemakers
   return (
     <View style={styles.container}>
-        <View style={styles.staticHeader}>
+        <View style={[styles.staticHeader, { top: insets.top }]}>
           <LinearGradient
             colors={monoGradients.red}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={[styles.headerCard, { paddingTop: insets.top }]}
+            style={styles.headerCard}
+            onLayout={(event) => {
+              const next = event.nativeEvent.layout.height ?? 0;
+              if (next !== headerHeight) setHeaderHeight(next);
+            }}
           >
             <View style={styles.headerInner}>
               <Text style={styles.title}>Create New Meal</Text>
@@ -551,7 +591,7 @@ export default function CreateMealScreen() {
             </View>
           </LinearGradient>
         </View>
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + headerHeight + 12 }]}>
 
           <View style={styles.section}>
           <GradientButton
@@ -578,14 +618,14 @@ export default function CreateMealScreen() {
           <Text style={styles.label}>Category / Cuisine</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
             {cuisineTypes.map(c => (
-              <TouchableOpacity
+              <GlassPressable
                 key={c}
                 onPress={() => onChange('category', c)}
                 style={[styles.chip, form.category === c && styles.chipActive]}
                 testID={`chip-${c}`}
               >
                 <Text style={[styles.chipText, form.category === c && styles.chipTextActive]}>{c}</Text>
-              </TouchableOpacity>
+              </GlassPressable>
             ))}
           </ScrollView>
         </View>
@@ -641,12 +681,12 @@ export default function CreateMealScreen() {
           <Text style={styles.helper}>Tap to select or drag-and-drop images or short videos (≤ 8s) here (web)</Text>
           <View style={styles.dropZone} testID="drop-zone">
             <View style={styles.dropZoneInner}>
-              <TouchableOpacity onPress={pickMedia} style={styles.uploadAction} testID="pick-media">
+              <GlassPressable onPress={pickMedia} style={styles.uploadAction} testID="pick-media">
                 <Text style={styles.uploadActionText}>Choose from Gallery</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={captureMedia} style={[styles.uploadAction, styles.uploadActionSecondary]} testID="capture-media" accessibilityLabel="Record video with camera">
+              </GlassPressable>
+              <GlassPressable onPress={captureMedia} style={[styles.uploadAction, styles.uploadActionSecondary]} testID="capture-media" accessibilityLabel="Record video with camera">
                 <Text style={[styles.uploadActionText, styles.uploadActionTextSecondary]}>Photo / Video</Text>
-              </TouchableOpacity>
+              </GlassPressable>
             </View>
           </View>
 
@@ -692,7 +732,7 @@ export default function CreateMealScreen() {
                   <Text style={styles.smallLabel}>Day</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayChipsRow}>
                     {days.map((day, dayIdx) => (
-                      <TouchableOpacity
+                      <GlassPressable
                         key={dayIdx}
                         onPress={() => updateAvailabilityWindow(idx, 'dayOfWeek', dayIdx)}
                         style={[styles.dayChip, window.dayOfWeek === dayIdx && styles.dayChipActive]}
@@ -701,7 +741,7 @@ export default function CreateMealScreen() {
                         <Text style={[styles.dayChipText, window.dayOfWeek === dayIdx && styles.dayChipTextActive]}>
                           {day.slice(0, 3)}
                         </Text>
-                      </TouchableOpacity>
+                      </GlassPressable>
                     ))}
                   </ScrollView>
                 </View>
@@ -728,13 +768,13 @@ export default function CreateMealScreen() {
                       testID={`end-time-${idx}`}
                     />
                   </View>
-                  <TouchableOpacity
+                  <GlassPressable
                     onPress={() => removeAvailabilityWindow(idx)}
                     style={styles.removeButton}
                     testID={`remove-window-${idx}`}
                   >
                     <Text style={styles.removeButtonText}>×</Text>
-                  </TouchableOpacity>
+                  </GlassPressable>
                 </View>
               </View>
             );
@@ -861,9 +901,10 @@ export default function CreateMealScreen() {
               <Text style={[styles.foodSafetyLink, { marginTop: 8 }]} onPress={() => router.push('/kitchen-rules' as Href)}>
                 Kitchen rules for cooked plates and commissary kitchens
               </Text>
+              <FoodHandlingLink label="Food handling temperatures, gloves, and containers" />
             </View>
           </View>
-          <TouchableOpacity
+          <GlassPressable
             style={styles.acknowledgmentCheckboxRow}
             onPress={() => setFoodSafetyAcknowledged(!foodSafetyAcknowledged)}
             activeOpacity={0.7}
@@ -874,7 +915,7 @@ export default function CreateMealScreen() {
             <Text style={styles.acknowledgmentText}>
               I acknowledge that I have reviewed cottagefoodlaws.com and understand that I must comply with all local, county, state and federal food laws. I understand that HomeCookedPlate does not allow anyone to violate their local, county, state and/or federal food laws on the HomeCookedPlate App.
             </Text>
-          </TouchableOpacity>
+          </GlassPressable>
         </View>
           <GradientButton
             title={saving ? 'Publishing…' : 'Save / Publish Meal'}
@@ -890,24 +931,23 @@ export default function CreateMealScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.white },
+  container: { flex: 1, backgroundColor: pagePastel.red },
   staticHeader: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
   headerCard: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingHorizontal: inAppHeaderBand.paddingHorizontal,
+    paddingTop: inAppHeaderBand.paddingTop,
+    paddingBottom: inAppHeaderBand.paddingBottom,
+    minHeight: inAppHeaderBand.minHeight,
+    justifyContent: 'center',
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    ...glassSurface,
   },
-  headerInner: { paddingVertical: 16 },
-  scrollContent: { paddingTop: 160 + 44, paddingBottom: 120 },
+  headerInner: { paddingVertical: 0 },
+  scrollContent: { paddingBottom: 120 },
   header: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24 },
-  title: { fontSize: 28, fontWeight: '700', color: Colors.white, marginBottom: 4 },
-  subtitle: { fontSize: 16, color: Colors.white },
+  title: { fontSize: inAppHeaderBand.titleSize, fontWeight: '700', color: Colors.white, marginBottom: 4 },
+  subtitle: { fontSize: inAppHeaderBand.subtitleSize, color: Colors.white },
   section: { paddingHorizontal: 24, marginBottom: 20 },
   label: { fontSize: 16, fontWeight: '600', color: Colors.gray[900], marginBottom: 8 },
   smallLabel: { fontSize: 12, fontWeight: '600', color: Colors.gray[700], marginBottom: 8 },
@@ -923,6 +963,7 @@ const styles = StyleSheet.create({
   textArea: { height: 120, textAlignVertical: 'top' },
   chipsRow: { gap: 8 },
   chip: {
+    ...glassSurface,
     paddingHorizontal: 14,
     paddingVertical: 10,
     backgroundColor: Colors.gray[100],
@@ -1100,10 +1141,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: pagePastel.red,
   },
   onboardingContent: {
-    paddingTop: 200,
     paddingBottom: 40,
   },
   onboardingSection: {

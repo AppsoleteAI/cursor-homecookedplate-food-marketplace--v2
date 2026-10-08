@@ -128,8 +128,8 @@ To test Sentry integration:
 ## Performance Monitoring
 
 The current setup includes basic performance tracking:
-- `tracesSampleRate: 1.0` means 100% of transactions are tracked
-- For high-traffic apps, reduce this to 0.1 (10%) or lower
+- `tracesSampleRate` is `0.1`, so 10% of performance traces are tracked
+- Error events are still reported. The rate applies to traces, not crashes
 
 ## Cost
 

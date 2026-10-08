@@ -1,6 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useCallback, useMemo } from 'react';
 import { CartItem, Meal } from '@/types';
+import { isSampleMealId } from '@/lib/sample-meals';
 
 interface CartState {
   items: CartItem[];
@@ -20,6 +21,7 @@ export const [CartProvider, useCart] = createContextHook<CartState>(() => {
   const [items, setItems] = useState<CartItem[]>([]);
 
   const addToCart = useCallback((meal: Meal, quantity: number, options?: Partial<CartItem>) => {
+    if (meal.isSample || isSampleMealId(meal.id)) return;
     setItems(prev => {
       const existing = prev.find(item => item.meal.id === meal.id);
       if (existing) {

@@ -1,15 +1,13 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   Switch,
   Alert,
   Platform,
   Modal,
-  Pressable,
   TextInput,
   Linking,
   Share,
@@ -20,6 +18,7 @@ import { Lock, Eye, Shield, Trash2, Download, ChevronRight, Pause, AlertTriangle
 import { Colors } from '@/constants/colors';
 import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '@/constants/urls';
 import { useAuth } from '@/hooks/auth-context';
+import { GlassPressable } from '@/components/glass-surface';
 
 
 export default function PrivacySecurityScreen() {
@@ -29,6 +28,8 @@ export default function PrivacySecurityScreen() {
   const [showEmail, setShowEmail] = useState<boolean>(false);
   const [accountPaused, setAccountPaused] = useState<boolean>(user?.isPaused ?? false);
   const [twoFA, setTwoFA] = useState<boolean>(user?.twoFactorEnabled ?? false);
+  const [savingPause, setSavingPause] = useState<boolean>(false);
+  const [savingTwoFA, setSavingTwoFA] = useState<boolean>(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState<boolean>(false);
   const [confirmationStep, setConfirmationStep] = useState<1 | 2 | 3>(1);
   const [passwordModalVisible, setPasswordModalVisible] = useState<boolean>(false);
@@ -36,7 +37,11 @@ export default function PrivacySecurityScreen() {
   const [newPassword, setNewPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [changing, setChanging] = useState<boolean>(false);
-  const twoFADisplay = useMemo(() => twoFA, [twoFA]);
+  useEffect(() => {
+    if (savingPause || savingTwoFA) return;
+    setAccountPaused(Boolean(user?.isPaused));
+    setTwoFA(Boolean(user?.twoFactorEnabled));
+  }, [user?.isPaused, user?.twoFactorEnabled, savingPause, savingTwoFA]);
 
   const openChangePassword = useCallback(() => {
     setPasswordModalVisible(true);
@@ -111,21 +116,33 @@ export default function PrivacySecurityScreen() {
   }, [requestDataExport, user?.email]);
 
   const handlePauseAccount = useCallback(async (value: boolean) => {
+    setSavingPause(true);
     setAccountPaused(value);
-    if (value) {
-      await pauseAccount();
-      if (Platform.OS === 'web') {
-        window.alert('Your account has been paused. You can unpause it anytime.');
+    try {
+      if (value) {
+        await pauseAccount();
+        if (Platform.OS === 'web') {
+          window.alert('Your account has been paused. You can unpause it anytime.');
+        } else {
+          Alert.alert('Account Paused', 'Your account has been paused. You can unpause it anytime.');
+        }
       } else {
-        Alert.alert('Account Paused', 'Your account has been paused. You can unpause it anytime.');
+        await unpauseAccount();
+        if (Platform.OS === 'web') {
+          window.alert('Your account has been unpaused.');
+        } else {
+          Alert.alert('Account Unpaused', 'Your account has been unpaused.');
+        }
       }
-    } else {
-      await unpauseAccount();
+    } catch {
+      setAccountPaused(!value);
       if (Platform.OS === 'web') {
-        window.alert('Your account has been unpaused.');
+        window.alert('Could not update pause on the server.');
       } else {
-        Alert.alert('Account Unpaused', 'Your account has been unpaused.');
+        Alert.alert('Account', 'Could not update pause on the server.');
       }
+    } finally {
+      setSavingPause(false);
     }
   }, [pauseAccount, unpauseAccount]);
 
@@ -229,7 +246,7 @@ export default function PrivacySecurityScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Security</Text>
 
-            <TouchableOpacity testID="btn-change-password" style={styles.actionItem} onPress={openChangePassword}>
+            <GlassPressable testID="btn-change-password" style={styles.actionItem} onPress={openChangePassword}>
               <View style={styles.settingLeft}>
                 <View style={styles.iconContainer}>
                   <Lock size={20} color={Colors.info} />
@@ -237,7 +254,7 @@ export default function PrivacySecurityScreen() {
                 <Text style={styles.settingTitle}>Change Password</Text>
               </View>
               <ChevronRight size={20} color={Colors.gray[400]} />
-            </TouchableOpacity>
+            </GlassPressable>
 
             <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
@@ -246,15 +263,28 @@ export default function PrivacySecurityScreen() {
                 </View>
                 <View style={styles.settingText}>
                   <Text style={styles.settingTitle}>Two-Factor Authentication</Text>
-                  <Text style={styles.settingDescription}>Add extra security to your account</Text>
+                  <Text style={styles.settingDescription}>Saved on your account. Sign-in does not ask for a second code yet.</Text>
                 </View>
               </View>
               <Switch
                 testID="switch-2fa"
-                value={twoFADisplay}
+                value={twoFA}
+                disabled={savingTwoFA}
                 onValueChange={async (v) => {
+                  setSavingTwoFA(true);
                   setTwoFA(v);
-                  await setTwoFactorEnabled(v);
+                  try {
+                    await setTwoFactorEnabled(v);
+                  } catch {
+                    setTwoFA(!v);
+                    if (Platform.OS === 'web') {
+                      window.alert('Could not save two-factor on the server.');
+                    } else {
+                      Alert.alert('Two-factor', 'Could not save two-factor on the server.');
+                    }
+                  } finally {
+                    setSavingTwoFA(false);
+                  }
                 }}
                 trackColor={{ false: Colors.gray[300], true: Colors.gradient.green }}
                 thumbColor={Colors.white}
@@ -278,6 +308,7 @@ export default function PrivacySecurityScreen() {
               <Switch
                 testID="switch-pause-account"
                 value={accountPaused}
+                disabled={savingPause}
                 onValueChange={handlePauseAccount}
                 trackColor={{ false: Colors.gray[300], true: Colors.warning }}
                 thumbColor={Colors.white}
@@ -288,7 +319,7 @@ export default function PrivacySecurityScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Legal Documents</Text>
 
-            <TouchableOpacity
+            <GlassPressable
               testID="btn-privacy-policy"
               style={styles.actionItem}
               onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
@@ -303,9 +334,9 @@ export default function PrivacySecurityScreen() {
                 </View>
               </View>
               <ChevronRight size={20} color={Colors.gray[400]} />
-            </TouchableOpacity>
+            </GlassPressable>
 
-            <TouchableOpacity
+            <GlassPressable
               testID="btn-terms"
               style={styles.actionItem}
               onPress={() => Linking.openURL(TERMS_OF_SERVICE_URL)}
@@ -320,13 +351,13 @@ export default function PrivacySecurityScreen() {
                 </View>
               </View>
               <ChevronRight size={20} color={Colors.gray[400]} />
-            </TouchableOpacity>
+            </GlassPressable>
           </View>
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Data Management</Text>
 
-            <TouchableOpacity testID="btn-download-data" style={styles.actionItem} onPress={handleDownloadData}>
+            <GlassPressable testID="btn-download-data" style={styles.actionItem} onPress={handleDownloadData}>
               <View style={styles.settingLeft}>
                 <View style={styles.iconContainer}>
                   <Download size={20} color={Colors.gradient.green} />
@@ -334,9 +365,9 @@ export default function PrivacySecurityScreen() {
                 <Text style={styles.settingTitle}>Download My Data</Text>
               </View>
               <ChevronRight size={20} color={Colors.gray[400]} />
-            </TouchableOpacity>
+            </GlassPressable>
 
-            <TouchableOpacity testID="btn-delete-account" style={styles.actionItem} onPress={handleDeleteAccount}>
+            <GlassPressable testID="btn-delete-account" style={styles.actionItem} onPress={handleDeleteAccount}>
               <View style={styles.settingLeft}>
                 <View style={[styles.iconContainer, styles.dangerIconContainer]}>
                   <Trash2 size={20} color={Colors.gradient.red} />
@@ -344,7 +375,7 @@ export default function PrivacySecurityScreen() {
                 <Text style={[styles.settingTitle, styles.dangerText]}>Delete Account</Text>
               </View>
               <ChevronRight size={20} color={Colors.gray[400]} />
-            </TouchableOpacity>
+            </GlassPressable>
           </View>
         </View>
       </ScrollView>
@@ -356,9 +387,9 @@ export default function PrivacySecurityScreen() {
               <View style={styles.warningIconLarge}>
                 <AlertTriangle size={32} color={Colors.gradient.red} />
               </View>
-              <Pressable style={styles.closeButton} onPress={handleCancelDelete}>
+              <GlassPressable style={styles.closeButton} onPress={handleCancelDelete}>
                 <X size={24} color={Colors.gray[600]} />
-              </Pressable>
+              </GlassPressable>
             </View>
 
             <Text style={styles.modalTitle}>{confirmationData.title}</Text>
@@ -377,12 +408,12 @@ export default function PrivacySecurityScreen() {
             )}
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.cancelButton} onPress={handleCancelDelete}>
+              <GlassPressable style={styles.cancelButton} onPress={handleCancelDelete}>
                 <Text style={styles.cancelButtonText}>No, Keep Account</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmStep}>
+              </GlassPressable>
+              <GlassPressable style={styles.confirmButton} onPress={handleConfirmStep}>
                 <Text style={styles.confirmButtonText}>{confirmationStep === 3 ? 'Yes, Delete Forever' : 'Yes, Continue'}</Text>
-              </TouchableOpacity>
+              </GlassPressable>
             </View>
 
             <View style={styles.stepIndicator}>
@@ -401,9 +432,9 @@ export default function PrivacySecurityScreen() {
               <View style={styles.warningIconLarge}>
                 <Lock size={28} color={Colors.info} />
               </View>
-              <Pressable style={styles.closeButton} onPress={() => setPasswordModalVisible(false)}>
+              <GlassPressable style={styles.closeButton} onPress={() => setPasswordModalVisible(false)}>
                 <X size={24} color={Colors.gray[600]} />
-              </Pressable>
+              </GlassPressable>
             </View>
             <Text style={styles.modalTitle}>Change Password</Text>
             <View style={styles.inputGroup}>
@@ -443,12 +474,12 @@ export default function PrivacySecurityScreen() {
               />
             </View>
             <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.cancelButton} onPress={() => setPasswordModalVisible(false)}>
+              <GlassPressable style={styles.cancelButton} onPress={() => setPasswordModalVisible(false)}>
                 <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity disabled={changing} style={styles.confirmButton} onPress={submitChangePassword}>
+              </GlassPressable>
+              <GlassPressable disabled={changing} style={styles.confirmButton} onPress={submitChangePassword}>
                 <Text style={styles.confirmButtonText}>{changing ? 'Updating…' : 'Update Password'}</Text>
-              </TouchableOpacity>
+              </GlassPressable>
             </View>
           </View>
         </View>

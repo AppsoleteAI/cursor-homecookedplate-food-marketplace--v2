@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { trpc } from '@/lib/trpc';
 import { Alert, Platform } from 'react-native';
 import { useDebounce } from './useDebounce';
@@ -357,12 +358,11 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
       setError(null);
       
       // Set animation state - this will trigger the success UI
-      // Email confirmation is no longer blocking - users can sign in immediately
       setSignupUserRole(formData.role);
+      AsyncStorage.setItem('hcp_has_account', '1').catch(() => undefined);
       setIsSigningUp(true);
-      
-      // Call success callback if provided
-      // Note: needsEmailConfirmation is ignored - users can sign in immediately
+
+      // Call success callback if provided. Login stays closed until the email link is confirmed.
       if (options?.onSuccess) {
         options.onSuccess(result);
       }

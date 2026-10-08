@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/auth-context';
 interface MealsState {
   meals: CreatedMeal[];
   isLoading: boolean;
-  addMeal: (input: Omit<CreatedMeal, 'id' | 'createdAt'>) => Promise<CreatedMeal>;
+  addMeal: (input: Omit<CreatedMeal, 'id' | 'createdAt'> & { id?: string }) => Promise<CreatedMeal>;
   addFreshnessAttachment: (mealId: string, attachment: Omit<FreshnessAttachment, 'addedAt'>) => Promise<void>;
   getMyMeals: (ownerId: string) => CreatedMeal[];
 }
@@ -44,7 +44,7 @@ export const [MealsProvider, useMeals] = createContextHook<MealsState>(() => {
       try {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (raw) {
-          const parsed = JSON.parse(raw) as Array<Omit<CreatedMeal, 'createdAt' | 'freshness'> & { createdAt: string; freshness: Omit<MealFreshness, 'attachments'> & { attachments: Array<Omit<FreshnessAttachment, 'addedAt'> & { addedAt: string }> } }>;
+          const parsed = JSON.parse(raw) as (Omit<CreatedMeal, 'createdAt' | 'freshness'> & { createdAt: string; freshness: Omit<MealFreshness, 'attachments'> & { attachments: (Omit<FreshnessAttachment, 'addedAt'> & { addedAt: string })[] } })[];
           const hydrated: CreatedMeal[] = parsed.map(m => ({
             ...m,
             createdAt: new Date(m.createdAt),
@@ -84,8 +84,9 @@ export const [MealsProvider, useMeals] = createContextHook<MealsState>(() => {
     }
   }, []);
 
-  const addMeal = useCallback(async (input: Omit<CreatedMeal, 'id' | 'createdAt'>) => {
-    const meal: CreatedMeal = { ...input, id: `meal_${Date.now()}`, createdAt: new Date() };
+  const addMeal = useCallback(async (input: Omit<CreatedMeal, 'id' | 'createdAt'> & { id?: string }) => {
+    const { id, ...rest } = input;
+    const meal: CreatedMeal = { ...rest, id: id ?? `meal_${Date.now()}`, createdAt: new Date() };
     setMeals(prev => {
       const next = [meal, ...prev];
       persist(next).catch(err => console.error('[Meals] persist add error', err));

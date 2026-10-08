@@ -4,13 +4,13 @@ import {
   Text,
   StyleSheet,
   Modal,
-  TouchableOpacity,
   TextInput,
   Alert,
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/colors';
+import { GlassPressable } from '@/components/glass-surface';
 
 interface OrderAcceptModalProps {
   visible: boolean;
@@ -82,9 +82,9 @@ export const OrderAcceptModal: React.FC<OrderAcceptModalProps> = ({
         <View style={styles.modal}>
           <View style={styles.header}>
             <Text style={styles.title}>Accept Order</Text>
-            <TouchableOpacity onPress={onClose} disabled={isSubmitting}>
+            <GlassPressable onPress={onClose} disabled={isSubmitting}>
               <Ionicons name="close" size={24} color={Colors.gray[600]} />
-            </TouchableOpacity>
+            </GlassPressable>
           </View>
 
           <Text style={styles.mealName}>{mealName}</Text>
@@ -106,25 +106,25 @@ export const OrderAcceptModal: React.FC<OrderAcceptModalProps> = ({
               editable={!isSubmitting}
             />
             {etaText && (
-              <TouchableOpacity
+              <GlassPressable
                 style={styles.clearButton}
                 onPress={() => setEtaText('')}
                 disabled={isSubmitting}
               >
                 <Text style={styles.clearButtonText}>Clear</Text>
-              </TouchableOpacity>
+              </GlassPressable>
             )}
           </View>
 
           <View style={styles.actions}>
-            <TouchableOpacity
+            <GlassPressable
               style={[styles.button, styles.cancelButton]}
               onPress={onClose}
               disabled={isSubmitting}
             >
               <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
+            </GlassPressable>
+            <GlassPressable
               style={[styles.button, styles.acceptButton, isSubmitting && styles.buttonDisabled]}
               onPress={handleAccept}
               disabled={isSubmitting}
@@ -134,7 +134,7 @@ export const OrderAcceptModal: React.FC<OrderAcceptModalProps> = ({
               ) : (
                 <Text style={styles.acceptButtonText}>Accept Order</Text>
               )}
-            </TouchableOpacity>
+            </GlassPressable>
           </View>
         </View>
       </View>

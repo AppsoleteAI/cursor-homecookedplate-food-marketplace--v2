@@ -9,6 +9,8 @@ import { createSupabaseAdmin } from "./lib/supabase";
 import { logAdminAlert } from "./lib/alerts";
 import { sendExpoPushNotification } from "./lib/expo-push-notifications";
 import { calculateFees } from "./lib/fees";
+import { payoutReleaseAt } from "./lib/payout-policy";
+import { handleChargeDispute, releaseDuePayouts } from "./lib/stripe-marketplace";
 
 type Bindings = {
   RATE_LIMIT_KV?: KVNamespace;
@@ -22,7 +24,7 @@ type Bindings = {
   AI?: Ai;
 };
 
-const app = new Hono<{ Bindings: Bindings }>();
+export const app = new Hono<{ Bindings: Bindings }>();
 
 const inMemoryRateLimit = new Map<string, { count: number; resetTime: number }>();
 
@@ -279,17 +281,6 @@ app.post("/webhook/stripe", async (c) => {
         
         // Calculate fees using standard utility (20% take rate: buyer +10%, seller -10%)
         const fees = calculateFees(basePrice, 10, 10);
-        
-        // Calculate proportional share if multiple orders share one payment intent
-        const paymentAmount = paymentIntent.amount / 100; // Total buyer payment
-        const applicationFeeAmount = paymentIntent.application_fee_amount ? paymentIntent.application_fee_amount / 100 : 0;
-        const totalBasePrice = updatedOrders.reduce((sum, o) => sum + parseFloat(o.total_price), 0);
-        const orderProportion = basePrice / totalBasePrice;
-        
-        // Allocate fees proportionally if multiple orders
-        const buyerPayment = orderProportion * paymentAmount;
-        const appRevenue = orderProportion * applicationFeeAmount;
-        const sellerPayout = buyerPayment - appRevenue;
 
         const { error: transactionError } = await supabaseAdmin
           .from('transactions')
@@ -300,9 +291,9 @@ app.post("/webhook/stripe", async (c) => {
             seller_id: order.seller_id,
             meal_id: order.meal_id,
             base_price: parseFloat(basePrice.toFixed(2)),
-            buyer_payment: parseFloat(buyerPayment.toFixed(2)),
-            seller_payout: parseFloat(sellerPayout.toFixed(2)),
-            app_revenue: parseFloat(appRevenue.toFixed(2)),
+            buyer_payment: parseFloat(fees.totalCharge.toFixed(2)),
+            seller_payout: parseFloat(fees.sellerPayout.toFixed(2)),
+            app_revenue: parseFloat(fees.appTotalRevenue.toFixed(2)),
             buyer_fee: parseFloat(fees.buyerFee.toFixed(2)),
             seller_fee: parseFloat(fees.sellerFee.toFixed(2)),
             total_fee: parseFloat(fees.appTotalRevenue.toFixed(2)),
@@ -311,14 +302,15 @@ app.post("/webhook/stripe", async (c) => {
             stripe_application_fee_id: applicationFeeId,
             currency,
             quantity: order.quantity,
-            status: 'completed',
+            status: 'held',
+            payout_release_at: payoutReleaseAt(),
           });
 
         if (transactionError) {
           console.error('[Stripe Webhook] Error creating transaction record:', transactionError);
           // Continue processing - transaction logging is important but not critical for order fulfillment
         } else {
-          console.log(`[Stripe Webhook] Created transaction record for order ${order.id}: Base=$${basePrice.toFixed(2)}, Buyer=$${buyerPayment.toFixed(2)}, Seller=$${sellerPayout.toFixed(2)}, App=$${appRevenue.toFixed(2)}`);
+          console.log(`[Stripe Webhook] Held payout for order ${order.id}: Base=$${basePrice.toFixed(2)}, Seller=$${fees.sellerPayout.toFixed(2)}`);
         }
       }
     }
@@ -475,6 +467,20 @@ app.post("/webhook/stripe", async (c) => {
       } else {
         console.log('[Stripe Webhook] No expo_push_token found for user:', profile.id, '- skipping push notification');
       }
+    }
+  }
+
+  if (event.type === 'charge.dispute.created') {
+    const stripeSecretKey = c.env?.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
+    if (!stripeSecretKey) {
+      console.error('[Stripe Webhook] Missing Stripe key for dispute');
+      return c.json({ error: 'Server configuration error' }, 500);
+    }
+    try {
+      await handleChargeDispute(supabaseAdmin, stripeSecretKey, event.data.object);
+    } catch (disputeError) {
+      console.error('[Stripe Webhook] Dispute handling failed:', disputeError);
+      return c.json({ error: 'Dispute handling failed' }, 500);
     }
   }
 
@@ -671,4 +677,21 @@ app.get("/health", async (c) => {
   }
 });
 
-export default app;
+async function releaseHeldPayoutsFromEnv(env: Bindings) {
+  const stripeSecretKey = env?.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
+  const supabaseUrl = env?.SUPABASE_URL || process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = env?.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!stripeSecretKey || !supabaseUrl || !supabaseServiceKey) return;
+  const supabaseAdmin = createSupabaseAdmin({
+    SUPABASE_URL: supabaseUrl,
+    SUPABASE_SERVICE_ROLE_KEY: supabaseServiceKey,
+  });
+  await releaseDuePayouts(supabaseAdmin, stripeSecretKey);
+}
+
+export default {
+  fetch: (request: Request, env: Bindings, ctx: ExecutionContext) => app.fetch(request, env, ctx),
+  scheduled(_event: ScheduledEvent, env: Bindings, ctx: ExecutionContext) {
+    ctx.waitUntil(releaseHeldPayoutsFromEnv(env));
+  },
+};

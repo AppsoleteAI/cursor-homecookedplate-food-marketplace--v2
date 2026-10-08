@@ -1,6 +1,7 @@
 import { Tabs, Redirect } from "expo-router";
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
+import { GlassBadge } from "@/components/glass-surface";
 import { Colors } from "@/constants/colors";
 import { useAuth } from "@/hooks/auth-context";
 import { useCart } from "@/hooks/cart-context";
@@ -87,13 +88,13 @@ export default function TabLayout() {
           href: isPlatemaker ? null : undefined,
           title: "Cart",
           tabBarLabel: "Cart",
-          tabBarIcon: () => (
+          tabBarIcon: ({ focused }) => (
             <View>
               <Text testID="tab-icon-cart" style={styles.emoji} accessibilityLabel="Cart Tab Icon">🛒</Text>
               {totalItems > 0 && (
-                <View style={styles.badge}>
+                <GlassBadge style={styles.badge} popKey={`${focused}-${totalItems}`}>
                   <Text style={styles.badgeText}>{totalItems}</Text>
-                </View>
+                </GlassBadge>
               )}
             </View>
           ),

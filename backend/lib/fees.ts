@@ -86,6 +86,8 @@ export const calculateOrderSplit = (baseAmount: number) => {
     totalCaptured: Number.isFinite(baseAmount + platetakerFee) ? baseAmount + platetakerFee : baseAmount,
     appRevenue: Number.isFinite(platetakerFee + platemakerFee) ? platetakerFee + platemakerFee : 0,
     sellerPayout: Number.isFinite(baseAmount - platemakerFee) ? baseAmount - platemakerFee : baseAmount,
+    buyerFee: Number.isFinite(platetakerFee) ? platetakerFee : 0,
+    sellerFee: Number.isFinite(platemakerFee) ? platemakerFee : 0,
   };
 
   // Verify no NaN values (Codeleka approach)
@@ -96,6 +98,14 @@ export const calculateOrderSplit = (baseAmount: number) => {
 
   return result;
 };
+
+/**
+ * Buyer refund on a cook-issued refund: the cook's share only.
+ * The platform keeps both 10% fees. Source of truth is calculateOrderSplit.
+ */
+export function sellerRefundAmount(baseAmount: number): number {
+  return calculateOrderSplit(baseAmount).sellerPayout;
+}
 
 /**
  * Calculate order breakdown for UI display and API consistency.

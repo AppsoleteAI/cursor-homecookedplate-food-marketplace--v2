@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
+import { titleCase } from '@/lib/title-case';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { FoodTruckScreen } from '@/components/food-truck/FoodTruckScreen';
 import { Colors } from '@/constants/colors';
@@ -40,9 +42,9 @@ export default function TruckItemScreen() {
       <Text style={[styles.status, open ? styles.open : styles.closed]}>{open ? 'Window open for order-ahead' : 'Window closed'}</Text>
       <Text style={styles.body}>{summary}</Text>
       {truck ? (
-        <TouchableOpacity onPress={() => router.push(`/food-truck-popup/truck/${truck.id}` as Href)}>
-          <Text style={styles.link}>Back to {truck.name}</Text>
-        </TouchableOpacity>
+        <GlassPressable onPress={() => router.push(`/food-truck-popup/truck/${truck.id}` as Href)}>
+          <Text style={styles.link}>Back to {titleCase(truck.name)}</Text>
+        </GlassPressable>
       ) : null}
       <View style={styles.panel}>
         <Text style={styles.label}>Ingredients</Text>
@@ -52,15 +54,15 @@ export default function TruckItemScreen() {
         <Text style={styles.body}>Pickup is at the service window. This item is not a cooked plate and not a farm good.</Text>
       </View>
       <View style={styles.qtyRow}>
-        <TouchableOpacity style={styles.qty} onPress={() => setQuantity((value) => Math.max(1, value - 1))}>
+        <GlassPressable style={styles.qty} onPress={() => setQuantity((value) => Math.max(1, value - 1))}>
           <Text style={styles.qtyText}>−</Text>
-        </TouchableOpacity>
+        </GlassPressable>
         <Text style={styles.qtyValue}>{quantity}</Text>
-        <TouchableOpacity style={styles.qty} onPress={() => setQuantity((value) => Math.min(99, value + 1))}>
+        <GlassPressable style={styles.qty} onPress={() => setQuantity((value) => Math.min(99, value + 1))}>
           <Text style={styles.qtyText}>+</Text>
-        </TouchableOpacity>
+        </GlassPressable>
       </View>
-      <TouchableOpacity
+      <GlassPressable
         style={[styles.add, !open && styles.addOff]}
         disabled={!open}
         testID="add-truck-item"
@@ -70,20 +72,20 @@ export default function TruckItemScreen() {
           setNotice(result.ok ? 'Added for window pickup.' : result.reason);
         }}
       >
-        <Text style={styles.addText}>{open ? 'Add for window pickup' : 'Window is closed'}</Text>
-      </TouchableOpacity>
+        <Text style={styles.addText}>{open ? 'Add for Window Pickup' : 'Window Is Closed'}</Text>
+      </GlassPressable>
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
       {notice === 'Added for window pickup.' ? (
-        <TouchableOpacity onPress={() => router.push('/food-truck-popup/basket' as Href)}>
-          <Text style={styles.link}>Go to the truck order</Text>
-        </TouchableOpacity>
+        <GlassPressable onPress={() => router.push('/food-truck-popup/basket' as Href)}>
+          <Text style={styles.link}>Go to the Truck Order</Text>
+        </GlassPressable>
       ) : null}
     </FoodTruckScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  hero: { width: '100%', height: 200, borderRadius: 16, backgroundColor: Colors.gray[200] },
+  hero: { ...glassSurface, width: '100%', height: 200, borderRadius: 16, backgroundColor: Colors.gray[200]  },
   price: { marginTop: 12, fontSize: 22, fontWeight: '700', color: '#C2410C' },
   status: { marginTop: 4, fontWeight: '700' },
   open: { color: '#166534' },
@@ -93,10 +95,10 @@ const styles = StyleSheet.create({
   panel: { marginTop: 16, backgroundColor: Colors.white, borderRadius: 16, padding: 14 },
   label: { marginTop: 8, fontWeight: '700', color: Colors.gray[800] },
   qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 16 },
-  qty: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.white, alignItems: 'center', justifyContent: 'center' },
+  qty: { ...glassSurface, width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.white, alignItems: 'center', justifyContent: 'center'  },
   qtyText: { fontSize: 22, color: Colors.gray[900] },
   qtyValue: { fontSize: 18, fontWeight: '700' },
-  add: { marginTop: 16, backgroundColor: '#C2410C', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  add: { ...glassSurface, marginTop: 16, backgroundColor: '#C2410C', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
   addOff: { backgroundColor: Colors.gray[400] },
   addText: { color: Colors.white, fontWeight: '700', fontSize: 16 },
   notice: { marginTop: 10, color: Colors.gray[800], lineHeight: 20 },

@@ -6,6 +6,9 @@ compatibility_flags = ["nodejs_compat", "nodejs_compat_populate_process_env"]
 [observability]
 enabled = true
 
+[triggers]
+crons = ["15 * * * *"]
+
 [[kv_namespaces]]
 binding = "RATE_LIMIT_KV"
 id = "1aa88018164e4706905b964789217850"
@@ -21,6 +24,9 @@ EXPO_PUBLIC_WEB_URL = "https://homecookedplate.com"
 
 [env.production]
 name = "plate-marketplace-api"
+
+[env.production.triggers]
+crons = ["15 * * * *"]
 
 [[env.production.kv_namespaces]]
 binding = "RATE_LIMIT_KV"

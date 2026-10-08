@@ -1,11 +1,12 @@
 import React, { useMemo } from 'react';
+import { titleCase } from '@/lib/title-case';
 import {
   View,
   Text,
   StyleSheet,
   Image,
-  TouchableOpacity,
 } from 'react-native';
+import { GlassBadge, GlassPressable, glassSurface } from '@/components/glass-surface';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Star, Clock, Tag, Percent, Gift } from 'lucide-react-native';
 import { Meal } from '@/types';
@@ -73,15 +74,15 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, onPress, sizeVariant =
   const PromoIcon = getPromoIcon();
 
   return (
-    <TouchableOpacity
+    <GlassPressable
       style={[
         styles.container,
         sizeVariant === 'featured' ? styles.containerFeatured : styles.containerGrid,
       ]}
       onPress={handlePress}
-      activeOpacity={0.9}
       testID={`meal-card-${meal.id}`}
     >
+      <View style={styles.clip}>
       {meal.images && meal.images.length > 0 ? (
         <Image source={{ uri: meal.images[0] }} style={[styles.image, sizeVariant === 'featured' ? styles.imageFeatured : styles.imageGrid]} />
       ) : (
@@ -89,29 +90,34 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, onPress, sizeVariant =
           <Text style={styles.imagePlaceholderText}>No Image</Text>
         </View>
       )}
-      {meal.featured && (
-        <View style={styles.featuredBadge}>
+      {meal.isSample && (
+        <GlassBadge style={styles.featuredBadge}>
+          <Text style={styles.featuredText}>Sample</Text>
+        </GlassBadge>
+      )}
+      {meal.featured && !meal.isSample && (
+        <GlassBadge style={styles.featuredBadge}>
           <Text style={styles.featuredText}>Featured</Text>
-        </View>
+        </GlassBadge>
       )}
-      {!meal.featured && meal.rating >= 4.5 && (meal.reviewCount || 0) >= 3 && (
-        <View style={styles.featuredBadge}>
+      {!meal.featured && !meal.isSample && meal.rating >= 4.5 && (meal.reviewCount || 0) >= 3 && (
+        <GlassBadge style={styles.featuredBadge}>
           <Text style={styles.featuredText}>Popular</Text>
-        </View>
+        </GlassBadge>
       )}
-      <View style={[styles.timeBadge, sizeVariant === 'featured' ? styles.timeBadgeFeatured : styles.timeBadgeGrid]}>
+      <GlassBadge style={[styles.timeBadge, sizeVariant === 'featured' ? styles.timeBadgeFeatured : styles.timeBadgeGrid]}>
         <Clock size={12} color={Colors.gray[900]} />
         <Text style={styles.timeBadgeText}>{meal.preparationTime} min</Text>
-      </View>
+      </GlassBadge>
       {isPromoActive && PromoIcon && (
-        <View style={styles.promoBadge}>
+        <GlassBadge style={styles.promoBadge}>
           <PromoIcon size={12} color={Colors.white} />
           <Text style={styles.promoText}>{getPromoText()}</Text>
-        </View>
+        </GlassBadge>
       )}
       <View style={styles.content}>
         <Text style={styles.name} numberOfLines={1}>
-          {meal.name}
+          {titleCase(meal.name)}
         </Text>
         <Text style={styles.plateMaker} numberOfLines={1}>
           {meal.plateMakerName}
@@ -119,14 +125,14 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, onPress, sizeVariant =
         {(meal.dietaryOptions?.length ?? 0) > 0 && (
           <View style={styles.dietRow}>
             {meal.dietaryOptions.slice(0, 2).map((option) => (
-              <View key={option} style={styles.dietChip}>
+              <GlassBadge key={option} style={styles.dietChip}>
                 <Text style={styles.dietChipText} numberOfLines={1}>{option}</Text>
-              </View>
+              </GlassBadge>
             ))}
           </View>
         )}
         <View style={styles.info}>
-          <TouchableOpacity
+          <GlassPressable
             style={styles.rating}
             onPress={() => {
               const href = `/reviews/${meal.id}` as const;
@@ -138,7 +144,7 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, onPress, sizeVariant =
             <Star size={14} color={Colors.gradient.yellow} fill={Colors.gradient.yellow} />
             <Text style={styles.ratingText}>{aggregates.average || meal.rating}</Text>
             <Text style={styles.reviewCount}>({aggregates.count || meal.reviewCount})</Text>
-          </TouchableOpacity>
+          </GlassPressable>
         </View>
         <View style={styles.priceRow}>
           <LinearGradient
@@ -150,13 +156,14 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, onPress, sizeVariant =
             <Text style={styles.price}>${meal.price.toFixed(2)}</Text>
           </LinearGradient>
           {isPromoActive && meal.promotionalOffer && (
-            <View style={styles.promoTag}>
+            <GlassBadge style={styles.promoTag}>
               <Text style={styles.promoTagText}>PROMO</Text>
-            </View>
+            </GlassBadge>
           )}
         </View>
       </View>
-    </TouchableOpacity>
+      </View>
+    </GlassPressable>
   );
 };
 
@@ -164,10 +171,14 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: Colors.white,
     borderRadius: 16,
-    overflow: 'hidden',
     marginBottom: 16,
     borderWidth: 1,
     borderColor: Colors.gray[200],
+    ...glassSurface,
+  },
+  clip: {
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   containerGrid: {
     width: '48%',

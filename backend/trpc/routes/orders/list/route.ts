@@ -1,5 +1,6 @@
 import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
+import { displayName, loadPublicProfiles } from "../../../../lib/public-profiles";
 
 export const listOrdersProcedure = protectedProcedure
   .input(
@@ -16,13 +17,6 @@ export const listOrdersProcedure = protectedProcedure
         meal:meals!orders_meal_id_fkey (
           name,
           images
-        ),
-        buyer:profiles!orders_buyer_id_fkey (
-          username
-        ),
-        seller:profiles!orders_seller_id_fkey (
-          username,
-          business_name
         )
       `);
 
@@ -47,15 +41,20 @@ export const listOrdersProcedure = protectedProcedure
       throw new Error(error.message);
     }
 
+    const people = await loadPublicProfiles(
+      ctx.supabaseAdmin,
+      (data || []).flatMap((order: { buyer_id: string; seller_id: string }) => [order.buyer_id, order.seller_id])
+    );
+
     return (data || []).map((order: any) => ({
       id: order.id,
       mealId: order.meal_id,
       mealName: order.meal?.name || 'Unknown Meal',
       mealImage: order.meal?.images?.[0] || '',
       plateTakerId: order.buyer_id,
-      plateTakerName: order.buyer?.username,
+      plateTakerName: people.get(order.buyer_id)?.username,
       plateMakerId: order.seller_id,
-      plateMakerName: order.seller?.business_name || order.seller?.username || 'Unknown',
+      plateMakerName: displayName(people.get(order.seller_id)),
       status: order.status,
       quantity: order.quantity,
       totalPrice: parseFloat(order.total_price),

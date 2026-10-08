@@ -1,7 +1,8 @@
 import React, { memo, useCallback } from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Star } from 'lucide-react-native';
 import { BaseColor, Colors, monoGradients } from '@/constants/colors';
+import { GlassPressable } from '@/components/glass-surface';
 
 interface StarRatingProps {
   value: number;
@@ -26,7 +27,7 @@ function StarRatingBase({ value, onChange, max = 5, size = 24, baseColor = 'yell
       {Array.from({ length: max }).map((_, idx) => {
         const filled = idx < value;
         return (
-          <TouchableOpacity
+          <GlassPressable
             key={idx}
             onPress={() => handlePress(idx)}
             activeOpacity={0.9}
@@ -42,7 +43,7 @@ function StarRatingBase({ value, onChange, max = 5, size = 24, baseColor = 'yell
               color={filled ? color : Colors.gray[300]}
               fill={filled ? color : 'transparent'}
             />
-          </TouchableOpacity>
+          </GlassPressable>
         );
       })}
     </View>

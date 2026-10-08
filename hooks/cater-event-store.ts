@@ -176,6 +176,7 @@ export function publishCaterPackage(input: {
 }
 
 export function placeCaterOrder(input: {
+  id?: string;
   companyId: string;
   companyName: string;
   organization: string;
@@ -186,10 +187,11 @@ export function placeCaterOrder(input: {
   buyerPays: number;
   sellerPayout: number;
 }): CaterOrder {
+  const { id, ...rest } = input;
   const order: CaterOrder = {
-    id: `ced-${Date.now()}`,
+    id: id ?? `ced-${Date.now()}`,
     createdAt: new Date().toISOString(),
-    ...input,
+    ...rest,
   };
   state = { ...state, items: [], orders: [order, ...state.orders] };
   emit();

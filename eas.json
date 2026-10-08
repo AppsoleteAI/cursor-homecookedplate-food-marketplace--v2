@@ -1,0 +1,28 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "production": {
+      "distribution": "store",
+      "autoIncrement": false
+    },
+    "preview": {
+      "distribution": "internal"
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "bundleIdentifier": "app.rork.homecookedplate-dynamic-gradient-food-marketplace-v1-1",
+        "language": "en-US"
+      },
+      "android": {
+        "applicationId": "com.rork.homecookedplate",
+        "track": "internal",
+        "releaseStatus": "draft"
+      }
+    }
+  }
+}

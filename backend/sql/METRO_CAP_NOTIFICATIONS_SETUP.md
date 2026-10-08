@@ -29,14 +29,12 @@ Admin Notification
    npm install -g supabase
    ```
 
-2. Login to Supabase:
-   ```bash
-   supabase login
-   ```
+2. Do not run `supabase login`. That opens the macOS keychain prompt. `SUPABASE_ACCESS_TOKEN` must already be set. See `.cursor/rules/supabase-cli.mdc`.
 
-3. Link your project:
+3. Link your project only after that variable is set:
    ```bash
-   supabase link --project-ref your-project-ref
+   test -n "$SUPABASE_ACCESS_TOKEN" || exit 1
+   npx --yes supabase@2.120.0 link --project-ref tsrjtiunqbocmjgozeew
    ```
 
 4. Deploy the Edge Function:

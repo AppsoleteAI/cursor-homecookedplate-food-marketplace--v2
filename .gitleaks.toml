@@ -1,0 +1,19 @@
+title = "HomeCookedPlate secret scan"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "supabase-access-token"
+description = "Supabase personal access token"
+regex = '''sbp_[A-Za-z0-9]{20,}'''
+keywords = ["sbp_"]
+
+[[allowlists]]
+description = "Documented placeholders, not credentials"
+regexTarget = "secret"
+regexes = [
+  '''sbp_your_token_here''',
+  '''re_123456789abcdefg''',
+  '''YOUR_ANON_KEY''',
+]

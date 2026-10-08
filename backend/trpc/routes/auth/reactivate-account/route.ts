@@ -9,11 +9,21 @@ export const reactivateAccountProcedure = publicProcedure
   )
   .mutation(async ({ input, ctx }) => {
     // Find the profile by email
-    const { data: profile, error: profileError } = await ctx.supabase
+    const email = input.email.trim();
+    let lookup = await ctx.supabaseAdmin
       .from('profiles')
       .select('id, is_paused, email')
-      .eq('email', input.email.toLowerCase().trim())
-      .single();
+      .eq('email', email)
+      .maybeSingle();
+    if (!lookup.data && !lookup.error && email !== email.toLowerCase()) {
+      lookup = await ctx.supabaseAdmin
+        .from('profiles')
+        .select('id, is_paused, email')
+        .eq('email', email.toLowerCase())
+        .maybeSingle();
+    }
+    const profile = lookup.data;
+    const profileError = lookup.error;
 
     if (profileError || !profile) {
       // Don't reveal if account exists for security
@@ -32,7 +42,7 @@ export const reactivateAccountProcedure = publicProcedure
     }
 
     // Reactivate the account
-    const { error: updateError } = await ctx.supabase
+    const { error: updateError } = await ctx.supabaseAdmin
       .from('profiles')
       .update({ is_paused: false })
       .eq('id', profile.id);

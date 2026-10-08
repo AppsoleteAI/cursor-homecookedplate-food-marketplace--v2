@@ -1,10 +1,12 @@
 import React, { ReactNode } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, monoGradients } from '@/constants/colors';
+import { Colors, inAppHeaderBand, monoGradients } from '@/constants/colors';
+import { GlassBadge, GlassIconButton, glassSurface } from '@/components/glass-surface';
+import { titleCase } from '@/lib/title-case';
 import { useCaterEvent } from '@/hooks/cater-event-store';
 import { useAuth } from '@/hooks/auth-context';
 
@@ -24,27 +26,27 @@ export function CaterEventScreen({ title, subtitle, children, testID, showOrder 
   return (
     <SafeAreaView style={styles.safe} edges={['top']} testID={testID}>
       <LinearGradient colors={monoGradients.purple} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
-        <TouchableOpacity
+        <GlassIconButton
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/cater-event-deliver' as Href))}
           accessibilityLabel="Back"
           testID="cater-back"
         >
-          <Ionicons name="chevron-back" size={26} color={Colors.white} />
-        </TouchableOpacity>
+          <Ionicons name="chevron-back" size={22} color={Colors.white} />
+        </GlassIconButton>
         <View style={styles.headerText}>
           <Text style={styles.kicker}>CaterEventDeliver</Text>
-          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.title}>{titleCase(title)}</Text>
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
         {showOrder ? (
-          <TouchableOpacity onPress={() => router.push('/cater-event-deliver/basket' as Href)} accessibilityLabel="Open catering order" testID="cater-order-button">
-            <Ionicons name="people-outline" size={24} color={Colors.white} />
+          <GlassIconButton onPress={() => router.push('/cater-event-deliver/basket' as Href)} accessibilityLabel="Open catering order" testID="cater-order-button">
+            <Ionicons name="people-outline" size={20} color={Colors.white} />
             {packageCount > 0 ? (
-              <View style={styles.badge}>
+              <GlassBadge style={styles.badge}>
                 <Text style={styles.badgeText}>{packageCount}</Text>
-              </View>
+              </GlassBadge>
             ) : null}
-          </TouchableOpacity>
+          </GlassIconButton>
         ) : (
           <View style={styles.badgeSpacer} />
         )}
@@ -68,10 +70,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 12,
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 18,
+    paddingTop: inAppHeaderBand.paddingTop,
+    paddingBottom: inAppHeaderBand.paddingBottom,
+    minHeight: inAppHeaderBand.minHeight,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
+    ...glassSurface,
   },
   headerText: { flex: 1 },
   kicker: { color: '#EDE9FE', fontSize: 12, fontWeight: '700', letterSpacing: 0.4 },

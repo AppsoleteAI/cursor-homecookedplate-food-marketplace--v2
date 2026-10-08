@@ -8,14 +8,13 @@ This project uses a Supabase Edge Function to create a Stripe Hosted Checkout Se
 - A Supabase **Access Token** (create one in your account tokens page: `https://supabase.com/dashboard/account/tokens`)
 - Supabase CLI installed
 
-## Install + Login (CLI)
+## CLI
+
+Do not run `supabase login`. That opens the macOS keychain prompt. `SUPABASE_ACCESS_TOKEN` must already be set in the shell. See `.cursor/rules/supabase-cli.mdc`.
 
 ```bash
-sudo npm install -g supabase
-supabase login
+test -n "$SUPABASE_ACCESS_TOKEN" || exit 1
 ```
-
-If you prefer not to use browser login, you can pass `--access-token` to each command below.
 
 ## Required Secrets (Cloud)
 
@@ -26,9 +25,9 @@ Set these secrets for the Supabase project environment:
 - `STRIPE_PRICE_ID_STANDARD_MONTHLY` (Stripe Price ID for standard monthly subscription)
 
 ```bash
-supabase secrets set STRIPE_SECRET_KEY=sk_test_... --project-ref tsrjtiunqbocmjgozeew --access-token <YOUR_ACCESS_TOKEN>
-supabase secrets set STRIPE_PRICE_ID_EARLY_BIRD_TRIAL=price_... --project-ref tsrjtiunqbocmjgozeew --access-token <YOUR_ACCESS_TOKEN>
-supabase secrets set STRIPE_PRICE_ID_STANDARD_MONTHLY=price_... --project-ref tsrjtiunqbocmjgozeew --access-token <YOUR_ACCESS_TOKEN>
+npx --yes supabase@2.120.0 secrets set STRIPE_SECRET_KEY=sk_test_... --project-ref tsrjtiunqbocmjgozeew
+npx --yes supabase@2.120.0 secrets set STRIPE_PRICE_ID_EARLY_BIRD_TRIAL=price_... --project-ref tsrjtiunqbocmjgozeew
+npx --yes supabase@2.120.0 secrets set STRIPE_PRICE_ID_STANDARD_MONTHLY=price_... --project-ref tsrjtiunqbocmjgozeew
 ```
 
 ## Deploy the Edge Function
@@ -36,13 +35,13 @@ supabase secrets set STRIPE_PRICE_ID_STANDARD_MONTHLY=price_... --project-ref ts
 From the repo root:
 
 ```bash
-supabase functions deploy create-checkout-session --project-ref tsrjtiunqbocmjgozeew --access-token <YOUR_ACCESS_TOKEN>
+npx --yes supabase@2.120.0 functions deploy create-checkout-session --project-ref tsrjtiunqbocmjgozeew
 ```
 
 ## Verify Deployment
 
 ```bash
-supabase functions list --project-ref tsrjtiunqbocmjgozeew --access-token <YOUR_ACCESS_TOKEN>
+npx --yes supabase@2.120.0 functions list --project-ref tsrjtiunqbocmjgozeew
 ```
 
 ## Notes
@@ -72,7 +71,7 @@ Set these additional secrets for the Supabase project environment:
 - `STRIPE_PRICE_ID_LIFETIME_FREE` (Stripe Price ID for $0 one-time payment - must be created in Stripe Dashboard as a $0 price)
 
 ```bash
-supabase secrets set STRIPE_PRICE_ID_LIFETIME_FREE=price_... --project-ref tsrjtiunqbocmjgozeew --access-token <YOUR_ACCESS_TOKEN>
+npx --yes supabase@2.120.0 secrets set STRIPE_PRICE_ID_LIFETIME_FREE=price_... --project-ref tsrjtiunqbocmjgozeew
 ```
 
 **Note**: You must create a $0 one-time price in your Stripe Dashboard first:
@@ -101,12 +100,16 @@ This migration:
 From the repo root:
 
 ```bash
-supabase functions deploy create-subscription --project-ref tsrjtiunqbocmjgozeew --access-token <YOUR_ACCESS_TOKEN>
+npx --yes supabase@2.120.0 functions deploy create-subscription --project-ref tsrjtiunqbocmjgozeew
 ```
 
-## Verify Deployment```bash
-supabase functions list --project-ref tsrjtiunqbocmjgozeew --access-token <YOUR_ACCESS_TOKEN>
-```## Request Format
+## Verify Deployment
+
+```bash
+npx --yes supabase@2.120.0 functions list --project-ref tsrjtiunqbocmjgozeew
+```
+
+## Request Format
 
 ```typescript
 {

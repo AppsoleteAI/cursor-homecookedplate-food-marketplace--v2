@@ -6,15 +6,16 @@ This guide helps you verify that all Supabase secrets are correctly configured w
 
 Run these commands to verify your secrets are properly configured:
 
+`SUPABASE_ACCESS_TOKEN` must already be set in the shell. Do not paste a token here, and do not run a bare `npx supabase`. That opens the macOS keychain prompt. See `.cursor/rules/supabase-cli.mdc`.
+
 ```bash
-# Set your access token (replace with your actual token)
-export SUPABASE_ACCESS_TOKEN=sbp_your_token_here
+test -n "$SUPABASE_ACCESS_TOKEN" || exit 1
 
 # List all secrets and filter for Stripe/Subscription related ones
-npx supabase secrets list --project-ref tsrjtiunqbocmjgozeew | grep -E "(STRIPE_PRICE_ID|SUBSCRIPTION_PRICE|STRIPE_SECRET)"
+npx --yes supabase@2.120.0 secrets list --project-ref tsrjtiunqbocmjgozeew | grep -E "(STRIPE_PRICE_ID|SUBSCRIPTION_PRICE|STRIPE_SECRET)"
 
 # Verify no old "STANDARD" keys exist (should return empty)
-npx supabase secrets list --project-ref tsrjtiunqbocmjgozeew | grep "STANDARD"
+npx --yes supabase@2.120.0 secrets list --project-ref tsrjtiunqbocmjgozeew | grep "STANDARD"
 ```
 
 ## Expected Secrets
@@ -51,15 +52,17 @@ After verification, you should see these **standardized** secrets:
 If any secrets are missing, set them using:
 
 ```bash
+test -n "$SUPABASE_ACCESS_TOKEN" || exit 1
+
 # Monthly subscription price ID
-npx supabase secrets set STRIPE_PRICE_ID_MONTHLY=price_xxxxx --project-ref tsrjtiunqbocmjgozeew
+npx --yes supabase@2.120.0 secrets set STRIPE_PRICE_ID_MONTHLY=price_xxxxx --project-ref tsrjtiunqbocmjgozeew
 
 # Subscription price constants
-npx supabase secrets set SUBSCRIPTION_PRICE_MONTHLY=4.99 --project-ref tsrjtiunqbocmjgozeew
-npx supabase secrets set SUBSCRIPTION_PRICE_ANNUAL=39.99 --project-ref tsrjtiunqbocmjgozeew
+npx --yes supabase@2.120.0 secrets set SUBSCRIPTION_PRICE_MONTHLY=4.99 --project-ref tsrjtiunqbocmjgozeew
+npx --yes supabase@2.120.0 secrets set SUBSCRIPTION_PRICE_ANNUAL=39.99 --project-ref tsrjtiunqbocmjgozeew
 
 # Lifetime free price ID (after creating $0 product in Stripe)
-npx supabase secrets set STRIPE_PRICE_ID_LIFETIME_FREE=price_xxxxx --project-ref tsrjtiunqbocmjgozeew
+npx --yes supabase@2.120.0 secrets set STRIPE_PRICE_ID_LIFETIME_FREE=price_xxxxx --project-ref tsrjtiunqbocmjgozeew
 ```
 
 ## Removing Old Secrets
@@ -67,7 +70,8 @@ npx supabase secrets set STRIPE_PRICE_ID_LIFETIME_FREE=price_xxxxx --project-ref
 If you find old `STRIPE_PRICE_ID_STANDARD_MONTHLY`, remove it:
 
 ```bash
-npx supabase secrets unset STRIPE_PRICE_ID_STANDARD_MONTHLY --project-ref tsrjtiunqbocmjgozeew
+test -n "$SUPABASE_ACCESS_TOKEN" || exit 1
+npx --yes supabase@2.120.0 secrets unset STRIPE_PRICE_ID_STANDARD_MONTHLY --project-ref tsrjtiunqbocmjgozeew
 ```
 
 ## Troubleshooting
@@ -78,8 +82,9 @@ npx supabase secrets unset STRIPE_PRICE_ID_STANDARD_MONTHLY --project-ref tsrjti
 **Issue**: Secrets not found in Edge Functions
 - **Solution**: Redeploy the Edge Functions after setting secrets:
   ```bash
-  npx supabase functions deploy create-checkout-session --project-ref tsrjtiunqbocmjgozeew
-  npx supabase functions deploy create-subscription --project-ref tsrjtiunqbocmjgozeew
+  test -n "$SUPABASE_ACCESS_TOKEN" || exit 1
+  npx --yes supabase@2.120.0 functions deploy create-checkout-session --project-ref tsrjtiunqbocmjgozeew
+  npx --yes supabase@2.120.0 functions deploy create-subscription --project-ref tsrjtiunqbocmjgozeew
   ```
 
 **Issue**: Function returns "Price ID not configured"

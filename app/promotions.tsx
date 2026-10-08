@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   TextInput,
   Alert,
   Modal,
@@ -13,11 +12,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Plus, Tag, Calendar, Percent, Gift, X, Trash2 } from 'lucide-react-native';
-import { Colors, monoGradients } from '@/constants/colors';
+import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
 import { PromotionalOffer } from '@/types';
 import { useAuth } from '@/hooks/auth-context';
 import { useNotifications } from '@/hooks/notifications-context';
+import { GlassPressable } from '@/components/glass-surface';
 
 export default function PromotionsScreen() {
   const { user } = useAuth();
@@ -216,7 +216,7 @@ export default function PromotionsScreen() {
             <Text style={styles.subtitle}>Create special deals to attract more customers</Text>
           </View>
 
-          <TouchableOpacity onPress={openCreateModal} style={styles.createButton}>
+          <GlassPressable onPress={openCreateModal} style={styles.createButton}>
             <LinearGradient
               colors={monoGradients.green}
               start={{ x: 0, y: 0 }}
@@ -226,7 +226,7 @@ export default function PromotionsScreen() {
               <Plus size={24} color={Colors.white} />
               <Text style={styles.createButtonText}>Create New Promotion</Text>
             </LinearGradient>
-          </TouchableOpacity>
+          </GlassPressable>
 
           {offers.length === 0 ? (
             <View style={styles.emptyState}>
@@ -252,9 +252,9 @@ export default function PromotionsScreen() {
                         <Text style={styles.offerTitle}>{offer.title}</Text>
                         <Text style={styles.offerBadge}>{getOfferDisplayText(offer)}</Text>
                       </View>
-                      <TouchableOpacity onPress={() => deleteOffer(offer.id)} style={styles.deleteButton}>
+                      <GlassPressable onPress={() => deleteOffer(offer.id)} style={styles.deleteButton}>
                         <Trash2 size={20} color={Colors.error} />
-                      </TouchableOpacity>
+                      </GlassPressable>
                     </View>
 
                     <Text style={styles.offerDescription}>{offer.description}</Text>
@@ -272,17 +272,17 @@ export default function PromotionsScreen() {
                     </View>
 
                     <View style={styles.offerActions}>
-                      <TouchableOpacity
+                      <GlassPressable
                         onPress={() => toggleOfferStatus(offer.id)}
                         style={[styles.statusButton, offer.isActive ? styles.statusButtonActive : styles.statusButtonInactive]}
                       >
                         <Text style={[styles.statusButtonText, offer.isActive ? styles.statusButtonTextActive : styles.statusButtonTextInactive]}>
                           {offer.isActive ? 'Active' : 'Inactive'}
                         </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => openEditModal(offer)} style={styles.editButton}>
+                      </GlassPressable>
+                      <GlassPressable onPress={() => openEditModal(offer)} style={styles.editButton}>
                         <Text style={styles.editButtonText}>Edit</Text>
-                      </TouchableOpacity>
+                      </GlassPressable>
                     </View>
                   </View>
                 );
@@ -304,9 +304,9 @@ export default function PromotionsScreen() {
               <Text style={styles.modalTitle}>
                 {editingOffer ? 'Edit Promotion' : 'Create Promotion'}
               </Text>
-              <TouchableOpacity onPress={closeModal}>
+              <GlassPressable onPress={closeModal}>
                 <X size={24} color={Colors.gray[600]} />
-              </TouchableOpacity>
+              </GlassPressable>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} style={styles.modalScroll}>
@@ -319,7 +319,7 @@ export default function PromotionsScreen() {
                     { type: 'buy-x-get-y' as const, label: 'Buy X Get Y', icon: Gift },
                     { type: 'free-item' as const, label: 'Free Item', icon: Gift },
                   ].map(({ type, label, icon: Icon }) => (
-                    <TouchableOpacity
+                    <GlassPressable
                       key={type}
                       onPress={() => setFormData(prev => ({ ...prev, type }))}
                       style={[styles.typeButton, formData.type === type && styles.typeButtonActive]}
@@ -328,7 +328,7 @@ export default function PromotionsScreen() {
                       <Text style={[styles.typeButtonText, formData.type === type && styles.typeButtonTextActive]}>
                         {label}
                       </Text>
-                    </TouchableOpacity>
+                    </GlassPressable>
                   ))}
                 </View>
               </View>
@@ -466,7 +466,7 @@ export default function PromotionsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: pagePastel.green,
   },
   content: {
     padding: 24,

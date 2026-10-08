@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import {
   View,
   Text,
@@ -6,7 +7,6 @@ import {
   RefreshControl,
   StyleSheet,
   ActivityIndicator,
-  TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -87,12 +87,12 @@ export default function AdminAlertsFeed() {
             style={[styles.headerGradient, { paddingTop: insets.top }]}
           >
             <View style={styles.headerContent}>
-              <TouchableOpacity
+              <GlassPressable
                 style={styles.backButton}
                 onPress={() => router.back()}
               >
                 <Ionicons name="arrow-back" size={24} color={Colors.white} />
-              </TouchableOpacity>
+              </GlassPressable>
               <Text style={styles.headerTitle}>City Max Alerts</Text>
               <View style={styles.headerSpacer} />
             </View>
@@ -201,17 +201,15 @@ const styles = StyleSheet.create({
   header: {
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    ...glassSurface,
     marginBottom: 16,
   },
   headerGradient: {
     paddingHorizontal: 24,
     paddingBottom: 24,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    overflow: 'hidden',
   },
   headerContent: {
     flexDirection: 'row',

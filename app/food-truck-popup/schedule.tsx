@@ -1,5 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { titleCase } from '@/lib/title-case';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, type Href } from 'expo-router';
 import { FoodTruckScreen } from '@/components/food-truck/FoodTruckScreen';
 import { Colors } from '@/constants/colors';
@@ -14,15 +16,15 @@ export default function TruckScheduleScreen() {
       </Text>
       {FOOD_TRUCKS.map((truck) => (
         <View key={truck.id} style={styles.card}>
-          <Text style={styles.name}>{truck.name}</Text>
+          <Text style={styles.name}>{titleCase(truck.name)}</Text>
           <Text style={styles.meta}>{truck.city}, {stateName(truck.stateCode)} · {truck.active ? 'Window open' : 'Window closed'}</Text>
           {truck.stops.map((stop) => (
             <Text key={`${truck.id}-${stop.day}`} style={styles.stop}>{stop.day} · {stop.hours} · {stop.place}</Text>
           ))}
           <Text style={styles.stop}>{stopLot(truck.stops[0]?.lot)}</Text>
-          <TouchableOpacity onPress={() => router.push(`/food-truck-popup/truck/${truck.id}` as Href)}>
-            <Text style={styles.link}>Open the truck</Text>
-          </TouchableOpacity>
+          <GlassPressable onPress={() => router.push(`/food-truck-popup/truck/${truck.id}` as Href)}>
+            <Text style={styles.link}>Open the Truck</Text>
+          </GlassPressable>
         </View>
       ))}
     </FoodTruckScreen>
@@ -35,7 +37,7 @@ function stopLot(lot: string | undefined) {
 
 const styles = StyleSheet.create({
   lead: { color: Colors.gray[700], lineHeight: 20 },
-  card: { marginTop: 12, backgroundColor: Colors.white, borderRadius: 16, padding: 14 },
+  card: { ...glassSurface, marginTop: 12, backgroundColor: Colors.white, borderRadius: 16, padding: 14  },
   name: { fontSize: 17, fontWeight: '700', color: Colors.gray[900] },
   meta: { color: Colors.gray[500], marginTop: 4 },
   stop: { color: Colors.gray[700], marginTop: 6 },

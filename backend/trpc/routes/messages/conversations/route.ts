@@ -1,5 +1,6 @@
 import { protectedProcedure } from "../../../create-context";
 import { TRPCError } from "@trpc/server";
+import { loadPublicProfiles } from "../../../../lib/public-profiles";
 
 export const listConversationsProcedure = protectedProcedure.query(
   async ({ ctx }) => {
@@ -82,26 +83,15 @@ export const listConversationsProcedure = protectedProcedure.query(
       }
     }
 
-    const { data: profiles, error: profilesError } = await ctx.supabase
-      .from("profiles")
-      .select("id, username, profile_image")
-      .in(
-        "id",
-        orders.flatMap((o) => [o.buyer_id, o.seller_id])
-      );
-
-    if (profilesError) {
-      console.error("Failed to fetch profiles:", profilesError);
-    }
-
-    const profilesMap = new Map(
-      (profiles || []).map((p) => [p.id, { username: p.username, profileImage: p.profile_image }])
+    const profiles = await loadPublicProfiles(
+      ctx.supabaseAdmin,
+      orders.flatMap((o) => [o.buyer_id, o.seller_id])
     );
 
     return orders.map((order) => {
       const otherUserId =
         userRole === "platemaker" ? order.buyer_id : order.seller_id;
-      const otherUser = profilesMap.get(otherUserId);
+      const otherUser = profiles.get(otherUserId);
       const latestMessage = latestMessageByOrder[order.id];
 
       return {
@@ -110,7 +100,7 @@ export const listConversationsProcedure = protectedProcedure.query(
         mealImage: ((order.meals as any)?.images?.[0] as string) || "",
         otherUserId,
         otherUserName: otherUser?.username || "User",
-        otherUserImage: otherUser?.profileImage,
+        otherUserImage: otherUser?.profile_image,
         lastMessage: latestMessage?.text || "No messages yet",
         lastMessageDate: latestMessage?.createdAt || order.created_at,
         unread: latestMessage?.senderId !== userId && latestMessage?.senderId === otherUserId,

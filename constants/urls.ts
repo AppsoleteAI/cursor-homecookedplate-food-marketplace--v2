@@ -1,12 +1,9 @@
 /**
- * App-wide URL constants.
+ * Public legal URLs. The pages are static files in pages/legal and are copied
+ * to /privacy and /terms by the Cloudflare Pages build.
  *
- * PRIVACY_POLICY_URL must be:
- *  1. Set in App Store Connect → App Information → Privacy Policy URL before submission
- *  2. Reachable by Apple's review team at the time of review
- *  3. Updated whenever data collection practices change
- *
- * Replace the placeholder below with the final hosted URL before submitting to the App Store.
+ * App Store Connect and Play Console must use these same URLs. They answer
+ * only after homecookedplate.com points at the Cloudflare Pages project.
  */
 export const PRIVACY_POLICY_URL = 'https://homecookedplate.com/privacy';
 export const TERMS_OF_SERVICE_URL = 'https://homecookedplate.com/terms';

@@ -15,7 +15,9 @@ CREATE INDEX IF NOT EXISTS idx_meals_published_user ON public.meals(published, u
 
 -- 2. Profiles Policies
 DROP POLICY IF EXISTS "select_all_profiles" ON public.profiles;
-CREATE POLICY "select_all_profiles" ON public.profiles FOR SELECT USING (true);
+DROP POLICY IF EXISTS "select_own_profile" ON public.profiles;
+CREATE POLICY "select_own_profile" ON public.profiles
+  FOR SELECT USING (id = auth.uid());
 
 DROP POLICY IF EXISTS "update_own_profile" ON public.profiles;
 CREATE POLICY "update_own_profile" ON public.profiles FOR UPDATE USING (id = auth.uid()) WITH CHECK (id = auth.uid());

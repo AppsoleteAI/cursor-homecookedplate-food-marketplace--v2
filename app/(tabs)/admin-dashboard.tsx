@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useCallback } from 'react';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { AdminOnly } from '@/components/RoleGuard';
 import {
   View,
@@ -9,14 +10,14 @@ import {
   ActivityIndicator,
   Switch,
   TextInput,
-  TouchableOpacity,
   FlatList,
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, monoGradients } from '@/constants/colors';
+import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { ProgressBar } from '@/components/ProgressBar';
+import { router, type Href } from 'expo-router';
 import { trpc } from '@/lib/trpc';
 import { UserTrialControl } from '@/components/Admin/UserTrialControl';
 import { CityMaxAlerts } from '@/components/Admin/CityMaxAlerts';
@@ -443,7 +444,7 @@ const AdminPromotionView = () => {
         autoCorrect={false}
       />
 
-      <TouchableOpacity 
+      <GlassPressable 
         onPress={handlePromote}
         disabled={promoteMutation.isPending || !targetUserId.trim()}
         style={[
@@ -456,7 +457,7 @@ const AdminPromotionView = () => {
         ) : (
           <Text style={styles.promotionButtonText}>Grant Admin Privileges</Text>
         )}
-      </TouchableOpacity>
+      </GlassPressable>
     </View>
   );
 };
@@ -503,6 +504,16 @@ export default function AdminDashboardScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
+          <GlassPressable
+            style={styles.payoutReviewLink}
+            onPress={() => router.push('/admin-payout-review' as Href)}
+            testID="admin-payout-review-link"
+          >
+            <Text style={styles.metroHeader}>Payout review</Text>
+            <Text style={styles.logMeta}>
+              Complaints, government removal requests, and messages from cooks about the 7-day Stripe hold.
+            </Text>
+          </GlassPressable>
           <PreLaunchChecklist />
           <RevenueForecast />
           <MetroMonitor />
@@ -519,7 +530,14 @@ export default function AdminDashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: pagePastel.purple,
+  },
+  payoutReviewLink: {
+    marginHorizontal: 24,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: Colors.gray[50],
   },
   staticHeader: {
     position: 'absolute',
@@ -533,11 +551,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    ...glassSurface,
   },
   scrollContent: {
     paddingBottom: 100,
@@ -690,6 +704,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   chip: {
+    ...glassSurface,
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 999,

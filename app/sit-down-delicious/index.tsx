@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput } from 'react-native';
+import { GlassIconButton, GlassPressable, glassSurface } from '@/components/glass-surface';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +9,7 @@ import { Colors, monoGradients } from '@/constants/colors';
 import { useSitDown } from '@/hooks/sit-down-store';
 import { useAuth } from '@/hooks/auth-context';
 import { SIT_DOWN_RULE } from '@/lib/sit-down-license';
+import { titleCase } from '@/lib/title-case';
 
 const LINKS: { title: string; detail: string; href: string; icon: keyof typeof Ionicons.glyphMap; seller?: boolean }[] = [
   { title: 'Places', detail: 'Coffee, yogurt, ice cream, diners, and small cafes', href: '/sit-down-delicious/places', icon: 'storefront-outline' },
@@ -28,9 +30,9 @@ export default function SitDownDeliciousHome() {
     <SafeAreaView style={styles.safe} edges={['top']} testID="sit-hub">
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         <LinearGradient colors={monoGradients.gold} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-          <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/(home)/home'))} testID="sit-hub-back">
-            <Ionicons name="chevron-back" size={26} color={Colors.white} />
-          </TouchableOpacity>
+          <GlassIconButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/(home)/home'))} testID="sit-hub-back" accessibilityLabel="Back">
+            <Ionicons name="chevron-back" size={22} color={Colors.white} />
+          </GlassIconButton>
           <Text style={styles.kicker}>Independent restaurants. Sit down or takeout.</Text>
           <Text style={styles.title}>SitDownDelicious</Text>
           <Text style={styles.lead}>
@@ -47,13 +49,13 @@ export default function SitDownDeliciousHome() {
               testID="sit-zip"
               maxLength={5}
             />
-            <TouchableOpacity
+            <GlassPressable
               style={styles.zipButton}
               onPress={() => router.push({ pathname: '/sit-down-delicious/places', params: { zip } } as unknown as Href)}
               testID="sit-zip-go"
             >
-              <Text style={styles.zipButtonText}>Find places</Text>
-            </TouchableOpacity>
+              <Text style={styles.zipButtonText}>Find Places</Text>
+            </GlassPressable>
           </View>
         </LinearGradient>
 
@@ -64,31 +66,31 @@ export default function SitDownDeliciousHome() {
         </View>
 
         {links.map((link) => (
-          <TouchableOpacity key={link.href} style={styles.card} onPress={() => router.push(link.href as Href)} testID={`sit-link-${link.title}`}>
+          <GlassPressable key={link.href} style={styles.card} onPress={() => router.push(link.href as Href)} testID={`sit-link-${link.title}`}>
             <Ionicons name={link.icon} size={22} color="#92400E" />
             <View style={styles.cardText}>
               <Text style={styles.cardTitle}>
-                {link.title}
+                {titleCase(link.title)}
                 {link.href.endsWith('basket') && itemCount > 0 ? ` (${itemCount})` : ''}
               </Text>
               <Text style={styles.cardDetail}>{link.detail}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={Colors.gray[400]} />
-          </TouchableOpacity>
+          </GlassPressable>
         ))}
 
-        <TouchableOpacity onPress={() => router.push('/(tabs)/(home)/home')} testID="sit-back-to-plates">
+        <GlassPressable onPress={() => router.push('/(tabs)/(home)/home')} testID="sit-back-to-plates">
           <Text style={styles.link}>Cooked plates stay on Home.</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push('/farm-grown-basket' as Href)}>
+        </GlassPressable>
+        <GlassPressable onPress={() => router.push('/farm-grown-basket' as Href)}>
           <Text style={styles.link}>Farm goods stay in FarmGrownBasket.</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push('/food-truck-popup' as Href)}>
+        </GlassPressable>
+        <GlassPressable onPress={() => router.push('/food-truck-popup' as Href)}>
           <Text style={styles.link}>Food trucks stay in FoodTruckPopup.</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push('/cater-event-deliver' as Href)}>
+        </GlassPressable>
+        <GlassPressable onPress={() => router.push('/cater-event-deliver' as Href)}>
           <Text style={styles.link}>Group catering stays in CaterEventDeliver.</Text>
-        </TouchableOpacity>
+        </GlassPressable>
         {isMaker ? <Text style={styles.rule}>{SIT_DOWN_RULE}</Text> : null}
       </ScrollView>
     </SafeAreaView>
@@ -98,7 +100,7 @@ export default function SitDownDeliciousHome() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#FFFBEB' },
   body: { paddingBottom: 32 },
-  hero: { padding: 20, paddingBottom: 24, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
+  hero: { ...glassSurface, padding: 20, paddingBottom: 24, borderBottomLeftRadius: 28, borderBottomRightRadius: 28  },
   kicker: { color: '#FEF3C7', fontSize: 12, fontWeight: '700', marginTop: 12 },
   title: { color: Colors.white, fontSize: 32, fontWeight: '700', marginTop: 4 },
   lead: { color: '#FEF3C7', fontSize: 16, lineHeight: 22, marginTop: 8 },
@@ -112,11 +114,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.gray[900],
   },
-  zipButton: { backgroundColor: '#78350F', borderRadius: 12, paddingHorizontal: 16, justifyContent: 'center' },
+  zipButton: { ...glassSurface, backgroundColor: '#78350F', borderRadius: 12, paddingHorizontal: 16, justifyContent: 'center'  },
   zipButtonText: { color: Colors.white, fontWeight: '700' },
   models: { paddingHorizontal: 16, paddingTop: 16, gap: 6 },
   model: { color: Colors.gray[700], fontSize: 14 },
   card: {
+    ...glassSurface,
     marginHorizontal: 16,
     marginTop: 12,
     backgroundColor: Colors.white,

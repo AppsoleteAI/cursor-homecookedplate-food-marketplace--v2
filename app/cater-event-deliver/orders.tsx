@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { titleCase } from '@/lib/title-case';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, type Href } from 'expo-router';
 import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
 import { Colors } from '@/constants/colors';
@@ -37,18 +39,18 @@ export default function CaterOrdersScreen() {
           <Text style={styles.meta}>{order.address}</Text>
           <Text style={styles.meta}>{new Date(order.createdAt).toLocaleString()}</Text>
           {order.lines.map((line) => (
-            <Text key={line.packageId} style={styles.line}>{line.headcount} people × {line.name}</Text>
+            <Text key={line.packageId} style={styles.line}>{line.headcount} people × {titleCase(line.name)}</Text>
           ))}
           <Text style={styles.pay}>Paid ${order.buyerPays.toFixed(2)} · company drops off and sets up</Text>
         </View>
       ))}
-      <TouchableOpacity style={styles.button} onPress={() => router.push(dashboardHref)} testID="cater-orders-dashboard">
-        <Text style={styles.buttonText}>{user?.role === 'platemaker' ? 'Plate maker dashboard' : 'Buyer dashboard'}</Text>
-      </TouchableOpacity>
+      <GlassPressable style={styles.button} onPress={() => router.push(dashboardHref)} testID="cater-orders-dashboard">
+        <Text style={styles.buttonText}>{user?.role === 'platemaker' ? 'Plate Maker Dashboard' : 'Buyer Dashboard'}</Text>
+      </GlassPressable>
       {user?.role === 'platemaker' || user?.isAdmin ? (
-        <TouchableOpacity onPress={() => router.push('/cater-event-deliver/seller' as Href)}>
-          <Text style={styles.link}>Catering company</Text>
-        </TouchableOpacity>
+        <GlassPressable onPress={() => router.push('/cater-event-deliver/seller' as Href)}>
+          <Text style={styles.link}>Catering Company</Text>
+        </GlassPressable>
       ) : null}
     </CaterEventScreen>
   );
@@ -56,12 +58,12 @@ export default function CaterOrdersScreen() {
 
 const styles = StyleSheet.create({
   empty: { color: Colors.gray[700] },
-  card: { backgroundColor: Colors.white, borderRadius: 14, padding: 14, marginBottom: 10 },
+  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 14, padding: 14, marginBottom: 10  },
   name: { fontWeight: '700', color: Colors.gray[900] },
   meta: { color: Colors.gray[500], marginTop: 4 },
   line: { color: Colors.gray[700], marginTop: 4 },
   pay: { marginTop: 8, fontWeight: '700', color: '#6D28D9' },
-  button: { marginTop: 8, backgroundColor: '#6D28D9', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  button: { ...glassSurface, marginTop: 8, backgroundColor: '#6D28D9', borderRadius: 14, paddingVertical: 14, alignItems: 'center'  },
   buttonText: { color: Colors.white, fontWeight: '700' },
   link: { marginTop: 12, color: '#6D28D9', fontWeight: '700' },
 });

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { glassSurface } from '@/components/glass-surface';
 import { AdminOnly } from '@/components/RoleGuard';
 import {
   View,
@@ -10,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, monoGradients } from '@/constants/colors';
+import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
 import { trpc } from '@/lib/trpc';
 
@@ -182,7 +183,7 @@ export default function PanicDashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: pagePastel.red,
   },
   staticHeader: {
     position: 'absolute',
@@ -196,11 +197,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    ...glassSurface,
   },
   header: {
     paddingTop: 16,

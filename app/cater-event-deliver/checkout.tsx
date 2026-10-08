@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Alert } from 'react-native';
+import { titleCase } from '@/lib/title-case';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router, type Href } from 'expo-router';
 import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
 import { Colors } from '@/constants/colors';
@@ -8,10 +10,12 @@ import { useAuth } from '@/hooks/auth-context';
 import { useCaterEvent, type CaterOrderLine } from '@/hooks/cater-event-store';
 import { DROP_OFF_WINDOWS, type DropOffWindow } from '@/lib/cater-event-license';
 import { calculateOrderSplit } from '@/lib/fees';
+import { useShopCardPayment } from '@/hooks/use-shop-payment';
 
 export default function CaterCheckoutScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const { items, listings, license, accepting, placeOrder } = useCaterEvent();
+  const { chargeShop, charging } = useShopCardPayment();
   const [dropoffWindow, setDropoffWindow] = useState<DropOffWindow>('Weekday lunch, 11:00–1:00');
   const [organization, setOrganization] = useState('');
   const [address, setAddress] = useState('');
@@ -49,8 +53,8 @@ export default function CaterCheckoutScreen() {
     return <Redirect href="/(auth)/login" />;
   }
 
-  const place = () => {
-    if (!open || lines.length === 0) return;
+  const place = async () => {
+    if (!open || lines.length === 0 || charging) return;
     if (organization.trim().length < 2) {
       setBlock('Name the organization this order is for. Spend is tracked under that name.');
       return;
@@ -64,30 +68,37 @@ export default function CaterCheckoutScreen() {
       return;
     }
     setBlock(null);
-    const order = placeOrder({
-      companyId,
-      companyName,
-      organization: organization.trim(),
-      dropoffWindow,
-      address: address.trim(),
-      lines: lines.map(({ packageId, name, headcount, pricePerPerson }) => ({ packageId, name, headcount, pricePerPerson })),
-      baseAmount,
-      buyerPays: split.totalCaptured,
-      sellerPayout: split.sellerPayout,
-    });
-    setOrderId(order.id);
+    try {
+      const paid = await chargeShop('catering', lines.map((line) => ({ productId: line.packageId, quantity: line.headcount })));
+      if (!paid) return;
+      const order = placeOrder({
+        id: paid.orderId,
+        companyId,
+        companyName,
+        organization: organization.trim(),
+        dropoffWindow,
+        address: address.trim(),
+        lines: lines.map(({ packageId, name, headcount, pricePerPerson }) => ({ packageId, name, headcount, pricePerPerson })),
+        baseAmount,
+        buyerPays: split.totalCaptured,
+        sellerPayout: split.sellerPayout,
+      });
+      setOrderId(order.id);
+    } catch (error) {
+      Alert.alert('Payment failed', error instanceof Error ? error.message : 'The card was not charged.');
+    }
   };
 
   if (orderId) {
     return (
       <CaterEventScreen title="Drop-off booked" subtitle={organization.trim() || 'Organization order'} showOrder={false} testID="cater-checkout-done">
         <Text style={styles.lead}>{companyName} has order {orderId}. They drop off and set up during {dropoffWindow}. Nothing is sent to a courier from this app.</Text>
-        <TouchableOpacity style={styles.button} onPress={() => router.push('/cater-event-deliver/orders' as Href)}>
-          <Text style={styles.buttonText}>Catering orders</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.secondary} onPress={() => router.push(user?.role === 'platemaker' ? '/(tabs)/dashboard' : '/(tabs)/buyer-dashboard')}>
-          <Text style={styles.secondaryText}>{user?.role === 'platemaker' ? 'Plate maker dashboard' : 'Buyer dashboard'}</Text>
-        </TouchableOpacity>
+        <GlassPressable style={styles.button} onPress={() => router.push('/cater-event-deliver/orders' as Href)}>
+          <Text style={styles.buttonText}>Catering Orders</Text>
+        </GlassPressable>
+        <GlassPressable style={styles.secondary} onPress={() => router.push(user?.role === 'platemaker' ? '/(tabs)/dashboard' : '/(tabs)/buyer-dashboard')}>
+          <Text style={styles.secondaryText}>{user?.role === 'platemaker' ? 'Plate Maker Dashboard' : 'Buyer Dashboard'}</Text>
+        </GlassPressable>
       </CaterEventScreen>
     );
   }
@@ -95,14 +106,14 @@ export default function CaterCheckoutScreen() {
   return (
     <CaterEventScreen title="Catering checkout" subtitle="Drop-off and setup. Same fee split as the rest of the app." testID="cater-checkout">
       {lines.length === 0 ? (
-        <TouchableOpacity onPress={() => router.push('/cater-event-deliver/board' as Href)}>
+        <GlassPressable onPress={() => router.push('/cater-event-deliver/board' as Href)}>
           <Text style={styles.link}>Choose a company that is accepting orders.</Text>
-        </TouchableOpacity>
+        </GlassPressable>
       ) : (
         <View>
           <Text style={styles.company}>{companyName}</Text>
           {lines.map((line) => (
-            <Text key={line.packageId} style={styles.line}>{line.headcount} people × {line.name}</Text>
+            <Text key={line.packageId} style={styles.line}>{line.headcount} people × {titleCase(line.name)}</Text>
           ))}
         </View>
       )}
@@ -128,9 +139,9 @@ export default function CaterCheckoutScreen() {
       />
       <Text style={styles.section}>Drop-off window</Text>
       {DROP_OFF_WINDOWS.map((option) => (
-        <TouchableOpacity key={option} style={[styles.option, dropoffWindow === option && styles.optionOn]} onPress={() => setDropoffWindow(option)}>
+        <GlassPressable key={option} style={[styles.option, dropoffWindow === option && styles.optionOn]} onPress={() => setDropoffWindow(option)}>
           <Text style={[styles.optionText, dropoffWindow === option && styles.optionTextOn]}>{option}</Text>
-        </TouchableOpacity>
+        </GlassPressable>
       ))}
       <View style={styles.totals}>
         <Text style={styles.totalLine}>Food ${baseAmount.toFixed(2)}</Text>
@@ -139,17 +150,17 @@ export default function CaterCheckoutScreen() {
       </View>
       <Text style={styles.note}>The catering company arranges drop-off and tray setup. A 15% to 25% marketplace commission is not added.</Text>
       {block ? <Text style={styles.block}>{block}</Text> : null}
-      <TouchableOpacity
-        style={[styles.button, (!open || lines.length === 0) && styles.buttonOff]}
-        disabled={!open || lines.length === 0}
+      <GlassPressable
+        style={[styles.button, (!open || lines.length === 0 || charging) && styles.buttonOff]}
+        disabled={!open || lines.length === 0 || charging}
         onPress={place}
         testID="place-cater-order"
       >
-        <Text style={styles.buttonText}>Place catering order</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => router.push('/checkout')}>
-        <Text style={styles.link}>Cooked-plate checkout</Text>
-      </TouchableOpacity>
+        <Text style={styles.buttonText}>{charging ? 'Charging card' : 'Pay with card'}</Text>
+      </GlassPressable>
+      <GlassPressable onPress={() => router.push('/checkout')}>
+        <Text style={styles.link}>Cooked-plate Checkout</Text>
+      </GlassPressable>
     </CaterEventScreen>
   );
 }
@@ -177,10 +188,10 @@ const styles = StyleSheet.create({
   totalLine: { color: Colors.gray[700], marginBottom: 4 },
   totalStrong: { fontSize: 18, fontWeight: '700', color: Colors.gray[900], marginVertical: 4 },
   note: { marginTop: 10, color: Colors.gray[600], lineHeight: 20 },
-  button: { marginTop: 14, backgroundColor: '#6D28D9', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  button: { ...glassSurface, marginTop: 14, backgroundColor: '#6D28D9', borderRadius: 14, paddingVertical: 14, alignItems: 'center'  },
   buttonOff: { backgroundColor: Colors.gray[400] },
   buttonText: { color: Colors.white, fontWeight: '700' },
-  secondary: { marginTop: 10, borderRadius: 14, paddingVertical: 14, alignItems: 'center', backgroundColor: Colors.white },
+  secondary: { ...glassSurface, marginTop: 10, borderRadius: 14, paddingVertical: 14, alignItems: 'center', backgroundColor: Colors.white  },
   secondaryText: { color: '#6D28D9', fontWeight: '700' },
   link: { marginTop: 12, color: '#6D28D9', fontWeight: '700' },
 });

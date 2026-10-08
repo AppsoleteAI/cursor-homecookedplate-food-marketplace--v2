@@ -45,9 +45,12 @@ export const resendVerificationEmailProcedure = publicProcedure
       };
     }
 
-    // Check if user already has a verified email (optional - can skip if using email_confirm: true)
-    // Since we use email_confirm: true, all users are auto-verified in Supabase
-    // But we still track verification via our custom tokens
+    if (user.email_confirmed_at) {
+      return {
+        success: true,
+        message: 'If an account exists with this email, a new verification link has been sent.',
+      };
+    }
 
     // Check for existing unused tokens
     const { data: existingTokens } = await ctx.supabaseAdmin

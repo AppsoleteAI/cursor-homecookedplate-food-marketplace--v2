@@ -1,5 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
+import { titleCase } from '@/lib/title-case';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { FoodTruckScreen } from '@/components/food-truck/FoodTruckScreen';
 import { Colors } from '@/constants/colors';
@@ -26,15 +28,15 @@ export default function TruckProfileScreen() {
   }
 
   return (
-    <FoodTruckScreen title={truck.name} subtitle={`${truck.city}, ${stateName(truck.stateCode)}`} testID="truck-profile">
+    <FoodTruckScreen title={titleCase(truck.name)} subtitle={`${truck.city}, ${stateName(truck.stateCode)}`} testID="truck-profile">
       <Image source={{ uri: truck.image }} style={styles.hero} />
       <Text style={[styles.status, truck.active ? styles.open : styles.closed]}>{truck.active ? 'Window open' : 'Window closed'}</Text>
       <Text style={styles.body}>{truck.summary}</Text>
       <Text style={styles.meta}>{truck.county} County · {truck.zip}</Text>
       <Text style={styles.body}>{truck.windowNote}</Text>
-      <TouchableOpacity style={styles.follow} onPress={() => toggleFollow(truck.id)} testID="truck-follow">
-        <Text style={styles.followText}>{follows.includes(truck.id) ? 'Following this truck' : 'Follow this truck'}</Text>
-      </TouchableOpacity>
+      <GlassPressable style={styles.follow} onPress={() => toggleFollow(truck.id)} testID="truck-follow">
+        <Text style={styles.followText}>{follows.includes(truck.id) ? 'Following This Truck' : 'Follow This Truck'}</Text>
+      </GlassPressable>
       <View style={styles.panel}>
         <Text style={styles.panelTitle}>Today’s lot</Text>
         {truck.stops.map((stop) => (
@@ -47,25 +49,25 @@ export default function TruckProfileScreen() {
                 ? 'Published summaries expect a commissary agreement in this state before a mobile food license.'
                 : 'Confirm the commissary rule with the health department that covers this lot.'}
             </Text>
-            <TouchableOpacity onPress={() => router.push('/food-truck-popup/permit' as Href)}>
-              <Text style={styles.link}>Mobile permit checklist</Text>
-            </TouchableOpacity>
+            <GlassPressable onPress={() => router.push('/food-truck-popup/permit' as Href)}>
+              <Text style={styles.link}>Mobile Permit Checklist</Text>
+            </GlassPressable>
           </>
         ) : null}
       </View>
       <Text style={styles.section}>Menu</Text>
       {menuForTruck(truck.id).map((item) => (
-        <TouchableOpacity key={item.id} style={styles.row} onPress={() => router.push(`/food-truck-popup/item/${item.id}` as Href)}>
-          <Text style={styles.name}>{item.name}</Text>
+        <GlassPressable key={item.id} style={styles.row} onPress={() => router.push(`/food-truck-popup/item/${item.id}` as Href)}>
+          <Text style={styles.name}>{titleCase(item.name)}</Text>
           <Text style={styles.meta}>${item.price.toFixed(2)} · {truck.active ? 'Order ahead' : 'Window closed'}</Text>
-        </TouchableOpacity>
+        </GlassPressable>
       ))}
     </FoodTruckScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  hero: { width: '100%', height: 180, borderRadius: 16, backgroundColor: Colors.gray[200] },
+  hero: { ...glassSurface, width: '100%', height: 180, borderRadius: 16, backgroundColor: Colors.gray[200]  },
   status: { marginTop: 10, fontWeight: '700' },
   open: { color: '#166534' },
   closed: { color: '#9A3412' },

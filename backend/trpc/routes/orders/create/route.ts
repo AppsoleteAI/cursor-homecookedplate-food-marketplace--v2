@@ -2,6 +2,7 @@ import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { calculateOrderBreakdown } from "@/backend/lib/fees";
+import { isSampleMealId } from "@/lib/sample-meals";
 
 /**
  * Create Order Procedure
@@ -30,6 +31,13 @@ export const createOrderProcedure = protectedProcedure
     })
   )
   .mutation(async ({ input, ctx }) => {
+    if (isSampleMealId(input.mealId)) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Sample plates are not for sale.',
+      });
+    }
+
     // CRITICAL: Check if seller is available for orders before creating order
     const { data: sellerProfile, error: sellerError } = await ctx.supabase
       .from('profiles')
@@ -56,6 +64,19 @@ export const createOrderProcedure = protectedProcedure
       throw new TRPCError({
         code: 'BAD_REQUEST',
         message: 'This platemaker is currently not accepting new orders',
+      });
+    }
+
+    const { data: removalRow } = await ctx.supabaseAdmin
+      .from('profiles')
+      .select('selling_removed')
+      .eq('id', input.sellerId)
+      .single();
+
+    if (removalRow?.selling_removed) {
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'This cook is not allowed to take new orders',
       });
     }
 

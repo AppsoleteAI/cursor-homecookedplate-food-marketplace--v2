@@ -1,5 +1,6 @@
 import { protectedProcedure } from "../../../create-context";
 import { TRPCError } from "@trpc/server";
+import { loadPublicProfiles } from "../../../../lib/public-profiles";
 
 /**
  * Get Incoming Orders Procedure
@@ -63,11 +64,6 @@ export const getIncomingOrdersProcedure = protectedProcedure
           name,
           images,
           price
-        ),
-        buyer:profiles!orders_buyer_id_fkey (
-          id,
-          username,
-          email
         )
       `)
       .eq('seller_id', ctx.userId) // Data isolation: only this platemaker's orders
@@ -87,6 +83,12 @@ export const getIncomingOrdersProcedure = protectedProcedure
       return [];
     }
 
+    const buyers = await loadPublicProfiles(
+      ctx.supabaseAdmin,
+      orders.map((order: { buyer_id: string }) => order.buyer_id),
+      true
+    );
+
     // Format and return orders
     return orders.map((order: any) => ({
       id: order.id,
@@ -95,8 +97,8 @@ export const getIncomingOrdersProcedure = protectedProcedure
       mealImage: order.meals?.images?.[0] || '',
       mealPrice: order.meals?.price ? parseFloat(order.meals.price.toString()) : 0,
       buyerId: order.buyer_id,
-      buyerName: order.buyer?.username || 'Unknown Buyer',
-      buyerEmail: order.buyer?.email || '',
+      buyerName: buyers.get(order.buyer_id)?.username || 'Unknown Buyer',
+      buyerEmail: buyers.get(order.buyer_id)?.email || '',
       status: order.status,
       quantity: order.quantity,
       totalPrice: parseFloat(order.total_price.toString()),

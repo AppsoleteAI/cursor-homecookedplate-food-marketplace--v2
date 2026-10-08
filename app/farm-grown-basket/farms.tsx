@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image, TextInput } from 'react-native';
+import { titleCase } from '@/lib/title-case';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router , type Href } from 'expo-router';
 import { FarmScreen } from '@/components/farm/FarmScreen';
 import { Colors } from '@/constants/colors';
@@ -29,15 +31,15 @@ export default function FarmsScreen() {
         <Text style={styles.empty}>No stand shares the first three digits of that ZIP. Showing none until you clear it.</Text>
       ) : null}
       {(searching ? farms : FARM_STANDS).map((farm) => (
-        <TouchableOpacity key={farm.id} style={styles.card} onPress={() => router.push(`/farm-grown-basket/farm/${farm.id}` as Href)} testID={`farm-card-${farm.id}`}>
+        <GlassPressable key={farm.id} style={styles.card} onPress={() => router.push(`/farm-grown-basket/farm/${farm.id}` as Href)} testID={`farm-card-${farm.id}`}>
           <Image source={{ uri: farm.image }} style={styles.image} />
           <View style={styles.copy}>
-            <Text style={styles.name}>{farm.name}</Text>
+            <Text style={styles.name}>{titleCase(farm.name)}</Text>
             <Text style={styles.meta}>{farm.city}, {stateName(farm.stateCode)} {farm.zip}</Text>
             <Text style={styles.meta}>{farm.county} County · {frameworkForState(farm.stateCode).replace(/_/g, ' ')}</Text>
             {follows.includes(farm.id) ? <Text style={styles.follow}>Following</Text> : null}
           </View>
-        </TouchableOpacity>
+        </GlassPressable>
       ))}
     </FarmScreen>
   );
@@ -53,8 +55,8 @@ const styles = StyleSheet.create({
     color: Colors.gray[900],
     marginBottom: 12,
   },
-  card: { flexDirection: 'row', gap: 12, backgroundColor: Colors.white, borderRadius: 16, padding: 10, marginBottom: 10 },
-  image: { width: 88, height: 88, borderRadius: 12, backgroundColor: Colors.gray[200] },
+  card: { ...glassSurface, flexDirection: 'row', gap: 12, backgroundColor: Colors.white, borderRadius: 16, padding: 10, marginBottom: 10  },
+  image: { ...glassSurface, width: 88, height: 88, borderRadius: 12, backgroundColor: Colors.gray[200]  },
   copy: { flex: 1, justifyContent: 'center' },
   name: { fontSize: 16, fontWeight: '700', color: Colors.gray[900] },
   meta: { color: Colors.gray[600], marginTop: 4, fontSize: 13 },

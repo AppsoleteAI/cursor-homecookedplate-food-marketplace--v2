@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   Switch,
-  TouchableOpacity,
   Alert,
   Platform,
 } from 'react-native';
@@ -13,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { Globe, Volume2, MapPin, ChevronRight } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { GlassPressable } from '@/components/glass-surface';
 
 export default function SettingsScreen() {
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -63,7 +63,7 @@ export default function SettingsScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Preferences</Text>
             
-            <TouchableOpacity style={styles.actionItem} onPress={handleLanguageChange}>
+            <GlassPressable style={styles.actionItem} onPress={handleLanguageChange}>
               <View style={styles.settingLeft}>
                 <View style={styles.iconContainer}>
                   <Globe size={20} color={Colors.gradient.green} />
@@ -74,7 +74,7 @@ export default function SettingsScreen() {
                 </View>
               </View>
               <ChevronRight size={20} color={Colors.gray[400]} />
-            </TouchableOpacity>
+            </GlassPressable>
 
             <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
@@ -116,7 +116,7 @@ export default function SettingsScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Storage</Text>
             
-            <TouchableOpacity style={styles.actionItem} onPress={handleClearCache}>
+            <GlassPressable style={styles.actionItem} onPress={handleClearCache}>
               <View style={styles.settingLeft}>
                 <View style={styles.settingText}>
                   <Text style={styles.settingTitle}>Clear Cache</Text>
@@ -124,7 +124,7 @@ export default function SettingsScreen() {
                 </View>
               </View>
               <ChevronRight size={20} color={Colors.gray[400]} />
-            </TouchableOpacity>
+            </GlassPressable>
           </View>
 
           <View style={styles.section}>

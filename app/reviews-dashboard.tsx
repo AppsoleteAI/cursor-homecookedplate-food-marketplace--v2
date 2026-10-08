@@ -1,25 +1,46 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image } from 'react-native';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, monoGradients } from '@/constants/colors';
-import { useReviewsContext } from '@/hooks/reviews-context';
-import { mockMeals } from '@/mocks/data';
+import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
+import { trpc } from '@/lib/trpc';
 import StarRating from '@/components/StarRating';
+import { router, type Href } from 'expo-router';
 
 export default function ReviewsDashboardScreen() {
   const insets = useSafeAreaInsets();
-  const { reviews } = useReviewsContext();
   const { user } = useAuth();
+  const myMeals = trpc.meals.myMeals.useQuery(undefined, {
+    enabled: user?.role === 'platemaker',
+  });
+  const reviewQuery = trpc.reviews.list.useQuery(undefined, { enabled: !!user });
   const [starFilter, setStarFilter] = useState<number | null>(null);
   const [headerHeight, setHeaderHeight] = useState<number>(0);
 
-  const relevantMealIds = useMemo(() => {
-    if (user?.role !== 'platemaker') return new Set<string>(mockMeals.map(m => m.id));
-    const owned = mockMeals.filter(m => m.plateMakerId === user.id).map(m => m.id);
-    return new Set<string>(owned);
-  }, [user?.role, user?.id]);
+  const mealsById = useMemo(() => {
+    const map = new Map<string, { name: string; image?: string }>();
+    for (const meal of myMeals.data || []) {
+      map.set(meal.id, { name: meal.name, image: meal.media?.[0]?.uri });
+    }
+    return map;
+  }, [myMeals.data]);
+
+  const relevantMealIds = useMemo(() => new Set(mealsById.keys()), [mealsById]);
+
+  const reviews = useMemo(() => {
+    return (reviewQuery.data || [])
+      .filter((review) => user?.role !== 'platemaker' || relevantMealIds.has(review.mealId))
+      .map((review) => ({
+        id: review.id,
+        mealId: review.mealId,
+        user: review.authorName,
+        rating: review.rating,
+        comment: review.comment || '',
+        date: review.createdAt,
+      }));
+  }, [reviewQuery.data, relevantMealIds, user?.role]);
 
   const filtered = useMemo(() => {
     const base = reviews
@@ -65,18 +86,25 @@ export default function ReviewsDashboardScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingTop: headerHeight + 12 }]}
       >
         <View style={styles.filters}>
+          <GlassPressable
+            testID="open-food-review-clips"
+            onPress={() => router.push('/food-review-clips' as Href)}
+            style={styles.clipsLink}
+          >
+            <Text style={styles.clipsLinkText}>FoodReviewClips · 😊 ❤️ ⭐</Text>
+          </GlassPressable>
           <View style={styles.filterRow}>
             {[5, 4, 3].map(s => {
               const active = starFilter === s;
               return (
-                <TouchableOpacity
+                <GlassPressable
                   key={`star-${s}`}
                   onPress={() => setStarFilter(active ? null : s)}
                   style={[styles.filterChip, active && styles.filterChipActive]}
                   testID={`filter-star-${s}`}
                 >
                   <Text style={[styles.filterText, active && styles.filterTextActive]}>{s}★ ({counts[s] ?? 0})</Text>
-                </TouchableOpacity>
+                </GlassPressable>
               );
             })}
           </View>
@@ -84,14 +112,14 @@ export default function ReviewsDashboardScreen() {
             {[2, 1].map(s => {
               const active = starFilter === s;
               return (
-                <TouchableOpacity
+                <GlassPressable
                   key={`star-${s}`}
                   onPress={() => setStarFilter(active ? null : s)}
                   style={[styles.filterChip, active && styles.filterChipActive]}
                   testID={`filter-star-${s}`}
                 >
                   <Text style={[styles.filterText, active && styles.filterTextActive]}>{s}★ ({counts[s] ?? 0})</Text>
-                </TouchableOpacity>
+                </GlassPressable>
               );
             })}
           </View>
@@ -104,10 +132,10 @@ export default function ReviewsDashboardScreen() {
             </View>
           ) : (
             filtered.map(r => {
-              const meal = mockMeals.find(m => m.id === r.mealId);
+              const meal = mealsById.get(r.mealId);
               return (
                 <View key={r.id} style={styles.reviewCard}>
-                  {meal && <Image source={{ uri: meal.images[0] }} style={styles.mealImage} />}
+                  {meal?.image ? <Image source={{ uri: meal.image }} style={styles.mealImage} /> : null}
                   <View style={{ flex: 1 }}>
                     <View style={styles.rowBetween}>
                       <Text style={styles.user}>{r.user}</Text>
@@ -129,7 +157,7 @@ export default function ReviewsDashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: pagePastel.green,
   },
   staticHeader: {
     position: 'absolute',
@@ -143,11 +171,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    ...glassSurface,
   },
   scrollContent: {
     paddingBottom: 100,
@@ -171,6 +195,17 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 24,
     marginBottom: 16,
+  },
+  clipsLink: {
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.gray[900],
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  clipsLinkText: {
+    color: Colors.white,
+    fontWeight: '700',
   },
   filterRow: {
     flexDirection: 'row',

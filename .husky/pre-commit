@@ -1,5 +1,14 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
 
-# Run lint-staged to check only staged files
+if command -v gitleaks >/dev/null 2>&1; then
+  GITLEAKS=$(command -v gitleaks)
+elif [ -x "$HOME/.local/bin/gitleaks" ]; then
+  GITLEAKS="$HOME/.local/bin/gitleaks"
+else
+  echo "gitleaks is required before commit. Expected it at \$HOME/.local/bin/gitleaks" >&2
+  exit 1
+fi
+
+"$GITLEAKS" git --staged --redact=100 --no-banner --config .gitleaks.toml
 npx lint-staged

@@ -2,6 +2,7 @@ import React from 'react';
 import { Text, View, StyleSheet } from 'react-native';
 import { Colors } from '@/constants/colors';
 import { BUYER_AFTER_NOTE, BUYER_FOOD_NOTE, BUYER_MEETING_NOTE } from '@/lib/buyer-safety';
+import { titleCase } from '@/lib/title-case';
 
 const NOTES = {
   food: { title: 'What’s in the food', body: BUYER_FOOD_NOTE },
@@ -16,7 +17,7 @@ export function BuyerSafetyNotes({ which = ['food', 'meeting', 'after'] }: { whi
     <View style={styles.wrap} testID="buyer-safety-notes">
       {which.map((id) => (
         <View key={id} style={styles.note}>
-          <Text style={styles.title}>{NOTES[id].title}</Text>
+          <Text style={styles.title}>{titleCase(NOTES[id].title)}</Text>
           <Text style={styles.body}>{NOTES[id].body}</Text>
         </View>
       ))}

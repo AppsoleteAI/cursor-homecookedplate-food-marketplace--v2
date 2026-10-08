@@ -17,12 +17,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "app.rork.homecookedplate-dynamic-gradient-food-marketplace-v1-1",
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "Allow $(PRODUCT_NAME) to access your photos",
-        "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera",
-        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone",
-        "UIBackgroundModes": [
-          "audio"
-        ],
+        "NSPhotoLibraryUsageDescription": "HomeCookedPlate uses your photo library so you can choose a profile picture, meal photos, and food review clips.",
+        "NSCameraUsageDescription": "HomeCookedPlate uses the camera so you can take a profile picture, meal photos, and food review clips.",
+        "NSMicrophoneUsageDescription": "HomeCookedPlate uses the microphone so food review clips can include sound.",
+        "NSLocationWhenInUseUsageDescription": "HomeCookedPlate uses your location while the app is open to check that you are in a supported metro.",
         "CFBundleAllowMixedLocalizations": true,
         "CFBundleLocalizations": [
           "fr"
@@ -36,13 +34,17 @@
       },
       "package": "com.rork.homecookedplate",
       "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.INTERNET",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
+      "blockedPermissions": [
         "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.SCHEDULE_EXACT_ALARM",
-        "INTERNET"
+        "android.permission.SCHEDULE_EXACT_ALARM"
       ],
       "intentFilters": [
         {
@@ -73,7 +75,20 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "The app accesses your photos to let you share them with your friends."
+          "photosPermission": "HomeCookedPlate uses your photo library so you can choose a profile picture, meal photos, and food review clips.",
+          "cameraPermission": "HomeCookedPlate uses the camera so you can take a profile picture, meal photos, and food review clips.",
+          "microphonePermission": "HomeCookedPlate uses the microphone so food review clips can include sound."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "HomeCookedPlate uses your location while the app is open to check that you are in a supported metro.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": false
         }
       ],
       [
@@ -88,15 +103,38 @@
       [
         "@stripe/stripe-react-native",
         {
-          "merchantIdentifier": "string | string[]",
-          "enableGooglePay": "boolean"
+          "merchantIdentifier": "merchant.app.homecookedplate-dynamic-food-marketplace-v1",
+          "enableGooglePay": false
         }
       ],
-      "expo-audio",
-      "expo-video"
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "HomeCookedPlate uses the microphone so food review clips can include sound.",
+          "recordAudioAndroid": true,
+          "enableBackgroundRecording": false
+        }
+      ],
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": false,
+          "supportsPictureInPicture": false
+        }
+      ],
+      "./plugins/withLegacyStorage.js"
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": "https://rork.com/"
+      },
+      "eas": {
+        "projectId": "9b0006fc-e5c7-46d7-bdf8-28da1e3bf6be"
+      }
+    },
+    "owner": "appsoleteai"
   }
 }

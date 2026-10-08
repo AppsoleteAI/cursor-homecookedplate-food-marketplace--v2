@@ -1,4 +1,5 @@
 import React from 'react';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { BuyerOnly } from '@/components/RoleGuard';
 import {
   View,
@@ -6,13 +7,12 @@ import {
   StyleSheet,
   ScrollView,
   Image,
-  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router , type Href } from 'expo-router';
-import { Colors, monoGradients } from '@/constants/colors';
+import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
 import { useCart } from '@/hooks/cart-context';
 import { calculateOrderSplit } from '@/lib/fees';
@@ -32,18 +32,18 @@ export default function CartScreen() {
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyTitle}>Your cart is empty</Text>
             <Text style={styles.emptyText}>Add some delicious meals to get started!</Text>
-            <TouchableOpacity onPress={() => router.push('/farm-grown-basket' as Href)} testID="empty-cart-farm">
+            <GlassPressable onPress={() => router.push('/farm-grown-basket' as Href)} testID="empty-cart-farm">
               <Text style={styles.farmLinkDark}>Looking for farm goods? Open FarmGrownBasket.</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/food-truck-popup' as Href)} testID="empty-cart-truck">
+            </GlassPressable>
+            <GlassPressable onPress={() => router.push('/food-truck-popup' as Href)} testID="empty-cart-truck">
               <Text style={styles.farmLinkDark}>Looking for a food truck? Open FoodTruckPopup.</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/cater-event-deliver' as Href)} testID="empty-cart-cater">
+            </GlassPressable>
+            <GlassPressable onPress={() => router.push('/cater-event-deliver' as Href)} testID="empty-cart-cater">
               <Text style={styles.farmLinkDark}>Ordering for a group? Open CaterEventDeliver.</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/sit-down-delicious' as Href)} testID="empty-cart-sit">
+            </GlassPressable>
+            <GlassPressable onPress={() => router.push('/sit-down-delicious' as Href)} testID="empty-cart-sit">
               <Text style={styles.farmLinkDark}>Looking for a local restaurant? Open SitDownDelicious.</Text>
-            </TouchableOpacity>
+            </GlassPressable>
             <GradientButton
               title="Browse Meals"
               onPress={() => router.push('/(tabs)/(home)/home')}
@@ -67,18 +67,18 @@ export default function CartScreen() {
           >
             <View style={styles.headerInner}>
               <Text style={styles.headerTitle}>Your Cart</Text>
-              <TouchableOpacity onPress={() => router.push('/farm-grown-basket/basket' as Href)} testID="cart-farm-basket">
+              <GlassPressable onPress={() => router.push('/farm-grown-basket/basket' as Href)} testID="cart-farm-basket">
                 <Text style={styles.farmLink}>Farm goods use FarmGrownBasket</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => router.push('/food-truck-popup/basket' as Href)} testID="cart-truck-basket">
+              </GlassPressable>
+              <GlassPressable onPress={() => router.push('/food-truck-popup/basket' as Href)} testID="cart-truck-basket">
                 <Text style={styles.farmLink}>Food trucks use FoodTruckPopup</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => router.push('/cater-event-deliver/basket' as Href)} testID="cart-cater-basket">
+              </GlassPressable>
+              <GlassPressable onPress={() => router.push('/cater-event-deliver/basket' as Href)} testID="cart-cater-basket">
                 <Text style={styles.farmLink}>Group catering uses CaterEventDeliver</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => router.push('/sit-down-delicious/basket' as Href)} testID="cart-sit-basket">
+              </GlassPressable>
+              <GlassPressable onPress={() => router.push('/sit-down-delicious/basket' as Href)} testID="cart-sit-basket">
                 <Text style={styles.farmLink}>Restaurants use SitDownDelicious</Text>
-              </TouchableOpacity>
+              </GlassPressable>
             </View>
           </LinearGradient>
         </View>
@@ -98,26 +98,26 @@ export default function CartScreen() {
               </View>
               <View style={styles.actionsRow} testID="cart-item-actions">
                 <View style={styles.quantityContainer}>
-                  <TouchableOpacity
+                  <GlassPressable
                     style={styles.quantityButton}
                     onPress={() => updateQuantity(item.meal.id, item.quantity - 1)}
                   >
                     <Ionicons name="remove" size={16} color={Colors.gray[600]} />
-                  </TouchableOpacity>
+                  </GlassPressable>
                   <Text style={styles.quantity}>{item.quantity}</Text>
-                  <TouchableOpacity
+                  <GlassPressable
                     style={styles.quantityButton}
                     onPress={() => updateQuantity(item.meal.id, item.quantity + 1)}
                   >
                     <Ionicons name="add" size={16} color={Colors.gray[600]} />
-                  </TouchableOpacity>
+                  </GlassPressable>
                 </View>
-                <TouchableOpacity
+                <GlassPressable
                   style={styles.removeButton}
                   onPress={() => removeFromCart(item.meal.id)}
                 >
                   <Ionicons name="trash-outline" size={20} color={Colors.gradient.red} />
-                </TouchableOpacity>
+                </GlassPressable>
               </View>
             </View>
           </View>
@@ -174,7 +174,7 @@ export default function CartScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: pagePastel.green,
   },
   staticHeader: {
     position: 'absolute',
@@ -188,11 +188,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    ...glassSurface,
   },
   headerInner: {
     paddingVertical: 16,
@@ -251,6 +247,7 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 12,
     marginRight: 16,
+    ...glassSurface,
   },
   itemRight: {
     flex: 1,

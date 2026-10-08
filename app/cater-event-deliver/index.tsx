@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput } from 'react-native';
+import { GlassIconButton, GlassPressable, glassSurface } from '@/components/glass-surface';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +9,7 @@ import { Colors, monoGradients } from '@/constants/colors';
 import { useCaterEvent } from '@/hooks/cater-event-store';
 import { useAuth } from '@/hooks/auth-context';
 import { CATER_EVENT_RULE } from '@/lib/cater-event-license';
+import { titleCase } from '@/lib/title-case';
 
 const LINKS: { title: string; detail: string; href: string; icon: keyof typeof Ionicons.glyphMap; seller?: boolean }[] = [
   { title: 'Open for orders', detail: 'Companies taking drop-offs right now', href: '/cater-event-deliver/board', icon: 'radio-outline' },
@@ -30,9 +32,9 @@ export default function CaterEventDeliverHome() {
     <SafeAreaView style={styles.safe} edges={['top']} testID="cater-hub">
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         <LinearGradient colors={monoGradients.purple} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-          <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/(home)/home'))} testID="cater-hub-back">
-            <Ionicons name="chevron-back" size={26} color={Colors.white} />
-          </TouchableOpacity>
+          <GlassIconButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/(home)/home'))} testID="cater-hub-back" accessibilityLabel="Back">
+            <Ionicons name="chevron-back" size={22} color={Colors.white} />
+          </GlassIconButton>
           <Text style={styles.kicker}>Group drop-off. Not a single plate.</Text>
           <Text style={styles.title}>CaterEventDeliver</Text>
           <Text style={styles.lead}>
@@ -49,13 +51,13 @@ export default function CaterEventDeliverHome() {
               testID="cater-zip"
               maxLength={5}
             />
-            <TouchableOpacity
+            <GlassPressable
               style={styles.zipButton}
               onPress={() => router.push({ pathname: '/cater-event-deliver/board', params: { zip } } as unknown as Href)}
               testID="cater-zip-go"
             >
-              <Text style={styles.zipButtonText}>Find caterers</Text>
-            </TouchableOpacity>
+              <Text style={styles.zipButtonText}>Find Caterers</Text>
+            </GlassPressable>
           </View>
         </LinearGradient>
 
@@ -66,31 +68,31 @@ export default function CaterEventDeliverHome() {
         </View>
 
         {links.map((link) => (
-          <TouchableOpacity key={link.href} style={styles.card} onPress={() => router.push(link.href as Href)} testID={`cater-link-${link.title}`}>
+          <GlassPressable key={link.href} style={styles.card} onPress={() => router.push(link.href as Href)} testID={`cater-link-${link.title}`}>
             <Ionicons name={link.icon} size={22} color="#6D28D9" />
             <View style={styles.cardText}>
               <Text style={styles.cardTitle}>
-                {link.title}
+                {titleCase(link.title)}
                 {link.href.endsWith('basket') && packageCount > 0 ? ` (${packageCount})` : ''}
               </Text>
               <Text style={styles.cardDetail}>{link.detail}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={Colors.gray[400]} />
-          </TouchableOpacity>
+          </GlassPressable>
         ))}
 
-        <TouchableOpacity onPress={() => router.push('/(tabs)/(home)/home')} testID="cater-back-to-plates">
+        <GlassPressable onPress={() => router.push('/(tabs)/(home)/home')} testID="cater-back-to-plates">
           <Text style={styles.link}>Cooked plates stay on Home.</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push('/farm-grown-basket' as Href)}>
+        </GlassPressable>
+        <GlassPressable onPress={() => router.push('/farm-grown-basket' as Href)}>
           <Text style={styles.link}>Farm goods stay in FarmGrownBasket.</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push('/food-truck-popup' as Href)}>
+        </GlassPressable>
+        <GlassPressable onPress={() => router.push('/food-truck-popup' as Href)}>
           <Text style={styles.link}>Food trucks stay in FoodTruckPopup.</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push('/sit-down-delicious' as Href)}>
+        </GlassPressable>
+        <GlassPressable onPress={() => router.push('/sit-down-delicious' as Href)}>
           <Text style={styles.link}>Independent restaurants stay in SitDownDelicious.</Text>
-        </TouchableOpacity>
+        </GlassPressable>
         {isMaker ? <Text style={styles.rule}>{CATER_EVENT_RULE}</Text> : null}
       </ScrollView>
     </SafeAreaView>
@@ -100,7 +102,7 @@ export default function CaterEventDeliverHome() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F5F3FF' },
   body: { paddingBottom: 32 },
-  hero: { padding: 20, paddingBottom: 24, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
+  hero: { ...glassSurface, padding: 20, paddingBottom: 24, borderBottomLeftRadius: 28, borderBottomRightRadius: 28  },
   kicker: { color: '#EDE9FE', fontSize: 12, fontWeight: '700', marginTop: 12 },
   title: { color: Colors.white, fontSize: 32, fontWeight: '700', marginTop: 4 },
   lead: { color: '#EDE9FE', fontSize: 16, lineHeight: 22, marginTop: 8 },
@@ -114,11 +116,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.gray[900],
   },
-  zipButton: { backgroundColor: '#4C1D95', borderRadius: 12, paddingHorizontal: 16, justifyContent: 'center' },
+  zipButton: { ...glassSurface, backgroundColor: '#4C1D95', borderRadius: 12, paddingHorizontal: 16, justifyContent: 'center'  },
   zipButtonText: { color: Colors.white, fontWeight: '700' },
   models: { paddingHorizontal: 16, paddingTop: 16, gap: 6 },
   model: { color: Colors.gray[700], fontSize: 14 },
   card: {
+    ...glassSurface,
     marginHorizontal: 16,
     marginTop: 12,
     backgroundColor: Colors.white,

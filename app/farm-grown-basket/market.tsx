@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Image, TextInput } from 'react-native';
+import { titleCase } from '@/lib/title-case';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, useLocalSearchParams , type Href } from 'expo-router';
 import { FarmScreen } from '@/components/farm/FarmScreen';
 import { Colors } from '@/constants/colors';
@@ -44,13 +46,13 @@ export default function FarmMarketScreen() {
       />
       <View style={styles.filters}>
         {FILTERS.map((item) => (
-          <TouchableOpacity
+          <GlassPressable
             key={item.id}
             style={[styles.chip, filter === item.id && styles.chipOn]}
             onPress={() => setFilter(item.id)}
           >
             <Text style={[styles.chipText, filter === item.id && styles.chipTextOn]}>{item.label}</Text>
-          </TouchableOpacity>
+          </GlassPressable>
         ))}
       </View>
 
@@ -60,13 +62,13 @@ export default function FarmMarketScreen() {
           {listings
             .filter((listing) => filter === 'all' || listing.track === filter)
             .map((listing) => (
-              <TouchableOpacity key={listing.id} style={styles.card} onPress={() => router.push(`/farm-grown-basket/product/${listing.id}` as Href)}>
+              <GlassPressable key={listing.id} style={styles.card} onPress={() => router.push(`/farm-grown-basket/product/${listing.id}` as Href)}>
                 <View style={styles.copy}>
-                  <Text style={styles.name}>{listing.name}</Text>
+                  <Text style={styles.name}>{titleCase(listing.name)}</Text>
                   <Text style={styles.meta}>{listing.farmName} · {trackLabel(listing.track)}</Text>
                   <Text style={styles.price}>${listing.price.toFixed(2)} / {listing.unit}</Text>
                 </View>
-              </TouchableOpacity>
+              </GlassPressable>
             ))}
         </View>
       ) : null}
@@ -78,7 +80,7 @@ export default function FarmMarketScreen() {
         goods.map((product) => {
           const farm = getFarm(product.farmId);
           return (
-            <TouchableOpacity
+            <GlassPressable
               key={product.id}
               style={styles.card}
               onPress={() => router.push(`/farm-grown-basket/product/${product.id}` as Href)}
@@ -86,11 +88,11 @@ export default function FarmMarketScreen() {
             >
               <Image source={{ uri: product.image }} style={styles.image} />
               <View style={styles.copy}>
-                <Text style={styles.name}>{product.name}</Text>
+                <Text style={styles.name}>{titleCase(product.name)}</Text>
                 <Text style={styles.meta}>{farm?.name} · {trackLabel(product.track)}</Text>
                 <Text style={styles.price}>${product.price.toFixed(2)} / {product.unit}</Text>
               </View>
-            </TouchableOpacity>
+            </GlassPressable>
           );
         })
       )}
@@ -109,13 +111,13 @@ const styles = StyleSheet.create({
     color: Colors.gray[900],
   },
   filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
-  chip: { backgroundColor: Colors.white, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
+  chip: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
   chipOn: { backgroundColor: '#166534' },
   chipText: { color: Colors.gray[700], fontWeight: '600' },
   chipTextOn: { color: Colors.white },
   section: { marginTop: 18, marginBottom: 8, fontSize: 16, fontWeight: '700', color: Colors.gray[900] },
-  card: { flexDirection: 'row', gap: 12, backgroundColor: Colors.white, borderRadius: 16, padding: 10, marginBottom: 10 },
-  image: { width: 84, height: 84, borderRadius: 12, backgroundColor: Colors.gray[200] },
+  card: { ...glassSurface, flexDirection: 'row', gap: 12, backgroundColor: Colors.white, borderRadius: 16, padding: 10, marginBottom: 10  },
+  image: { ...glassSurface, width: 84, height: 84, borderRadius: 12, backgroundColor: Colors.gray[200]  },
   copy: { flex: 1, justifyContent: 'center' },
   name: { fontSize: 16, fontWeight: '700', color: Colors.gray[900] },
   meta: { color: Colors.gray[600], marginTop: 4, fontSize: 13 },

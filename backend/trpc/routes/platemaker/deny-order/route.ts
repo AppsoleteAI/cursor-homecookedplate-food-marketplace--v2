@@ -152,7 +152,7 @@ export const denyOrderProcedure = protectedProcedure
     }
 
     // Update order status to 'cancelled' and mark as unpaid
-    const { data: updatedOrder, error: updateError } = await ctx.supabase
+    const { data: updatedOrder, error: updateError } = await ctx.supabaseAdmin
       .from('orders')
       .update({
         status: 'cancelled',

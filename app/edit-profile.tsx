@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
-  TouchableOpacity,
   Image,
   Alert,
   Platform,
@@ -16,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
+import { GlassPressable } from '@/components/glass-surface';
 
 export default function EditProfileScreen() {
   const { user, updateProfile } = useAuth();
@@ -135,9 +135,9 @@ export default function EditProfileScreen() {
               source={{ uri: profileImage }}
               style={styles.avatar}
             />
-            <TouchableOpacity testID="camera-button" style={styles.cameraButton} onPress={handleCameraPress}>
+            <GlassPressable testID="camera-button" style={styles.cameraButton} onPress={handleCameraPress}>
               <Ionicons name="camera" size={20} color={Colors.white} />
-            </TouchableOpacity>
+            </GlassPressable>
           </View>
 
           <View style={styles.form}>
@@ -195,10 +195,10 @@ export default function EditProfileScreen() {
               />
             </View>
 
-            <TouchableOpacity testID="save-button" style={[styles.saveButton, saving ? { opacity: 0.7 } : null]} onPress={handleSave} disabled={saving}>
+            <GlassPressable testID="save-button" style={[styles.saveButton, saving ? { opacity: 0.7 } : null]} onPress={handleSave} disabled={saving}>
               <Ionicons name="save" size={20} color={Colors.white} />
               <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save Changes'}</Text>
-            </TouchableOpacity>
+            </GlassPressable>
           </View>
         </View>
       </ScrollView>

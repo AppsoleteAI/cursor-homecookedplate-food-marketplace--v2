@@ -2,7 +2,7 @@ import { protectedProcedure } from '../../../create-context';
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { decode } from 'base64-arraybuffer';
-import { scanImage } from '../../../../lib/image-security';
+import { scanImage, scanVideo } from '../../../../lib/image-security';
 
 /**
  * Upload Meal Media Procedure
@@ -15,8 +15,8 @@ import { scanImage } from '../../../../lib/image-security';
  *   - Trailing data / steganography detection
  *   - NSFW moderation via Cloudflare Workers AI (when binding is available)
  *
- * Video files bypass image-specific checks but are still size-validated by the
- * Supabase bucket policy (50 MB limit, video/mp4 and video/quicktime only).
+ * Video files are scanned for a real MP4 or QuickTime container, size, and
+ * metadata injection before any storage write. A failed scan refuses the file.
  *
  * Storage path: {userId}/{mealId}/{timestamp}.{ext}
  * Also inserts a row into `media_attachments` for cleanup tracking.
@@ -46,7 +46,16 @@ export const uploadMediaProcedure = protectedProcedure
 
     const arrayBuffer = decode(input.base64Data);
 
-    // Run security scan on image uploads (video scanning not yet supported)
+    if (input.type === 'video') {
+      const scanResult = scanVideo(arrayBuffer, input.mimeType);
+      if (!scanResult.allowed) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: scanResult.reason ?? 'Video failed security check',
+        });
+      }
+    }
+
     if (input.type === 'image') {
       const scanResult = await scanImage(
         arrayBuffer,
@@ -116,6 +125,20 @@ export const uploadMediaProcedure = protectedProcedure
     const { data: publicUrlData } = ctx.supabase.storage
       .from(bucketName)
       .getPublicUrl(fileName);
+
+    const { data: mealRow } = await ctx.supabase
+      .from('meals')
+      .select('images')
+      .eq('id', input.mealId)
+      .single();
+    const currentImages = Array.isArray(mealRow?.images) ? mealRow.images : [];
+    const { error: imageUpdateError } = await ctx.supabase
+      .from('meals')
+      .update({ images: [...currentImages, publicUrlData.publicUrl], published: true })
+      .eq('id', input.mealId);
+    if (imageUpdateError) {
+      throw new Error(imageUpdateError.message || 'Failed to attach media to the plate');
+    }
 
     const { data: attachment, error: attachmentError } = await ctx.supabase
       .from('media_attachments')

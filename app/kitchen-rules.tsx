@@ -1,11 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router, type Href } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { AuthBackButton, AuthBackground } from '@/components/auth/AuthChrome';
 import { SellerOnly } from '@/components/RoleGuard';
 import { AuthColors } from '@/constants/auth-palette';
+import { GlassPressable } from '@/components/glass-surface';
 import {
   COMMISSARY_DIRECTORIES,
   COMMISSARY_REQUIRED_STATES,
@@ -26,10 +27,10 @@ export default function KitchenRulesScreen() {
     <SellerOnly>
     <AuthBackground>
     <SafeAreaView style={styles.safe} testID="kitchen-rules">
-      <Stack.Screen options={{ title: 'Kitchen rules', headerShown: false }} />
+      <Stack.Screen options={{ title: 'Kitchen Rules', headerShown: false }} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <AuthBackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/profile'))} />
-        <Text style={styles.brand}>Kitchen rules</Text>
+        <Text style={styles.brand}>Kitchen Rules</Text>
         <Text style={styles.audience}>A resource for PlateMakers</Text>
 
         <View style={styles.notice}>
@@ -48,8 +49,11 @@ export default function KitchenRulesScreen() {
             Hot meals, soups, meat, dairy, and other foods that need temperature control sit under a different rule. Depending on the state, that rule is a microenterprise home kitchen permit, a food-freedom statute, or a requirement to cook in a licensed commercial or shared kitchen. County and city rules can be stricter than the state, and a state law can be written so that each county must opt in before anyone may use it.
           </Text>
           <Text style={styles.body}>
-            You are responsible for the kitchen, the permit, the temperature, and the label. Publishing a meal on this app does not create a cottage exemption and does not replace a health permit. If your state does not allow that food from a residence, the lawful path is a commercially licensed retail kitchen or a permitted shared kitchen, with the agreement and receipts your inspector asks for.
+            You are responsible for the kitchen, the permit, the temperature, and the label. The temperatures, glove rules, and container notes are on Food handling. Publishing a meal on this app does not create a cottage exemption and does not replace a health permit. If your state does not allow that food from a residence, the lawful path is a commercially licensed retail kitchen or a permitted shared kitchen, with the agreement and receipts your inspector asks for.
           </Text>
+          <GlassPressable onPress={() => router.push('/food-handling' as Href)} testID="kitchen-rules-food-handling">
+            <Text style={styles.body}>Open food handling temperatures</Text>
+          </GlassPressable>
         </Section>
 
         <Section title="Commissary and shared kitchens">
@@ -162,12 +166,12 @@ export default function KitchenRulesScreen() {
           <Text style={styles.body}>
             Those summaries name the states below as places where a mobile food unit, catering business, or ghost kitchen is expected to hold a commissary agreement before a retail food license is issued. This app has not verified each statute. California is on the list for trucks and caterers, with the separate county MEHKO permit as the published home-kitchen exception. Indiana is on the list for commercial catering and trucks even where home perishable sales are expanding.
           </Text>
-          <TouchableOpacity onPress={() => router.push('/food-truck-popup/permit' as Href)} testID="kitchen-rules-food-truck">
+          <GlassPressable onPress={() => router.push('/food-truck-popup/permit' as Href)} testID="kitchen-rules-food-truck">
             <Text style={styles.body}>Food trucks sell through FoodTruckPopup. The menu stays closed until the mobile permit, commissary answer, and fee are recorded.</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push('/sit-down-delicious/license' as Href)} testID="kitchen-rules-sit-down">
+          </GlassPressable>
+          <GlassPressable onPress={() => router.push('/sit-down-delicious/license' as Href)} testID="kitchen-rules-sit-down">
             <Text style={styles.body}>A sit-down or takeout restaurant sells through SitDownDelicious. The license is the retail food permit for that street address. Cottage food law and a mobile-unit permit do not authorize it.</Text>
-          </TouchableOpacity>
+          </GlassPressable>
           <Text style={styles.states}>{COMMISSARY_REQUIRED_STATES.join(' · ')}</Text>
           <Text style={styles.body}>
             Montana is not classified in the summaries this page is drawing from. Washington, D.C. is not in that state list either. If you cook in either place, ask the local health department directly.
@@ -226,11 +230,11 @@ function RuleCard({ title, body }: { title: string; body: string }) {
 
 function SourceCard({ source }: { source: ExternalSource }) {
   return (
-    <TouchableOpacity style={styles.source} onPress={() => openSource(source.url)} accessibilityRole="link">
+    <GlassPressable style={styles.source} onPress={() => openSource(source.url)} accessibilityRole="link">
       <Text style={styles.sourceName}>{source.name}</Text>
       <Text style={styles.sourceDetail}>{source.detail}</Text>
       <Text style={styles.sourceUrl}>{source.url}</Text>
-    </TouchableOpacity>
+    </GlassPressable>
   );
 }
 
@@ -246,7 +250,7 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 6,
   },
-  audience: { color: AuthColors.ink, fontSize: 15, marginTop: 4, marginBottom: 14 },
+  audience: { color: AuthColors.onDark, fontSize: 15, marginTop: 4, marginBottom: 14 },
   notice: {
     backgroundColor: AuthColors.card,
     borderRadius: 16,

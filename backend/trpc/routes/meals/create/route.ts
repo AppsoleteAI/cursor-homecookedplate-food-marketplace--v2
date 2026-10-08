@@ -97,6 +97,7 @@ export const createMealProcedure = protectedProcedure
         tags: tagsResult.values,
         expiry_date: input.expiryDate,
         receipt_date: input.receiptDate,
+        published: false,
       })
       .select()
       .single();
@@ -124,8 +125,8 @@ export const createMealProcedure = protectedProcedure
       category: data.category,
       dietaryOptions: data.dietary_options,
       preparationTime: data.preparation_time,
-      available: data.available,
-      published: data.published,
+        available: true,
+        published: false,
       rating: parseFloat(data.rating || '0'),
       reviewCount: data.review_count,
       featured: data.featured,

@@ -1,3 +1,10 @@
+const LEGAL_PAGES = {
+  "/privacy": "/privacy/index.html",
+  "/privacy/": "/privacy/index.html",
+  "/terms": "/terms/index.html",
+  "/terms/": "/terms/index.html",
+};
+
 function isApiPath(pathname) {
   return (
     pathname === "/health" ||
@@ -20,6 +27,17 @@ function assetRequest(request) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    const legalPath = LEGAL_PAGES[url.pathname];
+    if (legalPath && (request.method === "GET" || request.method === "HEAD")) {
+      const legalUrl = new URL(legalPath, url.origin);
+      const legal = await env.ASSETS.fetch(new Request(legalUrl.toString(), request));
+      if (legal.status !== 404) return legal;
+      return new Response("Legal page is unavailable.", {
+        status: 404,
+        headers: { "content-type": "text/plain; charset=utf-8" },
+      });
+    }
 
     if (isApiPath(url.pathname)) {
       const upstream = await env.API.fetch(request);

@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   Alert,
   Platform,
   ActivityIndicator,
@@ -21,6 +20,7 @@ import { MembershipPromoBanner } from '@/components/MembershipPromoBanner';
 import { IAP_REQUIRED } from '@/lib/iap';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
+import { GlassPressable } from '@/components/glass-surface';
 
 export default function MembershipScreen() {
   const { user } = useAuth();
@@ -299,7 +299,7 @@ export default function MembershipScreen() {
                   </View>
                 </View>
                 {!gpsCoordinates && (
-                  <TouchableOpacity
+                  <GlassPressable
                     onPress={async () => {
                       setDetectingLocation(true);
                       const coords = await requestLocationAndGetCoordinates();
@@ -323,7 +323,7 @@ export default function MembershipScreen() {
                         <Text style={styles.detectButtonText}>Get GPS</Text>
                       </>
                     )}
-                  </TouchableOpacity>
+                  </GlassPressable>
                 )}
               </View>
               <Text style={styles.locationHint}>

@@ -3,12 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Colors, monoGradients } from '@/constants/colors';
+import { GlassPressable } from '@/components/glass-surface';
 interface MembershipPromoBannerProps {
   userLocation?: string | null;
   membershipTier?: 'free' | 'premium';
@@ -53,7 +53,7 @@ export const MembershipPromoBanner: React.FC<MembershipPromoBannerProps> = ({
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity
+      <GlassPressable
         onPress={handlePress}
         activeOpacity={0.9}
         style={styles.touchable}
@@ -70,7 +70,7 @@ export const MembershipPromoBanner: React.FC<MembershipPromoBannerProps> = ({
                 <Ionicons name="star" size={20} color={Colors.white} />
                 <Text style={styles.title}>Limited Time Offer</Text>
                 {dismissible && (
-                  <TouchableOpacity
+                  <GlassPressable
                     onPress={(e) => {
                       e.stopPropagation();
                       handleDismiss();
@@ -79,7 +79,7 @@ export const MembershipPromoBanner: React.FC<MembershipPromoBannerProps> = ({
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
                     <Ionicons name="close" size={18} color={Colors.white} />
-                  </TouchableOpacity>
+                  </GlassPressable>
                 )}
               </View>
               <Text style={styles.message}>
@@ -89,7 +89,7 @@ export const MembershipPromoBanner: React.FC<MembershipPromoBannerProps> = ({
             </View>
           </View>
         </LinearGradient>
-      </TouchableOpacity>
+      </GlassPressable>
     </View>
   );
 };

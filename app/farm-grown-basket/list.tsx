@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { Text, StyleSheet, TextInput } from 'react-native';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router , type Href } from 'expo-router';
 import { FarmScreen } from '@/components/farm/FarmScreen';
 import { Colors } from '@/constants/colors';
@@ -57,12 +58,12 @@ export default function ListFarmGoodScreen() {
       {blocks.map((block) => (
         <Text key={block} style={styles.block}>{block}</Text>
       ))}
-      <TouchableOpacity style={styles.button} onPress={publish} testID="farm-publish">
+      <GlassPressable style={styles.button} onPress={publish} testID="farm-publish">
         <Text style={styles.buttonText}>Publish to FarmGrownBasket</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => router.push('/farm-grown-basket/cottage-law' as Href)}>
-        <Text style={styles.link}>Edit state, test, and permit fee</Text>
-      </TouchableOpacity>
+      </GlassPressable>
+      <GlassPressable onPress={() => router.push('/farm-grown-basket/cottage-law' as Href)}>
+        <Text style={styles.link}>Edit State, Test, and Permit Fee</Text>
+      </GlassPressable>
     </FarmScreen>
   );
 }
@@ -80,7 +81,7 @@ const styles = StyleSheet.create({
   },
   area: { minHeight: 80, textAlignVertical: 'top' },
   block: { color: '#9A3412', marginBottom: 6, lineHeight: 20 },
-  button: { marginTop: 8, backgroundColor: '#166534', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  button: { ...glassSurface, marginTop: 8, backgroundColor: '#166534', borderRadius: 14, paddingVertical: 14, alignItems: 'center'  },
   buttonText: { color: Colors.white, fontWeight: '700' },
   link: { marginTop: 12, color: '#166534', fontWeight: '700' },
 });

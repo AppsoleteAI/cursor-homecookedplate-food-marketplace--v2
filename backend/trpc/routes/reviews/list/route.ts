@@ -1,5 +1,6 @@
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
+import { loadPublicProfiles } from "../../../../lib/public-profiles";
 
 export const listReviewsProcedure = publicProcedure
   .input(
@@ -11,13 +12,7 @@ export const listReviewsProcedure = publicProcedure
   .query(async ({ input, ctx }) => {
     let query = ctx.supabase
       .from('reviews')
-      .select(`
-        *,
-        author:profiles!reviews_author_id_fkey (
-          username,
-          profile_image
-        )
-      `);
+      .select('*');
 
     if (input?.mealId) {
       query = query.eq('meal_id', input.mealId);
@@ -35,12 +30,17 @@ export const listReviewsProcedure = publicProcedure
       throw new Error(error.message);
     }
 
+    const authors = await loadPublicProfiles(
+      ctx.supabaseAdmin,
+      (data || []).map((review: { author_id: string }) => review.author_id)
+    );
+
     return (data || []).map((review: any) => ({
       id: review.id,
       mealId: review.meal_id,
       authorId: review.author_id,
-      authorName: review.author?.username || 'Anonymous',
-      authorImage: review.author?.profile_image,
+      authorName: authors.get(review.author_id)?.username || 'Anonymous',
+      authorImage: authors.get(review.author_id)?.profile_image,
       rating: review.rating,
       comment: review.comment,
       createdAt: new Date(review.created_at),

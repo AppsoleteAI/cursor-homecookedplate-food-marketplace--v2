@@ -2,6 +2,7 @@ import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "../../../../lib/supabase"; // NOT supabaseAdmin - uses anon key
+import { assertEmailConfirmed } from "../../../../lib/email-confirmation";
 
 /**
  * Login procedure - uses anon key (not service role key)
@@ -34,6 +35,13 @@ export const loginProcedure = publicProcedure
       throw new Error(error?.message || 'Invalid credentials');
     }
 
+    try {
+      assertEmailConfirmed(data.user.email_confirmed_at);
+    } catch (confirmationError) {
+      await supabase.auth.signOut();
+      throw confirmationError;
+    }
+
     // Create a new client instance with the session token for authenticated queries
     // This avoids session conflicts with the singleton client
     const authenticatedClient = createClient(
@@ -61,6 +69,11 @@ export const loginProcedure = publicProcedure
 
     if (profileError || !profile) {
       throw new Error('Profile not found');
+    }
+
+    if (profile.is_paused) {
+      await supabase.auth.signOut();
+      throw new Error('This account is paused. Reactivate it to sign in.');
     }
 
     return {

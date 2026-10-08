@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Switch } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Switch } from 'react-native';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, type Href } from 'expo-router';
 import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
 import { useSellerGate } from '@/components/RoleGuard';
@@ -73,9 +74,9 @@ export default function CaterLicenseScreen() {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>2. Commercial kitchen</Text>
         <Text style={styles.body}>Hot group meals need a licensed commercial kitchen. Cottage food, food-freedom, and home-kitchen permits cover a different kind of sale. They are not a catering license.</Text>
-        <TouchableOpacity onPress={() => router.push('/kitchen-rules' as Href)}>
-          <Text style={styles.link}>Read the kitchen rules</Text>
-        </TouchableOpacity>
+        <GlassPressable onPress={() => router.push('/kitchen-rules' as Href)}>
+          <Text style={styles.link}>Read the Kitchen Rules</Text>
+        </GlassPressable>
       </View>
       <View style={styles.card}>
         <Text style={styles.cardTitle}>3. Drop-off is yours</Text>
@@ -90,9 +91,9 @@ export default function CaterLicenseScreen() {
       <TextInput value={query} onChangeText={setQuery} placeholder="Search states" placeholderTextColor={Colors.gray[400]} style={styles.input} testID="cater-state-search" />
       <View style={styles.chips}>
         {states.map((state) => (
-          <TouchableOpacity key={state.code} style={[styles.chip, draft.stateCode === state.code && styles.chipOn]} onPress={() => set({ stateCode: state.code })}>
+          <GlassPressable key={state.code} style={[styles.chip, draft.stateCode === state.code && styles.chipOn]} onPress={() => set({ stateCode: state.code })}>
             <Text style={[styles.chipText, draft.stateCode === state.code && styles.chipTextOn]}>{state.name}</Text>
-          </TouchableOpacity>
+          </GlassPressable>
         ))}
       </View>
       {states.length === 0 ? <Text style={styles.note}>Type a state name, such as Texas or California.</Text> : null}
@@ -122,9 +123,9 @@ export default function CaterLicenseScreen() {
           ))}
         </View>
       ) : null}
-      <TouchableOpacity style={styles.button} onPress={save} testID="save-cater-license">
-        <Text style={styles.buttonText}>Save license record</Text>
-      </TouchableOpacity>
+      <GlassPressable style={styles.button} onPress={save} testID="save-cater-license">
+        <Text style={styles.buttonText}>Save License Record</Text>
+      </GlassPressable>
     </CaterEventScreen>
   );
 }
@@ -149,7 +150,7 @@ function Toggle({ label, value, onValueChange }: { label: string; value: boolean
 
 const styles = StyleSheet.create({
   lead: { color: Colors.gray[800], lineHeight: 20 },
-  card: { backgroundColor: Colors.white, borderRadius: 14, padding: 14, marginTop: 10 },
+  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 14, padding: 14, marginTop: 10  },
   cardTitle: { fontWeight: '700', color: Colors.gray[900], marginBottom: 6 },
   body: { color: Colors.gray[700], lineHeight: 20, marginTop: 6 },
   label: { marginTop: 14, marginBottom: 6, fontWeight: '700', color: Colors.gray[900] },
@@ -163,7 +164,7 @@ const styles = StyleSheet.create({
   },
   area: { minHeight: 80, textAlignVertical: 'top' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  chip: { backgroundColor: Colors.white, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
+  chip: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
   chipOn: { backgroundColor: '#6D28D9' },
   chipText: { color: Colors.gray[800] },
   chipTextOn: { color: Colors.white, fontWeight: '700' },
@@ -173,6 +174,6 @@ const styles = StyleSheet.create({
   toggleLabel: { flex: 1, color: Colors.gray[800], lineHeight: 20 },
   block: { color: '#9F1239', marginTop: 8, lineHeight: 20 },
   ok: { color: '#166534', marginTop: 8, fontWeight: '700' },
-  button: { marginTop: 16, backgroundColor: '#6D28D9', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  button: { ...glassSurface, marginTop: 16, backgroundColor: '#6D28D9', borderRadius: 14, paddingVertical: 14, alignItems: 'center'  },
   buttonText: { color: Colors.white, fontWeight: '700' },
 });

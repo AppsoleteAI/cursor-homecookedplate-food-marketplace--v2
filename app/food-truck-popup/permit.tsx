@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Switch } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Switch } from 'react-native';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, type Href } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { FoodTruckScreen } from '@/components/food-truck/FoodTruckScreen';
@@ -77,9 +78,9 @@ export default function TruckPermitScreen() {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>2. Commissary</Text>
         <Text style={styles.body}>Published summaries expect a licensed commissary agreement before a mobile food license in: {COMMISSARY_REQUIRED_STATES.join(', ')}. Ohio summaries describe a self-contained unit that the state has approved as a narrow exception. Food-freedom and MEHKO rules are for home kitchens. They are not a food-truck permit.</Text>
-        <TouchableOpacity onPress={() => router.push('/kitchen-rules' as Href)}>
-          <Text style={styles.link}>Read the kitchen rules</Text>
-        </TouchableOpacity>
+        <GlassPressable onPress={() => router.push('/kitchen-rules' as Href)}>
+          <Text style={styles.link}>Read the Kitchen Rules</Text>
+        </GlassPressable>
         {truckArticle ? (
           <Text style={styles.link} onPress={() => WebBrowser.openBrowserAsync(truckArticle.url)}>{truckArticle.name}</Text>
         ) : null}
@@ -93,9 +94,9 @@ export default function TruckPermitScreen() {
       <TextInput value={query} onChangeText={setQuery} placeholder="Search states" placeholderTextColor={Colors.gray[400]} style={styles.input} testID="truck-state-search" />
       <View style={styles.chips}>
         {states.map((state) => (
-          <TouchableOpacity key={state.code} style={[styles.chip, draft.stateCode === state.code && styles.chipOn]} onPress={() => set({ stateCode: state.code })}>
+          <GlassPressable key={state.code} style={[styles.chip, draft.stateCode === state.code && styles.chipOn]} onPress={() => set({ stateCode: state.code })}>
             <Text style={[styles.chipText, draft.stateCode === state.code && styles.chipTextOn]}>{state.name}</Text>
-          </TouchableOpacity>
+          </GlassPressable>
         ))}
       </View>
       {states.length === 0 ? <Text style={styles.note}>Type a state name, such as Texas or California.</Text> : null}
@@ -132,9 +133,9 @@ export default function TruckPermitScreen() {
           ))}
         </View>
       ) : null}
-      <TouchableOpacity style={styles.button} onPress={save} testID="save-truck-permit">
-        <Text style={styles.buttonText}>Save permit record</Text>
-      </TouchableOpacity>
+      <GlassPressable style={styles.button} onPress={save} testID="save-truck-permit">
+        <Text style={styles.buttonText}>Save Permit Record</Text>
+      </GlassPressable>
     </FoodTruckScreen>
   );
 }
@@ -159,7 +160,7 @@ function Toggle({ label, value, onValueChange }: { label: string; value: boolean
 
 const styles = StyleSheet.create({
   lead: { color: Colors.gray[800], lineHeight: 20 },
-  card: { backgroundColor: Colors.white, borderRadius: 14, padding: 14, marginTop: 10 },
+  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 14, padding: 14, marginTop: 10  },
   cardTitle: { fontWeight: '700', color: Colors.gray[900], marginBottom: 6 },
   body: { color: Colors.gray[700], lineHeight: 20, marginTop: 6 },
   label: { marginTop: 14, marginBottom: 6, fontWeight: '700', color: Colors.gray[900] },
@@ -173,7 +174,7 @@ const styles = StyleSheet.create({
   },
   area: { minHeight: 80, textAlignVertical: 'top' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  chip: { backgroundColor: Colors.white, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
+  chip: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
   chipOn: { backgroundColor: '#C2410C' },
   chipText: { color: Colors.gray[800] },
   chipTextOn: { color: Colors.white, fontWeight: '700' },
@@ -183,6 +184,6 @@ const styles = StyleSheet.create({
   toggleLabel: { flex: 1, color: Colors.gray[800], lineHeight: 20 },
   block: { color: '#9A3412', marginTop: 8, lineHeight: 20 },
   ok: { color: '#166534', marginTop: 8, fontWeight: '700' },
-  button: { marginTop: 16, backgroundColor: '#C2410C', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  button: { ...glassSurface, marginTop: 16, backgroundColor: '#C2410C', borderRadius: 14, paddingVertical: 14, alignItems: 'center'  },
   buttonText: { color: Colors.white, fontWeight: '700' },
 });

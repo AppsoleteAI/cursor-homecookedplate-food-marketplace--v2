@@ -1,7 +1,8 @@
 import React, { Component, ReactNode, ErrorInfo } from 'react';
-import { View, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, ActivityIndicator } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 import { navLogger } from '@/lib/nav-logger';
+import { GlassPressable } from '@/components/glass-surface';
 
 interface Props {
   children: ReactNode;
@@ -85,12 +86,12 @@ export class NavigationErrorBoundary extends Component<Props, State> {
           </Text>
           
           {this.state.retryCount >= 3 && (
-            <TouchableOpacity 
+            <GlassPressable 
               onPress={() => this.setState({ hasError: false, retryCount: 0 })}
               style={{ marginTop: 20, padding: 12, backgroundColor: '#007AFF', borderRadius: 8 }}
             >
               <Text style={{ color: '#fff' }}>Try Again</Text>
-            </TouchableOpacity>
+            </GlassPressable>
           )}
         </View>
       );

@@ -4,21 +4,23 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Platform,
-  TouchableOpacity,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
-import { AuthColors } from '@/constants/auth-palette';
-import { AuthBackButton, AuthBackground, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { AuthColors, goldButtonColors } from '@/constants/auth-palette';
+import { LinearGradient } from 'expo-linear-gradient';
+import { AuthBackButton, AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { useAuth } from '@/hooks/auth-context';
 import { BUYER_AFTER_NOTE, BUYER_FOOD_NOTE, BUYER_MEETING_NOTE } from '@/lib/buyer-safety';
+import { FoodHandlingLink } from '@/components/FoodHandlingLink';
+import { titleCase } from '@/lib/title-case';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 
 type Role = 'platetaker' | 'platemaker';
 
-const HOUSE_MARK = require('../../assets/house-mark.png');
+const ACCOUNT_KEY = 'hcp_has_account';
 
 const BENEFITS: { emoji: string; title: string; body: string }[] = [
   {
@@ -61,6 +63,7 @@ function markWelcomeSeen() {
 }
 
 export default function WelcomeScreen() {
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ role?: string | string[]; entry?: string | string[] }>();
   const role = roleParam(params.role);
   const isGate = firstParam(params.entry) === 'gate';
@@ -87,6 +90,27 @@ export default function WelcomeScreen() {
   const goToSignIn = () => {
     markWelcomeSeen();
     router.replace('/(auth)/login');
+  };
+
+  const openMembership = () => {
+    markWelcomeSeen();
+    AsyncStorage.getItem(ACCOUNT_KEY)
+      .then((flag) => {
+        if (user || flag === '1') {
+          router.push('/(auth)/login');
+          return;
+        }
+        router.push({
+          pathname: '/(auth)/onboarding',
+          params: role ? { role } : {},
+        });
+      })
+      .catch(() => {
+        router.push({
+          pathname: '/(auth)/onboarding',
+          params: role ? { role } : {},
+        });
+      });
   };
 
   const continueForward = () => {
@@ -125,16 +149,7 @@ export default function WelcomeScreen() {
             }}
           />
 
-          <View style={styles.brandRow}>
-            <Image
-              source={HOUSE_MARK}
-              style={styles.brandMark}
-              resizeMode="contain"
-              tintColor={AuthColors.brand}
-              accessibilityIgnoresInvertColors
-            />
-            <Text style={styles.brand}>HomeCookedPlate</Text>
-          </View>
+          <AuthBrand />
           <View style={styles.steps}>
             {stepLabels.map((label, index) => (
               <View key={label} style={styles.stepItem}>
@@ -148,7 +163,7 @@ export default function WelcomeScreen() {
             <View style={styles.panel}>
               {step === 0 ? (
                 <>
-                  <Text style={styles.panelTitle}>Home-cooked plates, near you</Text>
+                  <Text style={styles.panelTitle}>Home-Cooked Plates, Near You</Text>
                   <Text style={styles.help}>
                     HomeCookedPlate is a marketplace for meals cooked in home kitchens. Order a plate, or start cooking.
                   </Text>
@@ -156,7 +171,7 @@ export default function WelcomeScreen() {
                     <View key={item.title} style={styles.benefit}>
                       <Text style={styles.benefitEmoji}>{item.emoji}</Text>
                       <View style={styles.benefitCopy}>
-                        <Text style={styles.benefitTitle}>{item.title}</Text>
+                        <Text style={styles.benefitTitle}>{titleCase(item.title)}</Text>
                         <Text style={styles.benefitBody}>{item.body}</Text>
                       </View>
                     </View>
@@ -167,22 +182,35 @@ export default function WelcomeScreen() {
               {step === 1 ? (
                 <>
                   <Text style={styles.panelTitle}>Membership</Text>
-                  <View style={styles.priceRow}>
+                  <GlassPressable
+                    style={styles.priceButton}
+                    onPress={openMembership}
+                    accessibilityRole="button"
+                    accessibilityLabel="4.99 dollars a month. Create an account, or sign in."
+                    testID="membership-price"
+                  >
+                    <LinearGradient
+                      colors={[...goldButtonColors]}
+                      locations={[0, 0.42, 1]}
+                      style={styles.priceFill}
+                    />
                     <Text style={styles.price}>$4.99</Text>
-                    <Text style={styles.pricePeriod}>/ month</Text>
+                  </GlassPressable>
+                  <View style={styles.priceNotes}>
+                    <Text style={styles.priceNote}>Premium is $4.99 a month after any free period.</Text>
+                    <Text style={styles.priceNote}>Premium features access</Text>
+                    <Text style={styles.priceNote}>Priority support</Text>
+                    <Text style={styles.priceNote}>Cancel anytime</Text>
                   </View>
-                  <Text style={styles.help}>
-                    Premium is $4.99 a month after any free period.
-                  </Text>
-                  <View style={styles.notice}>
-                    <Text style={styles.noticeTitle}>Early Bird</Text>
-                    <Text style={styles.checkText}>
+                  <View style={styles.earlyBird}>
+                    <Text style={styles.earlyTitle}>Early Bird</Text>
+                    <Text style={styles.earlyBody}>
                       Early Bird is 90 days of Premium at no charge. It is free early access, open while your metro still has a spot. Each metro has a limited number of Early Bird places for people ordering plates and for people cooking.
                     </Text>
-                    <Text style={styles.checkText}>
+                    <Text style={styles.earlyBody}>
                       A payment method starts those 90 days. The $4.99 charge begins after they end. Cancel before then and you are not charged.
                     </Text>
-                    <Text style={styles.checkText}>
+                    <Text style={styles.earlyBody}>
                       Outside an active metro, Early Bird is not available.
                     </Text>
                   </View>
@@ -191,9 +219,9 @@ export default function WelcomeScreen() {
 
               {step === 2 && !isMaker ? (
                 <>
-                  <Text style={styles.panelTitle}>A few notes before you order</Text>
+                  <Text style={styles.panelTitle}>A Few Notes Before You Order</Text>
                   <Text style={styles.help}>
-                    You are here to find food and eat it. These are the only safety notes on the ordering side.
+                    You are here to find food and eat it. These notes cover the pickup. Temperatures, leftovers, and containers are on Food handling.
                   </Text>
                   <View style={styles.benefit}>
                     <Text style={styles.benefitEmoji}>🥣</Text>
@@ -216,12 +244,13 @@ export default function WelcomeScreen() {
                       <Text style={styles.benefitBody}>{BUYER_AFTER_NOTE}</Text>
                     </View>
                   </View>
+                  <FoodHandlingLink color="#3D7EBE" />
                 </>
               ) : null}
 
               {step === 2 && isMaker ? (
                 <>
-                  <Text style={styles.panelTitle}>Cottage food rules</Text>
+                  <Text style={styles.panelTitle}>Cottage Food Rules</Text>
                   <Text style={styles.help}>
                     What a home kitchen may sell is not the same in every state.
                   </Text>
@@ -261,6 +290,7 @@ export default function WelcomeScreen() {
                       Alcoholic meals, pastries, and drinks are not allowed on this app.
                     </Text>
                   </View>
+                  <FoodHandlingLink color="#3D7EBE" label="Food handling temperatures for the kitchen" />
                 </>
               ) : null}
 
@@ -271,9 +301,9 @@ export default function WelcomeScreen() {
                 style={styles.action}
               />
               {step === 0 ? (
-                <TouchableOpacity onPress={goToSignIn} testID="welcome-sign-in" style={styles.signIn}>
-                  <Text style={styles.signInText}>I already have an account</Text>
-                </TouchableOpacity>
+                <GlassPressable onPress={goToSignIn} testID="welcome-sign-in" style={styles.signIn}>
+                  <Text style={styles.signInText}>I Already Have an Account</Text>
+                </GlassPressable>
               ) : null}
             </View>
           </View>
@@ -284,8 +314,6 @@ export default function WelcomeScreen() {
 }
 
 const cardShadow = {
-  borderTopWidth: 1,
-  borderTopColor: 'rgba(255,255,255,0.36)',
   shadowColor: '#461C06',
   shadowOffset: { width: 0, height: 10 },
   shadowOpacity: 0.22,
@@ -302,26 +330,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 28,
   },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 16,
-  },
-  brandMark: {
-    width: 46,
-    height: 38,
-  },
-  brand: {
-    color: AuthColors.brand,
-    fontSize: 26,
-    fontWeight: '700',
-    fontFamily: Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia' }),
-    textShadowColor: 'rgba(70, 16, 0, 0.55)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
-  },
   steps: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -336,18 +344,18 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'rgba(20,16,12,0.28)',
+    backgroundColor: 'rgba(255,255,255,0.35)',
   },
   stepDotOn: {
     backgroundColor: AuthColors.brand,
   },
   stepLabel: {
-    color: AuthColors.ink,
+    color: AuthColors.onDark,
     fontSize: 12,
     fontWeight: '600',
   },
   stepLabelOn: {
-    color: AuthColors.white,
+    color: AuthColors.brand,
   },
   sheet: {
     backgroundColor: 'transparent',
@@ -398,23 +406,61 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+  priceButton: {
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
+    borderRadius: 24,
+    minHeight: 112,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginBottom: 16,
+    alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    ...glassSurface,
+  },
+  priceFill: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
   },
   price: {
-    color: AuthColors.ink,
-    fontSize: 40,
+    color: AuthColors.white,
+    fontSize: 72,
+    lineHeight: 80,
+    fontWeight: '700',
+    textShadowColor: 'rgba(70, 28, 6, 0.55)',
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 8,
+  },
+  priceNotes: {
+    gap: 6,
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  priceNote: {
+    color: '#000000',
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: '600',
+  },
+  earlyBird: {
+    backgroundColor: AuthColors.white,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 8,
+    gap: 10,
+  },
+  earlyTitle: {
+    color: '#000000',
+    fontSize: 16,
     fontWeight: '700',
   },
-  pricePeriod: {
-    color: AuthColors.ink,
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-    marginLeft: 6,
+  earlyBody: {
+    color: '#000000',
+    fontSize: 14,
+    lineHeight: 20,
   },
   notice: {
     borderWidth: 1,

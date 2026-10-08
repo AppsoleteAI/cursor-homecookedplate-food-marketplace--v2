@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import { Text, StyleSheet, TextInput } from 'react-native';
+import { titleCase } from '@/lib/title-case';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { FoodTruckScreen } from '@/components/food-truck/FoodTruckScreen';
 import { Colors } from '@/constants/colors';
@@ -32,21 +34,21 @@ export default function TruckBoardScreen() {
       />
       <Text style={styles.note}>This board is the truck’s own Active switch and posted lot. It is not a live GPS feed from the vehicle.</Text>
       {isMaker && permit ? (
-        <TouchableOpacity style={styles.card} onPress={() => router.push('/food-truck-popup/seller' as Href)}>
+        <GlassPressable style={styles.card} onPress={() => router.push('/food-truck-popup/seller' as Href)}>
           <Text style={styles.name}>{permit.truckName}</Text>
           <Text style={[styles.status, ownerActive ? styles.open : styles.closed]}>{ownerActive ? 'Active' : 'Window closed'}</Text>
           <Text style={styles.meta}>{permit.city}, {stateName(permit.stateCode)} · {listings.length} menu item{listings.length === 1 ? '' : 's'}</Text>
-        </TouchableOpacity>
+        </GlassPressable>
       ) : null}
       <Text style={styles.section}>{searching ? 'Trucks in this ZIP area' : 'On the board'}</Text>
       {(searching ? trucks : FOOD_TRUCKS).length === 0 ? <Text style={styles.note}>No truck shares the first three digits of that ZIP.</Text> : null}
       {(searching ? trucks : FOOD_TRUCKS).map((truck) => (
-        <TouchableOpacity key={truck.id} style={styles.card} onPress={() => router.push(`/food-truck-popup/truck/${truck.id}` as Href)} testID={`board-truck-${truck.id}`}>
-          <Text style={styles.name}>{truck.name}</Text>
+        <GlassPressable key={truck.id} style={styles.card} onPress={() => router.push(`/food-truck-popup/truck/${truck.id}` as Href)} testID={`board-truck-${truck.id}`}>
+          <Text style={styles.name}>{titleCase(truck.name)}</Text>
           <Text style={[styles.status, truck.active ? styles.open : styles.closed]}>{truck.active ? 'Active' : 'Window closed'}</Text>
           <Text style={styles.meta}>{truck.city}, {stateName(truck.stateCode)} · {truck.cuisine}</Text>
           <Text style={styles.meta}>{truck.stops[0]?.place} · {truck.stops[0]?.hours}</Text>
-        </TouchableOpacity>
+        </GlassPressable>
       ))}
     </FoodTruckScreen>
   );
@@ -63,7 +65,7 @@ const styles = StyleSheet.create({
   },
   note: { color: Colors.gray[600], marginTop: 10, lineHeight: 20 },
   section: { marginTop: 16, marginBottom: 8, fontWeight: '700', color: Colors.gray[900] },
-  card: { backgroundColor: Colors.white, borderRadius: 16, padding: 14, marginBottom: 10 },
+  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 16, padding: 14, marginBottom: 10  },
   name: { fontSize: 17, fontWeight: '700', color: Colors.gray[900] },
   status: { marginTop: 6, fontWeight: '700' },
   open: { color: '#166534' },

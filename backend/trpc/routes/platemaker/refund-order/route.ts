@@ -1,16 +1,14 @@
 import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { calculateOrderSplit } from "../../../../lib/fees";
+import { refundCookSale } from "../../../../lib/stripe-marketplace";
 
 /**
  * Refund Order Procedure
  * 
- * Allows platemakers to refund orders at their 90% share (take-home amount).
- * Platform keeps 20% total fees (10% buyer fee + 10% seller fee).
- * 
- * CRITICAL: HomeCookedPlate does not refund platform fees.
- * Buyer receives refund of platemaker's 90% share only.
+ * Refunds the cook's share to the buyer. Platform fees stay with HomeCookedPlate.
+ * If the 7-day hold has not ended, the Stripe transfer to the cook is never created.
+ * If it already settled, the transfer is reversed.
  * 
  * SECURITY:
  * - Only platemakers can refund their own orders
@@ -83,33 +81,14 @@ export const refundOrderProcedure = protectedProcedure
       });
     }
 
-    // Calculate refund amount: 90% of base order amount (platemaker's take-home)
-    const orderTotalPrice = parseFloat(order.total_price.toString());
-    if (!Number.isFinite(orderTotalPrice) || orderTotalPrice <= 0) {
+    const baseAmount = parseFloat(order.total_price.toString());
+    if (!Number.isFinite(baseAmount) || baseAmount <= 0) {
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Invalid order total price',
       });
     }
 
-    // orders.total_price is the plate base (DB trigger). Seller share is 90% of that base.
-    const baseAmount = orderTotalPrice;
-
-    // Calculate platemaker's 90% share using calculateOrderSplit
-    let refundAmount: number;
-    try {
-      const split = calculateOrderSplit(baseAmount);
-      refundAmount = split.sellerPayout; // This is baseAmount * 0.90 (platemaker's take-home)
-    } catch (error) {
-      console.error('[RefundOrder] Error calculating refund amount:', error);
-      // Fallback: use baseAmount * 0.90 directly
-      refundAmount = baseAmount * 0.90;
-    }
-
-    // Round to 2 decimal places and convert to cents for Stripe
-    const refundAmountCents = Math.round(refundAmount * 100);
-
-    // Process Stripe refund
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
     if (!stripeSecretKey) {
       throw new TRPCError({
@@ -118,35 +97,14 @@ export const refundOrderProcedure = protectedProcedure
       });
     }
 
-    let refundId: string | null = null;
+    let refundResult: { refundId: string; refundAmount: number; platformFeeKept: number };
     try {
-      const refundResponse = await fetch(
-        'https://api.stripe.com/v1/refunds',
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${stripeSecretKey}`,
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: new URLSearchParams({
-            payment_intent: order.payment_intent_id,
-            amount: refundAmountCents.toString(), // Partial refund: 90% of base
-          }).toString(),
-        }
-      );
-
-      if (!refundResponse.ok) {
-        const refundError = await refundResponse.text();
-        console.error('[RefundOrder] Stripe refund failed:', refundError);
-        throw new TRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'Failed to process refund. Please contact support.',
-        });
-      }
-
-      const refund = await refundResponse.json();
-      refundId = refund.id;
-      console.log('[RefundOrder] Stripe refund processed successfully:', refundId);
+      refundResult = await refundCookSale(ctx.supabaseAdmin, stripeSecretKey, {
+        orderId: input.orderId,
+        sellerId: ctx.userId,
+        paymentIntentId: order.payment_intent_id,
+        baseAmount,
+      });
     } catch (stripeError) {
       console.error('[RefundOrder] Stripe API error:', stripeError);
       throw new TRPCError({
@@ -156,7 +114,7 @@ export const refundOrderProcedure = protectedProcedure
     }
 
     // Update order status to 'cancelled' and mark as unpaid
-    const { data: updatedOrder, error: updateError } = await ctx.supabase
+    const { data: updatedOrder, error: updateError } = await ctx.supabaseAdmin
       .from('orders')
       .update({
         status: 'cancelled',
@@ -176,9 +134,9 @@ export const refundOrderProcedure = protectedProcedure
     return {
       id: updatedOrder?.id || input.orderId,
       status: updatedOrder?.status || 'cancelled',
-      refundAmount: parseFloat(refundAmount.toFixed(2)),
-      refundId,
-      platformFeeKept: parseFloat((orderTotalPrice - refundAmount).toFixed(2)),
-      message: 'Order refunded successfully. HomeCookedPlate does not refund platform fees. Buyer received 90% of the base order amount.',
+      refundAmount: refundResult.refundAmount,
+      refundId: refundResult.refundId,
+      platformFeeKept: refundResult.platformFeeKept,
+      message: 'Order refunded. The buyer received your payout share. HomeCookedPlate kept the platform fees. If Stripe had already paid you, that transfer was reversed.',
     };
   });

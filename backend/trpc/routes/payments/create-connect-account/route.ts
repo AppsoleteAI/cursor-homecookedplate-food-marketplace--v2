@@ -53,6 +53,8 @@ export const createConnectAccountProcedure = protectedProcedure
           email: profile.email,
           'capabilities[card_payments][requested]': 'true',
           'capabilities[transfers][requested]': 'true',
+          'metadata[marketplace]': 'homecookedplate',
+          'metadata[payout_hold_days]': '7',
           ...(businessName ? { 'business_profile[name]': businessName } : {}),
         }).toString(),
       });
@@ -93,8 +95,8 @@ export const createConnectAccountProcedure = protectedProcedure
       },
       body: new URLSearchParams({
         account: account.id,
-        refresh_url: 'platemate://stripe-onboarding-refresh',
-        return_url: 'platemate://stripe-onboarding-complete',
+        refresh_url: 'homecookedplate://payout-responsibility',
+        return_url: 'homecookedplate://payout-responsibility',
         type: 'account_onboarding',
       }).toString(),
     });

@@ -1,10 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, KeyboardAvoidingView, Platform, Image, ActivityIndicator } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { Colors } from '@/constants/colors';
 import { useOrders } from '@/hooks/orders-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/auth-context';
+import { FoodHandlingLink } from '@/components/FoodHandlingLink';
+import { BUYER_AFTER_NOTE } from '@/lib/buyer-safety';
+import { GlassPressable } from '@/components/glass-surface';
 
 export default function OrderDetailsPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -103,19 +106,22 @@ export default function OrderDetailsPage() {
           <View style={styles.statusRow}>
             <Text style={styles.value}>{order.status}</Text>
             {isActive ? (
-              <TouchableOpacity onPress={() => setOrderStatus(order.id, 'completed')} style={styles.completeBtn} testID="complete-order-btn">
+              <GlassPressable onPress={() => setOrderStatus(order.id, 'completed')} style={styles.completeBtn} testID="complete-order-btn">
                 <Text style={styles.completeBtnText}>Order Completed</Text>
-              </TouchableOpacity>
+              </GlassPressable>
             ) : null}
           </View>
         </View>
 
-        {user?.role !== 'platemaker' ? (
-          <View style={styles.section}>
-            <Text style={styles.title}>When you have it</Text>
-            <Text style={styles.value}>Eat the food promptly. Hot food should still be hot, and cold food still cold, when you get it. Meet in a public place during daylight.</Text>
-          </View>
-        ) : null}
+        <View style={styles.section}>
+          <Text style={styles.title}>{user?.role === 'platemaker' ? 'Until Pickup' : 'When You Have It'}</Text>
+          <Text style={styles.value}>
+            {user?.role === 'platemaker'
+              ? 'Keep cold food at or below 41°F and hot food at or above 135°F until it is handed over.'
+              : `${BUYER_AFTER_NOTE} Meet in a public place during daylight.`}
+          </Text>
+          <FoodHandlingLink />
+        </View>
         <View style={styles.section}>
           <Text style={styles.title}>Allergies</Text>
           <Text style={styles.value}>{order.allergies?.join(', ') ?? 'None'}</Text>
@@ -154,7 +160,7 @@ export default function OrderDetailsPage() {
             editable={isActive}
             testID="order-message-input"
           />
-          <TouchableOpacity 
+          <GlassPressable 
             onPress={onSend} 
             disabled={!isActive || !input.trim() || sending} 
             style={[styles.sendBtn, (sending || !input.trim()) && styles.sendBtnDisabled]} 
@@ -165,7 +171,7 @@ export default function OrderDetailsPage() {
             ) : (
               <Text style={styles.sendBtnText}>Send</Text>
             )}
-          </TouchableOpacity>
+          </GlassPressable>
         </View>
       </KeyboardAvoidingView>
     </View>

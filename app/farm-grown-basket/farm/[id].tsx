@@ -1,5 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
+import { titleCase } from '@/lib/title-case';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, useLocalSearchParams , type Href } from 'expo-router';
 import { FarmScreen } from '@/components/farm/FarmScreen';
 import { Colors } from '@/constants/colors';
@@ -28,37 +30,37 @@ export default function FarmProfileScreen() {
   const following = follows.includes(farm.id);
 
   return (
-    <FarmScreen title={farm.name} subtitle={`${farm.city}, ${stateName(farm.stateCode)}`} testID="farm-profile">
+    <FarmScreen title={titleCase(farm.name)} subtitle={`${farm.city}, ${stateName(farm.stateCode)}`} testID="farm-profile">
       <Image source={{ uri: farm.image }} style={styles.hero} />
       <Text style={styles.body}>{farm.summary}</Text>
       <Text style={styles.meta}>{farm.county} County · {farm.zip}</Text>
-      <TouchableOpacity style={styles.follow} onPress={() => toggleFollow(farm.id)} testID="farm-follow">
-        <Text style={styles.followText}>{following ? 'Following this stand' : 'Follow this stand'}</Text>
-      </TouchableOpacity>
+      <GlassPressable style={styles.follow} onPress={() => toggleFollow(farm.id)} testID="farm-follow">
+        <Text style={styles.followText}>{following ? 'Following This Stand' : 'Follow This Stand'}</Text>
+      </GlassPressable>
       {isMaker ? (
         <View style={styles.rule}>
           <Text style={styles.ruleTitle}>Local rule for this stand</Text>
           <Text style={styles.body}>{frameworkSummary(framework)}</Text>
-          <TouchableOpacity onPress={() => router.push('/farm-grown-basket/cottage-law' as Href)}>
-            <Text style={styles.link}>Open the cottage food checklist</Text>
-          </TouchableOpacity>
+          <GlassPressable onPress={() => router.push('/farm-grown-basket/cottage-law' as Href)}>
+            <Text style={styles.link}>Open the Cottage Food Checklist</Text>
+          </GlassPressable>
         </View>
       ) : null}
       <Text style={styles.section}>Goods from this stand</Text>
       {productsForFarm(farm.id).map((product) => (
-        <TouchableOpacity key={product.id} style={styles.row} onPress={() => router.push(`/farm-grown-basket/product/${product.id}` as Href)}>
+        <GlassPressable key={product.id} style={styles.row} onPress={() => router.push(`/farm-grown-basket/product/${product.id}` as Href)}>
           <View style={styles.copy}>
-            <Text style={styles.name}>{product.name}</Text>
+            <Text style={styles.name}>{titleCase(product.name)}</Text>
             <Text style={styles.meta}>{trackLabel(product.track)} · ${product.price.toFixed(2)} / {product.unit}</Text>
           </View>
-        </TouchableOpacity>
+        </GlassPressable>
       ))}
     </FarmScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  hero: { width: '100%', height: 180, borderRadius: 16, backgroundColor: Colors.gray[200] },
+  hero: { ...glassSurface, width: '100%', height: 180, borderRadius: 16, backgroundColor: Colors.gray[200]  },
   body: { color: Colors.gray[700], lineHeight: 20, marginTop: 8 },
   meta: { color: Colors.gray[500], marginTop: 4 },
   follow: { marginTop: 12, alignSelf: 'flex-start', backgroundColor: '#166534', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },

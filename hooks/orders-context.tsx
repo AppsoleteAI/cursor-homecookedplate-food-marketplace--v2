@@ -1,7 +1,6 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Order, Meal, OrderMessage, CartItem } from '@/types';
-import { mockMeals, mockOrders } from '@/mocks/data';
+import { Order, OrderMessage, CartItem } from '@/types';
 import { useAuth } from '@/hooks/auth-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { captureException } from '@/lib/sentry';
@@ -37,24 +36,6 @@ function startOfWeek(date: Date): Date {
 
 function isSameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-}
-
-function hydrateOrders(src: Order[], meals: Meal[], plateMakerId?: string | null): Order[] {
-  const now = new Date();
-  return src
-    .filter(o => (o.paid ?? false) === true)
-    .filter(o => !plateMakerId || o.plateMakerId === plateMakerId)
-    .map((o, i) => {
-      const base = new Date(now);
-      base.setHours(now.getHours() - (i * 3));
-      const pickup = new Date(base);
-      pickup.setHours(base.getHours() + 4);
-      return {
-        ...o,
-        orderDate: base,
-        pickupTime: o.pickupTime ?? pickup,
-      };
-    });
 }
 
 export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => {
@@ -111,7 +92,17 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
   const refresh = useCallback(async () => {
     try {
       setIsLoading(true);
-      const hydrated = hydrateOrders(mockOrders, mockMeals, user?.role === 'platemaker' ? user?.id : undefined);
+      const listed = await trpcProxyClient.orders.list.query({
+        role: user?.role === 'platemaker' ? 'seller' : 'buyer',
+      });
+      const hydrated = (listed || []).map((order) => ({
+        ...order,
+        plateTakerName: order.plateTakerName ?? undefined,
+        orderDate: order.orderDate instanceof Date ? order.orderDate : new Date(order.orderDate),
+        pickupTime: order.pickupTime
+          ? (order.pickupTime instanceof Date ? order.pickupTime : new Date(order.pickupTime))
+          : undefined,
+      }));
       if (mountedRef.current) {
         setOrders(hydrated);
         // Load persisted messages asynchronously in background without blocking
@@ -227,10 +218,15 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
       .reduce((sum, o) => sum + (o.totalPrice ?? 0), 0);
   }, [orders, user?.role, dashboardStats.data]);
 
+  const myMeals = trpc.meals.list.useQuery(
+    { userId: user?.id },
+    { enabled: user?.role === 'platemaker' && !!user?.id }
+  );
+
   const totalReviews = useMemo(() => {
     if (!user || user.role !== 'platemaker') return 0;
-    return mockMeals.filter(m => m.plateMakerId === user.id).reduce((sum, m) => sum + (m.reviewCount ?? 0), 0);
-  }, [user]);
+    return (myMeals.data || []).reduce((sum, meal) => sum + (meal.reviewCount ?? 0), 0);
+  }, [user, myMeals.data]);
 
   const getOrder = useCallback((id: string) => orders.find(o => o.id === id), [orders]);
 

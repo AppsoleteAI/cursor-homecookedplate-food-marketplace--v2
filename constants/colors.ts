@@ -57,3 +57,24 @@ export const gradientColors = [
   Colors.gradient.orange,
   Colors.gradient.red,
 ] as const;
+
+/** Page fills under each header. Green is mint at the same strength as the other pastel pages. */
+export const pagePastel: Record<BaseColor, string> = {
+  green: '#D4F5E4',
+  yellow: '#FFFBEB',
+  orange: '#FFF7ED',
+  red: '#FEE8E8',
+  gold: '#FEF3C7',
+  purple: '#F5F3FF',
+  blue: '#ECFEFF',
+};
+
+/** Header band under the status bar, shared by the older tabs and the newer marketplace pages. */
+export const inAppHeaderBand = {
+  paddingTop: 8,
+  paddingBottom: 18,
+  paddingHorizontal: 16,
+  titleSize: 24,
+  subtitleSize: 14,
+  minHeight: 76,
+} as const;

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { Text, StyleSheet, TextInput } from 'react-native';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router, type Href } from 'expo-router';
 import { SitDownScreen } from '@/components/sit-down/SitDownScreen';
 import { Colors } from '@/constants/colors';
@@ -56,12 +57,12 @@ export default function ListSitItemScreen() {
       {blocks.map((block) => (
         <Text key={block} style={styles.block}>{block}</Text>
       ))}
-      <TouchableOpacity style={styles.button} onPress={publish} testID="sit-publish">
-        <Text style={styles.buttonText}>Publish on the menu</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => router.push('/sit-down-delicious/license' as Href)}>
-        <Text style={styles.link}>Edit the license record</Text>
-      </TouchableOpacity>
+      <GlassPressable style={styles.button} onPress={publish} testID="sit-publish">
+        <Text style={styles.buttonText}>Publish on the Menu</Text>
+      </GlassPressable>
+      <GlassPressable onPress={() => router.push('/sit-down-delicious/license' as Href)}>
+        <Text style={styles.link}>Edit the License Record</Text>
+      </GlassPressable>
     </SitDownScreen>
   );
 }
@@ -79,7 +80,7 @@ const styles = StyleSheet.create({
   },
   area: { minHeight: 72, textAlignVertical: 'top' },
   block: { color: '#9A3412', marginBottom: 6, lineHeight: 20 },
-  button: { marginTop: 8, backgroundColor: '#92400E', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  button: { ...glassSurface, marginTop: 8, backgroundColor: '#92400E', borderRadius: 14, paddingVertical: 14, alignItems: 'center'  },
   buttonText: { color: Colors.white, fontWeight: '700' },
   link: { marginTop: 12, color: '#92400E', fontWeight: '700' },
 });

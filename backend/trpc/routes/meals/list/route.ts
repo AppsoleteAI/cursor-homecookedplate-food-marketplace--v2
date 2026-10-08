@@ -1,5 +1,7 @@
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
+import { countAreaMealsWithMedia, visibleSampleMeals } from "@/lib/sample-meals";
+import { displayName, loadPublicProfiles } from "../../../../lib/public-profiles";
 
 export const listMealsProcedure = publicProcedure
   .input(
@@ -8,6 +10,7 @@ export const listMealsProcedure = publicProcedure
       cuisine: z.string().optional(),
       category: z.string().optional(),
       featured: z.boolean().optional(),
+      metroArea: z.string().optional(),
       limit: z.number().optional(),
       offset: z.number().optional(),
     }).optional()
@@ -15,13 +18,7 @@ export const listMealsProcedure = publicProcedure
   .query(async ({ input, ctx }) => {
     let query = ctx.supabase
       .from('meals')
-      .select(`
-        *,
-        profiles:user_id (
-          username,
-          business_name
-        )
-      `)
+      .select('*')
       .eq('published', true)
       .eq('available', true);
 
@@ -54,10 +51,15 @@ export const listMealsProcedure = publicProcedure
       throw new Error(error.message);
     }
 
-    return (data || []).map((meal: any) => ({
+    const cooks = await loadPublicProfiles(
+      ctx.supabaseAdmin,
+      (data || []).map((meal: { user_id: string }) => meal.user_id)
+    );
+
+    const realMeals = (data || []).map((meal: any) => ({
       id: meal.id,
       plateMakerId: meal.user_id,
-      plateMakerName: meal.profiles?.business_name || meal.profiles?.username || 'Unknown',
+      plateMakerName: displayName(cooks.get(meal.user_id)),
       name: meal.name,
       description: meal.description,
       price: parseFloat(meal.price),
@@ -72,5 +74,20 @@ export const listMealsProcedure = publicProcedure
       reviewCount: meal.review_count,
       featured: meal.featured,
       tags: meal.tags,
+      isSample: false,
     }));
+
+    if (input?.userId) return realMeals;
+
+    const realWithMedia = await countAreaMealsWithMedia(ctx.supabase, input?.metroArea);
+    const realIds = new Set(realMeals.map((meal) => meal.id));
+    const samples = visibleSampleMeals(realWithMedia).filter((meal) => {
+      if (realIds.has(meal.id)) return false;
+      if (input?.cuisine && meal.cuisine !== input.cuisine) return false;
+      if (input?.category && meal.category !== input.category) return false;
+      if (input?.featured !== undefined && Boolean(meal.featured) !== input.featured) return false;
+      return true;
+    });
+
+    return [...realMeals, ...samples];
   });

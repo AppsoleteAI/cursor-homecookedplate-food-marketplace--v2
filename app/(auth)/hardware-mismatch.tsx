@@ -1,11 +1,10 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/auth-context';
 import { router } from 'expo-router';
 import { AuthColors } from '@/constants/auth-palette';
-import { AuthBackground, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
 
 export default function HardwareMismatchScreen() {
   const insets = useSafeAreaInsets();
@@ -23,14 +22,11 @@ export default function HardwareMismatchScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.brandRow}>
-          <Ionicons name="lock-closed" size={28} color={AuthColors.maroon} />
-          <Text style={styles.brand}>HomeCookedPlate</Text>
-        </View>
+        <AuthBrand />
 
         <View style={styles.sheet}>
           <View style={styles.panel}>
-            <Text style={styles.title}>Hardware mismatch</Text>
+            <Text style={styles.title}>Hardware Mismatch</Text>
             <Text style={styles.subtitle}>This device does not match the one locked to the membership.</Text>
           </View>
 

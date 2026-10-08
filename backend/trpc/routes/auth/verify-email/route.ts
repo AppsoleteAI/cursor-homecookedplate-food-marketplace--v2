@@ -60,6 +60,18 @@ export const verifyEmailProcedure = publicProcedure
       });
     }
 
+    const { error: confirmError } = await ctx.supabaseAdmin.auth.admin.updateUserById(
+      tokenRecord.user_id,
+      { email_confirm: true }
+    );
+    if (confirmError) {
+      console.error('[Verify Email] Failed to confirm auth email:', confirmError);
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to verify email. Please try again.',
+      });
+    }
+
     // Mark token as used
     const { error: updateError } = await ctx.supabaseAdmin
       .from('email_verification_tokens')

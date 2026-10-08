@@ -1,43 +1,70 @@
 /**
- * Web-safe Sentry shim for Rork Lightning Preview
- * 
- * The native Sentry module crashes the web preview. This shim provides
- * safe no-op implementations that prevent crashes while maintaining
- * the same API surface as the native module.
+ * Web Sentry client.
+ * The native module crashes the web preview, so web uses the browser SDK.
  */
+import * as SentryBrowser from '@sentry/browser';
+import { SENTRY_TRACE_SAMPLE_RATE } from '@/lib/sentry-rate';
+
+let ready = false;
+
+function dsn(): string | undefined {
+  const value = process.env.EXPO_PUBLIC_SENTRY_DSN;
+  return value && value.length > 0 ? value : undefined;
+}
+
+function start(options?: { dsn?: string; tracesSampleRate?: number; debug?: boolean; environment?: string }) {
+  if (ready) return;
+  const value = options?.dsn || dsn();
+  if (!value) return;
+  const requested = options?.tracesSampleRate;
+  const tracesSampleRate = typeof requested === 'number' && requested > 0 && requested < 1
+    ? requested
+    : SENTRY_TRACE_SAMPLE_RATE;
+  try {
+    SentryBrowser.init({
+      dsn: value,
+      debug: options?.debug,
+      environment: options?.environment,
+      tracesSampleRate,
+    });
+    ready = true;
+  } catch (error) {
+    console.warn('[Web] Sentry init failed', error);
+  }
+}
 
 export function captureException(error: Error, context?: Record<string, any>) {
-  if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
-    console.warn('[Web] Sentry.captureException (shimmed):', error.message, context);
-  }
+  if (!dsn()) return;
+  start();
+  SentryBrowser.captureException(error, { extra: context });
 }
 
 export function captureMessage(message: string, level: "info" | "warning" | "error" | "fatal" | "debug" = "info") {
-  if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
-    console.log(`[Web] Sentry.captureMessage (shimmed) [${level}]:`, message);
-  }
+  if (!dsn()) return;
+  start();
+  SentryBrowser.captureMessage(message, level);
 }
 
 export function setUser(user: { id: string; email?: string; username?: string } | null) {
-  if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
-    console.log('[Web] Sentry.setUser (shimmed):', user);
-  }
+  if (!dsn()) return;
+  start();
+  SentryBrowser.setUser(user);
 }
 
 export function addBreadcrumb(message: string, category: string, data?: Record<string, any>) {
-  if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
-    console.log('[Web] Sentry.addBreadcrumb (shimmed):', { message, category, data });
-  }
+  if (!dsn()) return;
+  start();
+  SentryBrowser.addBreadcrumb({
+    message,
+    category,
+    data,
+    level: "info",
+  });
 }
 
-// Stub Sentry object for compatibility with native API
 export const Sentry = {
-  init: (options?: any) => {
-    if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
-      console.log('[Web] Sentry.init (shimmed):', options);
-    }
-  },
-  wrap: (component: any) => component, // Return component as-is on web
+  init: start,
+  wrap: (component: any) => component,
   captureException,
   captureMessage,
   setUser,

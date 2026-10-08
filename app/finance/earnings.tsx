@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput } from 'react-native';
+import { glassSurface } from '@/components/glass-surface';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, monoGradients } from '@/constants/colors';
+import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { calculateFees, getNetPayout } from '@/backend/lib/fees';
 
 function formatMoney(n: number) {
@@ -99,18 +100,14 @@ export default function PlatemakerEarningsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.white },
+  container: { flex: 1, backgroundColor: pagePastel.green },
   staticHeader: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
   headerGradient: {
     paddingHorizontal: 24,
     paddingBottom: 24,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    ...glassSurface,
   },
   scrollContent: { paddingBottom: 100 },
   header: { paddingTop: 16, paddingBottom: 16 },

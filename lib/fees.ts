@@ -34,6 +34,8 @@ export const calculateOrderSplit = (baseAmount: number) => {
     totalCaptured: Number.isFinite(baseAmount + platetakerFee) ? baseAmount + platetakerFee : baseAmount,
     appRevenue: Number.isFinite(platetakerFee + platemakerFee) ? platetakerFee + platemakerFee : 0,
     sellerPayout: Number.isFinite(baseAmount - platemakerFee) ? baseAmount - platemakerFee : baseAmount,
+    buyerFee: Number.isFinite(platetakerFee) ? platetakerFee : 0,
+    sellerFee: Number.isFinite(platemakerFee) ? platemakerFee : 0,
   };
 
   // Verify no NaN values

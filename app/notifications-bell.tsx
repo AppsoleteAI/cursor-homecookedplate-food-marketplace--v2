@@ -1,11 +1,12 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, monoGradients } from '@/constants/colors';
+import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useOrders } from '@/hooks/orders-context';
+import { GlassPressable } from '@/components/glass-surface';
 
 interface SimpleNotification {
   id: string;
@@ -31,9 +32,9 @@ export default function NotificationsBellScreen() {
             <Ionicons name="notifications" size={22} color={Colors.white} />
             <Text style={styles.headerTitle}>Notifications</Text>
           </View>
-          <TouchableOpacity onPress={() => router.back()} testID="close-notifications-bell">
+          <GlassPressable onPress={() => router.back()} testID="close-notifications-bell">
             <Text style={styles.closeText}>Close</Text>
-          </TouchableOpacity>
+          </GlassPressable>
         </View>
         <Text style={styles.headerSubtitle}>Your recent alerts</Text>
       </LinearGradient>
@@ -68,7 +69,7 @@ export default function NotificationsBellScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.white },
+  container: { flex: 1, backgroundColor: pagePastel.yellow },
   header: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },

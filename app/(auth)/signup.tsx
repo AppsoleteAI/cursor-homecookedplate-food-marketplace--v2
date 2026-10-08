@@ -7,7 +7,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  TouchableOpacity,
   Modal,
   Switch,
   ActivityIndicator,
@@ -17,10 +16,13 @@ import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AuthColors } from '@/constants/auth-palette';
-import { AuthBackground, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
 import { MetroProgressBar } from '@/components/Registration/MetroProgressBar';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 import { useSignupForm } from '@/hooks/useSignupForm';
+import { FoodHandlingLink } from '@/components/FoodHandlingLink';
+import { BUYER_AFTER_NOTE } from '@/lib/buyer-safety';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 
 export default function SignupScreen() {
   const params = useLocalSearchParams<{ role?: string | string[] }>();
@@ -50,9 +52,7 @@ export default function SignupScreen() {
     retryCount,
   } = useSignupForm({
     onSuccess: (result) => {
-      // Email confirmation is no longer blocking - backend uses email_confirm: true
-      // Users can sign in immediately after signup
-      // Email confirmation email is still sent but doesn't block access
+      // Sign-in stays closed until the verification link is confirmed.
       console.log('[Signup] Success callback:', result);
     },
     onError: (error) => {
@@ -83,15 +83,16 @@ export default function SignupScreen() {
       <View style={styles.container}>
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.successContainer}>
+            <AuthBrand />
             <Ionicons name="checkmark-circle" size={80} color={AuthColors.maroon} />
             <Text style={styles.successTitle}>Account Created!</Text>
-            <Text style={styles.successText}>You can now sign in to your account.</Text>
-            <TouchableOpacity
+            <Text style={styles.successText}>Check your email and confirm the link before you sign in.</Text>
+            <GlassPressable
               style={styles.loginButton}
               onPress={() => router.push('/(auth)/login')}
             >
               <Text style={styles.loginButtonText}>Go to Login</Text>
-            </TouchableOpacity>
+            </GlassPressable>
           </View>
         </SafeAreaView>
       </View>
@@ -112,13 +113,14 @@ export default function SignupScreen() {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
+            <AuthBrand />
             <Text style={styles.title}>Create Account</Text>
             <Text style={styles.subtitle}>Join our community of food lovers</Text>
 
             <View style={styles.roleContainer}>
               <Text style={styles.roleLabel}>I want to:</Text>
               <View style={styles.roleButtons}>
-                <TouchableOpacity
+                <GlassPressable
                   style={[
                     styles.roleButton,
                     formData.role === 'platetaker' && styles.roleButtonActive,
@@ -139,9 +141,9 @@ export default function SignupScreen() {
                   >
                     Order Food
                   </Text>
-                </TouchableOpacity>
+                </GlassPressable>
 
-                <TouchableOpacity
+                <GlassPressable
                   style={[
                     styles.roleButton,
                     formData.role === 'platemaker' && styles.roleButtonActive,
@@ -162,7 +164,7 @@ export default function SignupScreen() {
                   >
                     Sell Food
                   </Text>
-                </TouchableOpacity>
+                </GlassPressable>
               </View>
             </View>
 
@@ -277,7 +279,7 @@ export default function SignupScreen() {
                   autoCapitalize="none"
                   autoComplete="new-password"
                 />
-                <TouchableOpacity
+                <GlassPressable
                   onPress={() => setShowPassword(!showPassword)}
                   style={styles.eyeIconButton}
                 >
@@ -286,7 +288,7 @@ export default function SignupScreen() {
                     size={20}
                     color={AuthColors.maroon}
                   />
-                </TouchableOpacity>
+                </GlassPressable>
               </View>
               {/* Password Strength Meter */}
               {password.length > 0 && <PasswordStrengthMeter password={password} />}
@@ -303,7 +305,7 @@ export default function SignupScreen() {
                   autoCapitalize="none"
                   autoComplete="new-password"
                 />
-                <TouchableOpacity
+                <GlassPressable
                   onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                   style={styles.eyeIconButton}
                 >
@@ -312,10 +314,10 @@ export default function SignupScreen() {
                     size={20}
                     color={AuthColors.maroon}
                   />
-                </TouchableOpacity>
+                </GlassPressable>
               </View>
 
-              <TouchableOpacity
+              <GlassPressable
                 style={styles.termsContainer}
                 onPress={() => setFormData({ ...formData, agreedToTerms: !agreedToTerms })}
               >
@@ -332,7 +334,7 @@ export default function SignupScreen() {
                   </Text>
                   {' '}and understand the legal disclaimers
                 </Text>
-              </TouchableOpacity>
+              </GlassPressable>
 
               {/* Cottage Laws Warning - ALWAYS SHOWN for ALL users */}
               <View style={styles.foodSafetyContainer}>
@@ -346,11 +348,12 @@ export default function SignupScreen() {
                       Meet in a public place during daylight. Do not exchange phone numbers in the app. A prepaid delivery is brought by the cook with someone else along.
                     </Text>
                     <Text style={[styles.foodSafetyInfoText, { marginTop: 8 }]}>
-                      Eat the food promptly. Hot food should still be hot, and cold food still cold, when you get it.
+                      {BUYER_AFTER_NOTE}
                     </Text>
+                    <FoodHandlingLink />
                   </View>
                 </View>
-                <TouchableOpacity
+                <GlassPressable
                   style={styles.termsContainer}
                   onPress={() => setFormData({ ...formData, foodSafetyAcknowledged: !foodSafetyAcknowledged })}
                 >
@@ -360,7 +363,7 @@ export default function SignupScreen() {
                   <Text style={styles.termsText}>
                     I understand these safety notes. I will check the ingredients, meet in a public place during daylight, and eat the food promptly.
                   </Text>
-                </TouchableOpacity>
+                </GlassPressable>
               </View>
 
               {/* Error message display */}
@@ -369,13 +372,13 @@ export default function SignupScreen() {
                   <Ionicons name="alert-circle" size={20} color={AuthColors.error} />
                   <Text style={styles.errorText}>{error}</Text>
                   {retryCount < 3 && (
-                    <TouchableOpacity
+                    <GlassPressable
                       onPress={() => handleSignup(true)}
                       style={styles.retryButton}
                       disabled={loading}
                     >
                       <Text style={styles.retryButtonText}>Retry</Text>
-                    </TouchableOpacity>
+                    </GlassPressable>
                   )}
                 </View>
               )}
@@ -450,7 +453,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    color: AuthColors.ink,
+    color: AuthColors.onDark,
     marginBottom: 32,
   },
   roleContainer: {
@@ -459,7 +462,7 @@ const styles = StyleSheet.create({
   roleLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: AuthColors.ink,
+    color: AuthColors.onDark,
     marginBottom: 12,
   },
   roleButtons: {
@@ -467,6 +470,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   roleButton: {
+    ...glassSurface,
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
@@ -606,11 +610,12 @@ const styles = StyleSheet.create({
   termsText: {
     flex: 1,
     fontSize: 14,
-    color: AuthColors.ink,
+    color: AuthColors.white,
     lineHeight: 20,
   },
   termsLink: {
-    color: AuthColors.maroon,
+    color: AuthColors.white,
+    fontWeight: '700',
     textDecorationLine: 'underline',
   },
   foodSafetyContainer: {

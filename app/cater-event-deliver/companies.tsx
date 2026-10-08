@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Image, TextInput } from 'react-native';
+import { titleCase } from '@/lib/title-case';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, type Href } from 'expo-router';
 import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
 import { Colors } from '@/constants/colors';
@@ -28,15 +30,15 @@ export default function CaterCompaniesScreen() {
       />
       {searching && list.length === 0 ? <Text style={styles.empty}>No catering company matches that ZIP.</Text> : null}
       {list.map((company) => (
-        <TouchableOpacity key={company.id} style={styles.card} onPress={() => router.push(`/cater-event-deliver/company/${company.id}` as Href)} testID={`company-card-${company.id}`}>
+        <GlassPressable key={company.id} style={styles.card} onPress={() => router.push(`/cater-event-deliver/company/${company.id}` as Href)} testID={`company-card-${company.id}`}>
           <Image source={{ uri: company.image }} style={styles.image} />
           <View style={styles.copy}>
-            <Text style={styles.name}>{company.name}</Text>
+            <Text style={styles.name}>{titleCase(company.name)}</Text>
             <Text style={styles.meta}>{company.city}, {stateName(company.stateCode)} {company.zip}</Text>
             <Text style={styles.meta}>{company.accepting ? 'Accepting drop-offs' : 'Not accepting'} · {company.focus}</Text>
             {follows.includes(company.id) ? <Text style={styles.follow}>Following</Text> : null}
           </View>
-        </TouchableOpacity>
+        </GlassPressable>
       ))}
     </CaterEventScreen>
   );
@@ -52,8 +54,8 @@ const styles = StyleSheet.create({
     color: Colors.gray[900],
     marginBottom: 12,
   },
-  card: { flexDirection: 'row', gap: 12, backgroundColor: Colors.white, borderRadius: 16, padding: 10, marginBottom: 10 },
-  image: { width: 88, height: 88, borderRadius: 12, backgroundColor: Colors.gray[200] },
+  card: { ...glassSurface, flexDirection: 'row', gap: 12, backgroundColor: Colors.white, borderRadius: 16, padding: 10, marginBottom: 10  },
+  image: { ...glassSurface, width: 88, height: 88, borderRadius: 12, backgroundColor: Colors.gray[200]  },
   copy: { flex: 1, justifyContent: 'center' },
   name: { fontSize: 16, fontWeight: '700', color: Colors.gray[900] },
   meta: { color: Colors.gray[600], marginTop: 4, fontSize: 13 },

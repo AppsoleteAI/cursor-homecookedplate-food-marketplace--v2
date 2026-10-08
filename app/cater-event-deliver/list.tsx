@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { Text, StyleSheet, TextInput } from 'react-native';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router, type Href } from 'expo-router';
 import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
 import { Colors } from '@/constants/colors';
@@ -64,12 +65,12 @@ export default function ListCaterPackageScreen() {
       {blocks.map((block) => (
         <Text key={block} style={styles.block}>{block}</Text>
       ))}
-      <TouchableOpacity style={styles.button} onPress={publish} testID="cater-publish">
-        <Text style={styles.buttonText}>Publish the package</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => router.push('/cater-event-deliver/license' as Href)}>
-        <Text style={styles.link}>Edit the license record</Text>
-      </TouchableOpacity>
+      <GlassPressable style={styles.button} onPress={publish} testID="cater-publish">
+        <Text style={styles.buttonText}>Publish the Package</Text>
+      </GlassPressable>
+      <GlassPressable onPress={() => router.push('/cater-event-deliver/license' as Href)}>
+        <Text style={styles.link}>Edit the License Record</Text>
+      </GlassPressable>
     </CaterEventScreen>
   );
 }
@@ -87,7 +88,7 @@ const styles = StyleSheet.create({
   },
   area: { minHeight: 72, textAlignVertical: 'top' },
   block: { color: '#9F1239', marginBottom: 6, lineHeight: 20 },
-  button: { marginTop: 8, backgroundColor: '#6D28D9', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  button: { ...glassSurface, marginTop: 8, backgroundColor: '#6D28D9', borderRadius: 14, paddingVertical: 14, alignItems: 'center'  },
   buttonText: { color: Colors.white, fontWeight: '700' },
   link: { marginTop: 12, color: '#6D28D9', fontWeight: '700' },
 });

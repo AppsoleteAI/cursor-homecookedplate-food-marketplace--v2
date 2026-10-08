@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  TouchableOpacity,
   Text,
   StyleSheet,
   ViewStyle,
@@ -9,6 +8,8 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { monoGradients, BaseColor } from '@/constants/colors';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
+import { titleCase } from '@/lib/title-case';
 
 interface GradientButtonProps {
   title: string;
@@ -34,11 +35,10 @@ export const GradientButton: React.FC<GradientButtonProps> = ({
   const colors = disabled ? (['#9CA3AF', '#6B7280'] as const) : monoGradients[baseColor];
 
   return (
-    <TouchableOpacity
+    <GlassPressable
       onPress={onPress}
       disabled={disabled || loading}
       style={[styles.container, style]}
-      activeOpacity={0.8}
       testID={testID ?? 'gradient-button'}
     >
       <LinearGradient
@@ -50,24 +50,21 @@ export const GradientButton: React.FC<GradientButtonProps> = ({
         {loading ? (
           <ActivityIndicator color="white" />
         ) : (
-          <Text style={[styles.text, textStyle]}>{title}</Text>
+          <Text style={[styles.text, textStyle]}>{titleCase(title)}</Text>
         )}
       </LinearGradient>
-    </TouchableOpacity>
+    </GlassPressable>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     borderRadius: 12,
-    overflow: 'hidden',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    ...glassSurface,
   },
   gradient: {
+    borderRadius: 12,
+    overflow: 'hidden',
     paddingVertical: 16,
     paddingHorizontal: 32,
     alignItems: 'center',

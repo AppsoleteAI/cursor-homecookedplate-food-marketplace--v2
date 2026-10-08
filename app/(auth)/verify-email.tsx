@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { trpc } from '@/lib/trpc';
 import { AuthColors } from '@/constants/auth-palette';
-import { AuthBackground, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { GlassPressable } from '@/components/glass-surface';
 
 export default function VerifyEmailScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
@@ -60,12 +61,13 @@ export default function VerifyEmailScreen() {
   return (
     <AuthBackground>
     <View style={styles.container}>
+      <AuthBrand />
       <View style={styles.sheet}>
         <View style={styles.panel}>
           {verificationStatus === 'verifying' && (
             <>
               <ActivityIndicator size="large" color={AuthColors.maroon} style={styles.spinner} />
-              <Text style={styles.title}>Verifying your email</Text>
+              <Text style={styles.title}>Verifying Your Email</Text>
               <Text style={styles.subtitle}>This takes a moment.</Text>
             </>
           )}
@@ -73,7 +75,7 @@ export default function VerifyEmailScreen() {
           {verificationStatus === 'success' && (
             <>
               <Ionicons name="checkmark-circle" size={64} color={AuthColors.maroon} />
-              <Text style={styles.title}>Email verified</Text>
+              <Text style={styles.title}>Email Verified</Text>
               <Text style={styles.subtitle}>You can sign in with this address now.</Text>
               <AuthGoldButton title="Go to sign in" onPress={handleGoToLogin} />
             </>
@@ -82,7 +84,7 @@ export default function VerifyEmailScreen() {
           {verificationStatus === 'error' && (
             <>
               <Ionicons name="alert-circle" size={64} color={AuthColors.error} />
-              <Text style={styles.title}>Verification failed</Text>
+              <Text style={styles.title}>Verification Failed</Text>
               <Text style={styles.subtitle}>{errorMessage}</Text>
               {token ? (
                 <AuthGoldButton
@@ -91,9 +93,9 @@ export default function VerifyEmailScreen() {
                   loading={verifyEmail.isPending}
                 />
               ) : null}
-              <TouchableOpacity onPress={handleGoToLogin} style={styles.loginLink}>
+              <GlassPressable onPress={handleGoToLogin} style={styles.loginLink}>
                 <Text style={styles.loginLinkText}>Go to sign in</Text>
-              </TouchableOpacity>
+              </GlassPressable>
             </>
           )}
         </View>

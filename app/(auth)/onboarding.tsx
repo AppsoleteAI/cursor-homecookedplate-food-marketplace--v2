@@ -7,20 +7,19 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  TouchableOpacity,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AuthColors } from '@/constants/auth-palette';
-import { AuthBackButton, AuthBackground, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { AuthBackButton, AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 import { useSignupForm } from '@/hooks/useSignupForm';
+import { FoodHandlingLink } from '@/components/FoodHandlingLink';
+import { BUYER_AFTER_NOTE } from '@/lib/buyer-safety';
 import { trpc } from '@/lib/trpc';
-
-const HOUSE_MARK = require('../../assets/house-mark.png');
+import { GlassPressable } from '@/components/glass-surface';
 
 type Role = 'platetaker' | 'platemaker';
 type MetroStatus = 'idle' | 'finding' | 'found' | 'outside' | 'denied' | 'failed';
@@ -189,16 +188,7 @@ export default function OnboardingScreen() {
               }}
             />
 
-            <View style={styles.brandRow}>
-              <Image
-                source={HOUSE_MARK}
-                style={styles.brandMark}
-                resizeMode="contain"
-                tintColor={AuthColors.brand}
-                accessibilityIgnoresInvertColors
-              />
-              <Text style={styles.brand}>HomeCookedPlate</Text>
-            </View>
+            <AuthBrand />
             <View style={styles.steps}>
               {STEPS.map((label, index) => (
                 <View key={label} style={styles.stepItem}>
@@ -212,32 +202,32 @@ export default function OnboardingScreen() {
               <View style={styles.panel}>
                 {step === 0 ? (
                   <>
-                    <Text style={styles.panelTitle}>Your location</Text>
+                    <Text style={styles.panelTitle}>Your Location</Text>
                     {askRole ? (
                       <>
                         <Text style={styles.question}>How will you use HomeCookedPlate?</Text>
                         <View style={styles.roleRow}>
-                          <TouchableOpacity
+                          <GlassPressable
                             style={styles.roleChoice}
                             onPress={() => chooseRole('platetaker')}
                             accessibilityRole="button"
                             accessibilityLabel="Order a plate"
                           >
-                            <Text style={styles.roleChoiceText}>Order a plate</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
+                            <Text style={styles.roleChoiceText}>Order a Plate</Text>
+                          </GlassPressable>
+                          <GlassPressable
                             style={styles.roleChoice}
                             onPress={() => chooseRole('platemaker')}
                             accessibilityRole="button"
                             accessibilityLabel="Start cooking"
                           >
-                            <Text style={styles.roleChoiceText}>Start cooking</Text>
-                          </TouchableOpacity>
+                            <Text style={styles.roleChoiceText}>Start Cooking</Text>
+                          </GlassPressable>
                         </View>
                       </>
                     ) : (
                       <>
-                        <TouchableOpacity
+                        <GlassPressable
                           onPress={() => setAskRole(true)}
                           style={styles.roleLine}
                           accessibilityRole="button"
@@ -245,7 +235,7 @@ export default function OnboardingScreen() {
                         >
                           <Text style={styles.roleLineText}>{roleLine}</Text>
                           <Text style={styles.roleChange}>Change</Text>
-                        </TouchableOpacity>
+                        </GlassPressable>
                         <Text style={styles.question}>{metroQuestion}</Text>
                         <Text style={styles.help}>
                           Your location determines your options. Sign up today. Early Bird eligibility is limited.
@@ -280,13 +270,13 @@ export default function OnboardingScreen() {
                           style={styles.action}
                         />
                         {metroStatus !== 'idle' ? (
-                          <TouchableOpacity onPress={findMetro} disabled={metroStatus === 'finding'}>
-                            <Text style={styles.continueText}>Check again</Text>
-                          </TouchableOpacity>
+                          <GlassPressable onPress={findMetro} disabled={metroStatus === 'finding'}>
+                            <Text style={styles.continueText}>Check Again</Text>
+                          </GlassPressable>
                         ) : (
-                          <TouchableOpacity onPress={continueFromMetro} testID="onboarding-metro-continue">
-                            <Text style={styles.continueText}>Continue without a location</Text>
-                          </TouchableOpacity>
+                          <GlassPressable onPress={continueFromMetro} testID="onboarding-metro-continue">
+                            <Text style={styles.continueText}>Continue Without a Location</Text>
+                          </GlassPressable>
                         )}
                       </>
                     )}
@@ -295,7 +285,7 @@ export default function OnboardingScreen() {
 
                 {step === 1 ? (
                   <>
-                    <Text style={styles.panelTitle}>Your account</Text>
+                    <Text style={styles.panelTitle}>Your Account</Text>
                     <Field
                       icon="person-outline"
                       placeholder="Username"
@@ -368,9 +358,9 @@ export default function OnboardingScreen() {
                       onPress={() => setFormData((current) => ({ ...current, agreedToTerms: !current.agreedToTerms }))}
                       testID="onboarding-terms"
                     >
-                      <Text style={styles.checkText}>
+                      <Text style={styles.agreeText}>
                         I agree to the{' '}
-                        <Text style={styles.link} onPress={() => router.push('/legal')}>
+                        <Text style={styles.agreeLink} onPress={() => router.push('/legal')}>
                           Terms & Conditions
                         </Text>
                         {' '}and understand the legal disclaimers.
@@ -384,8 +374,9 @@ export default function OnboardingScreen() {
                         Meet in a public place during daylight. Do not exchange phone numbers in the app. A prepaid delivery is brought by the cook with someone else along.
                       </Text>
                       <Text style={[styles.checkText, { marginTop: 8 }]}>
-                        Eat the food promptly. Hot food should still be hot, and cold food still cold, when you get it.
+                        {BUYER_AFTER_NOTE}
                       </Text>
+                      <FoodHandlingLink />
                     </View>
                     <CheckRow
                       checked={foodSafetyAcknowledged}
@@ -397,15 +388,15 @@ export default function OnboardingScreen() {
                       }
                       testID="onboarding-food-safety"
                     >
-                      <Text style={styles.checkText}>
+                      <Text style={styles.agreeText}>
                         I understand these safety notes. I will check the ingredients, meet in a public place during daylight, and eat the food promptly.
                       </Text>
                     </CheckRow>
                     {error ? <Text style={styles.errorText}>{error}</Text> : null}
                     {error && retryCount < 3 ? (
-                      <TouchableOpacity onPress={() => handleSignup(true)} disabled={isLoading}>
-                        <Text style={styles.link}>Try again</Text>
-                      </TouchableOpacity>
+                      <GlassPressable onPress={() => handleSignup(true)} disabled={isLoading}>
+                        <Text style={styles.link}>Try Again</Text>
+                      </GlassPressable>
                     ) : null}
                   </>
                 ) : null}
@@ -459,13 +450,13 @@ function Field({
         style={styles.input}
       />
       {onToggleSecure ? (
-        <TouchableOpacity onPress={onToggleSecure} accessibilityRole="button">
+        <GlassPressable onPress={onToggleSecure} accessibilityRole="button">
           <Ionicons
             name={secureVisible ? 'eye-off-outline' : 'eye-outline'}
             size={18}
             color={AuthColors.maroon}
           />
-        </TouchableOpacity>
+        </GlassPressable>
       ) : null}
     </View>
   );
@@ -483,7 +474,7 @@ function CheckRow({
   testID?: string;
 }) {
   return (
-    <TouchableOpacity
+    <GlassPressable
       style={styles.checkRow}
       onPress={onPress}
       testID={testID}
@@ -494,7 +485,7 @@ function CheckRow({
         {checked ? <Ionicons name="checkmark" size={14} color={AuthColors.ink} /> : null}
       </View>
       {children}
-    </TouchableOpacity>
+    </GlassPressable>
   );
 }
 
@@ -520,26 +511,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 28,
   },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 16,
-  },
-  brandMark: {
-    width: 46,
-    height: 38,
-  },
-  brand: {
-    color: AuthColors.brand,
-    fontSize: 26,
-    fontWeight: '700',
-    fontFamily: Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia' }),
-    textShadowColor: 'rgba(70, 16, 0, 0.55)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
-  },
   steps: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -554,18 +525,18 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'rgba(20,16,12,0.28)',
+    backgroundColor: 'rgba(255,255,255,0.35)',
   },
   stepDotOn: {
     backgroundColor: AuthColors.brand,
   },
   stepLabel: {
-    color: AuthColors.ink,
+    color: AuthColors.onDark,
     fontSize: 12,
     fontWeight: '600',
   },
   stepLabelOn: {
-    color: AuthColors.white,
+    color: AuthColors.brand,
   },
   sheet: {
     backgroundColor: 'transparent',
@@ -598,17 +569,20 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   roleRow: {
+    flexDirection: 'row',
     gap: 10,
   },
   roleChoice: {
+    flex: 1,
+    backgroundColor: AuthColors.white,
     borderWidth: 1,
-    borderColor: 'rgba(72, 16, 30, 0.35)',
-    borderRadius: 14,
+    borderColor: '#C9A24A',
+    borderRadius: 28,
     paddingVertical: 14,
     alignItems: 'center',
   },
   roleChoiceText: {
-    color: AuthColors.maroon,
+    color: AuthColors.ink,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -667,8 +641,8 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: AuthColors.ink,
-    backgroundColor: AuthColors.field,
+    borderColor: AuthColors.white,
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 1,
@@ -681,6 +655,17 @@ const styles = StyleSheet.create({
     color: AuthColors.ink,
     fontSize: 14,
     lineHeight: 20,
+  },
+  agreeText: {
+    flex: 1,
+    color: AuthColors.white,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  agreeLink: {
+    color: AuthColors.white,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
   link: {
     color: AuthColors.maroon,
@@ -733,7 +718,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 6,
   },
   successText: {
-    color: AuthColors.ink,
+    color: AuthColors.onDark,
     fontSize: 16,
     lineHeight: 22,
     textAlign: 'center',

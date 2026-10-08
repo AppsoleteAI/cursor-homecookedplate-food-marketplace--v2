@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   TextInput,
   Alert,
 } from 'react-native';
@@ -12,9 +11,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthColors } from '@/constants/auth-palette';
+import { FoodHandlingLink } from '@/components/FoodHandlingLink';
+import { BUYER_AFTER_NOTE } from '@/lib/buyer-safety';
 import { AuthBackground, AuthBackButton, AuthGoldButton } from '@/components/auth/AuthChrome';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
+import { GlassPressable } from '@/components/glass-surface';
 import {
   allSectionsAgreed,
   emptyLegalSections,
@@ -116,9 +118,11 @@ export default function LegalScreen() {
               <Ionicons name="shield-checkmark" size={20} color={AuthColors.maroon} />
               <Text style={styles.sectionTitle}>Jurisdictional Law</Text>
             </View>
-            <Text style={styles.sectionText}>
-              The cook is responsible for how the food is made. You are responsible for reading the ingredients, meeting safely, and deciding whether to eat what you pick up.
-            </Text>
+            <View style={styles.noticeBox}>
+              <Text style={styles.noticeText}>
+                The cook is responsible for how the food is made. You are responsible for reading the ingredients, meeting safely, and deciding whether to eat what you pick up.
+              </Text>
+            </View>
           </LegalSection>
 
           <LegalSection id="delivery_safety" checked={sections.delivery_safety} onToggle={toggle}>
@@ -126,9 +130,11 @@ export default function LegalScreen() {
               <Ionicons name="information-circle" size={20} color={AuthColors.maroon} />
               <Text style={styles.sectionTitle}>Delivery & Safety</Text>
             </View>
-            <Text style={styles.sectionText}>
-              Meet in a public place during daylight. Do not exchange phone numbers in the app. A prepaid delivery is brought by the cook with someone else along.
-            </Text>
+            <View style={styles.noticeBox}>
+              <Text style={styles.noticeText}>
+                Meet in a public place during daylight. Do not exchange phone numbers in the app. A prepaid delivery is brought by the cook with someone else along.
+              </Text>
+            </View>
           </LegalSection>
 
           <LegalSection id="liability_waiver" checked={sections.liability_waiver} onToggle={toggle}>
@@ -136,9 +142,11 @@ export default function LegalScreen() {
               <Ionicons name="warning" size={20} color={AuthColors.maroon} />
               <Text style={styles.sectionTitle}>Liability Waiver</Text>
             </View>
-            <Text style={styles.sectionText}>
-              By utilizing, ordering and consuming items from our PlateMakers on HomeCookedPlate, you waive your right to any legal action against the owner of HomeCookedPlate, as is allowed by law. Furthermore, you waive any right to hold HomeCookedPlate app or any other AppsoleteAI affiliated business entity, investor or individual associated with HomeCookedPlate, liable for any in-person or online / virtual meeting exchanges that you conduct while utilizing this app.
-            </Text>
+            <View style={styles.noticeBox}>
+              <Text style={styles.noticeText}>
+                By utilizing, ordering and consuming items from our PlateMakers on HomeCookedPlate, you waive your right to any legal action against the owner of HomeCookedPlate, as is allowed by law. Furthermore, you waive any right to hold HomeCookedPlate app or any other AppsoleteAI affiliated business entity, investor or individual associated with HomeCookedPlate, liable for any in-person or online / virtual meeting exchanges that you conduct while utilizing this app.
+              </Text>
+            </View>
           </LegalSection>
 
           <LegalSection id="legal_safety_financial" checked={sections.legal_safety_financial} onToggle={toggle}>
@@ -158,16 +166,20 @@ export default function LegalScreen() {
               <Ionicons name="information-circle" size={20} color={AuthColors.maroon} />
               <Text style={styles.sectionTitle}>Allergy & Food Safety</Text>
             </View>
-            <Text style={styles.sectionText}>
-              Ingredients and allergens are listed by the cook. Tell them about your allergies before you order. If something looks or smells wrong at pickup, do not eat it. Alcohol is not sold on HomeCookedPlate.
-            </Text>
-            <Text style={styles.sectionText}>
-              Eat the food promptly. Hot food should still be hot, and cold food still cold, when you get it.
-            </Text>
+            <View style={styles.noticeBox}>
+              <Text style={styles.noticeText}>
+                Ingredients and allergens are listed by the cook. Tell them about your allergies before you order. If something looks or smells wrong at pickup, do not eat it. Alcohol is not sold on HomeCookedPlate.
+              </Text>
+              <Text style={[styles.noticeText, styles.noticeFollow]}>
+                {BUYER_AFTER_NOTE}
+              </Text>
+              <FoodHandlingLink color={AuthColors.maroon} />
+            </View>
           </LegalSection>
 
           <LegalSection id="fee_structure" checked={sections.fee_structure} onToggle={toggle}>
-            <Text style={styles.sectionTitle}>Fee Structure</Text>
+            <Text style={[styles.sectionTitle, styles.sectionTitleGap]}>Fee Structure</Text>
+            <View style={styles.noticeBox}>
             <View style={styles.feeItem}>
               <Text style={styles.feeLabel}>Service Fee (PlateTaker):</Text>
               <Text style={styles.feeValue}>+10% on top of meal price</Text>
@@ -196,18 +208,23 @@ export default function LegalScreen() {
               Example: $20 meal → PlateTaker pays $22.00 (+ 10%); PlateMaker receives $18.00 (– 10%). Platform retains $4.00 (~20%).{'\n'}
               *Before applicable taxes. **Or Delivery Service.
             </Text>
+            </View>
           </LegalSection>
 
           <LegalSection id="account_termination" checked={sections.account_termination} onToggle={toggle}>
-            <Text style={styles.sectionTitle}>Account Termination</Text>
-            <Text style={[styles.sectionText, { marginTop: 8 }]}>
-              PlateTakers can be removed following multiple bans, chargebacks, or complaints. PlateMakers can be removed for multiple complaints, chargebacks, or failure to list ingredients, allergy information, or other health related information, accurately.
-            </Text>
+            <Text style={[styles.sectionTitle, styles.sectionTitleGap]}>Account Termination</Text>
+            <View style={styles.noticeBox}>
+              <Text style={styles.noticeText}>
+                PlateTakers can be removed following multiple bans, chargebacks, or complaints. PlateMakers can be removed for multiple complaints, chargebacks, or failure to list ingredients, allergy information, or other health related information, accurately.
+              </Text>
+            </View>
           </LegalSection>
 
           <View style={styles.finalCard}>
             <Text style={styles.finalTitle}>Final agreement and acknowledgment</Text>
-            <Text style={styles.finalText}>{FINAL_AGREEMENT}</Text>
+            <View style={styles.noticeBox}>
+              <Text style={styles.noticeText}>{FINAL_AGREEMENT}</Text>
+            </View>
             <TextInput
               style={styles.dateInput}
               value={dateText}
@@ -260,7 +277,7 @@ function LegalSection({
 }) {
   return (
     <View style={styles.section}>
-      <TouchableOpacity
+      <GlassPressable
         style={styles.sectionCheck}
         onPress={() => onToggle(id)}
         accessibilityRole="checkbox"
@@ -271,7 +288,7 @@ function LegalSection({
         <View style={[styles.checkbox, checked && styles.checkboxOn]}>
           {checked ? <Ionicons name="checkmark" size={14} color={AuthColors.ink} /> : null}
         </View>
-      </TouchableOpacity>
+      </GlassPressable>
       <View style={styles.sectionBody}>{children}</View>
     </View>
   );
@@ -318,7 +335,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   section: {
-    backgroundColor: 'transparent',
+    backgroundColor: AuthColors.card,
     borderRadius: 18,
     paddingTop: 14,
     paddingRight: 16,
@@ -361,10 +378,8 @@ const styles = StyleSheet.create({
     color: AuthColors.ink,
     flex: 1,
   },
-  sectionText: {
-    fontSize: 14,
-    color: AuthColors.ink,
-    lineHeight: 22,
+  sectionTitleGap: {
+    marginBottom: 12,
   },
   feeItem: {
     flexDirection: 'row',
@@ -398,12 +413,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 16,
     borderRadius: 12,
-    marginTop: 4,
   },
   noticeText: {
     fontSize: 14,
     color: AuthColors.ink,
     lineHeight: 22,
+  },
+  noticeFollow: {
+    marginTop: 8,
   },
   finalCard: {
     backgroundColor: AuthColors.card,
@@ -415,13 +432,7 @@ const styles = StyleSheet.create({
     color: AuthColors.maroon,
     fontSize: 18,
     fontWeight: '700',
-    marginBottom: 10,
-  },
-  finalText: {
-    color: AuthColors.ink,
-    fontSize: 14,
-    lineHeight: 21,
-    marginBottom: 14,
+    marginBottom: 12,
   },
   dateInput: {
     backgroundColor: AuthColors.field,
@@ -430,6 +441,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     color: AuthColors.ink,
     fontSize: 16,
+    marginTop: 12,
     marginBottom: 12,
   },
   confirmButton: {

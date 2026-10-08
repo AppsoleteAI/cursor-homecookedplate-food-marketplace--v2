@@ -1,10 +1,12 @@
 import React, { ReactNode } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router , type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, monoGradients } from '@/constants/colors';
+import { Colors, inAppHeaderBand, monoGradients, pagePastel } from '@/constants/colors';
+import { GlassBadge, GlassIconButton, glassSurface } from '@/components/glass-surface';
+import { titleCase } from '@/lib/title-case';
 import { useFarmBasket } from '@/hooks/farm-basket-store';
 import { useAuth } from '@/hooks/auth-context';
 
@@ -25,27 +27,27 @@ export function FarmScreen({ title, subtitle, children, footer, testID, showBask
   return (
     <SafeAreaView style={styles.safe} edges={['top']} testID={testID}>
       <LinearGradient colors={monoGradients.green} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
-        <TouchableOpacity
+        <GlassIconButton
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/farm-grown-basket' as Href))}
           accessibilityLabel="Back"
           testID="farm-back"
         >
-          <Ionicons name="chevron-back" size={26} color={Colors.white} />
-        </TouchableOpacity>
+          <Ionicons name="chevron-back" size={22} color={Colors.white} />
+        </GlassIconButton>
         <View style={styles.headerText}>
           <Text style={styles.kicker}>FarmGrownBasket</Text>
-          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.title}>{titleCase(title)}</Text>
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
         {showBasket ? (
-          <TouchableOpacity onPress={() => router.push('/farm-grown-basket/basket' as Href)} accessibilityLabel="Open farm basket" testID="farm-basket-button">
-            <Ionicons name="basket-outline" size={24} color={Colors.white} />
+          <GlassIconButton onPress={() => router.push('/farm-grown-basket/basket' as Href)} accessibilityLabel="Open farm basket" testID="farm-basket-button">
+            <Ionicons name="basket-outline" size={20} color={Colors.white} />
             {itemCount > 0 ? (
-              <View style={styles.badge}>
+              <GlassBadge style={styles.badge}>
                 <Text style={styles.badgeText}>{itemCount}</Text>
-              </View>
+              </GlassBadge>
             ) : null}
-          </TouchableOpacity>
+          </GlassIconButton>
         ) : (
           <View style={styles.badgeSpacer} />
         )}
@@ -64,16 +66,18 @@ export function FarmScreen({ title, subtitle, children, footer, testID, showBask
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F4F7F2' },
+  safe: { flex: 1, backgroundColor: pagePastel.green },
   header: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 18,
+    paddingTop: inAppHeaderBand.paddingTop,
+    paddingBottom: inAppHeaderBand.paddingBottom,
+    minHeight: inAppHeaderBand.minHeight,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
+    ...glassSurface,
   },
   headerText: { flex: 1 },
   kicker: { color: '#DCFCE7', fontSize: 12, fontWeight: '700', letterSpacing: 0.4 },

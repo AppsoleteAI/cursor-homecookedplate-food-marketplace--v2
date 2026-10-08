@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   Alert,
   Platform,
   Modal,
@@ -15,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/colors';
+import { GlassPressable } from '@/components/glass-surface';
 
 interface FAQ {
   question: string;
@@ -188,7 +188,7 @@ export default function HelpSupportScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           <View style={styles.headerCard}>
-            <Text style={styles.headerTitle}>How can we help you?</Text>
+            <Text style={styles.headerTitle}>How Can We Help You?</Text>
             <Text style={styles.headerDescription}>
               Our support team is available 24/7 to assist you with any questions or concerns.
             </Text>
@@ -197,7 +197,7 @@ export default function HelpSupportScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Contact Us</Text>
             {contactMethods.map((method, index) => (
-              <TouchableOpacity
+              <GlassPressable
                 key={index}
                 style={styles.contactItem}
                 onPress={method.onPress}
@@ -212,14 +212,14 @@ export default function HelpSupportScreen() {
                   </View>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color={Colors.gray[400]} />
-              </TouchableOpacity>
+              </GlassPressable>
             ))}
           </View>
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Resources</Text>
             {resources.map((resource, index) => (
-              <TouchableOpacity
+              <GlassPressable
                 key={index}
                 style={styles.contactItem}
                 onPress={resource.onPress}
@@ -234,7 +234,7 @@ export default function HelpSupportScreen() {
                   </View>
                 </View>
                 <Ionicons name="open-outline" size={20} color={Colors.gray[400]} />
-              </TouchableOpacity>
+              </GlassPressable>
             ))}
           </View>
 
@@ -293,14 +293,14 @@ export default function HelpSupportScreen() {
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Frequently Asked Questions</Text>
-              <TouchableOpacity onPress={() => setShowFAQModal(false)}>
+              <GlassPressable onPress={() => setShowFAQModal(false)}>
                 <Ionicons name="close" size={24} color={Colors.gray[900]} />
-              </TouchableOpacity>
+              </GlassPressable>
             </View>
             <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
               {faqs.map((faq, index) => (
                 <View key={index} style={styles.faqItem}>
-                  <TouchableOpacity
+                  <GlassPressable
                     style={styles.faqQuestion}
                     onPress={() => toggleFAQ(index)}
                   >
@@ -310,7 +310,7 @@ export default function HelpSupportScreen() {
                     ) : (
                       <Ionicons name="chevron-down" size={20} color={Colors.gray[400]} />
                     )}
-                  </TouchableOpacity>
+                  </GlassPressable>
                   {expandedFAQ === index && (
                     <View style={styles.faqAnswer}>
                       <Text style={styles.faqAnswerText}>{faq.answer}</Text>
@@ -333,9 +333,9 @@ export default function HelpSupportScreen() {
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>User Guide</Text>
-              <TouchableOpacity onPress={() => setShowGuideModal(false)}>
+              <GlassPressable onPress={() => setShowGuideModal(false)}>
                 <Ionicons name="close" size={24} color={Colors.gray[900]} />
-              </TouchableOpacity>
+              </GlassPressable>
             </View>
             <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
               <Text style={styles.guideIntro}>

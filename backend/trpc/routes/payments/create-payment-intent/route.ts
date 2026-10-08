@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../../create-context';
 import { calculateFees } from '../../../../lib/fees';
+import { PAYOUT_HOLD_DAYS } from '../../../../lib/payout-policy';
 
 const inputSchema = z.object({
   amount: z.number().min(0),
@@ -74,9 +75,9 @@ export const createPaymentIntentProcedure = protectedProcedure
     const isLive = stripeSecretKey.startsWith('sk_live_');
     console.log(`[Stripe] Using ${isLive ? 'LIVE' : 'TEST'} mode`);
 
-    const { data: sellerProfile, error } = await ctx.supabase
+    const { data: sellerProfile, error } = await ctx.supabaseAdmin
       .from('profiles')
-      .select('stripe_account_id, role')
+      .select('stripe_account_id, role, selling_removed')
       .eq('id', input.sellerId)
       .single();
 
@@ -86,6 +87,13 @@ export const createPaymentIntentProcedure = protectedProcedure
 
     if (sellerProfile.role !== 'platemaker') {
       throw new Error('Invalid seller account');
+    }
+
+    if (sellerProfile.selling_removed) {
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'This cook is not allowed to take payments',
+      });
     }
 
     if (!sellerProfile.stripe_account_id) {
@@ -100,15 +108,18 @@ export const createPaymentIntentProcedure = protectedProcedure
     const fees = calculateFees(serverBaseAmount, 10, 10);
     
     const totalChargeInCents = Math.round(fees.totalCharge * 100);
-    const appTotalRevenueInCents = Math.round(fees.appTotalRevenue * 100);
 
+    // Charge stays on the platform for PAYOUT_HOLD_DAYS. A later Transfer
+    // pays the cook's connected account their seller share directly.
     const params = new URLSearchParams({
-      amount: totalChargeInCents.toString(), // Buyer pays base + buyer fee
+      amount: totalChargeInCents.toString(),
       currency: input.currency,
       'automatic_payment_methods[enabled]': 'true',
-      'transfer_data[destination]': sellerProfile.stripe_account_id,
-      application_fee_amount: appTotalRevenueInCents.toString(), // Platform keeps buyer fee + seller fee
-      ...(input.orderIds ? { 'metadata[order_ids]': input.orderIds.join(',') } : {}),
+      'metadata[order_ids]': input.orderIds.join(','),
+      'metadata[seller_id]': input.sellerId,
+      'metadata[seller_account_id]': sellerProfile.stripe_account_id,
+      'metadata[payout_hold_days]': String(PAYOUT_HOLD_DAYS),
+      transfer_group: input.orderIds.join(','),
     });
 
     const response = await fetch('https://api.stripe.com/v1/payment_intents', {

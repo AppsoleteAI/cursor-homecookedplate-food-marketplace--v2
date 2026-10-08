@@ -22,7 +22,7 @@ if (__DEV__) {
 }
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Slot, useRootNavigationState } from "expo-router";
+import { Slot, usePathname, useRootNavigationState } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState, useCallback } from "react";
 import { StyleSheet, Platform, View, ActivityIndicator } from "react-native";
@@ -42,6 +42,8 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { StripeProvider } from '@/lib/stripe';
 import { navLogger } from '@/lib/nav-logger';
 import { captureException, Sentry } from '@/lib/sentry';
+import { SENTRY_TRACE_SAMPLE_RATE } from '@/lib/sentry-rate';
+import { applyScrollbarAccent } from '@/lib/web-scrollbar';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -49,7 +51,7 @@ if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
     debug: __DEV__,
-    tracesSampleRate: 1.0,
+    tracesSampleRate: SENTRY_TRACE_SAMPLE_RATE,
     environment: process.env.NODE_ENV || 'production',
   });
 }
@@ -111,6 +113,14 @@ function ConditionalAppProviders({ children }: { children: React.ReactNode }) {
 // This makes the boot process "straight-line" like web version
 function LayoutContent() {
   return <Slot />;
+}
+
+function ScrollbarAccent() {
+  const path = usePathname();
+  useEffect(() => {
+    applyScrollbarAccent(path);
+  }, [path]);
+  return null;
 }
 
 // Inner component that handles Extended Splash logic
@@ -252,6 +262,7 @@ function RootLayout() {
           <CoreProviders>
             <ConditionalAppProviders>
               <NavigationContainer {...({ independent: true } as any)}>
+                <ScrollbarAccent />
                 {content}
               </NavigationContainer>
             </ConditionalAppProviders>

@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Alert } from 'react-native';
+import { titleCase } from '@/lib/title-case';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router , type Href } from 'expo-router';
 import { FarmScreen } from '@/components/farm/FarmScreen';
 import { Colors } from '@/constants/colors';
@@ -15,10 +17,12 @@ import {
   type RegulatoryTrack,
 } from '@/lib/cottage-food';
 import { calculateOrderSplit } from '@/lib/fees';
+import { useShopCardPayment } from '@/hooks/use-shop-payment';
 
 export default function FarmCheckoutScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const { items, listings, placeOrder } = useFarmBasket();
+  const { chargeShop, charging } = useShopCardPayment();
   const [channel, setChannel] = useState<FarmChannel>('farm_pickup');
   const [orderId, setOrderId] = useState<string | null>(null);
 
@@ -55,31 +59,38 @@ export default function FarmCheckoutScreen() {
     return <Redirect href="/(auth)/login" />;
   }
 
-  const place = () => {
-    if (block || lines.length === 0) return;
-    const order = placeOrder({
-      channel,
-      lines,
-      baseAmount,
-      buyerPays: split.totalCaptured,
-      sellerPayout: split.sellerPayout,
-    });
-    setOrderId(order.id);
+  const place = async () => {
+    if (block || lines.length === 0 || charging) return;
+    try {
+      const paid = await chargeShop('farm', lines.map((line) => ({ productId: line.productId, quantity: line.quantity })));
+      if (!paid) return;
+      const order = placeOrder({
+        id: paid.orderId,
+        channel,
+        lines,
+        baseAmount,
+        buyerPays: split.totalCaptured,
+        sellerPayout: split.sellerPayout,
+      });
+      setOrderId(order.id);
+    } catch (error) {
+      Alert.alert('Payment failed', error instanceof Error ? error.message : 'The card was not charged.');
+    }
   };
 
   if (orderId) {
     return (
       <FarmScreen title="Order placed" subtitle="Farm goods only" showBasket={false} testID="farm-checkout-done">
-        <Text style={styles.lead}>Your farm order {orderId} is recorded. The producer is paid from the goods subtotal after the platform fee.</Text>
-        <TouchableOpacity style={styles.button} onPress={() => router.push('/farm-grown-basket/orders' as Href)}>
-          <Text style={styles.buttonText}>View farm orders</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
+        <Text style={styles.lead}>Your card was charged for farm order {orderId}.</Text>
+        <GlassPressable style={styles.button} onPress={() => router.push('/farm-grown-basket/orders' as Href)}>
+          <Text style={styles.buttonText}>View Farm Orders</Text>
+        </GlassPressable>
+        <GlassPressable
           style={styles.secondary}
           onPress={() => router.push(user?.role === 'platemaker' ? '/(tabs)/dashboard' : '/(tabs)/buyer-dashboard')}
         >
-          <Text style={styles.secondaryText}>{user?.role === 'platemaker' ? 'Plate maker dashboard' : 'Buyer dashboard'}</Text>
-        </TouchableOpacity>
+          <Text style={styles.secondaryText}>{user?.role === 'platemaker' ? 'Plate Maker Dashboard' : 'Buyer Dashboard'}</Text>
+        </GlassPressable>
       </FarmScreen>
     );
   }
@@ -87,19 +98,19 @@ export default function FarmCheckoutScreen() {
   return (
     <FarmScreen title="Farm checkout" subtitle="Same fee split as the rest of the marketplace. A different basket." testID="farm-checkout">
       {lines.length === 0 ? (
-        <TouchableOpacity onPress={() => router.push('/farm-grown-basket/market' as Href)}>
+        <GlassPressable onPress={() => router.push('/farm-grown-basket/market' as Href)}>
           <Text style={styles.link}>Add farm goods before checkout.</Text>
-        </TouchableOpacity>
+        </GlassPressable>
       ) : (
         lines.map((line) => (
-          <Text key={line.productId} style={styles.line}>{line.quantity} × {line.name}</Text>
+          <Text key={line.productId} style={styles.line}>{line.quantity} × {titleCase(line.name)}</Text>
         ))
       )}
       <Text style={styles.section}>Handoff</Text>
       {FARM_CHANNELS.map((option) => (
-        <TouchableOpacity key={option} style={[styles.option, channel === option && styles.optionOn]} onPress={() => setChannel(option)}>
+        <GlassPressable key={option} style={[styles.option, channel === option && styles.optionOn]} onPress={() => setChannel(option)}>
           <Text style={[styles.optionText, channel === option && styles.optionTextOn]}>{channelLabel(option)}</Text>
-        </TouchableOpacity>
+        </GlassPressable>
       ))}
       {block ? <Text style={styles.block}>{block}</Text> : null}
       {warnings.map((warning) => (
@@ -111,17 +122,17 @@ export default function FarmCheckoutScreen() {
         <Text style={styles.totalStrong}>You pay ${split.totalCaptured.toFixed(2)}</Text>
       </View>
       <Text style={styles.note}>Mail shipping is not offered. The person who made the food hands it to you.</Text>
-      <TouchableOpacity
-        style={[styles.button, (Boolean(block) || lines.length === 0) && styles.buttonOff]}
-        disabled={Boolean(block) || lines.length === 0}
+      <GlassPressable
+        style={[styles.button, (Boolean(block) || lines.length === 0 || charging) && styles.buttonOff]}
+        disabled={Boolean(block) || lines.length === 0 || charging}
         onPress={place}
         testID="place-farm-order"
       >
-        <Text style={styles.buttonText}>Place farm order</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => router.push('/checkout')}>
-        <Text style={styles.link}>Cooked-plate checkout</Text>
-      </TouchableOpacity>
+        <Text style={styles.buttonText}>{charging ? 'Charging card' : 'Pay with card'}</Text>
+      </GlassPressable>
+      <GlassPressable onPress={() => router.push('/checkout')}>
+        <Text style={styles.link}>Cooked-plate Checkout</Text>
+      </GlassPressable>
     </FarmScreen>
   );
 }
@@ -140,10 +151,10 @@ const styles = StyleSheet.create({
   totalLine: { color: Colors.gray[700], marginBottom: 4 },
   totalStrong: { fontSize: 18, fontWeight: '700', color: Colors.gray[900], marginVertical: 4 },
   note: { marginTop: 10, color: Colors.gray[600], lineHeight: 20 },
-  button: { marginTop: 14, backgroundColor: '#166534', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  button: { ...glassSurface, marginTop: 14, backgroundColor: '#166534', borderRadius: 14, paddingVertical: 14, alignItems: 'center'  },
   buttonOff: { backgroundColor: Colors.gray[400] },
   buttonText: { color: Colors.white, fontWeight: '700' },
-  secondary: { marginTop: 10, borderRadius: 14, paddingVertical: 14, alignItems: 'center', backgroundColor: Colors.white },
+  secondary: { ...glassSurface, marginTop: 10, borderRadius: 14, paddingVertical: 14, alignItems: 'center', backgroundColor: Colors.white  },
   secondaryText: { color: '#166534', fontWeight: '700' },
   link: { marginTop: 12, color: '#166534', fontWeight: '700' },
 });

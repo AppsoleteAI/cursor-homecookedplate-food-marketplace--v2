@@ -46,6 +46,7 @@ export interface Meal {
   reviewCount: number;
   featured?: boolean;
   tags?: string[];
+  isSample?: boolean;
   promotionalOffer?: PromotionalOffer;
   availabilityWindows?: AvailabilityWindow[];
 }

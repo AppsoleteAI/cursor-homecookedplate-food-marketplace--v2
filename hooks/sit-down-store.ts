@@ -171,6 +171,7 @@ export function publishSitItem(input: {
 }
 
 export function placeSitOrder(input: {
+  id?: string;
   placeId: string;
   placeName: string;
   service: DiningService;
@@ -180,10 +181,11 @@ export function placeSitOrder(input: {
   buyerPays: number;
   sellerPayout: number;
 }): SitOrder {
+  const { id, ...rest } = input;
   const order: SitOrder = {
-    id: `sdd-${Date.now()}`,
+    id: id ?? `sdd-${Date.now()}`,
     createdAt: new Date().toISOString(),
-    ...input,
+    ...rest,
   };
   state = { ...state, items: [], orders: [order, ...state.orders] };
   emit();

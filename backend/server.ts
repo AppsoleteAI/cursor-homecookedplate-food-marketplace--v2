@@ -1,4 +1,4 @@
-import app from "./hono";
+import { app } from "./hono";
 
 declare const Bun: {
   serve(options: {

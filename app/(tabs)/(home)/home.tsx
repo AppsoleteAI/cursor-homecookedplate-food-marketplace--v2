@@ -1,11 +1,13 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
+import { screenName, titleCase } from '@/lib/title-case';
+import { GlassBadge, GlassPressable, glassSurface } from '@/components/glass-surface';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Image,
-  TouchableOpacity,
+  Pressable,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
@@ -20,7 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router , type Href } from 'expo-router';
-import { Colors, monoGradients } from '@/constants/colors';
+import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { MealCard } from '@/components/MealCard';
 import { cuisineTypes, dietaryOptions } from '@/mocks/data';
 import { useAuth } from '@/hooks/auth-context';
@@ -43,6 +45,7 @@ export default function HomeScreen() {
   // Fetch meals from tRPC backend
   const { data: mealsData, isLoading: mealsLoading, error: mealsError } = trpc.meals.list.useQuery({
     cuisine: selectedCuisine || undefined,
+    metroArea: user?.metroArea || undefined,
   });
 
   // Map tRPC response to Meal interface
@@ -66,6 +69,7 @@ export default function HomeScreen() {
       reviewCount: meal.reviewCount,
       featured: meal.featured || false,
       tags: meal.tags || [],
+      isSample: meal.isSample === true,
     }));
   }, [mealsData]);
 
@@ -161,20 +165,20 @@ export default function HomeScreen() {
         >
           <View style={styles.headerTop}>
             <View>
-              <Text style={styles.greeting}>Hello, plate!</Text>
+              <Text style={styles.greeting}>Hello, {screenName(user?.username)}!</Text>
               <View style={styles.location}>
                 <Ionicons name="location-outline" size={16} color={Colors.white} />
                 <Text style={styles.locationText}>{user?.metroArea || 'Pickup near you'}</Text>
               </View>
             </View>
-            <TouchableOpacity style={styles.notificationButton} onPress={() => { markBellSeen().catch(()=>{}); router.push('/notifications-bell'); }} testID="open-notifications-bell">
+            <GlassPressable style={styles.notificationButton} onPress={() => { markBellSeen().catch(()=>{}); router.push('/notifications-bell'); }} testID="open-notifications-bell">
               <Ionicons name="notifications-outline" size={24} color={Colors.white} />
               {bellCount > 0 && (
-                <View style={styles.badge} testID="notifications-badge">
+                <GlassBadge style={styles.badge} testID="notifications-badge" popKey={bellCount}>
                   <Text style={styles.badgeText}>{bellCount}</Text>
-                </View>
+                </GlassBadge>
               )}
-            </TouchableOpacity>
+            </GlassPressable>
           </View>
 
           <View style={styles.heroContent}>
@@ -202,7 +206,16 @@ export default function HomeScreen() {
         scrollEventThrottle={16}
       >
           <View>
-          <TouchableOpacity
+          <Pressable
+            style={styles.handlingEntry}
+            onPress={() => router.push('/food-handling' as Href)}
+            testID="open-food-handling"
+          >
+            <Text style={styles.handlingKicker}>Food handling</Text>
+            <Text style={styles.handlingTitle}>Temperatures for pickup and leftovers</Text>
+            <Text style={styles.handlingBody}>Cold food at or below 41°F. Hot food at or above 135°F. Refrigerate perishable food within 2 hours.</Text>
+          </Pressable>
+          <GlassPressable
             style={styles.farmEntry}
             onPress={() => router.push('/farm-grown-basket' as Href)}
             testID="open-farm-grown-basket"
@@ -210,8 +223,8 @@ export default function HomeScreen() {
             <Text style={styles.farmKicker}>FarmGrownBasket</Text>
             <Text style={styles.farmTitle}>Farms, gardens, and co-ops</Text>
             <Text style={styles.farmBody}>Produce, eggs, honey, and homemade goods. Pick them up from the farm.</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
+          </GlassPressable>
+          <GlassPressable
             style={styles.truckEntry}
             onPress={() => router.push('/food-truck-popup' as Href)}
             testID="open-food-truck-popup"
@@ -219,8 +232,8 @@ export default function HomeScreen() {
             <Text style={styles.truckKicker}>FoodTruckPopup</Text>
             <Text style={styles.farmTitle}>Food trucks, open windows</Text>
             <Text style={styles.farmBody}>Order ahead and pick up at the truck. Separate from plates and farm goods.</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
+          </GlassPressable>
+          <GlassPressable
             style={styles.caterEntry}
             onPress={() => router.push('/cater-event-deliver' as Href)}
             testID="open-cater-event-deliver"
@@ -228,8 +241,17 @@ export default function HomeScreen() {
             <Text style={styles.caterKicker}>CaterEventDeliver</Text>
             <Text style={styles.farmTitle}>Catering and event drop-off</Text>
             <Text style={styles.farmBody}>Per-person packages for offices, clinics, and events. Separate from plates, farms, and trucks.</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
+          </GlassPressable>
+          <GlassPressable
+            style={styles.clipsEntry}
+            onPress={() => router.push('/food-review-clips' as Href)}
+            testID="open-food-review-clips"
+          >
+            <Text style={styles.clipsKicker}>FoodReviewClips</Text>
+            <Text style={styles.farmTitle}>20 second food clips</Text>
+            <Text style={styles.farmBody}>Watch 9:16 POV reviews and react with smile, heart, and star. Posting a clip is for premium members.</Text>
+          </GlassPressable>
+          <GlassPressable
             style={styles.sitEntry}
             onPress={() => router.push('/sit-down-delicious' as Href)}
             testID="open-sit-down-delicious"
@@ -237,7 +259,16 @@ export default function HomeScreen() {
             <Text style={styles.sitKicker}>SitDownDelicious</Text>
             <Text style={styles.farmTitle}>Independent restaurants</Text>
             <Text style={styles.farmBody}>Coffee, yogurt, ice cream, and small restaurants. Sit down or take out.</Text>
-          </TouchableOpacity>
+          </GlassPressable>
+          <GlassPressable
+            style={styles.prepEntry}
+            onPress={() => router.push('/meal-prep-go' as Href)}
+            testID="open-meal-prep-go"
+          >
+            <Text style={styles.prepKicker}>MealPrepGo</Text>
+            <Text style={styles.farmTitle}>Weekly plates and prep kits</Text>
+            <Text style={styles.farmBody}>Heat-and-eat meals, cook-at-home kits, or a mix. Built for the week, picked up or dropped off.</Text>
+          </GlassPressable>
           {mealsError && (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>
@@ -255,7 +286,7 @@ export default function HomeScreen() {
               <Text style={styles.sectionTitle}>Order again</Text>
               <HorizontalCarousel contentContainerStyle={styles.horizontalScroll} testID="reorder-carousel">
                 {reorderShelf.map((order) => (
-                  <TouchableOpacity
+                  <GlassPressable
                     key={order.mealId}
                     style={styles.reorderCard}
                     onPress={() => router.push(`/meal/${order.mealId}` as const)}
@@ -267,7 +298,7 @@ export default function HomeScreen() {
                     )}
                     <Text style={styles.reorderName} numberOfLines={1}>{order.mealName}</Text>
                     <Text style={styles.reorderStatus}>{order.status}</Text>
-                  </TouchableOpacity>
+                  </GlassPressable>
                 ))}
               </HorizontalCarousel>
             </View>
@@ -278,7 +309,7 @@ export default function HomeScreen() {
               <Text style={styles.sectionTitle}>What sounds good</Text>
               <HorizontalCarousel contentContainerStyle={styles.horizontalScroll} testID="craving-carousel">
                 {topMeals.map((meal) => (
-                  <TouchableOpacity
+                  <GlassPressable
                     key={`craving-${meal.id}`}
                     style={styles.cravingItem}
                     onPress={() => router.push(`/meal/${meal.id}` as const)}
@@ -288,8 +319,8 @@ export default function HomeScreen() {
                     ) : (
                       <View style={[styles.cravingImage, styles.reorderPlaceholder]} />
                     )}
-                    <Text style={styles.cravingLabel} numberOfLines={2}>{meal.name}</Text>
-                  </TouchableOpacity>
+                    <Text style={styles.cravingLabel} numberOfLines={2}>{titleCase(meal.name)}</Text>
+                  </GlassPressable>
                 ))}
               </HorizontalCarousel>
             </View>
@@ -332,7 +363,7 @@ export default function HomeScreen() {
           <Text style={styles.filterLabel}>Cuisine</Text>
           <HorizontalCarousel contentContainerStyle={styles.cuisineScroll} testID="cuisine-carousel">
             {cuisineBrowse.map(cuisine => (
-              <TouchableOpacity
+              <GlassPressable
                 key={cuisine}
                 testID={`cuisine-chip-${cuisine}`}
                 style={[
@@ -351,13 +382,13 @@ export default function HomeScreen() {
                 >
                   {cuisine}
                 </Text>
-              </TouchableOpacity>
+              </GlassPressable>
             ))}
           </HorizontalCarousel>
           <Text style={styles.filterLabel}>Dietary</Text>
           <HorizontalCarousel contentContainerStyle={styles.cuisineScroll} testID="dietary-carousel">
             {dietaryBrowse.map(option => (
-              <TouchableOpacity
+              <GlassPressable
                 key={option}
                 testID={`dietary-chip-${option}`}
                 style={[
@@ -376,7 +407,7 @@ export default function HomeScreen() {
                 >
                   {option}
                 </Text>
-              </TouchableOpacity>
+              </GlassPressable>
             ))}
           </HorizontalCarousel>
           </View>
@@ -403,7 +434,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: pagePastel.yellow,
   },
   staticHeader: {
     position: 'absolute',
@@ -417,11 +448,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    ...glassSurface,
   },
   headerTop: {
     flexDirection: 'row',
@@ -456,6 +483,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    ...glassSurface,
   },
   badge: {
     position: 'absolute',
@@ -545,6 +573,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 96,
     backgroundColor: Colors.gray[100],
+    ...glassSurface,
   },
   reorderPlaceholder: {
     backgroundColor: Colors.gray[200],
@@ -573,6 +602,7 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 40,
     backgroundColor: Colors.gray[200],
+    ...glassSurface,
   },
   cravingLabel: {
     marginTop: 8,
@@ -582,6 +612,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   cuisineChip: {
+    ...glassSurface,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 20,
@@ -639,6 +670,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.gray[500],
   },
+  handlingEntry: {
+    marginHorizontal: 24,
+    marginTop: 16,
+    marginBottom: 8,
+    backgroundColor: Colors.blue[50],
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.blue[200],
+  },
+  handlingKicker: {
+    color: Colors.blue[700],
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  handlingTitle: {
+    color: Colors.blue[700],
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  handlingBody: {
+    color: Colors.blue[600],
+    fontSize: 14,
+    marginTop: 4,
+    lineHeight: 20,
+  },
   farmEntry: {
     marginHorizontal: 24,
     marginTop: 16,
@@ -648,6 +708,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: '#BBF7D0',
+    ...glassSurface,
   },
   farmKicker: {
     color: '#166534',
@@ -674,6 +735,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: '#FDBA74',
+    ...glassSurface,
   },
   truckKicker: {
     color: '#C2410C',
@@ -688,9 +750,25 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: '#DDD6FE',
+    ...glassSurface,
   },
   caterKicker: {
     color: '#6D28D9',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  clipsEntry: {
+    marginHorizontal: 24,
+    marginBottom: 8,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    ...glassSurface,
+  },
+  clipsKicker: {
+    color: '#166534',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -702,9 +780,25 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: '#FDE68A',
+    ...glassSurface,
   },
   sitKicker: {
     color: '#92400E',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  prepEntry: {
+    marginHorizontal: 24,
+    marginBottom: 8,
+    backgroundColor: '#ECFEFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#A5F3FC',
+    ...glassSurface,
+  },
+  prepKicker: {
+    color: '#0E7490',
     fontSize: 12,
     fontWeight: '700',
   },

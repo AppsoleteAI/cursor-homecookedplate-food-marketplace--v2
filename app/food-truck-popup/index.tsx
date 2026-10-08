@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput } from 'react-native';
+import { GlassIconButton, GlassPressable, glassSurface } from '@/components/glass-surface';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +9,7 @@ import { Colors, monoGradients } from '@/constants/colors';
 import { useFoodTruck } from '@/hooks/food-truck-store';
 import { useAuth } from '@/hooks/auth-context';
 import { FOOD_TRUCK_RULE } from '@/lib/food-truck-permit';
+import { titleCase } from '@/lib/title-case';
 
 const LINKS: { title: string; detail: string; href: string; icon: keyof typeof Ionicons.glyphMap; seller?: boolean }[] = [
   { title: 'Live board', detail: 'Trucks that have the window open', href: '/food-truck-popup/board', icon: 'radio-outline' },
@@ -30,9 +32,9 @@ export default function FoodTruckPopupHome() {
     <SafeAreaView style={styles.safe} edges={['top']} testID="truck-hub">
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         <LinearGradient colors={monoGradients.orange} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-          <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/(home)/home'))} testID="truck-hub-back">
-            <Ionicons name="chevron-back" size={26} color={Colors.white} />
-          </TouchableOpacity>
+          <GlassIconButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/(home)/home'))} testID="truck-hub-back" accessibilityLabel="Back">
+            <Ionicons name="chevron-back" size={22} color={Colors.white} />
+          </GlassIconButton>
           <Text style={styles.kicker}>Window pickup. Not a delivery app.</Text>
           <Text style={styles.title}>FoodTruckPopup</Text>
           <Text style={styles.lead}>
@@ -49,13 +51,13 @@ export default function FoodTruckPopupHome() {
               testID="truck-zip"
               maxLength={5}
             />
-            <TouchableOpacity
+            <GlassPressable
               style={styles.zipButton}
               onPress={() => router.push({ pathname: '/food-truck-popup/board', params: { zip } } as unknown as Href)}
               testID="truck-zip-go"
             >
-              <Text style={styles.zipButtonText}>Find trucks</Text>
-            </TouchableOpacity>
+              <Text style={styles.zipButtonText}>Find Trucks</Text>
+            </GlassPressable>
           </View>
         </LinearGradient>
 
@@ -66,31 +68,31 @@ export default function FoodTruckPopupHome() {
         </View>
 
         {links.map((link) => (
-          <TouchableOpacity key={link.href} style={styles.card} onPress={() => router.push(link.href as Href)} testID={`truck-link-${link.title}`}>
+          <GlassPressable key={link.href} style={styles.card} onPress={() => router.push(link.href as Href)} testID={`truck-link-${link.title}`}>
             <Ionicons name={link.icon} size={22} color="#C2410C" />
             <View style={styles.cardText}>
               <Text style={styles.cardTitle}>
-                {link.title}
+                {titleCase(link.title)}
                 {link.href.endsWith('basket') && itemCount > 0 ? ` (${itemCount})` : ''}
               </Text>
               <Text style={styles.cardDetail}>{link.detail}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={Colors.gray[400]} />
-          </TouchableOpacity>
+          </GlassPressable>
         ))}
 
-        <TouchableOpacity onPress={() => router.push('/(tabs)/(home)/home')} testID="truck-back-to-plates">
+        <GlassPressable onPress={() => router.push('/(tabs)/(home)/home')} testID="truck-back-to-plates">
           <Text style={styles.link}>Cooked plates stay on Home.</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push('/farm-grown-basket' as Href)}>
+        </GlassPressable>
+        <GlassPressable onPress={() => router.push('/farm-grown-basket' as Href)}>
           <Text style={styles.link}>Farm goods stay in FarmGrownBasket.</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push('/cater-event-deliver' as Href)}>
+        </GlassPressable>
+        <GlassPressable onPress={() => router.push('/cater-event-deliver' as Href)}>
           <Text style={styles.link}>Group catering stays in CaterEventDeliver.</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push('/sit-down-delicious' as Href)}>
+        </GlassPressable>
+        <GlassPressable onPress={() => router.push('/sit-down-delicious' as Href)}>
           <Text style={styles.link}>Independent restaurants stay in SitDownDelicious.</Text>
-        </TouchableOpacity>
+        </GlassPressable>
         {isMaker ? <Text style={styles.rule}>{FOOD_TRUCK_RULE}</Text> : null}
       </ScrollView>
     </SafeAreaView>
@@ -100,7 +102,7 @@ export default function FoodTruckPopupHome() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#FFF7ED' },
   body: { paddingBottom: 32 },
-  hero: { padding: 20, paddingBottom: 24, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
+  hero: { ...glassSurface, padding: 20, paddingBottom: 24, borderBottomLeftRadius: 28, borderBottomRightRadius: 28  },
   kicker: { color: '#FFEDD5', fontSize: 12, fontWeight: '700', marginTop: 12 },
   title: { color: Colors.white, fontSize: 32, fontWeight: '700', marginTop: 4 },
   lead: { color: '#FFEDD5', fontSize: 16, lineHeight: 22, marginTop: 8 },
@@ -114,11 +116,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.gray[900],
   },
-  zipButton: { backgroundColor: '#7C2D12', borderRadius: 12, paddingHorizontal: 16, justifyContent: 'center' },
+  zipButton: { ...glassSurface, backgroundColor: '#7C2D12', borderRadius: 12, paddingHorizontal: 16, justifyContent: 'center'  },
   zipButtonText: { color: Colors.white, fontWeight: '700' },
   models: { paddingHorizontal: 16, paddingTop: 16, gap: 6 },
   model: { color: Colors.gray[700], fontSize: 14 },
   card: {
+    ...glassSurface,
     marginHorizontal: 16,
     marginTop: 12,
     backgroundColor: Colors.white,

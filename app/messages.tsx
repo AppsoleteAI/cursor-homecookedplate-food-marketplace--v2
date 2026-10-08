@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Image } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { Colors } from '@/constants/colors';
 import { MessageCircle } from 'lucide-react-native';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/hooks/auth-context';
 import { SkeletonMessagesList } from '@/components/SkeletonMessagesList';
+import { GlassPressable } from '@/components/glass-surface';
 
 interface Conversation {
   orderId: string;
@@ -51,7 +52,7 @@ export default function MessagesPage() {
       Colors.warning;
 
     return (
-      <TouchableOpacity 
+      <GlassPressable 
         style={styles.conversationItem}
         onPress={() => handleConversationPress(item.orderId)}
         testID={`conversation-${item.orderId}`}
@@ -91,7 +92,7 @@ export default function MessagesPage() {
             </Text>
           </View>
         </View>
-      </TouchableOpacity>
+      </GlassPressable>
     );
   }, [handleConversationPress]);
 

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Image, TextInput } from 'react-native';
+import { titleCase } from '@/lib/title-case';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { SitDownScreen } from '@/components/sit-down/SitDownScreen';
 import { Colors } from '@/constants/colors';
@@ -45,31 +47,31 @@ export default function PlacesScreen() {
       />
       <View style={styles.chips}>
         {KINDS.map((option) => (
-          <TouchableOpacity key={option.id} style={[styles.chip, kind === option.id && styles.chipOn]} onPress={() => setKind(option.id)}>
+          <GlassPressable key={option.id} style={[styles.chip, kind === option.id && styles.chipOn]} onPress={() => setKind(option.id)}>
             <Text style={[styles.chipText, kind === option.id && styles.chipTextOn]}>{option.label}</Text>
-          </TouchableOpacity>
+          </GlassPressable>
         ))}
       </View>
       {isMaker && ownerReady && kind === 'all' && !searching ? (
-        <TouchableOpacity style={styles.card} onPress={() => router.push('/sit-down-delicious/seller' as Href)} testID="owner-place-card">
+        <GlassPressable style={styles.card} onPress={() => router.push('/sit-down-delicious/seller' as Href)} testID="owner-place-card">
           <View style={styles.copy}>
             <Text style={styles.name}>{license?.placeName}</Text>
             <Text style={styles.meta}>{license?.city}, {stateName(license?.stateCode ?? '')}</Text>
             <Text style={styles.meta}>Open · your menu · {listings.length} item{listings.length === 1 ? '' : 's'}</Text>
           </View>
-        </TouchableOpacity>
+        </GlassPressable>
       ) : null}
       {searching && list.length === 0 ? <Text style={styles.empty}>No independent shop matches that ZIP.</Text> : null}
       {list.map((place) => (
-        <TouchableOpacity key={place.id} style={styles.card} onPress={() => router.push(`/sit-down-delicious/place/${place.id}` as Href)} testID={`place-card-${place.id}`}>
+        <GlassPressable key={place.id} style={styles.card} onPress={() => router.push(`/sit-down-delicious/place/${place.id}` as Href)} testID={`place-card-${place.id}`}>
           <Image source={{ uri: place.image }} style={styles.image} />
           <View style={styles.copy}>
-            <Text style={styles.name}>{place.name}</Text>
+            <Text style={styles.name}>{titleCase(place.name)}</Text>
             <Text style={styles.meta}>{place.city}, {stateName(place.stateCode)} {place.zip}</Text>
             <Text style={styles.meta}>{place.openNow ? 'Open' : 'Closed'} · {SHOP_KIND_LABEL[place.kind]}</Text>
             {follows.includes(place.id) ? <Text style={styles.follow}>On your list</Text> : null}
           </View>
-        </TouchableOpacity>
+        </GlassPressable>
       ))}
     </SitDownScreen>
   );
@@ -86,12 +88,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  chip: { backgroundColor: Colors.white, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
+  chip: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
   chipOn: { backgroundColor: '#92400E' },
   chipText: { color: Colors.gray[800] },
   chipTextOn: { color: Colors.white, fontWeight: '700' },
-  card: { flexDirection: 'row', gap: 12, backgroundColor: Colors.white, borderRadius: 16, padding: 10, marginBottom: 10 },
-  image: { width: 88, height: 88, borderRadius: 12, backgroundColor: Colors.gray[200] },
+  card: { ...glassSurface, flexDirection: 'row', gap: 12, backgroundColor: Colors.white, borderRadius: 16, padding: 10, marginBottom: 10  },
+  image: { ...glassSurface, width: 88, height: 88, borderRadius: 12, backgroundColor: Colors.gray[200]  },
   copy: { flex: 1, justifyContent: 'center' },
   name: { fontSize: 16, fontWeight: '700', color: Colors.gray[900] },
   meta: { color: Colors.gray[600], marginTop: 4, fontSize: 13 },

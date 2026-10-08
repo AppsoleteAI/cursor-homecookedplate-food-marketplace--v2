@@ -170,6 +170,7 @@ export function publishTruckItem(input: {
 }
 
 export function placeTruckOrder(input: {
+  id?: string;
   truckId: string;
   truckName: string;
   pickupSlot: PickupSlot;
@@ -178,10 +179,11 @@ export function placeTruckOrder(input: {
   buyerPays: number;
   sellerPayout: number;
 }): TruckOrder {
+  const { id, ...rest } = input;
   const order: TruckOrder = {
-    id: `ftp-${Date.now()}`,
+    id: id ?? `ftp-${Date.now()}`,
     createdAt: new Date().toISOString(),
-    ...input,
+    ...rest,
   };
   state = { ...state, items: [], orders: [order, ...state.orders] };
   emit();

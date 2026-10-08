@@ -7,12 +7,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  TouchableOpacity,
   Image,
   ActivityIndicator,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
@@ -22,12 +22,14 @@ import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
 import { isLoginLegalBoxChecked, readLegalAgreement, setLoginLegalBoxChecked, clearLoginLegalBox, toCompletedLegalAgreement } from '@/lib/legal-agreement';
 import { AuthColors } from '@/constants/auth-palette';
-import { AuthBackground } from '@/components/auth/AuthChrome';
+import { AuthBackButton, AuthBackground, AuthBrand } from '@/components/auth/AuthChrome';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 
 const ORDER_PHOTO = require('../../assets/order-a-plate.png');
 const COOK_PHOTO = require('../../assets/start-cooking.png');
 const APPSOLETE_MARK = require('../../assets/appsolete-mark.jpg');
-const HOUSE_MARK = require('../../assets/house-mark.png');
+const APPLE_LOGO = require('../../assets/logo-apple.png');
+const GOOGLE_LOGO = require('../../assets/logo-google.png');
 
 type SignupRole = 'platetaker' | 'platemaker';
 
@@ -120,6 +122,7 @@ export default function LoginScreen() {
 
     try {
       await login(cleanEmail, password);
+      AsyncStorage.setItem('hcp_has_account', '1').catch(() => undefined);
       if (timedOut) return;
       if (agreement) {
         try {
@@ -164,7 +167,7 @@ export default function LoginScreen() {
 
   return (
     <AuthBackground testID="login-screen">
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -175,19 +178,18 @@ export default function LoginScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <View style={styles.brand}>
-              <Image source={HOUSE_MARK} style={styles.brandMark} resizeMode="contain" tintColor={AuthColors.brand} accessibilityIgnoresInvertColors />
-              <Text style={styles.brandName}>HomeCookedPlate</Text>
-            </View>
+            {router.canGoBack() ? <AuthBackButton onPress={() => router.back()} /> : null}
+            <AuthBrand toSignIn={false} />
 
             <View style={styles.doors}>
-              <TouchableOpacity
+              <GlassPressable
                 style={styles.door}
                 activeOpacity={0.9}
                 onPress={() => openSignup('platetaker')}
                 accessibilityRole="button"
                 accessibilityLabel="Order a plate"
               >
+                <View style={styles.doorClip}>
                 <Image source={ORDER_PHOTO} style={styles.doorImage} resizeMode="cover" />
                 <LinearGradient
                   colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0)', 'rgba(8,20,16,0.82)']}
@@ -195,15 +197,17 @@ export default function LoginScreen() {
                   style={styles.doorShade}
                 />
                 <Text style={styles.doorLabel}>Order a Plate</Text>
-              </TouchableOpacity>
+                </View>
+              </GlassPressable>
 
-              <TouchableOpacity
+              <GlassPressable
                 style={styles.door}
                 activeOpacity={0.9}
                 onPress={() => openSignup('platemaker')}
                 accessibilityRole="button"
                 accessibilityLabel="Start cooking"
               >
+                <View style={styles.doorClip}>
                 <Image source={COOK_PHOTO} style={styles.doorImageCook} resizeMode="cover" />
                 <LinearGradient
                   colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0)', 'rgba(8,20,16,0.82)']}
@@ -211,29 +215,30 @@ export default function LoginScreen() {
                   style={styles.doorShade}
                 />
                 <Text style={styles.doorLabel}>Start Cooking</Text>
-              </TouchableOpacity>
+                </View>
+              </GlassPressable>
             </View>
 
             <View style={styles.sheet}>
-              <TouchableOpacity
+              <GlassPressable
                 style={styles.appleButton}
                 onPress={() => handleProvider('Apple')}
                 accessibilityRole="button"
                 accessibilityLabel="Sign in with Apple"
               >
-                <Ionicons name="logo-apple" size={18} color="#FFFFFF" />
+                <Image source={APPLE_LOGO} style={styles.providerLogo} resizeMode="contain" accessibilityIgnoresInvertColors />
                 <Text style={styles.appleText}>Sign in with Apple</Text>
-              </TouchableOpacity>
+              </GlassPressable>
 
-              <TouchableOpacity
+              <GlassPressable
                 style={styles.googleButton}
                 onPress={() => handleProvider('Google')}
                 accessibilityRole="button"
                 accessibilityLabel="Sign in with Google"
               >
-                <Ionicons name="logo-google" size={18} color={AuthColors.white} />
+                <Image source={GOOGLE_LOGO} style={styles.providerLogo} resizeMode="contain" accessibilityIgnoresInvertColors />
                 <Text style={styles.googleText}>Sign in with Google</Text>
-              </TouchableOpacity>
+              </GlassPressable>
 
               {providerNotice ? (
                 <Text style={styles.providerNotice}>{providerNotice}</Text>
@@ -277,7 +282,7 @@ export default function LoginScreen() {
                     autoComplete="current-password"
                     testID="login-password"
                   />
-                  <TouchableOpacity
+                  <GlassPressable
                     onPress={() => setShowPassword(!showPassword)}
                     style={styles.eyeIconButton}
                     accessibilityRole="button"
@@ -288,33 +293,33 @@ export default function LoginScreen() {
                       size={18}
                       color={AuthColors.maroon}
                     />
-                  </TouchableOpacity>
+                  </GlassPressable>
                 </View>
 
-                <TouchableOpacity
+                <GlassPressable
                   onPress={() => router.push('/(auth)/recover')}
                   style={styles.forgotPasswordButton}
                   accessibilityRole="button"
                 >
-                  <Text style={styles.forgotPasswordText}>Forgot password</Text>
-                </TouchableOpacity>
+                  <Text style={styles.forgotPasswordText}>Forgot Password</Text>
+                </GlassPressable>
 
                 {error ? (
                   <View style={styles.errorContainer}>
                     <Text style={styles.errorText}>{error}</Text>
                     {retryCount > 0 && retryCount < 3 ? (
-                      <TouchableOpacity
+                      <GlassPressable
                         onPress={() => handleLogin(true)}
                         style={styles.retryButton}
                         disabled={loading}
                       >
-                        <Text style={styles.retryButtonText}>Try again</Text>
-                      </TouchableOpacity>
+                        <Text style={styles.retryButtonText}>Try Again</Text>
+                      </GlassPressable>
                     ) : null}
                   </View>
                 ) : null}
 
-                <TouchableOpacity
+                <GlassPressable
                   style={styles.signInButton}
                   onPress={() => handleLogin(false)}
                   disabled={loading}
@@ -323,23 +328,23 @@ export default function LoginScreen() {
                 >
                   <View style={styles.signInFill}>
                     {loading ? (
-                      <ActivityIndicator color={AuthColors.ink} />
+                      <ActivityIndicator color={AuthColors.white} />
                     ) : (
-                      <Text style={styles.signInText}>Sign in</Text>
+                      <Text style={styles.signInText}>Sign In</Text>
                     )}
                   </View>
-                </TouchableOpacity>
+                </GlassPressable>
 
                 <View style={styles.switchRow}>
                   <Text style={styles.switchMuted}>New here? </Text>
-                  <TouchableOpacity onPress={() => openSignup()} accessibilityRole="button">
-                    <Text style={styles.switchLink}>Create an account</Text>
-                  </TouchableOpacity>
+                  <GlassPressable onPress={() => openSignup()} accessibilityRole="button">
+                    <Text style={styles.switchLink}>Create an Account</Text>
+                  </GlassPressable>
                 </View>
               </View>
 
               <View style={styles.legalRow}>
-                <TouchableOpacity
+                <GlassPressable
                   onPress={() => {
                     setLegalChecked((current) => {
                       const next = !current;
@@ -357,7 +362,7 @@ export default function LoginScreen() {
                   <View style={[styles.legalCheckbox, legalChecked && styles.legalCheckboxOn]}>
                     {legalChecked ? <Ionicons name="checkmark" size={14} color={AuthColors.ink} /> : null}
                   </View>
-                </TouchableOpacity>
+                </GlassPressable>
                 <Text style={styles.legalAgreement}>
                   {legalNotice ? <Text style={styles.legalStar}>* </Text> : null}
                   I agree to the{' '}
@@ -395,28 +400,6 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 28,
   },
-  brand: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 18,
-    paddingHorizontal: 24,
-  },
-  brandMark: {
-    width: 46,
-    height: 38,
-  },
-  brandName: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: AuthColors.brand,
-    letterSpacing: -0.4,
-    fontFamily: Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia' }),
-    textShadowColor: 'rgba(70, 16, 0, 0.55)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
-  },
   doors: {
     flexDirection: 'row',
     gap: 12,
@@ -427,8 +410,13 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 148,
     borderRadius: 18,
-    overflow: 'hidden',
     backgroundColor: '#6B2A12',
+    ...glassSurface,
+  },
+  doorClip: {
+    flex: 1,
+    borderRadius: 18,
+    overflow: 'hidden',
     justifyContent: 'flex-end',
   },
   doorImage: {
@@ -464,7 +452,7 @@ const styles = StyleSheet.create({
   appleButton: {
     height: 48,
     borderRadius: 24,
-    backgroundColor: AuthColors.maroon,
+    backgroundColor: AuthColors.maroonDeep,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.28)',
     shadowColor: '#461C06',
@@ -477,6 +465,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
+  providerLogo: {
+    width: 22,
+    height: 22,
+  },
   appleText: {
     color: '#FFFFFF',
     fontSize: 15,
@@ -485,7 +477,7 @@ const styles = StyleSheet.create({
   googleButton: {
     height: 48,
     borderRadius: 24,
-    backgroundColor: AuthColors.maroon,
+    backgroundColor: AuthColors.maroonDeep,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.28)',
     shadowColor: '#461C06',
@@ -587,8 +579,8 @@ const styles = StyleSheet.create({
   },
   signInButton: {
     borderRadius: 24,
+    backgroundColor: AuthColors.maroonDeep,
     overflow: 'hidden',
-    backgroundColor: AuthColors.button,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.36)',
     shadowColor: '#461C06',
@@ -599,12 +591,14 @@ const styles = StyleSheet.create({
   },
   signInFill: {
     height: 50,
+    borderRadius: 24,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: AuthColors.button,
+    backgroundColor: AuthColors.maroonDeep,
   },
   signInText: {
-    color: AuthColors.ink,
+    color: AuthColors.white,
     fontSize: 17,
     fontWeight: '700',
   },
@@ -638,32 +632,42 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: AuthColors.ink,
+    borderColor: AuthColors.white,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: AuthColors.field,
+    backgroundColor: 'transparent',
+    shadowColor: '#14100C',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.55,
+    shadowRadius: 2,
   },
   legalCheckboxOn: {
     backgroundColor: AuthColors.brand,
   },
   legalAgreement: {
     flex: 1,
-    color: AuthColors.ink,
+    color: AuthColors.white,
     fontSize: 14,
     lineHeight: 20,
+    textShadowColor: 'rgba(20, 16, 12, 0.7)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   legalStar: {
-    color: AuthColors.ink,
+    color: AuthColors.white,
     fontWeight: '700',
   },
   legalText: {
-    color: AuthColors.ink,
+    color: AuthColors.white,
     fontSize: 14,
     fontWeight: '700',
     textDecorationLine: 'underline',
   },
   legalNotice: {
-    color: AuthColors.ink,
+    color: AuthColors.white,
+    textShadowColor: 'rgba(20, 16, 12, 0.7)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
     fontSize: 13,
     lineHeight: 18,
     paddingHorizontal: 8,

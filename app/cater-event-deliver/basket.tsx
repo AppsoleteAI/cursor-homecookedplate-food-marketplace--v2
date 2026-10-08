@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { titleCase } from '@/lib/title-case';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, type Href } from 'expo-router';
 import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
 import { Colors } from '@/constants/colors';
@@ -31,9 +33,9 @@ export default function CaterBasketScreen() {
       {lines.length === 0 ? (
         <View>
           <Text style={styles.empty}>No catering order yet.</Text>
-          <TouchableOpacity onPress={() => router.push('/cater-event-deliver/board' as Href)}>
-            <Text style={styles.link}>See which companies are accepting</Text>
-          </TouchableOpacity>
+          <GlassPressable onPress={() => router.push('/cater-event-deliver/board' as Href)}>
+            <Text style={styles.link}>See Which Companies Are Accepting</Text>
+          </GlassPressable>
         </View>
       ) : (
         <View>
@@ -41,24 +43,24 @@ export default function CaterBasketScreen() {
           {lines.map((line) => (
             <View key={line.id} style={styles.row}>
               <View style={styles.copy}>
-                <Text style={styles.name}>{line.name}</Text>
+                <Text style={styles.name}>{titleCase(line.name)}</Text>
                 <Text style={styles.meta}>${line.pricePerPerson.toFixed(2)} per person · minimum {line.minimum}</Text>
                 <Text style={styles.meta}>Food ${(line.pricePerPerson * line.headcount).toFixed(2)}</Text>
               </View>
               <View style={styles.qty}>
-                <TouchableOpacity onPress={() => setHeadcount(line.id, line.headcount <= line.minimum ? 0 : line.headcount - 1)}>
+                <GlassPressable onPress={() => setHeadcount(line.id, line.headcount <= line.minimum ? 0 : line.headcount - 1)}>
                   <Text style={styles.qtyText}>−</Text>
-                </TouchableOpacity>
+                </GlassPressable>
                 <Text style={styles.qtyValue}>{line.headcount}</Text>
-                <TouchableOpacity onPress={() => setHeadcount(line.id, Math.min(500, line.headcount + 1))}>
+                <GlassPressable onPress={() => setHeadcount(line.id, Math.min(500, line.headcount + 1))}>
                   <Text style={styles.qtyText}>+</Text>
-                </TouchableOpacity>
+                </GlassPressable>
               </View>
             </View>
           ))}
-          <TouchableOpacity onPress={clearItems}>
-            <Text style={styles.link}>Clear this company</Text>
-          </TouchableOpacity>
+          <GlassPressable onPress={clearItems}>
+            <Text style={styles.link}>Clear This Company</Text>
+          </GlassPressable>
         </View>
       )}
       <View style={styles.totals}>
@@ -66,17 +68,17 @@ export default function CaterBasketScreen() {
         <Text style={styles.totalLine}>Service fee ${(split.totalCaptured - baseAmount).toFixed(2)}</Text>
         <Text style={styles.totalStrong}>You pay ${split.totalCaptured.toFixed(2)}</Text>
       </View>
-      <TouchableOpacity
+      <GlassPressable
         style={[styles.button, lines.length === 0 && styles.buttonOff]}
         disabled={lines.length === 0}
         onPress={() => router.push('/cater-event-deliver/checkout' as Href)}
         testID="cater-basket-checkout"
       >
-        <Text style={styles.buttonText}>Catering checkout</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => router.push('/(tabs)/cart')}>
-        <Text style={styles.link}>Cooked-plate cart</Text>
-      </TouchableOpacity>
+        <Text style={styles.buttonText}>Catering Checkout</Text>
+      </GlassPressable>
+      <GlassPressable onPress={() => router.push('/(tabs)/cart')}>
+        <Text style={styles.link}>Cooked-plate Cart</Text>
+      </GlassPressable>
     </CaterEventScreen>
   );
 }
@@ -94,7 +96,7 @@ const styles = StyleSheet.create({
   totals: { marginTop: 8, backgroundColor: Colors.white, borderRadius: 14, padding: 14 },
   totalLine: { color: Colors.gray[700], marginBottom: 4 },
   totalStrong: { marginTop: 4, fontSize: 18, fontWeight: '700', color: Colors.gray[900] },
-  button: { marginTop: 14, backgroundColor: '#6D28D9', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  button: { ...glassSurface, marginTop: 14, backgroundColor: '#6D28D9', borderRadius: 14, paddingVertical: 14, alignItems: 'center'  },
   buttonOff: { backgroundColor: Colors.gray[400] },
   buttonText: { color: Colors.white, fontWeight: '700' },
   link: { marginTop: 12, color: '#6D28D9', fontWeight: '700' },

@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   Image,
-  TouchableOpacity,
   Alert,
   Dimensions,
   BackHandler,
@@ -15,8 +14,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, Stack } from 'expo-router';
 import { Star, Clock, Heart } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
+import { titleCase } from '@/lib/title-case';
 import { GradientButton } from '@/components/GradientButton';
 import { allergyOptions, cookingTemperatures } from '@/mocks/data';
+import { isSampleMealId } from '@/lib/sample-meals';
+import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { trpc } from '@/lib/trpc';
 import { calculateOrderSplit } from '@/lib/fees';
 import type { Meal } from '@/types';
@@ -37,8 +40,9 @@ export default function MealDetailScreen() {
   const mealId = typeof id === 'string' ? id : Array.isArray(id) ? id[0] : '';
   const { addToCart } = useCart();
   const { isFavorite, toggleFavorite } = useFavorites();
+  const { user } = useAuth();
   const mealQuery = trpc.meals.get.useQuery(
-    { id: mealId },
+    { id: mealId, metroArea: user?.metroArea || undefined },
     { enabled: mealId.length > 0 }
   );
   const meal = useMemo<Meal | undefined>(() => {
@@ -62,12 +66,12 @@ export default function MealDetailScreen() {
       reviewCount: data.reviewCount,
       featured: data.featured || false,
       tags: data.tags || [],
+      isSample: data.isSample === true,
     };
   }, [mealQuery.data]);
   const { getAggregates } = useReviewsContext();
   const aggregates = meal ? getAggregates(meal.id) : { average: 0, count: 0 };
 
-  const { user } = useAuth();
   const role: 'platemaker' | 'platetaker' | undefined = user?.role as any;
   const isPlatemaker = role === 'platemaker';
   
@@ -146,16 +150,19 @@ export default function MealDetailScreen() {
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>Meal not found</Text>
             <Text style={styles.errorSubtext}>ID: {id}</Text>
-            <TouchableOpacity onPress={() => router.back()} style={styles.errorButton}>
+            <GlassPressable onPress={() => router.back()} style={styles.errorButton}>
               <Text style={styles.errorButtonText}>Go Back</Text>
-            </TouchableOpacity>
+            </GlassPressable>
           </View>
         </SafeAreaView>
       </ErrorBoundary>
     );
   }
 
+  const isSample = meal.isSample === true || isSampleMealId(meal.id);
+
   const handleAddToCart = () => {
+    if (isSample) return;
     addToCart(meal, quantity, {
       allergies: selectedAllergies,
       cookingTemperature: cookingTemp,
@@ -181,12 +188,12 @@ export default function MealDetailScreen() {
           title: 'Meal Details',
           presentation: 'modal',
           headerLeft: () => (
-            <TouchableOpacity 
+            <GlassPressable 
               onPress={() => router.back()}
               style={{ marginLeft: 10 }}
             >
               <Text style={{ color: Colors.blue[600], fontSize: 16, fontWeight: '600' }}>Close</Text>
-            </TouchableOpacity>
+            </GlassPressable>
           ),
         }} 
       />
@@ -264,7 +271,7 @@ export default function MealDetailScreen() {
         <View style={styles.content}>
           <View style={styles.header}>
             <View style={styles.titleSection}>
-              <Text style={styles.name}>{meal.name}</Text>
+              <Text style={styles.name}>{titleCase(meal.name)}</Text>
               <Text style={styles.plateMaker}>{meal.plateMakerName}</Text>
               {(meal.dietaryOptions?.length ?? 0) > 0 && (
                 <View style={styles.dietRow}>
@@ -277,7 +284,7 @@ export default function MealDetailScreen() {
               )}
             </View>
             {!isPlatemaker && (
-              <TouchableOpacity 
+              <GlassPressable 
                 style={styles.favoriteButton}
                 onPress={() => meal && toggleFavorite(meal)}
                 testID="favorite-button"
@@ -287,12 +294,12 @@ export default function MealDetailScreen() {
                   color={Colors.gradient.red} 
                   fill={meal && isFavorite(meal.id) ? Colors.gradient.red : 'transparent'}
                 />
-              </TouchableOpacity>
+              </GlassPressable>
             )}
           </View>
 
           <View style={styles.infoRow}>
-            <TouchableOpacity style={styles.rating} onPress={openReviews} testID="open-reviews-detail">
+            <GlassPressable style={styles.rating} onPress={openReviews} testID="open-reviews-detail">
               {isPlatemaker ? (
                 <View style={styles.filledStarsOnly}>
                   {Array.from({ length: Math.max(0, Math.round(aggregates.average)) }).map((_, idx) => (
@@ -312,7 +319,7 @@ export default function MealDetailScreen() {
               )}
               <Text style={styles.ratingText}>{aggregates.average.toFixed(1)}</Text>
               <Text style={styles.reviewCount}>({aggregates.count} reviews)</Text>
-            </TouchableOpacity>
+            </GlassPressable>
             <View style={styles.time}>
               <Clock size={16} color={Colors.gray[500]} />
               <Text style={styles.timeText}>{meal.preparationTime} min</Text>
@@ -339,9 +346,12 @@ export default function MealDetailScreen() {
               ))}
             </View>
             {!isPlatemaker ? (
-              <Text style={styles.description}>
-                Ingredients and allergens are listed by the cook. Tell them about your allergies before you order. If something looks or smells wrong at pickup, do not eat it.
-              </Text>
+              <>
+                <Text style={styles.description}>
+                  Ingredients and allergens are listed by the cook. Tell them about your allergies before you order. If something looks or smells wrong at pickup, do not eat it. Smell and appearance do not prove the food is safe.
+                </Text>
+                <FoodHandlingLink />
+              </>
             ) : null}
           </View>
 
@@ -357,7 +367,7 @@ export default function MealDetailScreen() {
                   contentContainerStyle={styles.optionsRow}
                 >
                   {cookingTemperatures.map(temp => (
-                    <TouchableOpacity
+                    <GlassPressable
                       key={temp}
                       style={[
                         styles.optionChip,
@@ -374,9 +384,13 @@ export default function MealDetailScreen() {
                       >
                         {temp}
                       </Text>
-                    </TouchableOpacity>
+                    </GlassPressable>
                   ))}
                 </ScrollView>
+                <Text style={styles.description}>
+                  A doneness request does not replace a thermometer. Poultry is 165°F, ground meat is 160°F on the home chart, and whole cuts are 145°F plus a 3-minute rest.
+                </Text>
+                <FoodHandlingLink testID="open-food-handling-cook-temps" />
               </View>
             )}
 
@@ -384,7 +398,7 @@ export default function MealDetailScreen() {
               <Text style={styles.customLabel}>Food Allergies</Text>
               <View style={styles.allergyGrid}>
                 {allergyOptions.map(allergy => (
-                  <TouchableOpacity
+                  <GlassPressable
                     key={allergy}
                     style={[
                       styles.allergyChip,
@@ -407,36 +421,41 @@ export default function MealDetailScreen() {
                     >
                       {allergy}
                     </Text>
-                  </TouchableOpacity>
+                  </GlassPressable>
                 ))}
               </View>
             </View>
           </View>
 
-          {!isPlatemaker && (
+          {!isPlatemaker && !isSample && (
             <View style={styles.quantitySection}>
               <Text style={styles.sectionTitle}>Quantity</Text>
               <View style={styles.quantityControls}>
-                <TouchableOpacity
+                <GlassPressable
                   style={styles.quantityButton}
                   onPress={() => setQuantity(Math.max(1, quantity - 1))}
                 >
                   <Text style={styles.quantityButtonText}>-</Text>
-                </TouchableOpacity>
+                </GlassPressable>
                 <Text style={styles.quantityText}>{quantity}</Text>
-                <TouchableOpacity
+                <GlassPressable
                   style={styles.quantityButton}
                   onPress={() => setQuantity(quantity + 1)}
                 >
                   <Text style={styles.quantityButtonText}>+</Text>
-                </TouchableOpacity>
+                </GlassPressable>
               </View>
             </View>
           )}
         </View>
       </ScrollView>
 
-      {!isPlatemaker && (
+      {!isPlatemaker && isSample && (
+        <View style={styles.footer}>
+          <Text style={styles.sampleNote}>Sample plate. This one is not for sale. A cook lists a real plate with their own photo or video.</Text>
+        </View>
+      )}
+      {!isPlatemaker && !isSample && (
         <View style={styles.footer}>
           <View style={styles.totalSection}>
             <Text style={styles.totalLabel}>Plate ${ (meal.price * quantity).toFixed(2) }</Text>
@@ -465,6 +484,7 @@ const styles = StyleSheet.create({
   image: {
     width,
     height: width * 0.8,
+    ...glassSurface,
   },
   imageIndicators: {
     position: 'absolute',
@@ -694,6 +714,12 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.gray[100],
     backgroundColor: Colors.white,
+  },
+  sampleNote: {
+    flex: 1,
+    color: Colors.gray[700],
+    fontSize: 15,
+    lineHeight: 21,
   },
   totalSection: {
     flex: 1,

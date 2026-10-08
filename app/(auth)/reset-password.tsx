@@ -7,7 +7,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  TouchableOpacity,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,7 +15,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/auth-context';
 import { AuthColors } from '@/constants/auth-palette';
-import { AuthBackground, AuthBackButton, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { AuthBackground, AuthBackButton, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { GlassPressable } from '@/components/glass-surface';
 
 function validatePassword(password: string): { valid: boolean; message?: string } {
   if (password.length < 8) {
@@ -126,10 +126,10 @@ export default function ResetPasswordScreen() {
             keyboardShouldPersistTaps="handled"
           >
             <AuthBackButton onPress={() => router.replace('/(auth)/login')} />
-            <Text style={styles.brand}>HomeCookedPlate</Text>
+            <AuthBrand />
             <View style={styles.sheet}>
               <View style={styles.panel}>
-                <Text style={styles.panelTitle}>New password</Text>
+                <Text style={styles.panelTitle}>New Password</Text>
                 <Text style={styles.help}>Choose a password with at least 8 characters.</Text>
                 <View style={styles.field}>
                   <Ionicons name="lock-closed-outline" size={18} color={AuthColors.maroon} />
@@ -163,9 +163,9 @@ export default function ResetPasswordScreen() {
                   loading={loading}
                   testID="reset-submit"
                 />
-                <TouchableOpacity onPress={() => router.replace('/(auth)/login')} style={styles.loginLink}>
+                <GlassPressable onPress={() => router.replace('/(auth)/login')} style={styles.loginLink}>
                   <Text style={styles.loginLinkText}>Back to sign in</Text>
-                </TouchableOpacity>
+                </GlassPressable>
               </View>
             </View>
           </ScrollView>

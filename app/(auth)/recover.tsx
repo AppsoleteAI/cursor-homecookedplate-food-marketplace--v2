@@ -7,7 +7,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  TouchableOpacity,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,7 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '@/hooks/auth-context';
 import { AuthColors } from '@/constants/auth-palette';
-import { AuthBackground, AuthBackButton, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { AuthBackground, AuthBackButton, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { GlassPressable } from '@/components/glass-surface';
 
 type RecoveryMode = 'password' | 'reactivate';
 
@@ -78,11 +78,11 @@ export default function RecoverScreen() {
           >
             <AuthBackButton onPress={() => router.back()} />
 
-            <Text style={styles.brand}>HomeCookedPlate</Text>
+            <AuthBrand />
 
             <View style={styles.sheet}>
               <View style={styles.modeRow}>
-                <TouchableOpacity
+                <GlassPressable
                   style={[styles.modeButton, mode === 'password' && styles.modeButtonOn]}
                   onPress={() => setMode('password')}
                   accessibilityRole="button"
@@ -94,8 +94,8 @@ export default function RecoverScreen() {
                     color={mode === 'password' ? AuthColors.ink : AuthColors.ink}
                   />
                   <Text style={[styles.modeText, mode === 'password' && styles.modeTextOn]}>Reset password</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
+                </GlassPressable>
+                <GlassPressable
                   style={[styles.modeButton, mode === 'reactivate' && styles.modeButtonOn]}
                   onPress={() => setMode('reactivate')}
                   accessibilityRole="button"
@@ -103,12 +103,12 @@ export default function RecoverScreen() {
                 >
                   <Ionicons name="refresh-outline" size={18} color={AuthColors.ink} />
                   <Text style={[styles.modeText, mode === 'reactivate' && styles.modeTextOn]}>Reactivate</Text>
-                </TouchableOpacity>
+                </GlassPressable>
               </View>
 
               <View style={styles.panel}>
                 <Text style={styles.panelTitle}>
-                  {mode === 'password' ? 'Forgot password' : 'Reactivate account'}
+                  {mode === 'password' ? 'Forgot Password' : 'Reactivate Account'}
                 </Text>
                 <Text style={styles.help}>
                   {mode === 'password'
@@ -135,9 +135,9 @@ export default function RecoverScreen() {
                   loading={loading}
                   testID="recover-submit"
                 />
-                <TouchableOpacity onPress={() => router.replace('/(auth)/login')} style={styles.loginLink}>
+                <GlassPressable onPress={() => router.replace('/(auth)/login')} style={styles.loginLink}>
                   <Text style={styles.loginLinkText}>Back to sign in</Text>
-                </TouchableOpacity>
+                </GlassPressable>
               </View>
             </View>
           </ScrollView>

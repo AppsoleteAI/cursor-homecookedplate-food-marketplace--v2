@@ -6,7 +6,7 @@
  * - File size limits per upload context
  * - Embedded metadata prompt injection (EXIF APP1/COM, PNG tEXt/iTXt chunks)
  * - Trailing data appended after the image end marker (steganographic payload risk)
- * - NSFW content moderation via Cloudflare Workers AI (optional, graceful degradation)
+ * - NSFW content moderation via Cloudflare Workers AI (required; the upload is refused if it cannot be scanned)
  *
  * Designed for Cloudflare Workers — zero Node.js dependencies.
  */
@@ -237,35 +237,133 @@ export async function scanImage(
     }
   }
 
-  // 4. NSFW moderation via Cloudflare Workers AI (LLaVA vision model)
-  //    Optional — if AI binding is unavailable, uploads proceed with a flag.
-  //    Only scan images under 4 MB to stay within Workers CPU time limits.
-  if (ai && buf.length <= 4 * 1024 * 1024) {
-    try {
-      const result = await ai.run('@cf/llava-1.5-7b-hf', {
-        image: base64Data,
-        prompt:
-          'This image is from a home-cooked food marketplace. Does it contain nudity, sexual content, graphic violence, gore, or any content inappropriate for a general audience? Answer with ONE word only: SAFE or UNSAFE.',
-        max_tokens: 5,
-      });
-      const verdict = ((result?.response as string) ?? '').trim().toUpperCase();
-      if (verdict.startsWith('UNSAFE')) {
-        return {
-          allowed: false,
-          detectedMime,
-          flags: [...flags, 'NSFW_DETECTED'],
-          reason: 'Image was flagged as inappropriate by content moderation',
-        };
-      }
-      flags.push('NSFW_SCANNED_SAFE');
-    } catch {
-      // AI unavailable (cold start, timeout, quota) — allow upload but record the gap
-      flags.push('NSFW_SCAN_UNAVAILABLE');
+  // 4. NSFW moderation via Cloudflare Workers AI (LLaVA vision model).
+  //    Refuse the file when the scanner is missing, errors, or the image is over 4 MB.
+  if (!ai) {
+    return {
+      allowed: false,
+      detectedMime,
+      flags: [...flags, 'NSFW_SCAN_UNAVAILABLE'],
+      reason: 'Image could not be scanned',
+    };
+  }
+  if (buf.length > 4 * 1024 * 1024) {
+    return {
+      allowed: false,
+      detectedMime,
+      flags: [...flags, 'NSFW_SCAN_SKIPPED_LARGE'],
+      reason: 'Image is over 4 MB and was not scanned',
+    };
+  }
+  try {
+    const result = await ai.run('@cf/llava-1.5-7b-hf', {
+      image: base64Data,
+      prompt:
+        'This image is from a home-cooked food marketplace. Does it contain nudity, sexual content, graphic violence, gore, or any content inappropriate for a general audience? Answer with ONE word only: SAFE or UNSAFE.',
+      max_tokens: 5,
+    });
+    const verdict = ((result?.response as string) ?? '').trim().toUpperCase();
+    if (verdict.startsWith('UNSAFE')) {
+      return {
+        allowed: false,
+        detectedMime,
+        flags: [...flags, 'NSFW_DETECTED'],
+        reason: 'Image was flagged as inappropriate by content moderation',
+      };
     }
-  } else if (ai && buf.length > 4 * 1024 * 1024) {
-    // Image too large for AI scan within Workers CPU budget
-    flags.push('NSFW_SCAN_SKIPPED_LARGE');
+    flags.push('NSFW_SCANNED_SAFE');
+  } catch {
+    return {
+      allowed: false,
+      detectedMime,
+      flags: [...flags, 'NSFW_SCAN_UNAVAILABLE'],
+      reason: 'Image could not be scanned',
+    };
   }
 
   return { allowed: true, detectedMime, flags };
+}
+
+const MP4_BRANDS = new Set(['mp42', 'isom', 'iso2', 'avc1', 'mp41', 'M4V ', 'MSNV']);
+
+export interface VideoScanResult {
+  allowed: boolean;
+  flags: string[];
+  reason?: string;
+}
+
+function asciiRuns(buf: Uint8Array): string[] {
+  const runs: string[] = [];
+  let current = '';
+  const consider = (index: number) => {
+    const byte = buf[index];
+    if (byte >= 32 && byte <= 126) {
+      current += String.fromCharCode(byte);
+      return;
+    }
+    if (current.length >= 8) runs.push(current);
+    current = '';
+  };
+  const head = Math.min(buf.length, 256 * 1024);
+  for (let i = 0; i < head; i += 1) consider(i);
+  if (current.length >= 8) runs.push(current);
+  current = '';
+  const tailStart = Math.max(head, buf.length - 256 * 1024);
+  for (let i = tailStart; i < buf.length; i += 1) consider(i);
+  if (current.length >= 8) runs.push(current);
+  return runs;
+}
+
+/**
+ * Scans an uploaded video container. Refuses anything that is not MP4 or QuickTime,
+ * anything over 50 MB, and any container whose metadata contains injection text.
+ */
+export function scanVideo(arrayBuffer: ArrayBufferLike, declaredMimeType: string): VideoScanResult {
+  const buf = new Uint8Array(arrayBuffer);
+  const maxBytes = 50 * 1024 * 1024;
+  if (buf.length < 12 || buf.length > maxBytes) {
+    return {
+      allowed: false,
+      flags: ['VIDEO_SIZE'],
+      reason: 'Video must be a container between 12 bytes and 50 MB',
+    };
+  }
+
+  const box = String.fromCharCode(buf[4], buf[5], buf[6], buf[7]);
+  const brand = String.fromCharCode(buf[8], buf[9], buf[10], buf[11]);
+  if (box !== 'ftyp') {
+    return {
+      allowed: false,
+      flags: ['VIDEO_INVALID_FORMAT'],
+      reason: 'File header is not a video container',
+    };
+  }
+
+  const declared = declaredMimeType.toLowerCase();
+  const quicktime = brand === 'qt  ';
+  const mp4 = MP4_BRANDS.has(brand);
+  if (declared === 'video/quicktime' && !quicktime) {
+    return { allowed: false, flags: ['VIDEO_MIME_MISMATCH'], reason: 'File is not a QuickTime video' };
+  }
+  if (declared === 'video/mp4' && !mp4) {
+    return { allowed: false, flags: ['VIDEO_MIME_MISMATCH'], reason: 'File is not an MP4 video' };
+  }
+  if (!quicktime && !mp4) {
+    return { allowed: false, flags: ['VIDEO_UNSUPPORTED'], reason: 'Only MP4 and QuickTime videos can be uploaded' };
+  }
+  if (declared !== 'video/mp4' && declared !== 'video/quicktime') {
+    return { allowed: false, flags: ['VIDEO_MIME_MISMATCH'], reason: 'Video type must be MP4 or QuickTime' };
+  }
+
+  for (const text of asciiRuns(buf)) {
+    if (containsInjection(text)) {
+      return {
+        allowed: false,
+        flags: ['PROMPT_INJECTION_IN_VIDEO'],
+        reason: 'Video metadata contains disallowed text',
+      };
+    }
+  }
+
+  return { allowed: true, flags: ['VIDEO_CONTAINER_SCANNED'] };
 }

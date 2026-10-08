@@ -4,12 +4,12 @@ import {
   Text,
   StyleSheet,
   Modal,
-  TouchableOpacity,
   Alert,
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/colors';
+import { GlassPressable } from '@/components/glass-surface';
 
 interface OrderRefundModalProps {
   visible: boolean;
@@ -73,9 +73,9 @@ export const OrderRefundModal: React.FC<OrderRefundModalProps> = ({
         <View style={styles.modal}>
           <View style={styles.header}>
             <Text style={styles.title}>Refund Order</Text>
-            <TouchableOpacity onPress={onClose} disabled={isProcessing}>
+            <GlassPressable onPress={onClose} disabled={isProcessing}>
               <Ionicons name="close" size={24} color={Colors.gray[600]} />
-            </TouchableOpacity>
+            </GlassPressable>
           </View>
 
           <Text style={styles.mealName}>{mealName}</Text>
@@ -112,14 +112,14 @@ export const OrderRefundModal: React.FC<OrderRefundModalProps> = ({
           </View>
 
           <View style={styles.actions}>
-            <TouchableOpacity
+            <GlassPressable
               style={[styles.button, styles.cancelButton]}
               onPress={onClose}
               disabled={isProcessing}
             >
               <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
+            </GlassPressable>
+            <GlassPressable
               style={[styles.button, styles.refundButton, isProcessing && styles.buttonDisabled]}
               onPress={handleConfirm}
               disabled={isProcessing}
@@ -129,7 +129,7 @@ export const OrderRefundModal: React.FC<OrderRefundModalProps> = ({
               ) : (
                 <Text style={styles.refundButtonText}>Process Refund</Text>
               )}
-            </TouchableOpacity>
+            </GlassPressable>
           </View>
         </View>
       </View>

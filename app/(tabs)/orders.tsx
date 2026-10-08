@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { BuyerOnly } from '@/components/RoleGuard';
 import {
   View,
@@ -6,11 +7,10 @@ import {
   StyleSheet,
   ScrollView,
   Image,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { Colors, monoGradients } from '@/constants/colors';
+import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -126,9 +126,9 @@ export default function OrdersScreen() {
     return (
       <View style={[styles.container, styles.errorContainer]}>
         <Text style={styles.errorText}>Failed to load orders: {error.message}</Text>
-        <TouchableOpacity onPress={() => refetch()} style={styles.retryButton}>
+        <GlassPressable onPress={() => refetch()} style={styles.retryButton}>
           <Text style={styles.retryButtonText}>Try Again</Text>
-        </TouchableOpacity>
+        </GlassPressable>
       </View>
     );
   }
@@ -194,7 +194,7 @@ export default function OrdersScreen() {
                     </Text>
                   )}
                   <View style={styles.actionButtons}>
-                    <TouchableOpacity
+                    <GlassPressable
                       onPress={() => handleToggleFavorite(order)}
                       style={styles.favoriteButton}
                     >
@@ -203,8 +203,8 @@ export default function OrdersScreen() {
                         size={20}
                         color={isFavorite(order.mealId) ? Colors.gradient.red : Colors.gray[600]}
                       />
-                    </TouchableOpacity>
-                    <TouchableOpacity
+                    </GlassPressable>
+                    <GlassPressable
                       onPress={() => handleReorder(order)}
                       disabled={reorderingMealId === order.mealId}
                       style={[
@@ -224,7 +224,7 @@ export default function OrdersScreen() {
                           <Text style={styles.reorderText}>Re-order</Text>
                         </LinearGradient>
                       )}
-                    </TouchableOpacity>
+                    </GlassPressable>
                   </View>
                 </View>
                 <View style={styles.priceContainer}>
@@ -253,7 +253,7 @@ export default function OrdersScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: pagePastel.gold,
   },
   loadingContainer: {
     justifyContent: 'center',
@@ -303,11 +303,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    ...glassSurface,
   },
   header: {
     paddingHorizontal: 24,

@@ -1,5 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native';
+import { View, Text, StyleSheet, Switch } from 'react-native';
+import { titleCase } from '@/lib/title-case';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router, type Href } from 'expo-router';
 import { FoodTruckScreen } from '@/components/food-truck/FoodTruckScreen';
 import { Colors } from '@/constants/colors';
@@ -47,34 +49,34 @@ export default function TruckSellerScreen() {
         )}
         {!permitCheck.ok ? <Text style={styles.block}>{permitCheck.blocks[0]}</Text> : <Text style={styles.ok}>Permit record is complete enough to list.</Text>}
       </View>
-      <TouchableOpacity style={styles.button} onPress={() => router.push('/food-truck-popup/permit' as Href)} testID="seller-permit">
-        <Text style={styles.buttonText}>Permit, commissary, and fee</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.secondary} onPress={() => router.push('/food-truck-popup/list' as Href)} testID="seller-list">
-        <Text style={styles.secondaryText}>Add a menu item</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.secondary} onPress={() => router.push('/kitchen-rules' as Href)}>
-        <Text style={styles.secondaryText}>Kitchen rules and commissary notes</Text>
-      </TouchableOpacity>
+      <GlassPressable style={styles.button} onPress={() => router.push('/food-truck-popup/permit' as Href)} testID="seller-permit">
+        <Text style={styles.buttonText}>Permit, Commissary, and Fee</Text>
+      </GlassPressable>
+      <GlassPressable style={styles.secondary} onPress={() => router.push('/food-truck-popup/list' as Href)} testID="seller-list">
+        <Text style={styles.secondaryText}>Add a Menu Item</Text>
+      </GlassPressable>
+      <GlassPressable style={styles.secondary} onPress={() => router.push('/kitchen-rules' as Href)}>
+        <Text style={styles.secondaryText}>Kitchen Rules and Commissary Notes</Text>
+      </GlassPressable>
       {user?.role === 'platemaker' ? (
-        <TouchableOpacity style={styles.secondary} onPress={() => router.push('/(tabs)/dashboard')}>
-          <Text style={styles.secondaryText}>Plate maker dashboard</Text>
-        </TouchableOpacity>
+        <GlassPressable style={styles.secondary} onPress={() => router.push('/(tabs)/dashboard')}>
+          <Text style={styles.secondaryText}>Plate Maker Dashboard</Text>
+        </GlassPressable>
       ) : null}
       <Text style={styles.section}>Your menu</Text>
       {listings.length === 0 ? <Text style={styles.meta}>Nothing listed yet.</Text> : null}
       {listings.map((item) => (
-        <TouchableOpacity key={item.id} style={styles.card} onPress={() => router.push(`/food-truck-popup/item/${item.id}` as Href)}>
-          <Text style={styles.itemName}>{item.name}</Text>
+        <GlassPressable key={item.id} style={styles.card} onPress={() => router.push(`/food-truck-popup/item/${item.id}` as Href)}>
+          <Text style={styles.itemName}>{titleCase(item.name)}</Text>
           <Text style={styles.meta}>${item.price.toFixed(2)} · {ownerActive ? 'On the board' : 'Hidden while the window is closed'}</Text>
-        </TouchableOpacity>
+        </GlassPressable>
       ))}
     </FoodTruckScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: Colors.white, borderRadius: 14, padding: 14, marginBottom: 10 },
+  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 14, padding: 14, marginBottom: 10  },
   label: { color: Colors.gray[500], fontSize: 13 },
   value: { fontSize: 28, fontWeight: '700', color: Colors.gray[900], marginTop: 4 },
   itemName: { fontWeight: '700', color: Colors.gray[900] },
@@ -82,9 +84,9 @@ const styles = StyleSheet.create({
   block: { color: '#9A3412', marginTop: 8, lineHeight: 20 },
   ok: { color: '#166534', marginTop: 8, fontWeight: '600' },
   activeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  button: { backgroundColor: '#C2410C', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginBottom: 8 },
+  button: { ...glassSurface, backgroundColor: '#C2410C', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginBottom: 8  },
   buttonText: { color: Colors.white, fontWeight: '700' },
-  secondary: { backgroundColor: Colors.white, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginBottom: 8 },
+  secondary: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginBottom: 8  },
   secondaryText: { color: '#C2410C', fontWeight: '700' },
   section: { marginTop: 8, marginBottom: 8, fontWeight: '700', color: Colors.gray[900] },
 });

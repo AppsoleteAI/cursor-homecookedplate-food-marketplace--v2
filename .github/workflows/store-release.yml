@@ -1,0 +1,43 @@
+name: Store release
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Store platform
+        required: true
+        type: choice
+        options:
+          - ios
+          - android
+
+jobs:
+  hardening:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run hardening checks
+        run: npx jest backend/lib/__tests__/hardening.test.ts backend/lib/__tests__/launch-guards.test.ts --watchman=false
+
+  store:
+    needs: hardening
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Start a store build
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
+        run: |
+          test -n "$EXPO_TOKEN"
+          npx --yes eas-cli build --non-interactive --platform "${{ inputs.platform }}" --profile production --no-wait

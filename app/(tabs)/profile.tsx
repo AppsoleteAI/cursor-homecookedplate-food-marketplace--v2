@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   Image,
   Alert,
   Platform,
@@ -12,12 +11,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router , type Href } from 'expo-router';
-import { Colors, monoGradients } from '@/constants/colors';
+import { Colors, monoGradients, pagePastel } from '@/constants/colors';
+import { screenName } from '@/lib/title-case';
 import { useAuth } from '@/hooks/auth-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MembershipPromoBanner } from '@/components/MembershipPromoBanner';
 import * as WebBrowser from 'expo-web-browser';
 import { trpc } from '@/lib/trpc';
+import { GlassPressable } from '@/components/glass-surface';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
@@ -82,6 +83,12 @@ export default function ProfileScreen() {
       subtitle: membershipTier === 'premium' ? 'Premium Member' : 'Free Member',
     },
     {
+      icon: 'videocam-outline',
+      title: 'FoodReviewClips',
+      subtitle: '9:16 food clips · smile, heart, star',
+      onPress: () => router.push('/food-review-clips' as Href),
+    },
+    {
       icon: 'person-outline',
       title: 'Edit Profile',
       onPress: () => router.push('/edit-profile'),
@@ -101,10 +108,16 @@ export default function ProfileScreen() {
       title: 'Legal & Safety',
       onPress: () => router.push('/legal'),
     },
+    {
+      icon: 'thermometer-outline',
+      title: 'Food Handling',
+      subtitle: 'Clean, separate, cook, and chill',
+      onPress: () => router.push('/food-handling' as Href),
+    },
     ...(user?.role === 'platemaker'
       ? [{
           icon: 'restaurant-outline' as const,
-          title: 'Kitchen rules',
+          title: 'Kitchen Rules',
           onPress: () => router.push('/kitchen-rules' as Href),
         }]
       : []),
@@ -156,7 +169,7 @@ export default function ProfileScreen() {
             source={{ uri: (user?.profileImage ?? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400') }}
             style={styles.avatar}
           />
-          <Text style={styles.name}>{user?.username || 'Guest User'}</Text>
+          <Text style={styles.name}>{screenName(user?.username)}</Text>
           <Text style={styles.email}>{user?.email || 'guest@example.com'}</Text>
           <View style={[styles.roleTag, { 
             backgroundColor: user?.role === 'platemaker' ? Colors.gradient.green : Colors.gradient.yellow,
@@ -190,7 +203,7 @@ export default function ProfileScreen() {
 
         <View style={styles.menuContainer}>
           {menuItems.map((item, index) => (
-            <TouchableOpacity
+            <GlassPressable
               key={index}
               style={styles.menuItem}
               onPress={item.onPress}
@@ -200,7 +213,7 @@ export default function ProfileScreen() {
                 <Text style={styles.menuItemText}>{item.title}</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={Colors.gray[400]} />
-            </TouchableOpacity>
+            </GlassPressable>
           ))}
         </View>
 
@@ -242,7 +255,7 @@ export default function ProfileScreen() {
                   </Text>
                 </View>
                 {!user.foodSafetyAcknowledged && (
-                  <TouchableOpacity
+                  <GlassPressable
                     style={styles.acknowledgmentButton}
                     onPress={() => handleAcknowledgmentUpdate(true)}
                     disabled={updateProfileMutation.isPending}
@@ -250,7 +263,7 @@ export default function ProfileScreen() {
                     <Text style={styles.acknowledgmentButtonText}>
                       {updateProfileMutation.isPending ? 'Updating...' : 'Acknowledge Now'}
                     </Text>
-                  </TouchableOpacity>
+                  </GlassPressable>
                 )}
               </View>
               <View style={styles.acknowledgmentDisclaimerBox}>
@@ -262,10 +275,10 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        <TouchableOpacity testID="logout-button" style={styles.logoutButton} onPress={handleLogout}>
+        <GlassPressable testID="logout-button" style={styles.logoutButton} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={20} color={Colors.gradient.red} />
           <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+        </GlassPressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -274,7 +287,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: pagePastel.gold,
   },
   header: {
     alignItems: 'center',

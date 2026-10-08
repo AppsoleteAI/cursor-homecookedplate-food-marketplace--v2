@@ -7,7 +7,7 @@ export const checkUsernameProcedure = publicProcedure
   .query(async ({ input, ctx }) => {
     try {
       // Check if username exists in profiles table
-      const { data, error } = await ctx.supabase
+      const { data, error } = await ctx.supabaseAdmin
         .from('profiles')
         .select('id')
         .eq('username', input.username.toLowerCase().trim())

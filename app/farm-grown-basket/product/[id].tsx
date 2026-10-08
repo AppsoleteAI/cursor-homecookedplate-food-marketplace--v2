@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
+import { titleCase } from '@/lib/title-case';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, useLocalSearchParams , type Href } from 'expo-router';
 import { FarmScreen } from '@/components/farm/FarmScreen';
 import { Colors } from '@/constants/colors';
@@ -46,9 +48,9 @@ export default function FarmProductScreen() {
       <Text style={styles.track}>{trackLabel(track)} · {stateName(stateCode)}</Text>
       <Text style={styles.body}>{summary}</Text>
       {farm ? (
-        <TouchableOpacity onPress={() => router.push(`/farm-grown-basket/farm/${farm.id}` as Href)}>
-          <Text style={styles.link}>Visit {farm.name}</Text>
-        </TouchableOpacity>
+        <GlassPressable onPress={() => router.push(`/farm-grown-basket/farm/${farm.id}` as Href)}>
+          <Text style={styles.link}>Visit {titleCase(farm.name)}</Text>
+        </GlassPressable>
       ) : null}
       <View style={styles.panel}>
         {isMaker ? (
@@ -67,15 +69,15 @@ export default function FarmProductScreen() {
         ) : null}
       </View>
       <View style={styles.qtyRow}>
-        <TouchableOpacity style={styles.qty} onPress={() => setQuantity((value) => Math.max(1, value - 1))}>
+        <GlassPressable style={styles.qty} onPress={() => setQuantity((value) => Math.max(1, value - 1))}>
           <Text style={styles.qtyText}>−</Text>
-        </TouchableOpacity>
+        </GlassPressable>
         <Text style={styles.qtyValue}>{quantity}</Text>
-        <TouchableOpacity style={styles.qty} onPress={() => setQuantity((value) => Math.min(99, value + 1))}>
+        <GlassPressable style={styles.qty} onPress={() => setQuantity((value) => Math.min(99, value + 1))}>
           <Text style={styles.qtyText}>+</Text>
-        </TouchableOpacity>
+        </GlassPressable>
       </View>
-      <TouchableOpacity
+      <GlassPressable
         style={styles.add}
         testID="add-farm-good"
         onPress={() => {
@@ -83,12 +85,12 @@ export default function FarmProductScreen() {
           setAdded(true);
         }}
       >
-        <Text style={styles.addText}>{added ? 'Added to the farm basket' : 'Add to farm basket'}</Text>
-      </TouchableOpacity>
+        <Text style={styles.addText}>{added ? 'Added to the Farm Basket' : 'Add to Farm Basket'}</Text>
+      </GlassPressable>
       {added ? (
-        <TouchableOpacity onPress={() => router.push('/farm-grown-basket/basket' as Href)}>
-          <Text style={styles.link}>Go to farm basket</Text>
-        </TouchableOpacity>
+        <GlassPressable onPress={() => router.push('/farm-grown-basket/basket' as Href)}>
+          <Text style={styles.link}>Go to Farm Basket</Text>
+        </GlassPressable>
       ) : null}
       <Text style={styles.note}>This does not add a cooked plate to the plate cart.</Text>
     </FarmScreen>
@@ -96,7 +98,7 @@ export default function FarmProductScreen() {
 }
 
 const styles = StyleSheet.create({
-  hero: { width: '100%', height: 200, borderRadius: 16, backgroundColor: Colors.gray[200] },
+  hero: { ...glassSurface, width: '100%', height: 200, borderRadius: 16, backgroundColor: Colors.gray[200]  },
   price: { marginTop: 12, fontSize: 22, fontWeight: '700', color: '#166534' },
   track: { marginTop: 4, color: Colors.gray[600] },
   body: { marginTop: 8, color: Colors.gray[700], lineHeight: 20 },
@@ -106,10 +108,10 @@ const styles = StyleSheet.create({
   label: { marginTop: 10, fontWeight: '700', color: Colors.gray[800] },
   disclaimer: { marginTop: 10, fontWeight: '700', color: '#9A3412', lineHeight: 20 },
   qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 16 },
-  qty: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.white, alignItems: 'center', justifyContent: 'center' },
+  qty: { ...glassSurface, width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.white, alignItems: 'center', justifyContent: 'center'  },
   qtyText: { fontSize: 22, color: Colors.gray[900] },
   qtyValue: { fontSize: 18, fontWeight: '700' },
-  add: { marginTop: 16, backgroundColor: '#166534', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  add: { ...glassSurface, marginTop: 16, backgroundColor: '#166534', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
   addText: { color: Colors.white, fontWeight: '700', fontSize: 16 },
   note: { marginTop: 10, color: Colors.gray[500], fontSize: 13 },
 });

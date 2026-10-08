@@ -1,29 +1,52 @@
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
+import { displayName, loadPublicProfiles } from "../../../../lib/public-profiles";
+import { countAreaMealsWithMedia, isSampleMealId, visibleSampleMeals } from "@/lib/sample-meals";
 
 export const getMealProcedure = publicProcedure
-  .input(z.object({ id: z.string() }))
+  .input(z.object({ id: z.string(), metroArea: z.string().optional() }))
   .query(async ({ input, ctx }) => {
     const { data, error } = await ctx.supabase
       .from('meals')
-      .select(`
-        *,
-        profiles:user_id (
-          username,
-          business_name
-        )
-      `)
+      .select('*')
       .eq('id', input.id)
-      .single();
+      .maybeSingle();
 
-    if (error || !data) {
-      throw new Error('Meal not found');
+    if (!data) {
+      if (!isSampleMealId(input.id)) {
+        throw new Error(error?.message || 'Meal not found');
+      }
+      const realWithMedia = await countAreaMealsWithMedia(ctx.supabase, input.metroArea);
+      const sample = visibleSampleMeals(realWithMedia).find((meal) => meal.id === input.id);
+      if (!sample) throw new Error('Meal not found');
+      return {
+        id: sample.id,
+        plateMakerId: sample.plateMakerId,
+        plateMakerName: sample.plateMakerName,
+        name: sample.name,
+        description: sample.description,
+        price: sample.price,
+        images: sample.images,
+        ingredients: sample.ingredients,
+        cuisine: sample.cuisine,
+        category: sample.category,
+        dietaryOptions: sample.dietaryOptions,
+        preparationTime: sample.preparationTime,
+        available: false,
+        rating: sample.rating,
+        reviewCount: sample.reviewCount,
+        featured: sample.featured,
+        tags: sample.tags,
+        isSample: true,
+      };
     }
+
+    const cooks = await loadPublicProfiles(ctx.supabaseAdmin, [data.user_id]);
 
     return {
       id: data.id,
       plateMakerId: data.user_id,
-      plateMakerName: data.profiles?.business_name || data.profiles?.username || 'Unknown',
+      plateMakerName: displayName(cooks.get(data.user_id)),
       name: data.name,
       description: data.description,
       price: parseFloat(data.price),
@@ -38,5 +61,6 @@ export const getMealProcedure = publicProcedure
       reviewCount: data.review_count,
       featured: data.featured,
       tags: data.tags,
+      isSample: false,
     };
   });

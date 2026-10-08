@@ -79,14 +79,9 @@ Staging URL: `https://plate-marketplace-api-staging.YOUR_SUBDOMAIN.workers.dev`
 
 ## Post-Deployment Configuration
 
-### Update Your App's API Endpoint
+### App API endpoint
 
-Update your frontend environment variable to point to the Cloudflare Worker:
-
-```bash
-# In your .env or Expo environment
-EXPO_PUBLIC_RORK_API_BASE_URL=https://plate-marketplace-api.YOUR_SUBDOMAIN.workers.dev
-```
+The tRPC client in `lib/trpc.ts` is hardcoded to `https://homecookedplate.pages.dev`. Do not set `EXPO_PUBLIC_RORK_API_BASE_URL`. When `https://homecookedplate.com/api/trpc` is live, change that constant in `lib/trpc.ts`.
 
 ### Configure Stripe Webhook
 

@@ -1,20 +1,37 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TextInput, TouchableOpacity, Alert, BackHandler } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, Image, TextInput, Alert, BackHandler } from 'react-native';
+import { titleCase } from '@/lib/title-case';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Colors, monoGradients } from '@/constants/colors';
-import { mockMeals } from '@/mocks/data';
 import StarRating from '@/components/StarRating';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useReviewsContext } from '@/hooks/reviews-context';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/auth-context';
+import { GlassPressable } from '@/components/glass-surface';
+import { trpc } from '@/lib/trpc';
 
 export default function ReviewsScreen() {
   const params = useLocalSearchParams<{ mealId: string; next?: string; initialRating?: string }>();
   const mealId = params.mealId;
-  const meal = useMemo(() => mockMeals.find(m => m.id === mealId), [mealId]);
-  const { addReview, getMealReviews } = useReviewsContext();
   const { user } = useAuth();
+  const mealQuery = trpc.meals.get.useQuery(
+    { id: mealId ?? '', metroArea: user?.metroArea || undefined },
+    { enabled: !!mealId }
+  );
+  const meal = mealQuery.data;
+  const reviewQuery = trpc.reviews.list.useQuery(
+    { mealId: mealId ?? undefined },
+    { enabled: !!mealId }
+  );
+  const buyerOrders = trpc.orders.list.useQuery(
+    { role: 'buyer' },
+    { enabled: !!mealId && user?.role === 'platetaker' }
+  );
+  const createReview = trpc.reviews.create.useMutation({
+    onSuccess: () => {
+      reviewQuery.refetch();
+    },
+  });
   const [rating, setRating] = useState<number>(0);
   const [comment, setComment] = useState<string>('');
   const role: 'platemaker' | 'platetaker' | undefined = (user?.role as any);
@@ -54,10 +71,26 @@ export default function ReviewsScreen() {
       Alert.alert('Select rating', 'Please select a star rating to continue.');
       return;
     }
-    addReview({ mealId: mealId as string, rating, comment, username: user?.username });
-    setRating(0);
-    setComment('');
-    setJustSubmitted(true);
+    const completedOrder = (buyerOrders.data || []).find(
+      (order) => order.mealId === mealId && order.status === 'completed'
+    );
+    if (!completedOrder) {
+      Alert.alert('Order required', 'You can review a plate after that order is completed.');
+      return;
+    }
+    createReview.mutate(
+      { mealId, orderId: completedOrder.id, rating, comment },
+      {
+        onSuccess: () => {
+          setRating(0);
+          setComment('');
+          setJustSubmitted(true);
+        },
+        onError: (error) => {
+          Alert.alert('Review not posted', error.message);
+        },
+      }
+    );
     try {
       if (scrollRef.current) {
         scrollRef.current.scrollTo({ y: 0, animated: true });
@@ -74,14 +107,14 @@ export default function ReviewsScreen() {
       <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={[styles.header]}>
           <Text style={styles.title}>Reviews</Text>
-          {meal && <Text style={styles.subtitle}>{meal.name}</Text>}
+          {meal && <Text style={styles.subtitle}>{titleCase(meal.name)}</Text>}
         </View>
 
         {meal && (
           <View style={styles.mealCard}>
-            <Image source={{ uri: meal.images[0] }} style={styles.mealImage} />
+            <Image source={{ uri: meal.images?.[0] }} style={styles.mealImage} />
             <View style={styles.mealInfo}>
-              <Text style={styles.mealName} numberOfLines={1}>{meal.name}</Text>
+              <Text style={styles.mealName} numberOfLines={1}>{titleCase(meal.name)}</Text>
               <Text style={styles.plateMaker} numberOfLines={1}>{meal.plateMakerName}</Text>
               <StarRating value={Math.round(meal.rating)} baseColor="yellow" size={16} disabled />
             </View>
@@ -90,16 +123,16 @@ export default function ReviewsScreen() {
 
         <Text style={styles.sectionTitle}>What people are saying</Text>
         <View style={styles.list}>
-          {getMealReviews(mealId as string).map(r => (
+          {(reviewQuery.data || []).map(r => (
             <View key={r.id} style={styles.review}>
-              {!!r.avatar && <Image source={{ uri: r.avatar }} style={styles.avatar} />}
+              {!!r.authorImage && <Image source={{ uri: r.authorImage }} style={styles.avatar} />}
               <View style={styles.reviewBody}>
                 <View style={styles.reviewHeader}>
-                  <Text style={styles.user}>{r.user}</Text>
+                  <Text style={styles.user}>{r.authorName}</Text>
                   <StarRating value={r.rating} baseColor="yellow" size={14} disabled />
                 </View>
                 <Text style={styles.comment}>{r.comment}</Text>
-                <Text style={styles.date}>{new Date(r.date).toLocaleDateString()}</Text>
+                <Text style={styles.date}>{new Date(r.createdAt).toLocaleDateString()}</Text>
               </View>
             </View>
           ))}
@@ -120,9 +153,9 @@ export default function ReviewsScreen() {
                 numberOfLines={4}
                 testID="review-input"
               />
-              <TouchableOpacity style={styles.submitButton} onPress={submit} testID="submit-review">
+              <GlassPressable style={styles.submitButton} onPress={submit} testID="submit-review">
                 <Text style={styles.submitText}>Submit Review</Text>
-              </TouchableOpacity>
+              </GlassPressable>
               {justSubmitted && (
                 <View style={styles.successNote} testID="review-success">
                   <Text style={styles.successText}>Thanks! Your review was posted.</Text>

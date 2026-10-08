@@ -28,6 +28,7 @@ import { listReviewsProcedure } from "./routes/reviews/list/route";
 import { uploadMediaProcedure } from "./routes/media/upload/route";
 import { uploadProfileImageProcedure } from "./routes/media/upload-profile/route";
 import { createPaymentIntentProcedure } from "./routes/payments/create-payment-intent/route";
+import { confirmShopPaymentProcedure, createShopCheckoutProcedure } from "./routes/payments/create-shop-checkout/route";
 import { confirmPaymentProcedure } from "./routes/payments/confirm-payment/route";
 import { createConnectAccountProcedure } from "./routes/payments/create-connect-account/route";
 import { getConnectAccountStatusProcedure } from "./routes/payments/get-connect-account-status/route";
@@ -53,6 +54,7 @@ import { promoteToAdminProcedure } from "./routes/admin/promote-to-admin/route";
 import { getMetroAvailabilityProcedure } from "./routes/metro/get-availability/route";
 import { hardwareAuditProcedure } from "./routes/auth/hardware-audit/route";
 import { deleteAccountProcedure } from "./routes/auth/delete-account/route";
+import { setAccountSecurityProcedure } from "./routes/auth/set-account-security/route";
 import { markAsReadyProcedure } from "./routes/platemaker/mark-as-ready/route";
 import { toggleAvailabilityProcedure } from "./routes/platemaker/toggle-availability/route";
 import { getAvailabilityProcedure } from "./routes/platemaker/get-availability/route";
@@ -61,6 +63,12 @@ import { denyOrderProcedure } from "./routes/platemaker/deny-order/route";
 import { refundOrderProcedure } from "./routes/platemaker/refund-order/route";
 import { getIncomingOrdersProcedure } from "./routes/platemaker/get-incoming-orders/route";
 import { getDashboardStatsProcedure } from "./routes/platemaker/get-dashboard-stats/route";
+import { getPayoutStandingProcedure } from "./routes/platemaker/get-payout-standing/route";
+import { sendPayoutAdminMessageProcedure } from "./routes/platemaker/send-payout-admin-message/route";
+import { getPayoutReviewProcedure } from "./routes/admin/get-payout-review/route";
+import { recordResponsibilityProcedure } from "./routes/admin/record-responsibility/route";
+import { replyPayoutMessageProcedure } from "./routes/admin/reply-payout-message/route";
+import { restorePlatemakerSellingProcedure } from "./routes/admin/restore-platemaker-selling/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -88,6 +96,7 @@ export const appRouter = createTRPCRouter({
     checkUsername: checkUsernameProcedure,
     hardwareAudit: hardwareAuditProcedure,
     deleteAccount: deleteAccountProcedure,
+    setAccountSecurity: setAccountSecurityProcedure,
     verifyEmail: verifyEmailProcedure,
     resendVerificationEmail: resendVerificationEmailProcedure,
   }),
@@ -113,6 +122,8 @@ export const appRouter = createTRPCRouter({
   }),
   payments: createTRPCRouter({
     createPaymentIntent: createPaymentIntentProcedure,
+    createShopCheckout: createShopCheckoutProcedure,
+    confirmShopPayment: confirmShopPaymentProcedure,
     confirmPayment: confirmPaymentProcedure,
     createConnectAccount: createConnectAccountProcedure,
     getConnectAccountStatus: getConnectAccountStatusProcedure,
@@ -143,6 +154,10 @@ export const appRouter = createTRPCRouter({
     getCleanupStats: getCleanupStatsProcedure,
     processMediaCleanup: processMediaCleanupProcedure,
     promoteToAdmin: promoteToAdminProcedure,
+    getPayoutReview: getPayoutReviewProcedure,
+    recordResponsibility: recordResponsibilityProcedure,
+    replyPayoutMessage: replyPayoutMessageProcedure,
+    restorePlatemakerSelling: restorePlatemakerSellingProcedure,
   }),
   metro: createTRPCRouter({
     getAvailability: getMetroAvailabilityProcedure,
@@ -156,6 +171,8 @@ export const appRouter = createTRPCRouter({
     denyOrder: denyOrderProcedure,
     refundOrder: refundOrderProcedure,
     getIncomingOrders: getIncomingOrdersProcedure,
+    getPayoutStanding: getPayoutStandingProcedure,
+    sendPayoutAdminMessage: sendPayoutAdminMessageProcedure,
   }),
 });
 

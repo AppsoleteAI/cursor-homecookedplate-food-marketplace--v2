@@ -4,14 +4,13 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   Image,
   Alert,
   RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
-import { Colors, monoGradients } from '@/constants/colors';
+import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/auth-context';
@@ -21,6 +20,7 @@ import { OrderAcceptModal } from '@/components/OrderAcceptModal';
 import { OrderRefundModal } from '@/components/OrderRefundModal';
 import { calculateOrderSplit } from '@/lib/fees';
 import { SkeletonOrdersList } from '@/components/SkeletonOrdersList';
+import { GlassPressable } from '@/components/glass-surface';
 
 /**
  * Active Orders Screen
@@ -151,9 +151,9 @@ export default function ActiveOrdersModal() {
         >
           <View style={styles.headerRow}>
             <Text style={styles.headerTitle}>Incoming Orders</Text>
-            <TouchableOpacity onPress={() => router.back()} testID="close-active-orders">
+            <GlassPressable onPress={() => router.back()} testID="close-active-orders">
               <Text style={styles.closeText}>Close</Text>
-            </TouchableOpacity>
+            </GlassPressable>
           </View>
           <Text style={styles.headerSubtitle}>Manage your orders chronologically</Text>
         </LinearGradient>
@@ -165,9 +165,9 @@ export default function ActiveOrdersModal() {
             <Ionicons name="alert-circle" size={48} color={Colors.error} />
             <Text style={styles.errorText}>Error loading orders</Text>
             <Text style={styles.errorDetail}>{error.message}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={() => refetch()}>
+            <GlassPressable style={styles.retryButton} onPress={() => refetch()}>
               <Text style={styles.retryButtonText}>Retry</Text>
-            </TouchableOpacity>
+            </GlassPressable>
           </View>
         ) : !orders || orders.length === 0 ? (
           <View style={styles.centerContainer}>
@@ -229,7 +229,7 @@ export default function ActiveOrdersModal() {
                 <View style={styles.actions}>
                   {order.status === 'pending' && (
                     <>
-                      <TouchableOpacity
+                      <GlassPressable
                         style={[styles.actionButton, styles.acceptButton]}
                         onPress={() => {
                           setSelectedOrder(order);
@@ -238,26 +238,26 @@ export default function ActiveOrdersModal() {
                       >
                         <Ionicons name="checkmark-circle" size={20} color={Colors.white} />
                         <Text style={styles.actionButtonText}>Accept</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
+                      </GlassPressable>
+                      <GlassPressable
                         style={[styles.actionButton, styles.denyButton]}
                         onPress={() => handleDeny(order)}
                         disabled={denyOrderMutation.isPending}
                       >
                         <Ionicons name="close-circle" size={20} color={Colors.white} />
                         <Text style={styles.actionButtonText}>Deny</Text>
-                      </TouchableOpacity>
+                      </GlassPressable>
                     </>
                   )}
                   {['accepted', 'preparing', 'ready'].includes(order.status) && order.paid && (
-                    <TouchableOpacity
+                    <GlassPressable
                       style={[styles.actionButton, styles.refundButton]}
                       onPress={() => handleRefund(order)}
                       disabled={refundOrderMutation.isPending}
                     >
                       <Ionicons name="return-down-back" size={20} color={Colors.white} />
                       <Text style={styles.actionButtonText}>Refund</Text>
-                    </TouchableOpacity>
+                    </GlassPressable>
                   )}
                 </View>
               </View>
@@ -308,7 +308,7 @@ export default function ActiveOrdersModal() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: pagePastel.green,
   },
   header: {
     paddingHorizontal: 24,

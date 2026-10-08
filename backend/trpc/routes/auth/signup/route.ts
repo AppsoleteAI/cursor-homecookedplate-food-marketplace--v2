@@ -51,7 +51,7 @@ const createSignupProcedure = () => {
         const result = await ctx.supabaseAdmin.auth.admin.createUser({
           email: input.email,
           password: input.password,
-          email_confirm: true,
+          email_confirm: false,
           user_metadata: { username: input.username }
         });
         authData = { user: result.data.user, session: null };

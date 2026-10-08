@@ -1,20 +1,21 @@
 import React, { useMemo, useState, useCallback } from 'react';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { SellerOnly } from '@/components/RoleGuard';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   Image,
   Alert,
   Switch,
+  Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { Colors, monoGradients } from '@/constants/colors';
+import { Colors, inAppHeaderBand, monoGradients, pagePastel } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
 
 
@@ -123,12 +124,12 @@ export default function DashboardScreen() {
   return (
     <SellerOnly>
       <View style={styles.container}>
-        <View style={styles.staticHeader}>
+        <View style={[styles.staticHeader, { top: insets.top }]}>
           <LinearGradient
             colors={monoGradients.green}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            style={[styles.headerGradient, { paddingTop: insets.top }]}
+            style={styles.headerGradient}
             onLayout={(e) => {
               const h = e.nativeEvent.layout.height ?? 0;
               if (h !== headerHeight) {
@@ -147,7 +148,7 @@ export default function DashboardScreen() {
 
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.scrollContent, { paddingTop: headerHeight + 12 }]}
+          contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + headerHeight + 12 }]}
         >
         {/* Show skeleton while loading dashboard stats */}
         {dashboardStats.isLoading && (
@@ -183,22 +184,22 @@ export default function DashboardScreen() {
         </View>
 
         <View style={styles.statsGrid}>
-          <TouchableOpacity style={styles.statCard} testID="card-today-earnings" onPress={() => router.push('/finance/today')}>
+          <GlassPressable style={styles.statCard} testID="card-today-earnings" onPress={() => router.push('/finance/today')}>
             <Ionicons name="cash-outline" size={24} color={Colors.gradient.green} />
             <Text style={styles.statValue}>${stats.todayEarnings.toFixed(2)}</Text>
             <Text style={styles.statLabel}>Today&apos;s Earnings</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.statCard} testID="card-week-earnings" onPress={() => router.push('/finance/periods')}>
+          </GlassPressable>
+          <GlassPressable style={styles.statCard} testID="card-week-earnings" onPress={() => router.push('/finance/periods')}>
             <Ionicons name="trending-up-outline" size={24} color={Colors.gradient.green} />
             <Text style={styles.statValue}>${stats.weekEarnings.toFixed(2)}</Text>
             <Text style={styles.statLabel}>This Week</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.statCard} testID="card-earnings-breakdown" onPress={() => router.push('/finance/earnings')}>
+          </GlassPressable>
+          <GlassPressable style={styles.statCard} testID="card-earnings-breakdown" onPress={() => router.push('/finance/earnings')}>
             <Ionicons name="receipt-outline" size={24} color={Colors.gradient.green} />
             <Text style={styles.statValue}>$</Text>
             <Text style={styles.statLabel}>Earnings Breakdown</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.statCard} testID="card-active-orders" onPress={() => {
+          </GlassPressable>
+          <GlassPressable style={styles.statCard} testID="card-active-orders" onPress={() => {
             try {
               router.push('/active-orders');
             } catch (error) {
@@ -208,15 +209,20 @@ export default function DashboardScreen() {
             <Ionicons name="cube-outline" size={24} color={Colors.gradient.green} />
             <Text style={styles.statValue}>{stats.activeOrders}</Text>
             <Text style={styles.statLabel}>Active Orders</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.statCard} testID="card-reviews" onPress={() => router.push('/reviews-dashboard')}>
+          </GlassPressable>
+          <GlassPressable style={styles.statCard} testID="card-payout-responsibility" onPress={() => router.push('/payout-responsibility' as Href)}>
+            <Ionicons name="time-outline" size={24} color={Colors.gradient.green} />
+            <Text style={styles.statValue}>7d</Text>
+            <Text style={styles.statLabel}>Payout Hold</Text>
+          </GlassPressable>
+          <GlassPressable style={styles.statCard} testID="card-reviews" onPress={() => router.push('/reviews-dashboard')}>
             <Ionicons name="star-outline" size={24} color={Colors.gradient.green} />
             <Text style={styles.statValue}>{stats.totalReviews}</Text>
             <Text style={styles.statLabel}>Reviews</Text>
-          </TouchableOpacity>
+          </GlassPressable>
         </View>
 
-        <TouchableOpacity
+        <GlassPressable
           style={styles.farmStandCard}
           onPress={() => router.push('/farm-grown-basket/seller' as Href)}
           testID="dashboard-farm-stand"
@@ -225,9 +231,9 @@ export default function DashboardScreen() {
           <Text style={styles.farmStandText}>
             List produce, CSA shares, and cottage foods. Farm checkout is separate from cooked plates. Confirm your state rule, test, and permit fee before a farm good goes live.
           </Text>
-        </TouchableOpacity>
+        </GlassPressable>
 
-        <TouchableOpacity
+        <GlassPressable
           style={styles.truckStandCard}
           onPress={() => router.push('/food-truck-popup/seller' as Href)}
           testID="dashboard-food-truck"
@@ -236,9 +242,9 @@ export default function DashboardScreen() {
           <Text style={styles.farmStandText}>
             Mark the service window open, list the truck menu, and take order-ahead pickup. A mobile-unit permit and commissary answer are required before an item goes live.
           </Text>
-        </TouchableOpacity>
+        </GlassPressable>
 
-        <TouchableOpacity
+        <GlassPressable
           style={styles.caterStandCard}
           onPress={() => router.push('/cater-event-deliver/seller' as Href)}
           testID="dashboard-cater-event"
@@ -247,9 +253,31 @@ export default function DashboardScreen() {
           <Text style={styles.farmStandText}>
             List per-person packages, accept group drop-offs, and see catering payouts. A commercial catering license is required before a package goes live.
           </Text>
-        </TouchableOpacity>
+        </GlassPressable>
 
-        <TouchableOpacity
+        <Pressable
+          style={styles.handlingStandCard}
+          onPress={() => router.push('/food-handling' as Href)}
+          testID="dashboard-food-handling"
+        >
+          <Text style={styles.handlingStandTitle}>Food handling</Text>
+          <Text style={styles.handlingStandText}>
+            Clean, separate, cook, and chill. Cold food stays at or below 41°F. Hot food stays at or above 135°F. Poultry is 165°F.
+          </Text>
+        </Pressable>
+
+        <GlassPressable
+          style={styles.clipsStandCard}
+          onPress={() => router.push('/food-review-clips' as Href)}
+          testID="dashboard-food-review-clips"
+        >
+          <Text style={styles.farmStandTitle}>FoodReviewClips</Text>
+          <Text style={styles.farmStandText}>
+            Watch 9:16 POV food clips and react with smile, heart, and star. Premium members can post a 20 second clip.
+          </Text>
+        </GlassPressable>
+
+        <GlassPressable
           style={styles.sitStandCard}
           onPress={() => router.push('/sit-down-delicious/seller' as Href)}
           testID="dashboard-sit-down"
@@ -258,7 +286,18 @@ export default function DashboardScreen() {
           <Text style={styles.farmStandText}>
             Open the dining room, list the menu, and take sit-down or takeout orders. A retail food license for that street address is required before an item goes live.
           </Text>
-        </TouchableOpacity>
+        </GlassPressable>
+
+        <GlassPressable
+          style={styles.prepStandCard}
+          onPress={() => router.push('/meal-prep-go/seller' as Href)}
+          testID="dashboard-meal-prep"
+        >
+          <Text style={styles.farmStandTitle}>MealPrepGo</Text>
+          <Text style={styles.farmStandText}>
+            List a weekly menu of heat-and-eat meals, cook-at-home kits, and add-ons. Save the kitchen record before an item goes live. These orders are separate from single plates.
+          </Text>
+        </GlassPressable>
 
         {user && !user.foodSafetyAcknowledged && (
           <View style={styles.foodSafetyBanner}>
@@ -274,7 +313,7 @@ export default function DashboardScreen() {
               >
                 cottagefoodlaws.com
               </Text>
-              {' '}and do your due diligence to meet all food safety requirements from your local, county, state and federal laws before selling food items. You must acknowledge this requirement before publishing meals.
+              {' '}and do your due diligence to meet all food safety requirements from your local, county, state and federal laws before selling food items. You must acknowledge this requirement before publishing meals. Temperatures, gloves, and containers are on Food handling.
             </Text>
             <Text style={[styles.foodSafetyBannerText, { marginTop: 8, fontSize: 11, fontStyle: 'italic' }]}>
               HomeCookedPlate is not affiliated or in partnership with cottagefoodlaws.com.
@@ -285,12 +324,12 @@ export default function DashboardScreen() {
             >
               Kitchen rules for cooked plates and commissary kitchens
             </Text>
-            <TouchableOpacity
+            <GlassPressable
               style={styles.foodSafetyBannerButton}
               onPress={() => router.push('/(tabs)/profile')}
             >
               <Text style={styles.foodSafetyBannerButtonText}>Acknowledge Now</Text>
-            </TouchableOpacity>
+            </GlassPressable>
           </View>
         )}
 
@@ -301,14 +340,14 @@ export default function DashboardScreen() {
           </Text>
 
           <View style={styles.uploadButtons}>
-            <TouchableOpacity style={styles.uploadButton} onPress={pickImage}>
+            <GlassPressable style={styles.uploadButton} onPress={pickImage}>
               <Ionicons name="cloud-upload-outline" size={24} color={Colors.gradient.green} />
               <Text style={styles.uploadButtonText}>Choose from Gallery</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.uploadButton} onPress={takePhoto}>
+            </GlassPressable>
+            <GlassPressable style={styles.uploadButton} onPress={takePhoto}>
               <Ionicons name="camera-outline" size={24} color={Colors.gradient.green} />
               <Text style={styles.uploadButtonText}>Take Photo</Text>
-            </TouchableOpacity>
+            </GlassPressable>
           </View>
 
           {uploadedImages.length > 0 && (
@@ -330,12 +369,12 @@ export default function DashboardScreen() {
             <Text style={styles.sectionTitle}>Add Expiration Dates</Text>
             <Text style={styles.uploadDescription}>Quickly log freshness for key ingredients</Text>
             <View style={{ flexDirection: 'column', gap: 8, marginTop: 8 }}>
-              <TouchableOpacity style={[styles.expChip, { borderColor: Colors.gray[300] }]} testID="exp-chip-chicken">
+              <GlassPressable style={[styles.expChip, { borderColor: Colors.gray[300] }]} testID="exp-chip-chicken">
                 <Text style={styles.expChipText}>Chicken 2025-10-02</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.expChip, { borderColor: Colors.gray[300] }]} testID="exp-chip-tomatoes">
+              </GlassPressable>
+              <GlassPressable style={[styles.expChip, { borderColor: Colors.gray[300] }]} testID="exp-chip-tomatoes">
                 <Text style={styles.expChipText}>Tomatoes 2025-10-03</Text>
-              </TouchableOpacity>
+              </GlassPressable>
             </View>
             <View style={{ marginTop: 12 }}>
               <GradientButton title="Add Ingredient Freshness" onPress={() => Alert.alert('Add', 'Open ingredient freshness form')} baseColor="green" />
@@ -346,9 +385,9 @@ export default function DashboardScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Active Orders</Text>
-            <TouchableOpacity onPress={refresh}>
+            <GlassPressable onPress={refresh}>
               <Text style={styles.viewAll}>Refresh</Text>
-            </TouchableOpacity>
+            </GlassPressable>
           </View>
 
           {orders.filter(o => o.status !== 'completed').map(order => (
@@ -383,7 +422,7 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: pagePastel.green,
   },
   staticHeader: {
     position: 'absolute',
@@ -393,31 +432,29 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   headerGradient: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingHorizontal: inAppHeaderBand.paddingHorizontal,
+    paddingTop: inAppHeaderBand.paddingTop,
+    paddingBottom: inAppHeaderBand.paddingBottom,
+    minHeight: inAppHeaderBand.minHeight,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    ...glassSurface,
   },
   scrollContent: {
     paddingBottom: 100,
   },
   header: {
-    paddingTop: 16,
-    paddingBottom: 16,
+    paddingTop: 0,
+    paddingBottom: 0,
   },
   title: {
-    fontSize: 28,
+    fontSize: inAppHeaderBand.titleSize,
     fontWeight: '700',
     color: Colors.white,
     marginBottom: 4,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: inAppHeaderBand.subtitleSize,
     color: Colors.white,
     opacity: 0.9,
   },
@@ -489,6 +526,35 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#DDD6FE',
   },
+  handlingStandCard: {
+    marginHorizontal: 24,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: Colors.blue[50],
+    borderWidth: 1,
+    borderColor: Colors.blue[200],
+  },
+  handlingStandTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.blue[700],
+  },
+  handlingStandText: {
+    fontSize: 14,
+    color: Colors.blue[600],
+    marginTop: 6,
+    lineHeight: 20,
+  },
+  clipsStandCard: {
+    marginHorizontal: 24,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+  },
   sitStandCard: {
     marginHorizontal: 24,
     marginBottom: 16,
@@ -497,6 +563,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFBEB',
     borderWidth: 1,
     borderColor: '#FDE68A',
+  },
+  prepStandCard: {
+    marginHorizontal: 24,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#ECFEFF',
+    borderWidth: 1,
+    borderColor: '#A5F3FC',
   },
   uploadSection: {
     marginHorizontal: 24,

@@ -7,24 +7,19 @@ import { supabase } from "./supabase";
 
 export const trpc = createTRPCReact<AppRouter>();
 
-/**
- * Get API base URL from environment variable with fallback to production.
- * Uses EXPO_PUBLIC_RORK_API_BASE_URL if set, otherwise falls back to production URL.
- */
+// Hardcoded Cloudflare Pages host. Do not read EXPO_PUBLIC_RORK_API_BASE_URL;
+// that variable is system-managed and often points at the legacy api.rivet.dev host.
+// Switch this to https://homecookedplate.com only after that domain serves /api/trpc.
+const API_BASE_URL = 'https://homecookedplate.pages.dev';
+
 const getBaseUrl = () => {
-  // Check for environment variable first
-  const envUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
-  
-  // Fallback to production URL if env var not set
-  const baseUrl = envUrl || 'https://homecookedplate.pages.dev';
-  
   if (__DEV__) {
-    console.log("[tRPC] Development mode - Using backend:", baseUrl, envUrl ? "(from env)" : "(fallback)");
-    return baseUrl;
+    console.log("[tRPC] Development mode - Using backend:", API_BASE_URL);
+    return API_BASE_URL;
   }
 
-  console.log("[tRPC] Production build - Using Cloudflare Worker:", baseUrl, envUrl ? "(from env)" : "(fallback)");
-  return baseUrl;
+  console.log("[tRPC] Production build - Using Cloudflare Worker:", API_BASE_URL);
+  return API_BASE_URL;
 };
 
 const baseUrl = getBaseUrl();
@@ -87,10 +82,9 @@ export const trpcClient = trpc.createClient({
               const urlObj = new URL(urlString);
               const path = urlObj.pathname + urlObj.search;
               // Build new URL with configured backend - ensure no double slash
-              const configuredBase = process.env.EXPO_PUBLIC_RORK_API_BASE_URL || 'https://homecookedplate.pages.dev';
-              finalUrl = configuredBase.endsWith('/') && path.startsWith('/')
-                ? `${configuredBase}${path.slice(1)}`
-                : `${configuredBase}${path}`;
+              finalUrl = API_BASE_URL.endsWith('/') && path.startsWith('/')
+                ? `${API_BASE_URL}${path.slice(1)}`
+                : `${API_BASE_URL}${path}`;
               console.warn('[tRPC] ⚠️ Runtime fix: Replacing HTTP URL with HTTPS backend');
               console.warn('[tRPC] Original URL:', urlString);
               console.warn('[tRPC] Fixed URL:', finalUrl);
@@ -99,8 +93,7 @@ export const trpcClient = trpc.createClient({
               // If URL parsing fails, try simple string replacement as fallback
               // Preserve the full path including /api/trpc
               console.warn('[tRPC] URL parsing failed, using string replacement:', urlError);
-              const configuredBase = process.env.EXPO_PUBLIC_RORK_API_BASE_URL || 'https://homecookedplate.pages.dev';
-              finalUrl = urlString.replace(/^http:\/\/[^/]+/, configuredBase);
+              finalUrl = urlString.replace(/^http:\/\/[^/]+/, API_BASE_URL);
               console.warn('[tRPC] Fallback fixed URL:', finalUrl);
             }
           }

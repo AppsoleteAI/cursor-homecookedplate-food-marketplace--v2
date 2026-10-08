@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { BuyerOnly } from '@/components/RoleGuard';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { Colors, monoGradients } from '@/constants/colors';
+import { View, Text, StyleSheet, ScrollView, Image, Alert, ActivityIndicator, Pressable } from 'react-native';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
+import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -73,15 +74,13 @@ export default function BuyerDashboardScreen() {
   };
 
   const contentTopPadding = useMemo(() => {
-    const baseHeaderHeight = 140;
-    const extra = 24;
-    return insets.top + baseHeaderHeight + extra;
+    return insets.top + 76 + 12;
   }, [insets.top]);
 
   return (
     <BuyerOnly>
       <View style={styles.container}>
-        <View style={[styles.headerContainer, { paddingTop: insets.top }]}>
+        <View style={[styles.headerContainer, { top: insets.top }]}>
           <LinearGradient
             colors={monoGradients.red}
             start={{ x: 0, y: 0 }}
@@ -105,7 +104,7 @@ export default function BuyerDashboardScreen() {
             ) : (
             <HorizontalCarousel contentContainerStyle={styles.horizontal}>
               {purchases.map(order => (
-                <TouchableOpacity 
+                <GlassPressable 
                   key={`p-${order.id}`} 
                   style={styles.card}
                   onPress={() => {
@@ -127,7 +126,7 @@ export default function BuyerDashboardScreen() {
                       <Text style={styles.meta}>{order.status}</Text>
                     </View>
                   </View>
-                </TouchableOpacity>
+                </GlassPressable>
               ))}
             </HorizontalCarousel>
             )}
@@ -145,7 +144,7 @@ export default function BuyerDashboardScreen() {
             <HorizontalCarousel contentContainerStyle={styles.horizontal}>
               {favorites.map(m => (
                 <View key={`f-${m.id}`} style={styles.card}>
-                  <TouchableOpacity 
+                  <GlassPressable 
                     onPress={() => {
                       try {
                         router.push(`/meal/${m.id}` as const);
@@ -163,8 +162,8 @@ export default function BuyerDashboardScreen() {
                         <StarRating value={Math.round(m.rating)} baseColor="yellow" size={16} />
                       </View>
                     </View>
-                  </TouchableOpacity>
-                  <TouchableOpacity
+                  </GlassPressable>
+                  <GlassPressable
                     onPress={() => handleReorderFromFavorite(m)}
                     disabled={reorderingMealId === m.id}
                     style={[
@@ -184,7 +183,7 @@ export default function BuyerDashboardScreen() {
                         <Text style={styles.reorderText}>Re-order</Text>
                       </LinearGradient>
                     )}
-                  </TouchableOpacity>
+                  </GlassPressable>
                 </View>
               ))}
             </HorizontalCarousel>
@@ -199,41 +198,68 @@ export default function BuyerDashboardScreen() {
           </View>
         </View>
 
-          <TouchableOpacity
+          <Pressable
+            style={styles.handlingCard}
+            onPress={() => router.push('/food-handling' as Href)}
+            testID="buyer-food-handling"
+          >
+            <Text style={styles.handlingTitle}>Food handling</Text>
+            <Text style={styles.handlingBody}>Cold food at or below 41°F. Hot food at or above 135°F. Refrigerate perishable food within 2 hours, or 1 hour if it is above 90°F outside.</Text>
+          </Pressable>
+
+          <GlassPressable
             style={styles.farmCard}
             onPress={() => router.push('/farm-grown-basket' as Href)}
             testID="buyer-farm-grown-basket"
           >
             <Text style={styles.farmTitle}>FarmGrownBasket</Text>
             <Text style={styles.farmBody}>Produce, eggs, honey, and homemade goods. They do not appear in your plate orders.</Text>
-          </TouchableOpacity>
+          </GlassPressable>
 
-          <TouchableOpacity
+          <GlassPressable
             style={styles.truckCard}
             onPress={() => router.push('/food-truck-popup' as Href)}
             testID="buyer-food-truck-popup"
           >
             <Text style={styles.farmTitle}>FoodTruckPopup</Text>
             <Text style={styles.farmBody}>Order ahead from a truck and pick it up at the window. These tickets are not plate orders.</Text>
-          </TouchableOpacity>
+          </GlassPressable>
 
-          <TouchableOpacity
+          <GlassPressable
             style={styles.caterCard}
             onPress={() => router.push('/cater-event-deliver' as Href)}
             testID="buyer-cater-event-deliver"
           >
             <Text style={styles.farmTitle}>CaterEventDeliver</Text>
             <Text style={styles.farmBody}>Group packages for an office, clinic, or event. The company drops off and sets up. These orders are not plate orders.</Text>
-          </TouchableOpacity>
+          </GlassPressable>
 
-          <TouchableOpacity
+          <GlassPressable
+            style={styles.clipsCard}
+            onPress={() => router.push('/food-review-clips' as Href)}
+            testID="buyer-food-review-clips"
+          >
+            <Text style={styles.farmTitle}>FoodReviewClips</Text>
+            <Text style={styles.farmBody}>Watch 9:16 POV food clips and react with smile, heart, and star. Posting a 20 second clip is for premium members.</Text>
+          </GlassPressable>
+
+          <GlassPressable
             style={styles.sitCard}
             onPress={() => router.push('/sit-down-delicious' as Href)}
             testID="buyer-sit-down-delicious"
           >
             <Text style={styles.farmTitle}>SitDownDelicious</Text>
             <Text style={styles.farmBody}>Independent coffee, yogurt, ice cream, and small restaurants. Sit down or take out. These orders are not plate orders.</Text>
-          </TouchableOpacity>
+          </GlassPressable>
+
+          <GlassPressable
+            style={styles.prepCard}
+            onPress={() => router.push('/meal-prep-go' as Href)}
+            testID="buyer-meal-prep-go"
+          >
+            <Text style={styles.farmTitle}>MealPrepGo</Text>
+            <Text style={styles.farmBody}>A week of heat-and-eat meals, cook-at-home kits, or a mix. These orders are not single plates.</Text>
+          </GlassPressable>
 
           <View style={styles.bottomSpacer} />
         </ScrollView>
@@ -243,19 +269,19 @@ export default function BuyerDashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.white },
+  container: { flex: 1, backgroundColor: pagePastel.red },
   headerContainer: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
-  headerGradient: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8 },
+  headerGradient: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, ...glassSurface },
   scrollContent: { paddingBottom: 80 },
-  header: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24 },
-  title: { fontSize: 28, fontWeight: '700', color: Colors.white, marginBottom: 4 },
-  subtitle: { fontSize: 16, color: Colors.white },
+  header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 18, minHeight: 76 },
+  title: { fontSize: 24, fontWeight: '700', color: Colors.white, marginBottom: 4 },
+  subtitle: { fontSize: 14, color: Colors.white },
   section: { marginBottom: 24 },
   firstSection: { marginTop: 8 },
   sectionTitle: { fontSize: 18, fontWeight: '600', color: Colors.gray[900], marginBottom: 12, paddingHorizontal: 24 },
   horizontal: { paddingHorizontal: 24, gap: 12 },
   card: { width: 200, backgroundColor: Colors.white, borderRadius: 12, overflow: 'hidden', elevation: 1 },
-  cardImage: { width: '100%', height: 120 },
+  cardImage: { width: '100%', height: 120, ...glassSurface },
   cardContent: { padding: 12 },
   cardTitle: { fontSize: 16, fontWeight: '600', color: Colors.gray[900], marginBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -269,6 +295,17 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 16, fontWeight: '600', color: Colors.gray[700], marginTop: 16 },
   emptySubtext: { fontSize: 14, color: Colors.gray[500], marginTop: 8, textAlign: 'center' },
   bottomSpacer: { height: 24 },
+  handlingCard: {
+    marginHorizontal: 24,
+    marginBottom: 16,
+    backgroundColor: Colors.blue[50],
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.blue[200],
+  },
+  handlingTitle: { fontSize: 16, fontWeight: '700', color: Colors.blue[700] },
+  handlingBody: { fontSize: 14, color: Colors.blue[600], marginTop: 6, lineHeight: 20 },
   farmCard: {
     marginHorizontal: 24,
     marginBottom: 16,
@@ -298,6 +335,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#DDD6FE',
   },
+  clipsCard: {
+    marginHorizontal: 24,
+    marginBottom: 16,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+  },
   sitCard: {
     marginHorizontal: 24,
     marginBottom: 16,
@@ -306,6 +352,15 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: '#FDE68A',
+  },
+  prepCard: {
+    marginHorizontal: 24,
+    marginBottom: 16,
+    backgroundColor: '#ECFEFF',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#A5F3FC',
   },
   reorderButton: {
     marginTop: 8,

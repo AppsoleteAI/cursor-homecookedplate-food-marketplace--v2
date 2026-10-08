@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { titleCase } from '@/lib/title-case';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, type Href } from 'expo-router';
 import { SitDownScreen } from '@/components/sit-down/SitDownScreen';
 import { Colors } from '@/constants/colors';
@@ -30,9 +32,9 @@ export default function SitBasketScreen() {
       {lines.length === 0 ? (
         <View>
           <Text style={styles.empty}>No restaurant order yet.</Text>
-          <TouchableOpacity onPress={() => router.push('/sit-down-delicious/places' as Href)}>
-            <Text style={styles.link}>See independent shops</Text>
-          </TouchableOpacity>
+          <GlassPressable onPress={() => router.push('/sit-down-delicious/places' as Href)}>
+            <Text style={styles.link}>See Independent Shops</Text>
+          </GlassPressable>
         </View>
       ) : (
         <View>
@@ -40,23 +42,23 @@ export default function SitBasketScreen() {
           {lines.map((line) => (
             <View key={line.id} style={styles.row}>
               <View style={styles.copy}>
-                <Text style={styles.name}>{line.name}</Text>
+                <Text style={styles.name}>{titleCase(line.name)}</Text>
                 <Text style={styles.meta}>${line.price.toFixed(2)}</Text>
               </View>
               <View style={styles.qty}>
-                <TouchableOpacity onPress={() => setQuantity(line.id, line.quantity - 1)}>
+                <GlassPressable onPress={() => setQuantity(line.id, line.quantity - 1)}>
                   <Text style={styles.qtyText}>−</Text>
-                </TouchableOpacity>
+                </GlassPressable>
                 <Text style={styles.qtyValue}>{line.quantity}</Text>
-                <TouchableOpacity onPress={() => setQuantity(line.id, line.quantity + 1)}>
+                <GlassPressable onPress={() => setQuantity(line.id, line.quantity + 1)}>
                   <Text style={styles.qtyText}>+</Text>
-                </TouchableOpacity>
+                </GlassPressable>
               </View>
             </View>
           ))}
-          <TouchableOpacity onPress={clearItems}>
-            <Text style={styles.link}>Clear this restaurant</Text>
-          </TouchableOpacity>
+          <GlassPressable onPress={clearItems}>
+            <Text style={styles.link}>Clear This Restaurant</Text>
+          </GlassPressable>
         </View>
       )}
       <View style={styles.totals}>
@@ -64,17 +66,17 @@ export default function SitBasketScreen() {
         <Text style={styles.totalLine}>Service fee ${(split.totalCaptured - baseAmount).toFixed(2)}</Text>
         <Text style={styles.totalStrong}>You pay ${split.totalCaptured.toFixed(2)}</Text>
       </View>
-      <TouchableOpacity
+      <GlassPressable
         style={[styles.button, lines.length === 0 && styles.buttonOff]}
         disabled={lines.length === 0}
         onPress={() => router.push('/sit-down-delicious/checkout' as Href)}
         testID="sit-basket-checkout"
       >
-        <Text style={styles.buttonText}>Restaurant checkout</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => router.push('/(tabs)/cart')}>
-        <Text style={styles.link}>Cooked-plate cart</Text>
-      </TouchableOpacity>
+        <Text style={styles.buttonText}>Restaurant Checkout</Text>
+      </GlassPressable>
+      <GlassPressable onPress={() => router.push('/(tabs)/cart')}>
+        <Text style={styles.link}>Cooked-plate Cart</Text>
+      </GlassPressable>
     </SitDownScreen>
   );
 }
@@ -92,7 +94,7 @@ const styles = StyleSheet.create({
   totals: { marginTop: 8, backgroundColor: Colors.white, borderRadius: 14, padding: 14 },
   totalLine: { color: Colors.gray[700], marginBottom: 4 },
   totalStrong: { marginTop: 4, fontSize: 18, fontWeight: '700', color: Colors.gray[900] },
-  button: { marginTop: 14, backgroundColor: '#92400E', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  button: { ...glassSurface, marginTop: 14, backgroundColor: '#92400E', borderRadius: 14, paddingVertical: 14, alignItems: 'center'  },
   buttonOff: { backgroundColor: Colors.gray[400] },
   buttonText: { color: Colors.white, fontWeight: '700' },
   link: { marginTop: 12, color: '#92400E', fontWeight: '700' },

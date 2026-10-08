@@ -1,11 +1,11 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import {
   View,
   Text,
   StyleSheet,
   TextInput,
   ScrollView,
-  TouchableOpacity,
   BackHandler,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,12 +13,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, monoGradients } from '@/constants/colors';
 import { MealCard } from '@/components/MealCard';
-import { mockMeals, cuisineTypes, dietaryOptions } from '@/mocks/data';
+import { cuisineTypes, dietaryOptions } from '@/mocks/data';
+import { trpc } from '@/lib/trpc';
+import { useAuth } from '@/hooks/auth-context';
+import type { Meal } from '@/types';
 import { useRouter, Stack } from 'expo-router';
 
 export default function FunnelScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCuisines, setSelectedCuisines] = useState<string[]>([]);
   const [selectedDietary, setSelectedDietary] = useState<string[]>([]);
@@ -47,14 +51,40 @@ export default function FunnelScreen() {
     return () => backHandler.remove();
   }, [resetFiltersAndGoBack]);
 
+  const { data: mealsData, isLoading } = trpc.meals.list.useQuery({
+    metroArea: user?.metroArea || undefined,
+  });
+  const liveMeals: Meal[] = useMemo(() => {
+    return (mealsData || []).map((meal) => ({
+      id: meal.id,
+      plateMakerId: meal.plateMakerId,
+      plateMakerName: meal.plateMakerName,
+      name: meal.name,
+      description: meal.description,
+      price: meal.price,
+      images: meal.images || [],
+      ingredients: meal.ingredients || [],
+      cuisine: meal.cuisine,
+      category: meal.category as Meal['category'],
+      dietaryOptions: meal.dietaryOptions || [],
+      preparationTime: meal.preparationTime,
+      available: meal.available,
+      rating: meal.rating,
+      reviewCount: meal.reviewCount,
+      featured: meal.featured || false,
+      tags: meal.tags || [],
+      isSample: meal.isSample === true,
+    }));
+  }, [mealsData]);
+
   const categories = useMemo(() => {
-    const mealCategories = Array.from(new Set(mockMeals.map(m => m.category)));
+    const mealCategories = Array.from(new Set(liveMeals.map(m => m.category)));
     const allCategories = [...new Set([...mealCategories, 'breakfast', 'brunch', 'vegan'])];
     return allCategories;
-  }, []);
-  const tags = useMemo(() => Array.from(new Set((mockMeals.flatMap(m => m.tags ?? []) as string[]))), []);
+  }, [liveMeals]);
+  const tags = useMemo(() => Array.from(new Set((liveMeals.flatMap(m => m.tags ?? []) as string[]))), [liveMeals]);
 
-  const filteredMeals = mockMeals.filter(meal => {
+  const filteredMeals = liveMeals.filter(meal => {
     const matchesSearch = meal.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       meal.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCuisine = selectedCuisines.length === 0 || selectedCuisines.includes(meal.cuisine);
@@ -114,23 +144,23 @@ export default function FunnelScreen() {
         >
           <View style={styles.headerInner}>
             <View style={styles.headerTop}>
-              <TouchableOpacity
+              <GlassPressable
                 style={styles.backButton}
                 onPress={resetFiltersAndGoBack}
                 accessibilityRole="button"
                 testID="back-to-search"
               >
                 <Ionicons name="arrow-back" size={24} color={Colors.white} />
-              </TouchableOpacity>
+              </GlassPressable>
               <Text style={styles.title}>Funnel Search</Text>
             </View>
             <View style={styles.headerActions}>
-              <TouchableOpacity onPress={resetFiltersAndGoBack} testID="back-to-search-button">
+              <GlassPressable onPress={resetFiltersAndGoBack} testID="back-to-search-button">
                 <Text style={styles.actionButton}>Back To Search</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={clearFilters} testID="clear-filters">
+              </GlassPressable>
+              <GlassPressable onPress={clearFilters} testID="clear-filters">
                 <Text style={styles.actionButton}>Clear All</Text>
-              </TouchableOpacity>
+              </GlassPressable>
             </View>
           </View>
         </LinearGradient>
@@ -145,14 +175,14 @@ export default function FunnelScreen() {
             <Text style={styles.filterSectionTitle}>Category</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
               {categories.map(cat => (
-                <TouchableOpacity
+                <GlassPressable
                   key={cat}
                   style={[styles.chip, selectedCategories.includes(cat) && styles.chipActive]}
                   onPress={() => toggleCategory(cat)}
                   testID={`chip-category-${cat}`}
                 >
                   <Text style={[styles.chipText, selectedCategories.includes(cat) && styles.chipTextActive]}>{cat}</Text>
-                </TouchableOpacity>
+                </GlassPressable>
               ))}
             </ScrollView>
           </View>
@@ -165,7 +195,7 @@ export default function FunnelScreen() {
               contentContainerStyle={styles.filterChips}
             >
               {cuisineTypes.map(cuisine => (
-                <TouchableOpacity
+                <GlassPressable
                   key={cuisine}
                   style={[
                     styles.chip,
@@ -181,7 +211,7 @@ export default function FunnelScreen() {
                   >
                     {cuisine}
                   </Text>
-                </TouchableOpacity>
+                </GlassPressable>
               ))}
             </ScrollView>
           </View>
@@ -194,7 +224,7 @@ export default function FunnelScreen() {
               contentContainerStyle={styles.filterChips}
             >
               {dietaryOptions.map(option => (
-                <TouchableOpacity
+                <GlassPressable
                   key={option}
                   style={[
                     styles.chip,
@@ -210,7 +240,7 @@ export default function FunnelScreen() {
                   >
                     {option}
                   </Text>
-                </TouchableOpacity>
+                </GlassPressable>
               ))}
             </ScrollView>
           </View>
@@ -249,14 +279,14 @@ export default function FunnelScreen() {
             <Text style={styles.filterSectionTitle}>Minimum rating</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
               {[0,1,2,3,4,5].map(r => (
-                <TouchableOpacity
+                <GlassPressable
                   key={`r-${r}`}
                   style={[styles.chip, minRating === r && styles.chipActive]}
                   onPress={() => setMinRating(r)}
                   testID={`min-rating-${r}`}
                 >
                   <Text style={[styles.chipText, minRating === r && styles.chipTextActive]}>{r === 0 ? 'Any' : `${r}★+`}</Text>
-                </TouchableOpacity>
+                </GlassPressable>
               ))}
             </ScrollView>
           </View>
@@ -265,16 +295,16 @@ export default function FunnelScreen() {
             <Text style={styles.filterSectionTitle}>Tags</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
               {tags.map(tag => (
-                <TouchableOpacity key={tag} style={[styles.chip, selectedTags.includes(tag) && styles.chipActive]} onPress={() => toggleTag(tag)} testID={`chip-tag-${tag}`}>
+                <GlassPressable key={tag} style={[styles.chip, selectedTags.includes(tag) && styles.chipActive]} onPress={() => toggleTag(tag)} testID={`chip-tag-${tag}`}>
                   <Text style={[styles.chipText, selectedTags.includes(tag) && styles.chipTextActive]}>#{tag}</Text>
-                </TouchableOpacity>
+                </GlassPressable>
               ))}
             </ScrollView>
           </View>
         </View>
 
         <Text style={styles.resultCount}>
-          {filteredMeals.length} meals found
+          {isLoading ? 'Loading plates' : `${filteredMeals.length} meals found`}
         </Text>
         <View style={styles.mealGrid}>
           {filteredMeals.map(meal => (
@@ -303,11 +333,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    ...glassSurface,
   },
   headerInner: {
     paddingVertical: 16,
@@ -366,6 +392,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   chip: {
+    ...glassSurface,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,

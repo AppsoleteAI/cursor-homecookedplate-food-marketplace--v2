@@ -3,12 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   ScrollView,
   Modal,
 } from 'react-native';
 import { Colors } from '@/constants/colors';
 import { Calendar, Clock } from 'lucide-react-native';
+import { GlassPressable } from '@/components/glass-surface';
 
 interface ScheduleTimePickerProps {
   value?: Date;
@@ -131,7 +131,7 @@ export function ScheduleTimePicker({
 
   return (
     <>
-      <TouchableOpacity
+      <GlassPressable
         style={styles.trigger}
         onPress={() => setModalVisible(true)}
         testID={testID}
@@ -148,7 +148,7 @@ export function ScheduleTimePicker({
           </View>
           <Calendar size={20} color={Colors.gray[400]} />
         </View>
-      </TouchableOpacity>
+      </GlassPressable>
 
       <Modal
         visible={modalVisible}
@@ -158,15 +158,15 @@ export function ScheduleTimePicker({
       >
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setModalVisible(false)}>
+            <GlassPressable onPress={() => setModalVisible(false)}>
               <Text style={styles.cancelButton}>Cancel</Text>
-            </TouchableOpacity>
+            </GlassPressable>
             <Text style={styles.modalTitle}>Select Pickup Time</Text>
-            <TouchableOpacity onPress={handleConfirm} disabled={!selectedDate}>
+            <GlassPressable onPress={handleConfirm} disabled={!selectedDate}>
               <Text style={[styles.doneButton, !selectedDate && styles.doneButtonDisabled]}>
                 Done
               </Text>
-            </TouchableOpacity>
+            </GlassPressable>
           </View>
 
           <View style={styles.pickerContainer}>
@@ -181,7 +181,7 @@ export function ScheduleTimePicker({
                     date.toDateString() === selectedDate.toDateString();
                   
                   return (
-                    <TouchableOpacity
+                    <GlassPressable
                       key={idx}
                       style={[styles.dateOption, isSelected && styles.dateOptionSelected]}
                       onPress={() => setSelectedDate(date)}
@@ -190,7 +190,7 @@ export function ScheduleTimePicker({
                       <Text style={[styles.dateText, isSelected && styles.dateTextSelected]}>
                         {formatDate(date)}
                       </Text>
-                    </TouchableOpacity>
+                    </GlassPressable>
                   );
                 })}
               </ScrollView>
@@ -213,7 +213,7 @@ export function ScheduleTimePicker({
                         time.getTime() === selectedDate.getTime();
                       
                       return (
-                        <TouchableOpacity
+                        <GlassPressable
                           key={idx}
                           style={[styles.timeOption, isSelected && styles.timeOptionSelected]}
                           onPress={() => setSelectedDate(time)}
@@ -222,7 +222,7 @@ export function ScheduleTimePicker({
                           <Text style={[styles.timeText, isSelected && styles.timeTextSelected]}>
                             {formatTime(time)}
                           </Text>
-                        </TouchableOpacity>
+                        </GlassPressable>
                       );
                     })
                   )}

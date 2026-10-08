@@ -52,15 +52,8 @@ CREATE POLICY "users_can_view_own_transactions" ON public.transactions
     buyer_id = auth.uid() OR seller_id = auth.uid()
   );
 
--- Policy: Service role can insert transactions (for webhook processing)
-CREATE POLICY "service_role_can_insert_transactions" ON public.transactions
-  FOR INSERT
-  WITH CHECK (true); -- Service role bypasses RLS
-
--- Policy: Service role can update transactions (for status updates)
-CREATE POLICY "service_role_can_update_transactions" ON public.transactions
-  FOR UPDATE
-  USING (true); -- Service role bypasses RLS
+-- The service role bypasses RLS, so it does not need an insert or update policy.
+-- A WITH CHECK (true) policy would let every signed-in user write ledger rows.
 
 COMMENT ON TABLE public.transactions IS 'Financial records for all successful Stripe payments. Tracks 20% take rate (double-sided 10% fee) with full fee breakdowns.';
 COMMENT ON COLUMN public.transactions.base_price IS 'Base meal price before fees';

@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { BuyerOnly } from '@/components/RoleGuard';
+import { FoodHandlingLink } from '@/components/FoodHandlingLink';
+import { BUYER_AFTER_NOTE } from '@/lib/buyer-safety';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Alert,
-  TouchableOpacity,
   Dimensions,
   Platform,
   TextInput,
@@ -24,10 +26,11 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/hooks/auth-context';
-import { Colors, monoGradients } from '@/constants/colors';
+import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { trpc } from '@/lib/trpc';
 import { useCart } from '@/hooks/cart-context';
 import { calculateOrderSplit } from '@/lib/fees';
+import { isSampleMealId } from '@/lib/sample-meals';
 import { CartItem } from '@/types';
 
 import { ScheduleTimePicker } from '@/components/ScheduleTimePicker';
@@ -263,6 +266,7 @@ export default function CheckoutScreen() {
   const checkoutSplit = calculateOrderSplit(totalPrice || 0);
   const { user } = useAuth();
   const [accepted, setAccepted] = useState<boolean>(false);
+  const [feesAcknowledged, setFeesAcknowledged] = useState<boolean>(false);
   const [showThankYou, setShowThankYou] = useState<boolean>(false);
   const [playConfetti, setPlayConfetti] = useState<boolean>(false);
   const [headerHeight, setHeaderHeight] = useState<number>(0);
@@ -284,6 +288,10 @@ export default function CheckoutScreen() {
 
   const handlePayment = async () => {
     try {
+      if (!feesAcknowledged) {
+        Alert.alert('Non-refundable fees', 'Acknowledge both non-refundable 10% fees before entering payment details.');
+        return;
+      }
       if (Platform.OS === 'web') {
         Alert.alert('Not Available', 'Payment is only available on mobile devices. Please use the mobile app.');
         return;
@@ -319,6 +327,12 @@ export default function CheckoutScreen() {
       const firstSellerId = sellerIds[0];
       const sellerItems = itemsBySeller[firstSellerId];
       const sellerTotal = sellerItems.reduce((sum, item) => sum + item.meal.price * item.quantity, 0);
+
+      if (sellerItems.some((item) => item.meal.isSample || isSampleMealId(item.meal.id))) {
+        Alert.alert('Sample plate', 'Sample plates are not for sale.');
+        setProcessing(false);
+        return;
+      }
 
       if (sellerIds.length > 1) {
         Alert.alert(
@@ -443,13 +457,13 @@ export default function CheckoutScreen() {
             <View style={styles.headerTop}>
               <View style={styles.thankYouSection}>
                 <Text style={styles.thankYouMessage}>Thank You. Enjoy Your Plate</Text>
-                <TouchableOpacity
+                <GlassPressable
                   onPress={() => router.replace('/(tabs)/cart')}
                   style={styles.backToCartButton}
                   testID="back-to-cart"
                 >
                   <Text style={styles.backToCartText}>Back To Cart</Text>
-                </TouchableOpacity>
+                </GlassPressable>
               </View>
             </View>
           </LinearGradient>
@@ -470,8 +484,12 @@ export default function CheckoutScreen() {
                 <Text style={styles.paymentInfo}>${totalPrice.toFixed(2)}</Text>
               </View>
               <View style={styles.paymentRow}>
-                <Text style={styles.paymentLabel}>Service fee (10%)</Text>
-                <Text style={styles.paymentInfo}>${(checkoutSplit.totalCaptured - totalPrice).toFixed(2)}</Text>
+                <Text style={styles.paymentLabel}>Your 10% fee, non-refundable</Text>
+                <Text style={styles.paymentInfo}>${checkoutSplit.buyerFee.toFixed(2)}</Text>
+              </View>
+              <View style={styles.paymentRow}>
+                <Text style={styles.paymentLabel}>Cook 10% fee, non-refundable</Text>
+                <Text style={styles.paymentInfo}>${checkoutSplit.sellerFee.toFixed(2)}</Text>
               </View>
               <View style={styles.paymentRow}>
                 <Text style={styles.paymentLabel}>You pay</Text>
@@ -484,21 +502,31 @@ export default function CheckoutScreen() {
                   <Text style={styles.paymentAmount}>${checkoutSplit.totalCaptured.toFixed(2)}</Text>
                 </LinearGradient>
               </View>
-              <Text style={styles.paymentInfo}>Pickup from your cook. Stripe charges the total above, which includes the 10% service fee.</Text>
+              <Text style={styles.paymentInfo}>HomeCookedPlate keeps both non-refundable 10% fees. A refund returns the cook&apos;s share only. These fees are not returned.</Text>
+              <GlassPressable
+                onPress={() => setFeesAcknowledged((prev) => !prev)}
+                style={[styles.checkboxRow, feesAcknowledged ? styles.checkboxRowActive : undefined]}
+                testID="fee-acknowledgement"
+              >
+                <View style={[styles.checkbox, feesAcknowledged ? styles.checkboxChecked : undefined]} />
+                <Text style={styles.checkboxLabel}>I understand HomeCookedPlate keeps both non-refundable 10% fees</Text>
+              </GlassPressable>
+              <Text style={styles.paymentInfo}>Pickup from your cook. Stripe charges the total above after this acknowledgement.</Text>
               <Text style={styles.paymentInfo}>Meet in a public place during daylight. Do not exchange phone numbers in the app. A prepaid delivery is brought by the cook with someone else along.</Text>
-              <Text style={styles.paymentInfo}>Eat the food promptly. Hot food should still be hot, and cold food still cold, when you get it.</Text>
-              <TouchableOpacity onPress={() => router.push('/farm-grown-basket/checkout' as Href)} testID="checkout-farm-link">
+              <Text style={styles.paymentInfo}>{BUYER_AFTER_NOTE}</Text>
+              <FoodHandlingLink />
+              <GlassPressable onPress={() => router.push('/farm-grown-basket/checkout' as Href)} testID="checkout-farm-link">
                 <Text style={styles.farmCheckoutLink}>Farm goods check out in FarmGrownBasket. They are not in this plate order.</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => router.push('/food-truck-popup/checkout' as Href)} testID="checkout-truck-link">
+              </GlassPressable>
+              <GlassPressable onPress={() => router.push('/food-truck-popup/checkout' as Href)} testID="checkout-truck-link">
                 <Text style={styles.farmCheckoutLink}>Food truck order-ahead checks out in FoodTruckPopup. Pickup is at the service window.</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => router.push('/cater-event-deliver/checkout' as Href)} testID="checkout-cater-link">
+              </GlassPressable>
+              <GlassPressable onPress={() => router.push('/cater-event-deliver/checkout' as Href)} testID="checkout-cater-link">
                 <Text style={styles.farmCheckoutLink}>Group catering checks out in CaterEventDeliver. The company drops off and sets up.</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => router.push('/sit-down-delicious/checkout' as Href)} testID="checkout-sit-link">
+              </GlassPressable>
+              <GlassPressable onPress={() => router.push('/sit-down-delicious/checkout' as Href)} testID="checkout-sit-link">
                 <Text style={styles.farmCheckoutLink}>Independent restaurants check out in SitDownDelicious. Sit down or take out at the shop.</Text>
-              </TouchableOpacity>
+              </GlassPressable>
             </View>
           </View>
 
@@ -534,7 +562,7 @@ export default function CheckoutScreen() {
                   <Text style={styles.inputLabel}>Cooking Temperature</Text>
                   <TextInput
                     style={styles.textInput}
-                    placeholder="e.g., Medium rare, Well done..."
+                    placeholder="Preference only, such as medium. Poultry still needs 165°F."
                     placeholderTextColor={Colors.gray[400]}
                     value={item.cookingTemperature || ''}
                     onChangeText={(text) => updateCookingTemperature(item.meal.id, text)}
@@ -570,23 +598,23 @@ export default function CheckoutScreen() {
             <Text style={styles.waiverText}>
               By using and ordering from our PlateMakers on HomeCookedPlate, you agree to not exchange phone numbers or personal information via online food exchanges or during app ordering / communications. You personally accept all responsibility if you give any other person your personal information through the HomeCookedPlate app or any other Appsolete affiliated portal. You waive any right to hold HomeCookedPlate app or any other Appsolete affiliated portal liable for any in-person meetings you conduct while utilizing this app.
             </Text>
-            <TouchableOpacity
+            <GlassPressable
               onPress={() => setAccepted(prev => !prev)}
               style={[styles.checkboxRow, accepted ? styles.checkboxRowActive : undefined]}
               testID="waiver-accept"
             >
               <View style={[styles.checkbox, accepted ? styles.checkboxChecked : undefined]} />
               <Text style={styles.checkboxLabel}>I have read and accept the liability waiver</Text>
-            </TouchableOpacity>
+            </GlassPressable>
           </View>
         </View>
       </ScrollView>
 
         <View style={styles.footer} onLayout={(e) => setFooterHeight(e.nativeEvent.layout.height)}>
-          <TouchableOpacity
+          <GlassPressable
             onPress={handlePayment}
-            disabled={!accepted || showThankYou || processing}
-            style={[styles.placeOrderButton, (!accepted || showThankYou || processing) && styles.placeOrderButtonDisabled]}
+            disabled={!accepted || !feesAcknowledged || showThankYou || processing}
+            style={[styles.placeOrderButton, (!accepted || !feesAcknowledged || showThankYou || processing) && styles.placeOrderButtonDisabled]}
             testID="place-order"
           >
             <LinearGradient
@@ -599,7 +627,7 @@ export default function CheckoutScreen() {
                 {showThankYou ? 'Order Placed' : processing ? 'Processing...' : 'Place Order'}
               </Text>
             </LinearGradient>
-          </TouchableOpacity>
+          </GlassPressable>
         </View>
       </View>
     </BuyerOnly>
@@ -609,7 +637,7 @@ export default function CheckoutScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: pagePastel.green,
   },
   content: {
     padding: 24,
@@ -727,11 +755,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    ...glassSurface,
   },
   headerTop: {
     minHeight: 96,
@@ -761,11 +785,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 24,
     borderRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    ...glassSurface,
   },
   thanksInner: {
     paddingTop: 16,

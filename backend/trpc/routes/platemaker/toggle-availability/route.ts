@@ -40,6 +40,19 @@ export const toggleAvailabilityProcedure = protectedProcedure
       });
     }
 
+    const { data: removalRow } = await ctx.supabaseAdmin
+      .from('profiles')
+      .select('selling_removed, selling_removed_reason')
+      .eq('id', ctx.userId)
+      .single();
+
+    if (removalRow?.selling_removed && input.available) {
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: removalRow.selling_removed_reason || 'Selling is removed until an admin restores it',
+      });
+    }
+
     // Update availability status
     const { data, error } = await ctx.supabase
       .from('profiles')

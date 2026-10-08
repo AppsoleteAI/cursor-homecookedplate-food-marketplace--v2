@@ -1,16 +1,16 @@
 import React, { useMemo, useState } from 'react';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import { Colors, monoGradients } from '@/constants/colors';
+import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { cuisineTypes, dietaryOptions } from '@/mocks/data';
 import { trpc } from '@/lib/trpc';
 import type { Meal } from '@/types';
@@ -73,7 +73,9 @@ export default function FilterScreen() {
     setMaxPrice('100');
   };
 
-  const { data: mealsData, isLoading } = trpc.meals.list.useQuery();
+  const { data: mealsData, isLoading } = trpc.meals.list.useQuery({
+    metroArea: user?.metroArea || undefined,
+  });
   const liveMeals: Meal[] = useMemo(() => {
     return (mealsData || []).map((meal) => ({
       id: meal.id,
@@ -93,6 +95,7 @@ export default function FilterScreen() {
       reviewCount: meal.reviewCount,
       featured: meal.featured || false,
       tags: meal.tags || [],
+      isSample: meal.isSample === true,
     }));
   }, [mealsData]);
 
@@ -164,14 +167,14 @@ export default function FilterScreen() {
           <View style={styles.headerContent}>
             <Text style={styles.title}>Filter Search</Text>
             <View style={styles.headerButtons}>
-              <TouchableOpacity
+              <GlassPressable
                 style={styles.backButton}
                 onPress={() => router.back()}
                 testID="back-to-search"
               >
                 <Text style={styles.headerButtonText}>Back To Search</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </GlassPressable>
+              <GlassPressable
                 style={styles.clearButton}
                 onPress={clearAll}
                 testID="clear-all"
@@ -179,7 +182,7 @@ export default function FilterScreen() {
                 accessibilityLabel="Reset filters"
               >
                 <Ionicons name="refresh" size={20} color={Colors.white} />
-              </TouchableOpacity>
+              </GlassPressable>
             </View>
           </View>
         </LinearGradient>
@@ -194,7 +197,7 @@ export default function FilterScreen() {
           <Text style={styles.sectionTitle}>Category</Text>
           <HorizontalCarousel contentContainerStyle={styles.cuisineScroll} testID="category-carousel">
             {categories.map(category => (
-              <TouchableOpacity
+              <GlassPressable
                 key={category}
                 style={[
                   styles.cuisineChip,
@@ -211,7 +214,7 @@ export default function FilterScreen() {
                 >
                   {category.charAt(0).toUpperCase() + category.slice(1)}
                 </Text>
-              </TouchableOpacity>
+              </GlassPressable>
             ))}
           </HorizontalCarousel>
         </View>
@@ -220,7 +223,7 @@ export default function FilterScreen() {
           <Text style={styles.sectionTitle}>Cuisine</Text>
           <HorizontalCarousel contentContainerStyle={styles.cuisineScroll} testID="cuisine-carousel">
             {cuisineTypes.map(cuisine => (
-              <TouchableOpacity
+              <GlassPressable
                 key={cuisine}
                 style={[
                   styles.cuisineChip,
@@ -237,7 +240,7 @@ export default function FilterScreen() {
                 >
                   {cuisine}
                 </Text>
-              </TouchableOpacity>
+              </GlassPressable>
             ))}
           </HorizontalCarousel>
         </View>
@@ -246,7 +249,7 @@ export default function FilterScreen() {
           <Text style={styles.sectionTitle}>Dietary</Text>
           <HorizontalCarousel contentContainerStyle={styles.cuisineScroll} testID="dietary-carousel">
             {dietaryOptions.map(dietary => (
-              <TouchableOpacity
+              <GlassPressable
                 key={dietary}
                 style={[
                   styles.chip,
@@ -263,7 +266,7 @@ export default function FilterScreen() {
                 >
                   {dietary}
                 </Text>
-              </TouchableOpacity>
+              </GlassPressable>
             ))}
           </HorizontalCarousel>
         </View>
@@ -302,7 +305,7 @@ export default function FilterScreen() {
           <Text style={styles.sectionTitle}>Minimum rating</Text>
           <View style={styles.chipContainer}>
             {ratings.map(rating => (
-              <TouchableOpacity
+              <GlassPressable
                 key={rating}
                 style={[
                   styles.chip,
@@ -319,7 +322,7 @@ export default function FilterScreen() {
                 >
                   {rating}
                 </Text>
-              </TouchableOpacity>
+              </GlassPressable>
             ))}
           </View>
         </View>
@@ -328,7 +331,7 @@ export default function FilterScreen() {
           <Text style={styles.sectionTitle}>Tags</Text>
           <HorizontalCarousel contentContainerStyle={styles.cuisineScroll} testID="tags-carousel">
             {tags.map(tag => (
-              <TouchableOpacity
+              <GlassPressable
                 key={tag}
                 style={[
                   styles.chip,
@@ -345,7 +348,7 @@ export default function FilterScreen() {
                 >
                   {tag}
                 </Text>
-              </TouchableOpacity>
+              </GlassPressable>
             ))}
           </HorizontalCarousel>
         </View>
@@ -362,7 +365,7 @@ export default function FilterScreen() {
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]} testID="filter-footer-menu">
         {footerItems.map(item => (
-          <TouchableOpacity
+          <GlassPressable
             key={item.key}
             style={styles.footerItem}
             onPress={() => {
@@ -384,7 +387,7 @@ export default function FilterScreen() {
               ) : null}
             </View>
             <Text style={styles.footerLabel}>{item.label}</Text>
-          </TouchableOpacity>
+          </GlassPressable>
         ))}
       </View>
     </View>
@@ -394,7 +397,7 @@ export default function FilterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: pagePastel.orange,
   },
   headerBackground: {
     width: '100%',
@@ -409,11 +412,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    ...glassSurface,
   },
   headerContent: {
     paddingTop: 16,
@@ -479,6 +478,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   chip: {
+    ...glassSurface,
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 20,
