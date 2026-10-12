@@ -12,14 +12,20 @@ html, body, * {
   width: 10px;
   height: 10px;
   background: transparent;
+  background-color: transparent;
 }
 *::-webkit-scrollbar-track,
 *::-webkit-scrollbar-track-piece,
 *::-webkit-scrollbar-corner {
   background: transparent;
+  background-color: transparent;
+  box-shadow: none;
+  border: none;
 }
 *::-webkit-scrollbar-thumb {
   background-color: var(--scrollbar-thumb, ${AuthColors.brand});
+  background-clip: padding-box;
+  border: 2px solid transparent;
   border-radius: 999px;
 }
 `;

@@ -45,8 +45,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [session, setSession] = useState<Session | null>(null);
   const mountedRef = useRef<boolean>(true);
-  const navigationPendingRef = useRef<boolean>(false);
-  const lastNavigationTimeRef = useRef<number>(0);
 
   const loginMutation = trpc.auth.login.useMutation();
   const signupMutation = trpc.auth.signup.useMutation();
@@ -57,7 +55,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const reactivateAccountMutation = trpc.auth.reactivateAccount.useMutation();
   const deleteAccountMutation = trpc.auth.deleteAccount.useMutation();
   const setAccountSecurityMutation = trpc.auth.setAccountSecurity.useMutation();
-  const { data: meData, refetch: refetchMe } = trpc.auth.me.useQuery(undefined, {
+  const { data: meData, error: meError, refetch: refetchMe } = trpc.auth.me.useQuery(undefined, {
     enabled: !!session,
     retry: false,
   });
@@ -256,23 +254,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           addBreadcrumb('Supabase auth SIGNED_IN', 'auth', { 
             userId: nextSession.user?.id,
           });
-          
-          // Navigation guard: Prevent rapid successive navigation calls
-          const now = Date.now();
-          const timeSinceLastNav = now - lastNavigationTimeRef.current;
-          if (!navigationPendingRef.current && timeSinceLastNav > 300) {
-            navigationPendingRef.current = true;
-            lastNavigationTimeRef.current = now;
-            
-            // Navigate to root to trigger navigation lock
-            // app/index.tsx will handle routing based on user role
-            router.replace('/');
-            
-            // Reset navigation guard after a delay
-            setTimeout(() => {
-              navigationPendingRef.current = false;
-            }, 500);
-          }
         }
 
         // Handle email confirmation: USER_UPDATED fires when user confirms email via Supabase
@@ -286,23 +267,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
             userId: nextSession.user?.id,
             emailConfirmed: !!nextSession.user?.email_confirmed_at,
           });
-          
-          // Navigation guard: Prevent rapid successive navigation calls
-          const now = Date.now();
-          const timeSinceLastNav = now - lastNavigationTimeRef.current;
-          if (!navigationPendingRef.current && timeSinceLastNav > 300) {
-            navigationPendingRef.current = true;
-            lastNavigationTimeRef.current = now;
-            
-            // Navigate to root to trigger navigation lock
-            // This ensures the app "wakes up" and routes user correctly after email confirmation
-            router.replace('/');
-            
-            // Reset navigation guard after a delay
-            setTimeout(() => {
-              navigationPendingRef.current = false;
-            }, 500);
-          }
         }
 
         // Handle password recovery: PASSWORD_RECOVERY fires when user clicks reset link
@@ -345,6 +309,15 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       subscription.unsubscribe();
     };
   }, [persistSession, persistUser, refetchMe]);
+
+  useEffect(() => {
+    if (!meError) return;
+    console.error('[auth.me] Failed:', meError);
+    captureException(
+      meError instanceof Error ? meError : new Error('auth.me failed'),
+      { context: 'auth.me' },
+    );
+  }, [meError]);
 
   useEffect(() => {
     if (meData?.orderingRemoved && mountedRef.current) {

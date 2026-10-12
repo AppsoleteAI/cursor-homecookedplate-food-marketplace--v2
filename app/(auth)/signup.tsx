@@ -123,47 +123,29 @@ export default function SignupScreen() {
               <Text style={styles.roleLabel}>I want to:</Text>
               <View style={styles.roleButtons}>
                 <GlassPressable
-                  style={[
-                    styles.roleButton,
-                    formData.role === 'platetaker' && styles.roleButtonActive,
-                    formData.role === 'platetaker' && styles.roleButtonActivePlatetaker,
-                  ]}
+                  style={styles.roleButton}
                   onPress={() => setFormData({ ...formData, role: 'platetaker' })}
                 >
                   <Ionicons
                     name="bag-outline"
                     size={20}
-                    color={formData.role === 'platetaker' ? AuthColors.ink : AuthColors.maroon}
+                    color={AuthColors.maroon}
                   />
-                  <Text
-                    style={[
-                      styles.roleButtonText,
-                      formData.role === 'platetaker' && styles.roleButtonTextActive,
-                    ]}
-                  >
+                  <Text style={styles.roleButtonText}>
                     Order Food
                   </Text>
                 </GlassPressable>
 
                 <GlassPressable
-                  style={[
-                    styles.roleButton,
-                    formData.role === 'platemaker' && styles.roleButtonActive,
-                    formData.role === 'platemaker' && styles.roleButtonActivePlatemaker,
-                  ]}
+                  style={styles.roleButton}
                   onPress={() => setFormData({ ...formData, role: 'platemaker' })}
                 >
                   <Ionicons
                     name="restaurant-outline"
                     size={20}
-                    color={formData.role === 'platemaker' ? AuthColors.ink : AuthColors.maroon}
+                    color={AuthColors.maroon}
                   />
-                  <Text
-                    style={[
-                      styles.roleButtonText,
-                      formData.role === 'platemaker' && styles.roleButtonTextActive,
-                    ]}
-                  >
+                  <Text style={styles.roleButtonText}>
                     Sell Food
                   </Text>
                 </GlassPressable>
@@ -484,22 +466,10 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(72, 16, 30, 0.35)',
     backgroundColor: AuthColors.card,
   },
-  roleButtonActive: {
-    borderColor: 'transparent',
-  },
-  roleButtonActivePlatetaker: {
-    backgroundColor: AuthColors.button,
-  },
-  roleButtonActivePlatemaker: {
-    backgroundColor: AuthColors.button,
-  },
   roleButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: AuthColors.maroon,
-  },
-  roleButtonTextActive: {
-    color: AuthColors.ink,
   },
   membershipContainer: {
     marginBottom: 24,

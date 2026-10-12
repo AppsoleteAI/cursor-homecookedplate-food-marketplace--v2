@@ -180,8 +180,9 @@ export default function LoginScreen() {
             keyboardShouldPersistTaps="handled"
           >
             {router.canGoBack() ? <AuthBackButton onPress={() => router.back()} /> : null}
-            <AuthBrand toSignIn={false} />
-            <OrderHoursSlogan style={{ color: AuthColors.ink, marginBottom: 12 }} />
+            <View style={styles.brandSlot}>
+              <AuthBrand toSignIn={false} />
+            </View>
 
             <View style={styles.doors}>
               <GlassPressable
@@ -220,6 +221,7 @@ export default function LoginScreen() {
                 </View>
               </GlassPressable>
             </View>
+            <OrderHoursSlogan style={styles.slogan} />
 
             <View style={styles.sheet}>
               <GlassPressable
@@ -402,11 +404,19 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 28,
   },
+  brandSlot: {
+    paddingHorizontal: 20,
+  },
   doors: {
     flexDirection: 'row',
     gap: 12,
     paddingHorizontal: 20,
+  },
+  slogan: {
+    color: AuthColors.ink,
+    marginTop: 16,
     marginBottom: 16,
+    paddingHorizontal: 20,
   },
   door: {
     flex: 1,

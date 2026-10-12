@@ -42,7 +42,7 @@ export const AuthColors = {
 
 /**
  * Honey Fade.
- * Top 10% is a darker honey gold. From there the screen keeps the honey fade,
+ * Top 20% is a darker honey gold. From there the screen keeps the honey fade,
  * and the light pastel is held through the bottom edge.
  */
 export const authGradient = [
@@ -55,7 +55,7 @@ export const authGradient = [
   AuthColors.gradientBottom,
 ] as const;
 
-export const authGradientLocations = [0, 0.1, 0.22, 0.48, 0.74, 0.86, 1] as const;
+export const authGradientLocations = [0, 0.2, 0.32, 0.48, 0.74, 0.86, 1] as const;
 
 /**
  * Dark mode pre-app. Not mounted.

@@ -123,6 +123,10 @@ export default function TabLayout() {
         options={{ href: null }}
       />
       <Tabs.Screen
+        name="admin/alerts"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
         name="panic-dashboard"
         options={{ href: null }}
       />

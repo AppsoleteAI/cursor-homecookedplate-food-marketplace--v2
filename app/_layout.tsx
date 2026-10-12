@@ -101,16 +101,9 @@ function AppProviders({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Conditional provider wrapper - must be inside AuthProvider to access useAuth()
+// App providers stay mounted for logged-out sessions.
+// Screens such as the tab layout call useCart() before sign-in.
 function ConditionalAppProviders({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
-  
-  // Only mount app providers after authentication
-  // This reduces initial render cost from ~8 providers to just 1 (AuthProvider)
-  if (!isAuthenticated) {
-    return <>{children}</>;
-  }
-  
   return <AppProviders>{children}</AppProviders>;
 }
 
@@ -180,32 +173,6 @@ function RootLayout() {
             require('@/assets/images/adaptive-icon.png'),
           ]),
           // Navigation key detection happens automatically via useRootNavigationState
-        ]);
-        navLogger.stateChange('app/_layout.tsx:ASSETS_PRELOADED', 'assets_ready', undefined, {
-          platform: Platform.OS,
-        });
-      } catch (error) {
-        console.warn('[Asset Preload] Failed:', error);
-        if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
-          captureException(error as Error, { context: 'AssetPreload' });
-        }
-        // Fail gracefully - allow app to continue even if assets fail
-      }
-    }
-    prepare();
-  }, [isWeb]);
-
-  // Phase 1: Preload critical assets before layout mounts (mobile only)
-  useEffect(() => {
-    if (isWeb) return; // Web doesn't need asset preloading
-    
-    async function prepare() {
-      try {
-        // Preload critical assets (splash icon, app icon, adaptive icon)
-        await Asset.loadAsync([
-          require('@/assets/images/splash-icon.png'),
-          require('@/assets/images/icon.png'),
-          require('@/assets/images/adaptive-icon.png'),
         ]);
         navLogger.stateChange('app/_layout.tsx:ASSETS_PRELOADED', 'assets_ready', undefined, {
           platform: Platform.OS,
@@ -292,7 +259,10 @@ function RootLayout() {
       });
     }
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1A0F0A' }}>
+      <View
+        style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1A0F0A' }}
+        onLayout={onLayoutRootView}
+      >
         <ActivityIndicator size="large" color="#ffffff" />
       </View>
     );

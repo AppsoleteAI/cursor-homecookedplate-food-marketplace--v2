@@ -82,9 +82,10 @@ export function AuthBrand({ toSignIn = true }: { toSignIn?: boolean }) {
       <Text style={[styles.brandWord, brandDepth as TextStyle]}>HomeCookedPlate</Text>
     </View>
   );
-  if (!toSignIn) return mark;
+  if (!toSignIn) return <View style={styles.brandHit}>{mark}</View>;
   return (
     <Pressable
+      style={styles.brandHit}
       onPress={() => router.push('/(auth)/login')}
       accessibilityRole="link"
       accessibilityLabel="HomeCookedPlate, back to sign in"
@@ -147,10 +148,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'flex-start',
   },
+  brandHit: {
+    alignSelf: 'stretch',
+    width: '100%',
+  },
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    alignSelf: 'stretch',
+    width: '100%',
     gap: 8,
     marginBottom: 16,
   },
@@ -200,7 +207,7 @@ const styles = StyleSheet.create({
     left: 0,
   },
   buttonDisabled: {
-    opacity: 0.55,
+    opacity: 1,
   },
   label: {
     ...preAppFont,

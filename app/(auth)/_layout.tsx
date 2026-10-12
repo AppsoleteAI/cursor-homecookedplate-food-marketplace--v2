@@ -50,6 +50,13 @@ export default function AuthLayout() {
           gestureEnabled: true,
         }} 
       />
+      <Stack.Screen
+        name="hardware-mismatch"
+        options={{
+          headerShown: false,
+          gestureEnabled: false,
+        }}
+      />
     </Stack>
   );
 }
