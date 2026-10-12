@@ -18,6 +18,41 @@ export interface CloudflareAI {
   run(model: string, input: Record<string, unknown>): Promise<{ response?: string }>;
 }
 
+export interface MediaFrameBinding {
+  input(source: Blob | ReadableStream): {
+    transform(options: { width: number }): {
+      output(options: { mode: 'frame'; time: string; format: 'jpg' }): {
+        response(): Promise<Response>;
+      };
+    };
+  };
+}
+
+export interface VideoFrameMedia {
+  frame(video: Uint8Array, time: string): Promise<Uint8Array>;
+}
+
+const NSFW_PROMPT =
+  'This image is from a home-cooked food marketplace. Does it contain nudity, sexual content, graphic violence, gore, or any content inappropriate for a general audience? Answer with ONE word only: SAFE or UNSAFE.';
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+async function nsfwVerdict(ai: CloudflareAI, image: string): Promise<string> {
+  const result = await ai.run('@cf/llava-1.5-7b-hf', {
+    image,
+    prompt: NSFW_PROMPT,
+    max_tokens: 5,
+  });
+  return ((result?.response as string) ?? '').trim().toUpperCase();
+}
+
 export interface ImageScanResult {
   allowed: boolean;
   detectedMime: SupportedMime | null;
@@ -256,13 +291,7 @@ export async function scanImage(
     };
   }
   try {
-    const result = await ai.run('@cf/llava-1.5-7b-hf', {
-      image: base64Data,
-      prompt:
-        'This image is from a home-cooked food marketplace. Does it contain nudity, sexual content, graphic violence, gore, or any content inappropriate for a general audience? Answer with ONE word only: SAFE or UNSAFE.',
-      max_tokens: 5,
-    });
-    const verdict = ((result?.response as string) ?? '').trim().toUpperCase();
+    const verdict = await nsfwVerdict(ai, base64Data);
     if (verdict.startsWith('UNSAFE')) {
       return {
         allowed: false,
@@ -314,11 +343,108 @@ function asciiRuns(buf: Uint8Array): string[] {
   return runs;
 }
 
+function readU32(buf: Uint8Array, offset: number): number {
+  return ((buf[offset] << 24) | (buf[offset + 1] << 16) | (buf[offset + 2] << 8) | buf[offset + 3]) >>> 0;
+}
+
+function readU64(buf: Uint8Array, offset: number): number {
+  return readU32(buf, offset) * 2 ** 32 + readU32(buf, offset + 4);
+}
+
+function childBox(
+  buf: Uint8Array,
+  start: number,
+  end: number,
+  type: string,
+): { start: number; end: number } | null {
+  let i = start;
+  while (i + 8 <= end) {
+    let size = readU32(buf, i);
+    const boxType = String.fromCharCode(buf[i + 4], buf[i + 5], buf[i + 6], buf[i + 7]);
+    let header = 8;
+    if (size === 1) {
+      if (i + 16 > end) return null;
+      size = readU64(buf, i + 8);
+      header = 16;
+    } else if (size === 0) {
+      size = end - i;
+    }
+    if (size < header || i + size > end) return null;
+    if (boxType === type) return { start: i + header, end: i + size };
+    i += size;
+  }
+  return null;
+}
+
+function videoDurationSeconds(buf: Uint8Array): number | null {
+  const moov = childBox(buf, 0, buf.length, 'moov');
+  if (!moov) return null;
+  const mvhd = childBox(buf, moov.start, moov.end, 'mvhd');
+  if (!mvhd) return null;
+  const payload = mvhd.start;
+  if (payload >= buf.length) return null;
+  const version = buf[payload];
+  let timescale = 0;
+  let duration = 0;
+  if (version === 0) {
+    if (payload + 20 > mvhd.end) return null;
+    timescale = readU32(buf, payload + 12);
+    duration = readU32(buf, payload + 16);
+  } else if (version === 1) {
+    if (payload + 32 > mvhd.end) return null;
+    timescale = readU32(buf, payload + 20);
+    duration = readU64(buf, payload + 24);
+  } else {
+    return null;
+  }
+  if (timescale <= 0) return null;
+  return duration / timescale;
+}
+
+function sampleTimes(durationSeconds: number | null): string[] {
+  if (durationSeconds == null || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    return ['0s'];
+  }
+  const points = [0];
+  if (durationSeconds >= 1.5) points.push(durationSeconds / 2);
+  if (durationSeconds >= 3) points.push(Math.min(durationSeconds * 0.8, durationSeconds - 0.25));
+  return [...new Set(points.map((point) => `${Math.max(0, Math.floor(point))}s`))];
+}
+
+export function mediaFrameSource(binding: MediaFrameBinding): VideoFrameMedia {
+  return {
+    async frame(video, time) {
+      const copy = new ArrayBuffer(video.byteLength);
+      new Uint8Array(copy).set(video);
+      const response = await binding
+        .input(new Blob([copy]).stream())
+        .transform({ width: 480 })
+        .output({ mode: 'frame', time, format: 'jpg' })
+        .response();
+      if (!response.ok) {
+        throw new Error('Frame extract failed');
+      }
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (bytes.length < 3 || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff) {
+        throw new Error('Frame extract did not return a JPEG');
+      }
+      return bytes;
+    },
+  };
+}
+
 /**
- * Scans an uploaded video container. Refuses anything that is not MP4 or QuickTime,
- * anything over 50 MB, and any container whose metadata contains injection text.
+ * Scans an uploaded video container, then still frames from it.
+ * Refuses anything that is not MP4 or QuickTime, anything over 50 MB,
+ * any container whose metadata contains injection text, and any file whose
+ * frame scan is missing, errors, or flags a frame.
  */
-export function scanVideo(arrayBuffer: ArrayBufferLike, declaredMimeType: string): VideoScanResult {
+export async function scanVideo(
+  arrayBuffer: ArrayBufferLike,
+  declaredMimeType: string,
+  ai?: CloudflareAI,
+  media?: VideoFrameMedia,
+): Promise<VideoScanResult> {
   const buf = new Uint8Array(arrayBuffer);
   const maxBytes = 50 * 1024 * 1024;
   if (buf.length < 12 || buf.length > maxBytes) {
@@ -365,5 +491,73 @@ export function scanVideo(arrayBuffer: ArrayBufferLike, declaredMimeType: string
     }
   }
 
-  return { allowed: true, flags: ['VIDEO_CONTAINER_SCANNED'] };
+  if (!ai || !media) {
+    return {
+      allowed: false,
+      flags: ['NSFW_SCAN_UNAVAILABLE'],
+      reason: 'Video could not be scanned',
+    };
+  }
+
+  let frames: Uint8Array[];
+  try {
+    const times = sampleTimes(videoDurationSeconds(buf));
+    frames = [];
+    for (const time of times) {
+      const frame = await media.frame(buf, time);
+      if (frame.length < 3 || frame[0] !== 0xff || frame[1] !== 0xd8) {
+        throw new Error('Frame is not a JPEG');
+      }
+      if (frame.length > 4 * 1024 * 1024) {
+        return {
+          allowed: false,
+          flags: ['NSFW_SCAN_SKIPPED_LARGE'],
+          reason: 'Video frame is over 4 MB and was not scanned',
+        };
+      }
+      frames.push(frame);
+    }
+  } catch {
+    return {
+      allowed: false,
+      flags: ['NSFW_SCAN_UNAVAILABLE'],
+      reason: 'Video could not be scanned',
+    };
+  }
+
+  if (frames.length === 0) {
+    return {
+      allowed: false,
+      flags: ['NSFW_SCAN_UNAVAILABLE'],
+      reason: 'Video could not be scanned',
+    };
+  }
+
+  try {
+    for (const frame of frames) {
+      const verdict = await nsfwVerdict(ai, bytesToBase64(frame));
+      if (!verdict) {
+        return {
+          allowed: false,
+          flags: ['NSFW_SCAN_UNAVAILABLE'],
+          reason: 'Video could not be scanned',
+        };
+      }
+      if (verdict.startsWith('UNSAFE')) {
+        return {
+          allowed: false,
+          flags: ['NSFW_DETECTED'],
+          reason: 'Video was flagged as inappropriate by content moderation',
+        };
+      }
+    }
+  } catch {
+    return {
+      allowed: false,
+      flags: ['NSFW_SCAN_UNAVAILABLE'],
+      reason: 'Video could not be scanned',
+    };
+  }
+
+  return { allowed: true, flags: ['VIDEO_CONTAINER_SCANNED', 'NSFW_SCANNED_SAFE'] };
 }

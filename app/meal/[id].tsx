@@ -11,7 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, router, Stack } from 'expo-router';
+import { useLocalSearchParams, router, Stack, type Href } from 'expo-router';
 import { Star, Clock, Heart } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
@@ -324,9 +324,11 @@ export default function MealDetailScreen() {
               <Clock size={16} color={Colors.gray[500]} />
               <Text style={styles.timeText}>{meal.preparationTime} min</Text>
             </View>
-            <View style={styles.location}>
-              <Text style={styles.locationText}>{meal.cuisine}</Text>
-            </View>
+            {meal.cuisine ? (
+              <View style={styles.location}>
+                <Text style={styles.locationText}>{meal.cuisine}</Text>
+              </View>
+            ) : null}
           </View>
 
           <Text style={styles.price}>${meal.price.toFixed(2)}</Text>
@@ -335,6 +337,15 @@ export default function MealDetailScreen() {
             <Text style={styles.sectionTitle}>Description</Text>
             <Text style={styles.description}>{meal.description}</Text>
           </View>
+
+          {isPlatemaker && user?.id === meal.plateMakerId && (!meal.cuisine || meal.ingredients.length === 0) ? (
+            <GlassPressable
+              onPress={() => router.push({ pathname: '/meal-details', params: { id: meal.id } } as Href)}
+              testID="meal-add-details"
+            >
+              <Text style={styles.description}>Add category, ingredients, and freshness</Text>
+            </GlassPressable>
+          ) : null}
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Ingredients</Text>

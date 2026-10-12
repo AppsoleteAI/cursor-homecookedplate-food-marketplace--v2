@@ -153,6 +153,9 @@ export default function CartScreen() {
               <Text style={styles.warningText}>⚠️ You waive any right to hold HomeCookedPlate app or any other AppsoleteAI affiliated business entity, investor or individual associated with HomeCookedPlate, liable for any items you purchase as a PlateTaker and you affirm all local, county, state and federal food service laws are actively being adhered to, in every transaction via the HomeCookedPlate app.</Text>
             </ScrollView>
           </View>
+          <GlassPressable style={styles.together} onPress={() => router.push('/combined-checkout' as Href)} testID="pay-together">
+            <Text style={styles.togetherText}>Pay every open checkout together</Text>
+          </GlassPressable>
           <GradientButton
             title={`Checkout • ${finalTotal.toFixed(2)}`}
             onPress={() => {
@@ -348,6 +351,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.gradient.green,
   },
+  together: { borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginBottom: 10, backgroundColor: Colors.gray[900] },
+  togetherText: { color: Colors.white, fontWeight: '700' },
   footer: {
     paddingHorizontal: 24,
     paddingVertical: 16,

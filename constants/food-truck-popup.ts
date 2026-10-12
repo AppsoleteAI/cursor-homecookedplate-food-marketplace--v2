@@ -8,6 +8,8 @@ export type TruckStop = {
 export type FoodTruck = {
   id: string;
   name: string;
+  unit?: 'truck' | 'cart';
+  sellerId?: string;
   city: string;
   stateCode: string;
   county: string;
@@ -115,6 +117,23 @@ export const FOOD_TRUCKS: FoodTruck[] = [
       { day: 'Sunday', hours: '12:00–6:00', place: 'Waterfront park', lot: 'City event lot' },
     ],
   },
+  {
+    id: 'corner-cart',
+    name: 'Corner Cart',
+    unit: 'cart',
+    city: 'Philadelphia',
+    stateCode: 'PA',
+    county: 'Philadelphia',
+    zip: '19107',
+    cuisine: 'Fruit cups',
+    summary: 'An independent food cart. Pickup is at the cart, not a truck window and not a dining room.',
+    image: 'https://images.unsplash.com/photo-1506484381205-f7945653044d?w=900',
+    active: true,
+    windowNote: 'Order ahead and pick it up at the cart.',
+    stops: [
+      { day: 'Weekdays', hours: '8:00–2:00', place: 'Rittenhouse corner', lot: 'City sidewalk vending spot' },
+    ],
+  },
 ];
 
 export const TRUCK_MENU: TruckMenuItem[] = [
@@ -187,6 +206,16 @@ export const TRUCK_MENU: TruckMenuItem[] = [
     ingredients: 'Chicken, orange, rice, greens',
     allergens: 'None of the major allergens',
     image: 'https://images.unsplash.com/photo-1532550907401-a500c9a57435?w=800',
+  },
+  {
+    id: 'corner-cup',
+    truckId: 'corner-cart',
+    name: 'Fruit cup',
+    price: 6,
+    summary: 'Cut fruit handed over the cart.',
+    ingredients: 'Seasonal fruit',
+    allergens: 'None of the major allergens',
+    image: 'https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?w=800',
   },
 ];
 

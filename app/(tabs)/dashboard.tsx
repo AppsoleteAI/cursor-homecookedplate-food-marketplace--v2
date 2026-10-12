@@ -47,6 +47,10 @@ export default function DashboardScreen() {
     enabled: user?.role === 'platemaker' && !!user?.id,
     refetchOnWindowFocus: false,
   });
+  const myMeals = trpc.meals.myMeals.useQuery(undefined, {
+    enabled: user?.role === 'platemaker' && !!user?.id,
+    refetchOnWindowFocus: false,
+  });
 
   // Toggle availability mutation
   const toggleAvailability = trpc.platemaker.toggleAvailability.useMutation({
@@ -366,18 +370,22 @@ export default function DashboardScreen() {
           )}
 
           <View style={{ marginTop: 16 }}>
-            <Text style={styles.sectionTitle}>Add Expiration Dates</Text>
-            <Text style={styles.uploadDescription}>Quickly log freshness for key ingredients</Text>
-            <View style={{ flexDirection: 'column', gap: 8, marginTop: 8 }}>
-              <GlassPressable style={[styles.expChip, { borderColor: Colors.gray[300] }]} testID="exp-chip-chicken">
-                <Text style={styles.expChipText}>Chicken 2025-10-02</Text>
-              </GlassPressable>
-              <GlassPressable style={[styles.expChip, { borderColor: Colors.gray[300] }]} testID="exp-chip-tomatoes">
-                <Text style={styles.expChipText}>Tomatoes 2025-10-03</Text>
-              </GlassPressable>
-            </View>
+            <Text style={styles.sectionTitle}>Category, ingredients, and freshness</Text>
+            <Text style={styles.uploadDescription}>Add these after the plate is published. Name, price, and one photo are enough to publish.</Text>
             <View style={{ marginTop: 12 }}>
-              <GradientButton title="Add Ingredient Freshness" onPress={() => Alert.alert('Add', 'Open ingredient freshness form')} baseColor="green" />
+              <GradientButton
+                title="Add details"
+                onPress={() => {
+                  const latest = myMeals.data?.[0];
+                  if (latest) {
+                    router.push({ pathname: '/meal-details', params: { id: latest.id } } as Href);
+                    return;
+                  }
+                  router.push('/(tabs)/create-meal');
+                }}
+                baseColor="green"
+                testID="add-meal-details"
+              />
             </View>
           </View>
         </View>

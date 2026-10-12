@@ -37,7 +37,7 @@ The app tracks errors in these critical areas:
 - Data persistence (AsyncStorage)
 
 #### User Context
-When users log in, their ID and role are attached to error reports for better debugging.
+When users log in, Sentry receives the user id only. Email, username, and IP address are not attached.
 
 #### Breadcrumbs
 User actions are logged as breadcrumbs:
@@ -85,8 +85,6 @@ import { setUser } from '@/lib/sentry';
 // After login
 setUser({
   id: user.id,
-  email: user.email,
-  username: user.username,
 });
 
 // After logout
@@ -122,7 +120,7 @@ To test Sentry integration:
 ## Privacy
 
 - No sensitive data (passwords, tokens) is sent to Sentry
-- User IDs and emails are attached for debugging context only
+- The user id is attached for debugging. Email and username are not sent
 - You can customize what data is sent by modifying `lib/sentry.ts`
 
 ## Performance Monitoring

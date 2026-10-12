@@ -1,5 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
+import type { SavedShopOrder } from '@/backend/lib/shop-fulfillment';
+import { useSavedShopOrders } from '@/hooks/use-saved-shop-orders';
+import { mergeById, prepOrdersFromSaved, sameOrders } from '@/lib/saved-shop-order';
 import type { PrepDiet, PrepLane } from '@/constants/meal-prep-go';
 import { evaluatePrepItem, type PrepKitchenRecord } from '@/lib/meal-prep-go';
 
@@ -91,7 +94,7 @@ export function hydrateMealPrep() {
       const parsed = JSON.parse(raw) as Partial<PrepState>;
       state = {
         items: parsed.items ?? [],
-        orders: parsed.orders ?? [],
+        orders: mergeById(parsed.orders ?? [], state.orders),
         kitchen: parsed.kitchen ?? null,
         listings: parsed.listings ?? [],
         accepting: parsed.accepting ?? false,
@@ -188,13 +191,21 @@ export function placePrepOrder(input: {
     createdAt: new Date().toISOString(),
     ...rest,
   };
-  state = { ...state, items: [], orders: [order, ...state.orders] };
+  state = { ...state, items: [], orders: [order, ...state.orders.filter((existing) => existing.id !== order.id)] };
   emit();
   return order;
 }
 
+export function applyServerPrepOrders(rows: SavedShopOrder[]) {
+  const next = mergeById(state.orders, prepOrdersFromSaved(rows));
+  if (sameOrders(state.orders, next)) return;
+  state = { ...state, orders: next };
+  emit();
+}
+
 export function useMealPrep() {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  useSavedShopOrders('meal_prep', applyServerPrepOrders);
   const portionCount = snapshot.items.reduce((sum, item) => sum + item.quantity, 0);
   return {
     ...snapshot,

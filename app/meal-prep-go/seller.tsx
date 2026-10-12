@@ -1,5 +1,6 @@
 import React from 'react';
-import { Text, StyleSheet, Switch, View } from 'react-native';
+import { Text, StyleSheet, View } from 'react-native';
+import { AreaStoreSwitch } from '@/components/AreaStoreSwitch';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router, type Href } from 'expo-router';
@@ -28,7 +29,7 @@ export default function MealPrepSellerScreen() {
       {check.ok ? (
         <View style={styles.row}>
           <Text style={styles.name}>Accepting this week</Text>
-          <Switch value={accepting} onValueChange={setAccepting} testID="prep-accepting" />
+          <AreaStoreSwitch area="meal_prep" value={accepting} onValueChange={setAccepting} />
         </View>
       ) : (
         <Text style={styles.block}>{check.blocks[0]}</Text>

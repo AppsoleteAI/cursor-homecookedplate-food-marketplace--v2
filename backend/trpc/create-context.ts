@@ -3,7 +3,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { z } from "zod";
 import { createServerSupabaseClient, createSupabaseAdmin } from "../lib/supabase";
-import type { CloudflareAI } from "../lib/image-security";
+import type { CloudflareAI, MediaFrameBinding } from "../lib/image-security";
 
 type EnvBindings = {
   SUPABASE_URL?: string;
@@ -12,6 +12,9 @@ type EnvBindings = {
   EXPO_PUBLIC_WEB_URL?: string;
   // Cloudflare Workers AI binding for image NSFW moderation (optional)
   AI?: CloudflareAI;
+  // Cloudflare Media Transformations binding for meal-video still frames
+  MEDIA?: MediaFrameBinding;
+  GOOGLE_PLAY_SERVICE_ACCOUNT_JSON?: string;
 };
 
 /**
@@ -78,6 +81,8 @@ export const createContext = async (opts: FetchCreateContextFnOptions, env?: Env
     userId,
     webUrl: env?.EXPO_PUBLIC_WEB_URL || 'https://homecookedplate.com', // Web URL for redirects (password reset, etc.)
     ai: env?.AI, // Cloudflare Workers AI binding — available in CF Workers, undefined in local Bun dev
+    media: env?.MEDIA,
+    googlePlayServiceAccountJson: env?.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON,
   };
 };
 

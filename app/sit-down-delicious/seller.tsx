@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, Switch } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router, type Href } from 'expo-router';
@@ -10,6 +10,7 @@ import { useSitDown } from '@/hooks/sit-down-store';
 import { evaluateSitDownLicense } from '@/lib/sit-down-license';
 import { stateName } from '@/lib/cottage-food';
 import { calculateOrderSplit } from '@/lib/fees';
+import { AreaStoreSwitch } from '@/components/AreaStoreSwitch';
 
 export default function SitSellerScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -17,6 +18,7 @@ export default function SitSellerScreen() {
   const baseAmount = orders.reduce((sum, order) => sum + order.baseAmount, 0);
   const split = calculateOrderSplit(baseAmount);
   const licenseCheck = evaluateSitDownLicense(license);
+  const [ghostOpen, setGhostOpen] = useState(false);
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
@@ -36,9 +38,25 @@ export default function SitSellerScreen() {
       <View style={styles.card}>
         <View style={styles.activeRow}>
           <Text style={styles.label}>Dining room is {ownerOpen ? 'open' : 'closed'}</Text>
-          <Switch value={ownerOpen} onValueChange={setOwnerOpen} trackColor={{ true: '#92400E', false: Colors.gray[300] }} />
+          <AreaStoreSwitch
+            area="sit_down"
+            value={ownerOpen}
+            onValueChange={setOwnerOpen}
+            disabled={!licenseCheck.ok}
+            trackColor={{ true: '#92400E', false: Colors.gray[300] }}
+          />
         </View>
         <Text style={styles.meta}>Open puts your menu on the places list. A closed shop can still be followed, and it cannot take a table or a takeout order.</Text>
+        <View style={styles.activeRow}>
+          <Text style={styles.label}>Ghost kitchen is {ghostOpen ? 'open' : 'closed'}</Text>
+          <AreaStoreSwitch
+            area="ghost_kitchen"
+            value={ghostOpen}
+            onValueChange={setGhostOpen}
+            disabled={!licenseCheck.ok}
+            trackColor={{ true: '#92400E', false: Colors.gray[300] }}
+          />
+        </View>
       </View>
       <View style={styles.card}>
         <Text style={styles.label}>Retail food license</Text>

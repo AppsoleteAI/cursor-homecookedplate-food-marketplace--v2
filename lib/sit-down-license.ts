@@ -1,7 +1,7 @@
 import { stateName } from '@/lib/cottage-food';
 
 export const SIT_DOWN_RULE =
-  'SitDownDelicious is for fully licensed, independently owned restaurants and small food shops: coffee, yogurt, ice cream, diners, and similar sit-down or takeout businesses. Franchises and corporate chains are not listed. Cottage food law does not cover this kitchen, and a food-truck permit does not either. The health permit belongs to the street address. This app does not inspect the restaurant, issue the license, or look up the fee.';
+  'SitDownDelicious is for fully licensed, independently owned restaurants, small food shops, and independent ghost kitchens. Restaurants and shops can offer a table or takeout. A ghost kitchen is a commercial kitchen with pickup or takeout and no dining room; its health permit belongs to that kitchen address. Franchises and corporate chains are not listed. Cottage food law does not cover this kitchen, and a food-truck permit does not either. This app does not inspect the kitchen, issue the license, or look up the fee.';
 
 export type DiningService = 'sit_down' | 'takeout';
 

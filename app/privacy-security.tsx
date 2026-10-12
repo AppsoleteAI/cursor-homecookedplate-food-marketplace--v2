@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { Lock, Eye, Shield, Trash2, Download, ChevronRight, Pause, AlertTriangle, X, ExternalLink } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
-import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '@/constants/urls';
+import { PRIVACY_POLICY_URL, SUPPORT_URL, TERMS_OF_SERVICE_URL } from '@/constants/urls';
 import { useAuth } from '@/hooks/auth-context';
 import { GlassPressable } from '@/components/glass-surface';
 
@@ -348,6 +348,23 @@ export default function PrivacySecurityScreen() {
                 <View style={styles.settingText}>
                   <Text style={styles.settingTitle}>Terms of Service</Text>
                   <Text style={styles.settingDescription}>Rules governing use of the platform</Text>
+                </View>
+              </View>
+              <ChevronRight size={20} color={Colors.gray[400]} />
+            </GlassPressable>
+
+            <GlassPressable
+              testID="btn-support"
+              style={styles.actionItem}
+              onPress={() => Linking.openURL(SUPPORT_URL)}
+            >
+              <View style={styles.settingLeft}>
+                <View style={styles.iconContainer}>
+                  <ExternalLink size={20} color={Colors.gradient.green} />
+                </View>
+                <View style={styles.settingText}>
+                  <Text style={styles.settingTitle}>Support</Text>
+                  <Text style={styles.settingDescription}>Contact HomeCookedPlate</Text>
                 </View>
               </View>
               <ChevronRight size={20} color={Colors.gray[400]} />

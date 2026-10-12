@@ -13,7 +13,7 @@ import { titleCase } from '@/lib/title-case';
 
 const LINKS: { title: string; detail: string; href: string; icon: keyof typeof Ionicons.glyphMap; seller?: boolean }[] = [
   { title: 'Live board', detail: 'Trucks that have the window open', href: '/food-truck-popup/board', icon: 'radio-outline' },
-  { title: 'Trucks', detail: 'Menus, lots, and neighborhoods', href: '/food-truck-popup/trucks', icon: 'bus-outline' },
+  { title: 'Trucks and carts', detail: 'Independent trucks, independent carts, lots, and corners', href: '/food-truck-popup/trucks', icon: 'bus-outline' },
   { title: 'Schedules', detail: 'Lot calendars for later today and this week', href: '/food-truck-popup/schedule', icon: 'calendar-outline' },
   { title: 'Window order', detail: 'One truck at a time. Pickup at the window.', href: '/food-truck-popup/basket', icon: 'receipt-outline' },
   { title: 'Truck orders', detail: 'Separate from plates and farm goods', href: '/food-truck-popup/orders', icon: 'list-outline' },
@@ -35,10 +35,10 @@ export default function FoodTruckPopupHome() {
           <GlassIconButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/(home)/home'))} testID="truck-hub-back" accessibilityLabel="Back">
             <Ionicons name="chevron-back" size={22} color={Colors.white} />
           </GlassIconButton>
-          <Text style={styles.kicker}>Window pickup. Not a delivery app.</Text>
+          <Text style={styles.kicker}>Trucks and carts. Not a delivery app.</Text>
           <Text style={styles.title}>FoodTruckPopup</Text>
           <Text style={styles.lead}>
-            Find a truck, read the lot schedule, and order ahead for the service window. The truck marks itself active when the window is open.
+            Find an independent food truck or food cart, read the schedule, and order ahead for pickup. The unit is open only when its in-app store is open.
           </Text>
           <View style={styles.zipRow}>
             <TextInput

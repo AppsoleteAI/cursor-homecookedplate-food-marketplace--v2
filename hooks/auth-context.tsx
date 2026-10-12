@@ -255,7 +255,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           await refetchMe();
           addBreadcrumb('Supabase auth SIGNED_IN', 'auth', { 
             userId: nextSession.user?.id,
-            email: nextSession.user?.email,
           });
           
           // Navigation guard: Prevent rapid successive navigation calls
@@ -285,7 +284,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           await refetchMe();
           addBreadcrumb('Supabase auth USER_UPDATED', 'auth', { 
             userId: nextSession.user?.id,
-            email: nextSession.user?.email,
             emailConfirmed: !!nextSession.user?.email_confirmed_at,
           });
           
@@ -349,11 +347,19 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, [persistSession, persistUser, refetchMe]);
 
   useEffect(() => {
+    if (meData?.orderingRemoved && mountedRef.current) {
+      supabase.auth.signOut().catch(() => undefined);
+      setUser(null);
+      setSession(null);
+      persistUser(null).catch(() => undefined);
+      persistSession(null).catch(() => undefined);
+      return;
+    }
     if (meData && mountedRef.current) {
       setUser(meData);
       persistUser(meData).catch(err => captureException(err as Error, { context: 'persist meData' }));
     }
-  }, [meData, persistUser]);
+  }, [meData, persistSession, persistUser]);
 
   // Hardware audit: run when user is authenticated
   useEffect(() => {
@@ -413,7 +419,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       setSentryUser(result.user);
       addBreadcrumb('User logged in', 'auth', { userId: result.user.id, role: result.user.role });
     } catch (error) {
-      captureException(error as Error, { context: 'login', email });
+      captureException(error as Error, { context: 'login' });
       // Re-throw with better error message for network issues
       if (error instanceof Error && (error.message.includes('timeout') || error.message.includes('fetch'))) {
         throw new Error('Network error. Please check your connection and try again.');
@@ -474,7 +480,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         return { success: true, requiresLogin: true, requiresCheckout, needsEmailConfirmation };
       }
     } catch (error) {
-      captureException(error as Error, { context: 'signup', username, email, role });
+      captureException(error as Error, { context: 'signup', role });
       // Re-throw with better error message for network issues
       if (error instanceof Error && (error.message.includes('timeout') || error.message.includes('fetch'))) {
         throw new Error('Network error. Please check your connection and try again.');
@@ -511,7 +517,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       await refetchMe();
       addBreadcrumb('Profile updated', 'auth', { userId: user.id, updates: Object.keys(updates) });
     } catch (error) {
-      captureException(error as Error, { context: 'updateProfile', updates });
+      captureException(error as Error, { context: 'updateProfile' });
       throw error;
     }
   }, [user, updateProfileMutation, persistUser, refetchMe]);
@@ -640,12 +646,12 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const resetPassword = useCallback(async (email: string) => {
     try {
       await resetPasswordMutation.mutateAsync({ email });
-      addBreadcrumb('Password reset requested', 'auth', { email });
+      addBreadcrumb('Password reset requested', 'auth');
       // The mutation always returns success for security (doesn't reveal if email exists)
       // We can show the message to the user
       return;
     } catch (error) {
-      captureException(error as Error, { context: 'resetPassword', email });
+      captureException(error as Error, { context: 'resetPassword' });
       throw error;
     }
   }, [resetPasswordMutation]);
@@ -653,11 +659,11 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const reactivateAccount = useCallback(async (email: string) => {
     try {
       await reactivateAccountMutation.mutateAsync({ email });
-      addBreadcrumb('Account reactivation requested', 'auth', { email });
+      addBreadcrumb('Account reactivation requested', 'auth');
       // The mutation returns success/error message
       return;
     } catch (error) {
-      captureException(error as Error, { context: 'reactivateAccount', email });
+      captureException(error as Error, { context: 'reactivateAccount' });
       throw error;
     }
   }, [reactivateAccountMutation]);

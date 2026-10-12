@@ -18,6 +18,7 @@ const KINDS: { id: ShopKind | 'all'; label: string }[] = [
   { id: 'ice_cream', label: 'Ice cream' },
   { id: 'diner', label: 'Diner' },
   { id: 'cafe', label: 'Cafe' },
+  { id: 'ghost_kitchen', label: 'Ghost kitchen' },
 ];
 
 export default function PlacesScreen() {

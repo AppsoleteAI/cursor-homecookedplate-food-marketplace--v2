@@ -20,6 +20,7 @@ import { useCart } from '@/hooks/cart-context';
 import { useFavorites } from '@/hooks/favorites-context';
 import { useRouter } from 'expo-router';
 import { SkeletonOrdersList } from '@/components/SkeletonOrdersList';
+import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
 
 export default function OrdersScreen() {
   const insets = useSafeAreaInsets();
@@ -146,6 +147,7 @@ export default function OrdersScreen() {
           <View style={styles.header}>
             <Text style={styles.title}>Your Orders</Text>
             <Text style={styles.subtitle}>Track your meal orders and history</Text>
+            <OrderHoursSlogan style={{ color: Colors.white, marginTop: 6 }} />
           </View>
         </View>
         <ScrollView

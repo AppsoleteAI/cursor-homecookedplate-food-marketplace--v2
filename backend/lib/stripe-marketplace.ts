@@ -1,11 +1,17 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { calculateOrderSplit, sellerRefundAmount } from './fees';
+import { calculateOrderSplit, LOST_DISPUTE_FEE_CENTS, LOST_DISPUTE_FEE_HALF_CENTS, sellerRefundAmount } from './fees';
 import { sendExpoPushNotification } from './expo-push-notifications';
+import { sendNoticeEmail } from './email';
 import {
   PAYOUT_HOLD_DAYS,
+  type LostDisputeOutcome,
   type ResponsibilityCounts,
   type ResponsibilityKind,
   eventNotice,
+  lostDisputeBuyerNotice,
+  lostDisputeCookNotice,
+  lostDisputeOutcome,
+  lostDisputeWindowStart,
   removalReasons,
   responsibilityWindowStart,
   warningNotice,
@@ -28,10 +34,12 @@ async function stripeForm(
   path: string,
   body: URLSearchParams,
   idempotencyKey?: string,
+  extraHeaders?: Record<string, string>,
 ): Promise<{ ok: boolean; json: Record<string, unknown>; text: string }> {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${stripeSecretKey}`,
     'Content-Type': 'application/x-www-form-urlencoded',
+    ...extraHeaders,
   };
   if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
   const response = await fetch(`https://api.stripe.com/v1/${path}`, {
@@ -198,49 +206,75 @@ export async function releaseDuePayouts(
   let released = 0;
   let skipped = 0;
   for (const row of (data ?? []) as TransactionRow[]) {
-    const { data: profile } = await supabaseAdmin
+    const profileQuery = await supabaseAdmin
       .from('profiles')
-      .select('stripe_account_id, selling_removed')
+      .select('stripe_account_id, selling_removed, dispute_fee_owed_cents')
       .eq('id', row.seller_id)
       .single();
+    const profile = (profileQuery.error?.message?.includes('dispute_fee_owed_cents')
+      ? (await supabaseAdmin
+        .from('profiles')
+        .select('stripe_account_id, selling_removed')
+        .eq('id', row.seller_id)
+        .single()).data
+      : profileQuery.data) as {
+        stripe_account_id: string | null;
+        selling_removed: boolean | null;
+        dispute_fee_owed_cents?: number | null;
+      } | null;
 
     if (!profile?.stripe_account_id || profile.selling_removed) {
       skipped += 1;
       continue;
     }
 
-    const cents = Math.round(Number(row.seller_payout) * 100);
-    if (!Number.isFinite(cents) || cents < 1) {
+    const grossCents = Math.round(Number(row.seller_payout) * 100);
+    if (!Number.isFinite(grossCents) || grossCents < 1) {
       skipped += 1;
       continue;
     }
+    const owed = Math.max(0, Number(profile.dispute_fee_owed_cents) || 0);
+    const withhold = Math.min(owed, grossCents);
+    const cents = grossCents - withhold;
 
-    const transfer = await stripeForm(
-      stripeSecretKey,
-      'transfers',
-      new URLSearchParams({
-        amount: String(cents),
-        currency: row.currency || 'usd',
-        destination: profile.stripe_account_id,
-        'metadata[transaction_id]': row.id,
-        'metadata[order_id]': row.order_id ?? '',
-        'metadata[payment_intent_id]': row.payment_intent_id,
-        'metadata[hold_days]': String(PAYOUT_HOLD_DAYS),
-      }),
-      `settle_${row.id}`,
-    );
+    let transferId: string | null = null;
+    if (cents >= 1) {
+      const transfer = await stripeForm(
+        stripeSecretKey,
+        'transfers',
+        new URLSearchParams({
+          amount: String(cents),
+          currency: row.currency || 'usd',
+          destination: profile.stripe_account_id,
+          'metadata[transaction_id]': row.id,
+          'metadata[order_id]': row.order_id ?? '',
+          'metadata[payment_intent_id]': row.payment_intent_id,
+          'metadata[hold_days]': String(PAYOUT_HOLD_DAYS),
+          'metadata[dispute_fee_withheld_cents]': String(withhold),
+        }),
+        `settle_${row.id}`,
+      );
 
-    if (!transfer.ok || typeof transfer.json.id !== 'string') {
-      console.error('[Payout] Transfer failed:', transfer.text);
-      skipped += 1;
-      continue;
+      if (!transfer.ok || typeof transfer.json.id !== 'string') {
+        console.error('[Payout] Transfer failed:', transfer.text);
+        skipped += 1;
+        continue;
+      }
+      transferId = transfer.json.id;
+    }
+
+    if (withhold > 0) {
+      await supabaseAdmin
+        .from('profiles')
+        .update({ dispute_fee_owed_cents: owed - withhold })
+        .eq('id', row.seller_id);
     }
 
     const { error: updateError } = await supabaseAdmin
       .from('transactions')
       .update({
         status: 'settled',
-        stripe_transfer_id: transfer.json.id,
+        stripe_transfer_id: transferId,
         payout_settled_at: new Date().toISOString(),
       })
       .eq('id', row.id)
@@ -283,17 +317,19 @@ export async function refundCookSale(
     sellerId: string;
     paymentIntentId: string;
     baseAmount: number;
+    transactionId?: string;
   },
 ): Promise<{ refundId: string; refundAmount: number; platformFeeKept: number }> {
   const split = calculateOrderSplit(input.baseAmount);
   const refundAmount = sellerRefundAmount(input.baseAmount);
   const refundCents = Math.round(refundAmount * 100);
 
-  const { data: transaction } = await supabaseAdmin
+  const transactionQuery = supabaseAdmin
     .from('transactions')
-    .select('id, status, stripe_transfer_id, seller_payout')
-    .eq('order_id', input.orderId)
-    .maybeSingle();
+    .select('id, status, stripe_transfer_id, seller_payout, order_id');
+  const { data: transaction } = input.transactionId
+    ? await transactionQuery.eq('id', input.transactionId).maybeSingle()
+    : await transactionQuery.eq('order_id', input.orderId).maybeSingle();
 
   if (transaction?.status === 'refunded') {
     throw new Error('This sale was already refunded');
@@ -306,7 +342,7 @@ export async function refundCookSale(
       payment_intent: input.paymentIntentId,
       amount: String(refundCents),
     }),
-    `refund_order_${input.orderId}`,
+    input.transactionId ? `refund_tx_${input.transactionId}` : `refund_order_${input.orderId}`,
   );
 
   if (!refund.ok || typeof refund.json.id !== 'string') {
@@ -334,7 +370,7 @@ export async function refundCookSale(
   await recordResponsibilityEvent(supabaseAdmin, {
     platemakerId: input.sellerId,
     kind: 'refund',
-    orderId: input.orderId,
+    orderId: transaction?.order_id || input.orderId || null,
     note: 'Cook refunded the buyer their payout share. Platform fees stay with HomeCookedPlate.',
     createdBy: input.sellerId,
   });
@@ -401,4 +437,225 @@ export async function handleChargeDispute(
       note: dispute.reason ? `Card dispute: ${dispute.reason}` : 'Card dispute opened',
     });
   }
+}
+
+async function notifyUser(
+  supabaseAdmin: SupabaseClient,
+  userId: string,
+  notice: { title: string; body: string },
+): Promise<void> {
+  const { error } = await supabaseAdmin.from('notifications').insert({
+    user_id: userId,
+    title: notice.title,
+    body: notice.body,
+    type: 'responsibility',
+    read: false,
+  });
+  if (error) console.error('[Dispute] Notice insert failed:', error.message);
+
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('expo_push_token, email')
+    .eq('id', userId)
+    .single();
+
+  if (profile?.expo_push_token) {
+    await sendExpoPushNotification(profile.expo_push_token, {
+      title: notice.title,
+      body: notice.body,
+      data: { type: 'lost_dispute' },
+    });
+  }
+  if (profile?.email) {
+    await sendNoticeEmail(profile.email, notice.title, notice.body);
+  }
+}
+
+async function platformAccountId(stripeSecretKey: string): Promise<string | null> {
+  const response = await fetch('https://api.stripe.com/v1/account', {
+    headers: { Authorization: `Bearer ${stripeSecretKey}` },
+  });
+  const json = await response.json() as { id?: string };
+  return response.ok && typeof json.id === 'string' ? json.id : null;
+}
+
+async function debitCookDisputeFee(
+  supabaseAdmin: SupabaseClient,
+  stripeSecretKey: string,
+  sellerId: string,
+  disputeId: string,
+): Promise<'stripe' | 'owed'> {
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('stripe_account_id, dispute_fee_owed_cents')
+    .eq('id', sellerId)
+    .single();
+
+  const connected = profile?.stripe_account_id;
+  const platformId = connected ? await platformAccountId(stripeSecretKey) : null;
+  if (connected && platformId) {
+    const debit = await stripeForm(
+      stripeSecretKey,
+      'transfers',
+      new URLSearchParams({
+        amount: String(LOST_DISPUTE_FEE_CENTS),
+        currency: 'usd',
+        destination: platformId,
+        description: 'Lost dispute fee',
+        'metadata[stripe_dispute_id]': disputeId,
+      }),
+      `dispute_fee_${disputeId}`,
+      { 'Stripe-Account': connected },
+    );
+    if (debit.ok) return 'stripe';
+    console.error('[Dispute] Cook fee debit failed:', debit.text);
+  }
+
+  const owed = Math.max(0, Number(profile?.dispute_fee_owed_cents) || 0) + LOST_DISPUTE_FEE_CENTS;
+  await supabaseAdmin.from('profiles').update({ dispute_fee_owed_cents: owed }).eq('id', sellerId);
+  return 'owed';
+}
+
+export async function refundHalfDisputeFee(
+  supabaseAdmin: SupabaseClient,
+  stripeSecretKey: string | undefined,
+  platemakerId: string,
+  platetakerId: string,
+): Promise<number> {
+  const { data: disputes } = await supabaseAdmin
+    .from('platetaker_lost_disputes')
+    .select('id, fee_collected')
+    .eq('platemaker_id', platemakerId)
+    .eq('platetaker_id', platetakerId)
+    .eq('fee_half_refunded', false);
+
+  if (!disputes?.length) return 0;
+
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('stripe_account_id, dispute_fee_owed_cents')
+    .eq('id', platemakerId)
+    .single();
+
+  let owed = Math.max(0, Number(profile?.dispute_fee_owed_cents) || 0);
+  let returned = 0;
+
+  for (const dispute of disputes) {
+    if (dispute.fee_collected === 'owed') {
+      owed = Math.max(0, owed - LOST_DISPUTE_FEE_HALF_CENTS);
+      returned += 1;
+      await supabaseAdmin.from('platetaker_lost_disputes').update({ fee_half_refunded: true }).eq('id', dispute.id);
+      continue;
+    }
+    if (!stripeSecretKey || !profile?.stripe_account_id) continue;
+    const credit = await stripeForm(
+      stripeSecretKey,
+      'transfers',
+      new URLSearchParams({
+        amount: String(LOST_DISPUTE_FEE_HALF_CENTS),
+        currency: 'usd',
+        destination: profile.stripe_account_id,
+        description: 'Half of a lost dispute fee, after blocking the PlateTaker',
+        'metadata[lost_dispute_id]': dispute.id,
+      }),
+      `dispute_fee_half_${dispute.id}`,
+    );
+    if (!credit.ok) {
+      console.error('[Dispute] Half fee refund failed:', credit.text);
+      continue;
+    }
+    returned += 1;
+    await supabaseAdmin.from('platetaker_lost_disputes').update({ fee_half_refunded: true }).eq('id', dispute.id);
+  }
+
+  await supabaseAdmin.from('profiles').update({ dispute_fee_owed_cents: owed }).eq('id', platemakerId);
+  return returned;
+}
+
+export async function handleLostDispute(
+  supabaseAdmin: SupabaseClient,
+  stripeSecretKey: string,
+  dispute: DisputeObject,
+): Promise<void> {
+  if (!dispute.id || dispute.status !== 'lost') return;
+
+  const paymentIntentId = typeof dispute.payment_intent === 'string' ? dispute.payment_intent : null;
+  const chargeId = typeof dispute.charge === 'string' ? dispute.charge : null;
+
+  let row: { seller_id: string; order_id: string | null; buyer_id: string | null } | null = null;
+  if (paymentIntentId) {
+    const { data } = await supabaseAdmin
+      .from('transactions')
+      .select('seller_id, order_id, buyer_id')
+      .eq('payment_intent_id', paymentIntentId)
+      .limit(1);
+    row = data?.[0] ?? null;
+  } else if (chargeId) {
+    const { data } = await supabaseAdmin
+      .from('transactions')
+      .select('seller_id, order_id, buyer_id')
+      .eq('stripe_charge_id', chargeId)
+      .limit(1);
+    row = data?.[0] ?? null;
+  }
+  if (!row?.seller_id) return;
+
+  let buyerId = row.buyer_id;
+  if (!buyerId && row.order_id) {
+    const { data: order } = await supabaseAdmin
+      .from('orders')
+      .select('buyer_id')
+      .eq('id', row.order_id)
+      .maybeSingle();
+    buyerId = order?.buyer_id ?? null;
+  }
+  if (!buyerId) return;
+
+  const { data: existing } = await supabaseAdmin
+    .from('platetaker_lost_disputes')
+    .select('id')
+    .eq('stripe_dispute_id', dispute.id)
+    .maybeSingle();
+  if (existing?.id) return;
+
+  const collected = await debitCookDisputeFee(supabaseAdmin, stripeSecretKey, row.seller_id, dispute.id);
+  const { error: insertError } = await supabaseAdmin.from('platetaker_lost_disputes').insert({
+    platetaker_id: buyerId,
+    platemaker_id: row.seller_id,
+    order_id: row.order_id,
+    stripe_dispute_id: dispute.id,
+    fee_cents: LOST_DISPUTE_FEE_CENTS,
+    fee_collected: collected,
+  });
+  if (insertError) {
+    if (insertError.code === '23505') return;
+    console.error('[Dispute] Lost dispute insert failed:', insertError.message);
+    return;
+  }
+
+  const { data: history } = await supabaseAdmin
+    .from('platetaker_lost_disputes')
+    .select('created_at')
+    .eq('platetaker_id', buyerId)
+    .gte('created_at', lostDisputeWindowStart());
+  const outcome: LostDisputeOutcome = lostDisputeOutcome((history ?? []).map((item) => item.created_at));
+
+  if (outcome.banned) {
+    await supabaseAdmin.from('profiles').update({
+      ordering_removed: true,
+      ordering_removed_reason: outcome.accelerated && outcome.count < 4
+        ? '2 lost disputes within 60 days. Banned on the 3rd lost dispute in a rolling 12 months.'
+        : '4 lost disputes in a rolling 12 months.',
+    }).eq('id', buyerId);
+  }
+
+  const { data: buyer } = await supabaseAdmin
+    .from('profiles')
+    .select('username')
+    .eq('id', buyerId)
+    .maybeSingle();
+  const buyerName = buyer?.username || 'A PlateTaker';
+
+  await notifyUser(supabaseAdmin, row.seller_id, lostDisputeCookNotice(buyerName));
+  await notifyUser(supabaseAdmin, buyerId, lostDisputeBuyerNotice(outcome));
 }

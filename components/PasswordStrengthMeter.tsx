@@ -1,4 +1,4 @@
-import React from 'react';
+import { preAppFont } from '@/constants/auth-palette';
 import { View, Text, StyleSheet } from 'react-native';
 
 const getPasswordStrength = (password: string) => {
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
   barBackground: { height: 6, backgroundColor: '#e0e0e0', borderRadius: 3, overflow: 'hidden' },
   barActive: { height: '100%' },
   requirementGrid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8, gap: 10 },
-  reqText: { fontSize: 12, fontWeight: '600' }
+  reqText: { ...preAppFont, fontSize: 12, fontWeight: '400' }
 });
 
 // Export the helper function for use in hooks

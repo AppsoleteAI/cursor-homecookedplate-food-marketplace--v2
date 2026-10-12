@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, Switch } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router, type Href } from 'expo-router';
@@ -10,6 +10,7 @@ import { useFoodTruck } from '@/hooks/food-truck-store';
 import { evaluateTruckPermit } from '@/lib/food-truck-permit';
 import { stateName } from '@/lib/cottage-food';
 import { calculateOrderSplit } from '@/lib/fees';
+import { AreaStoreSwitch } from '@/components/AreaStoreSwitch';
 
 export default function TruckSellerScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -17,6 +18,7 @@ export default function TruckSellerScreen() {
   const baseAmount = orders.reduce((sum, order) => sum + order.baseAmount, 0);
   const split = calculateOrderSplit(baseAmount);
   const permitCheck = evaluateTruckPermit(permit);
+  const [cartOpen, setCartOpen] = useState(false);
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
@@ -36,9 +38,25 @@ export default function TruckSellerScreen() {
       <View style={styles.card}>
         <View style={styles.activeRow}>
           <Text style={styles.label}>Window is {ownerActive ? 'open' : 'closed'}</Text>
-          <Switch value={ownerActive} onValueChange={setOwnerActive} trackColor={{ true: '#C2410C', false: Colors.gray[300] }} />
+          <AreaStoreSwitch
+            area="food_truck"
+            value={ownerActive}
+            onValueChange={setOwnerActive}
+            disabled={!permitCheck.ok}
+            trackColor={{ true: '#C2410C', false: Colors.gray[300] }}
+          />
         </View>
         <Text style={styles.meta}>Active puts your menu on the live board. Closed trucks can still show a schedule, and they cannot take an order-ahead.</Text>
+        <View style={styles.activeRow}>
+          <Text style={styles.label}>Food cart is {cartOpen ? 'open' : 'closed'}</Text>
+          <AreaStoreSwitch
+            area="food_cart"
+            value={cartOpen}
+            onValueChange={setCartOpen}
+            disabled={!permitCheck.ok}
+            trackColor={{ true: '#C2410C', false: Colors.gray[300] }}
+          />
+        </View>
       </View>
       <View style={styles.card}>
         <Text style={styles.label}>Mobile permit</Text>

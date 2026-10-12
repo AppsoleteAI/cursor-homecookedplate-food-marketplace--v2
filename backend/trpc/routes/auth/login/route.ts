@@ -76,6 +76,11 @@ export const loginProcedure = publicProcedure
       throw new Error('This account is paused. Reactivate it to sign in.');
     }
 
+    if (profile.ordering_removed) {
+      await supabase.auth.signOut();
+      throw new Error('This account is permanently banned after lost card disputes.');
+    }
+
     return {
       user: {
         id: profile.id,

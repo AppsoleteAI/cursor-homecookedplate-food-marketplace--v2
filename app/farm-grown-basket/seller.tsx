@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/auth-context';
 import { useFarmBasket } from '@/hooks/farm-basket-store';
 import { evaluateListing, stateName, trackLabel } from '@/lib/cottage-food';
 import { calculateOrderSplit } from '@/lib/fees';
+import { AreaStoreSwitch } from '@/components/AreaStoreSwitch';
 
 export default function FarmSellerScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -16,6 +17,7 @@ export default function FarmSellerScreen() {
   const baseAmount = orders.reduce((sum, order) => sum + order.baseAmount, 0);
   const split = calculateOrderSplit(baseAmount);
   const complianceCheck = evaluateListing(compliance);
+  const [standOpen, setStandOpen] = useState(false);
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
@@ -42,6 +44,10 @@ export default function FarmSellerScreen() {
           <Text style={styles.meta}>No state record yet. Listing stays closed until you save one.</Text>
         )}
         {!complianceCheck.ok ? <Text style={styles.block}>{complianceCheck.blocks[0]}</Text> : <Text style={styles.ok}>Record is complete for this product type.</Text>}
+        <View style={styles.activeRow}>
+          <Text style={styles.label}>Farm stand is {standOpen ? 'open' : 'closed'}</Text>
+          <AreaStoreSwitch area="farm" value={standOpen} onValueChange={setStandOpen} disabled={!complianceCheck.ok} trackColor={{ true: '#166534', false: Colors.gray[300] }} />
+        </View>
       </View>
       <GlassPressable style={styles.button} onPress={() => router.push('/farm-grown-basket/cottage-law' as Href)} testID="seller-cottage-law">
         <Text style={styles.buttonText}>State, Test, and Permit Fee</Text>
@@ -67,6 +73,7 @@ export default function FarmSellerScreen() {
 }
 
 const styles = StyleSheet.create({
+  activeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
   card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 14, padding: 14, marginBottom: 10  },
   label: { color: Colors.gray[500], fontSize: 13 },
   value: { fontSize: 28, fontWeight: '700', color: Colors.gray[900], marginTop: 4 },

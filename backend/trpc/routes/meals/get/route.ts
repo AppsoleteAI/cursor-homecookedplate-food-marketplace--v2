@@ -38,6 +38,8 @@ export const getMealProcedure = publicProcedure
         featured: sample.featured,
         tags: sample.tags,
         isSample: true,
+        expiryDate: null,
+        receiptDate: null,
       };
     }
 
@@ -62,5 +64,7 @@ export const getMealProcedure = publicProcedure
       featured: data.featured,
       tags: data.tags,
       isSample: false,
+      expiryDate: data.expiry_date ?? null,
+      receiptDate: data.receipt_date ?? null,
     };
   });

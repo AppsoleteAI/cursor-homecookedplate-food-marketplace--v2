@@ -3,6 +3,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { calculateOrderBreakdown } from "@/backend/lib/fees";
 import { isSampleMealId } from "@/lib/sample-meals";
+import { assertBuyerCanOrder } from "@/backend/lib/buyer-order-access";
 
 /**
  * Create Order Procedure
@@ -66,6 +67,8 @@ export const createOrderProcedure = protectedProcedure
         message: 'This platemaker is currently not accepting new orders',
       });
     }
+
+    await assertBuyerCanOrder(ctx.supabaseAdmin, ctx.userId, input.sellerId);
 
     const { data: removalRow } = await ctx.supabaseAdmin
       .from('profiles')

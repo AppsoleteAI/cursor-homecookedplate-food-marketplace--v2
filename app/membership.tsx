@@ -17,7 +17,7 @@ import * as Location from 'expo-location';
 import { Colors, monoGradients } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
 import { MembershipPromoBanner } from '@/components/MembershipPromoBanner';
-import { IAP_REQUIRED } from '@/lib/iap';
+import { finishIAP, IAP_REQUIRED, MEMBERSHIP_MONTHLY_PRODUCT_ID, purchaseIAP, restoreIAPPurchases } from '@/lib/iap';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
 import { GlassPressable } from '@/components/glass-surface';
@@ -35,6 +35,8 @@ export default function MembershipScreen() {
   const [, setLocationPermissionGranted] = useState(false);
 
   const subscribeMutation = trpc.membership.subscribe.useMutation();
+  const confirmAppleMutation = trpc.membership.confirmApple.useMutation();
+  const confirmGoogleMutation = trpc.membership.confirmGoogle.useMutation();
   const createSetupIntentMutation = trpc.payments.createSetupIntent.useMutation();
   const getPaymentMethodMutation = trpc.payments.getPaymentMethodFromSetup.useMutation();
   const { refetch: refetchMe } = trpc.auth.me.useQuery(undefined, {
@@ -92,6 +94,23 @@ export default function MembershipScreen() {
     }
   }, []);
 
+  const isPurchaseCancel = (error: unknown) => (
+    typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && (error as { code?: string }).code === 'user-cancelled'
+  );
+
+  const confirmStorePurchase = useCallback(async (receiptData: string) => {
+    if (Platform.OS === 'android') {
+      await confirmGoogleMutation.mutateAsync({ purchaseToken: receiptData });
+      return;
+    }
+    await confirmAppleMutation.mutateAsync({ signedTransaction: receiptData });
+  }, [confirmAppleMutation, confirmGoogleMutation]);
+
+  const storeName = Platform.OS === 'android' ? 'Google Play' : 'the App Store';
+
   const handleSubscribe = useCallback(async () => {
     if (Platform.OS === 'web') {
       Alert.alert('Not Available', 'Subscription is only available on mobile devices.');
@@ -100,6 +119,29 @@ export default function MembershipScreen() {
 
     if (!user) {
       Alert.alert('Not Signed In', 'Please login to subscribe.');
+      return;
+    }
+
+    if (IAP_REQUIRED) {
+      setProcessing(true);
+      try {
+        const purchase = await purchaseIAP(MEMBERSHIP_MONTHLY_PRODUCT_ID, user.id);
+        await confirmStorePurchase(purchase.receiptData);
+        try {
+          await finishIAP(purchase.transactionId);
+        } catch (finishError) {
+          console.error('[Membership] Purchase finish failed after verification:', finishError);
+        }
+        await refetchMe();
+        Alert.alert('Success!', 'Your subscription is now active.', [
+          { text: 'OK', onPress: () => router.back() },
+        ]);
+      } catch (error: any) {
+        if (isPurchaseCancel(error)) return;
+        Alert.alert('Error', error?.message || `The ${storeName} purchase could not be completed.`);
+      } finally {
+        setProcessing(false);
+      }
       return;
     }
 
@@ -219,7 +261,37 @@ export default function MembershipScreen() {
       setProcessing(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, initPaymentSheet, presentPaymentSheet, userMetro, isEligibleForTrial]);
+  }, [user, initPaymentSheet, presentPaymentSheet, userMetro, isEligibleForTrial, confirmStorePurchase, refetchMe, router, storeName]);
+
+  const handleRestore = useCallback(async () => {
+    if (!user) {
+      Alert.alert('Not Signed In', 'Please login to restore purchases.');
+      return;
+    }
+    setProcessing(true);
+    try {
+      const purchases = await restoreIAPPurchases();
+      const purchase = purchases[0];
+      if (!purchase) {
+        Alert.alert('No Subscription Found', `${storeName} has no active HomeCookedPlate membership for this account.`);
+        return;
+      }
+      await confirmStorePurchase(purchase.receiptData);
+      try {
+        await finishIAP(purchase.transactionId);
+      } catch (finishError) {
+        console.error('[Membership] Purchase finish failed after restore:', finishError);
+      }
+      await refetchMe();
+      Alert.alert('Restored', 'Your membership is active.', [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
+    } catch (error: any) {
+      Alert.alert('Restore failed', error?.message || 'Could not restore purchases.');
+    } finally {
+      setProcessing(false);
+    }
+  }, [user, confirmStorePurchase, refetchMe, router, storeName]);
 
   const membershipBadgeColor: readonly [string, string] = membershipTier === 'premium'
     ? monoGradients.gold
@@ -338,16 +410,6 @@ export default function MembershipScreen() {
           {membershipTier === 'free' && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Subscribe</Text>
-              {IAP_REQUIRED && (
-                <View style={styles.iapWarningCard}>
-                  <Ionicons name="alert-circle" size={20} color={Colors.gradient.orange} />
-                  <Text style={styles.iapWarningText}>
-                    App Store compliance: membership subscriptions on iOS must be processed
-                    through Apple In-App Purchase. StoreKit integration is pending.
-                    See lib/iap.ios.ts for setup instructions.
-                  </Text>
-                </View>
-              )}
               <View style={styles.pricingCard}>
                 <View style={styles.pricingHeader}>
                   <Text style={styles.price}>$4.99</Text>
@@ -376,13 +438,22 @@ export default function MembershipScreen() {
                   </View>
                 </View>
                 <GradientButton
-                  title={isEligibleForTrial ? "Start Free Trial" : "Subscribe Now"}
+                  title={Platform.OS === 'android' ? 'Subscribe with Google Play' : (IAP_REQUIRED ? 'Subscribe with Apple' : (isEligibleForTrial ? 'Start Free Trial' : 'Subscribe Now'))}
                   onPress={handleSubscribe}
                   loading={processing}
                   disabled={processing}
                   style={styles.subscribeButton}
                   baseColor="green"
                 />
+                {IAP_REQUIRED && (
+                  <GlassPressable
+                    onPress={handleRestore}
+                    disabled={processing}
+                    style={styles.restoreButton}
+                  >
+                    <Text style={styles.restoreText}>Restore purchases</Text>
+                  </GlassPressable>
+                )}
               </View>
             </View>
           )}
@@ -409,23 +480,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.white,
-  },
-  iapWarningCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    backgroundColor: Colors.gradient.orange + '15',
-    borderColor: Colors.gradient.orange + '40',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
-  },
-  iapWarningText: {
-    flex: 1,
-    fontSize: 12,
-    color: Colors.gray[700],
-    lineHeight: 18,
   },
   scrollView: {
     flex: 1,
@@ -575,6 +629,16 @@ const styles = StyleSheet.create({
   },
   subscribeButton: {
     marginTop: 8,
+  },
+  restoreButton: {
+    marginTop: 12,
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  restoreText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.gray[700],
   },
   termsCard: {
     backgroundColor: Colors.gray[50],

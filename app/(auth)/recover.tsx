@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '@/hooks/auth-context';
-import { AuthColors } from '@/constants/auth-palette';
+import { AuthColors, preAppFont } from '@/constants/auth-palette';
 import { AuthBackground, AuthBackButton, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
 import { GlassPressable } from '@/components/glass-surface';
 
@@ -165,11 +165,12 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
   },
   brand: {
+    ...preAppFont,
     color: AuthColors.brand,
     fontSize: 26,
     fontWeight: '700',
+    letterSpacing: -0.6,
     textAlign: 'center',
-    fontFamily: Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia' }),
     marginBottom: 18,
     textShadowColor: 'rgba(70, 16, 0, 0.55)',
     textShadowOffset: { width: 0, height: 2 },
@@ -200,9 +201,10 @@ const styles = StyleSheet.create({
     backgroundColor: AuthColors.button,
   },
   modeText: {
+    ...preAppFont,
     color: AuthColors.ink,
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   modeTextOn: {
     fontWeight: '700',
@@ -215,15 +217,19 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   panelTitle: {
+    ...preAppFont,
     color: AuthColors.ink,
     fontSize: 26,
     fontWeight: '700',
+    letterSpacing: -0.6,
     textAlign: 'center',
     marginBottom: 8,
   },
   help: {
+    ...preAppFont,
     color: AuthColors.muted,
     fontSize: 14,
+    fontWeight: '400',
     lineHeight: 20,
     textAlign: 'center',
     marginBottom: 16,
@@ -239,9 +245,11 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   input: {
+    ...preAppFont,
     flex: 1,
     color: AuthColors.ink,
     fontSize: 16,
+    fontWeight: '400',
     paddingVertical: 0,
   },
   loginLink: {
@@ -249,8 +257,9 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   loginLinkText: {
+    ...preAppFont,
     color: AuthColors.maroon,
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
   },
 });

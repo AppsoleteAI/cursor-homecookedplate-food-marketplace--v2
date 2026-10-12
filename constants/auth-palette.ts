@@ -1,3 +1,22 @@
+import { Platform, type TextStyle } from 'react-native';
+
+/** UI copy. See docs/FONTS.md. New screens inherit this from lib/apply-default-font.ts. */
+export const preAppFont: TextStyle = {
+  fontFamily: Platform.select({
+    ios: 'System',
+    android: 'sans-serif',
+    default: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif',
+  }),
+};
+
+/** HomeCookedPlate wordmark only. */
+export const wordmarkFont: TextStyle = {
+  fontFamily: Platform.select({
+    android: 'serif',
+    default: 'Georgia',
+  }),
+};
+
 export const AuthColors = {
   gradientTop: '#F7C451',
   gradientUpper: '#F9C85A',

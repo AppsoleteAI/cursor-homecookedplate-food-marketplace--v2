@@ -2,7 +2,7 @@ import { protectedProcedure } from '../../../create-context';
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { decode } from 'base64-arraybuffer';
-import { scanImage, scanVideo } from '../../../../lib/image-security';
+import { mediaFrameSource, scanImage, scanVideo } from '../../../../lib/image-security';
 
 /**
  * Upload Meal Media Procedure
@@ -13,10 +13,12 @@ import { scanImage, scanVideo } from '../../../../lib/image-security';
  *   - File size check (≤ 10 MB)
  *   - Metadata prompt injection scan (EXIF/JPEG comments, PNG text chunks)
  *   - Trailing data / steganography detection
- *   - NSFW moderation via Cloudflare Workers AI (when binding is available)
+ *   - NSFW moderation via Cloudflare Workers AI (refused if the scan is missing or fails)
  *
  * Video files are scanned for a real MP4 or QuickTime container, size, and
- * metadata injection before any storage write. A failed scan refuses the file.
+ * metadata injection. Still frames are then scanned with the same moderation
+ * model as meal images. A missing scan, a scan error, or a flagged frame
+ * refuses the file before any storage write.
  *
  * Storage path: {userId}/{mealId}/{timestamp}.{ext}
  * Also inserts a row into `media_attachments` for cleanup tracking.
@@ -47,8 +49,28 @@ export const uploadMediaProcedure = protectedProcedure
     const arrayBuffer = decode(input.base64Data);
 
     if (input.type === 'video') {
-      const scanResult = scanVideo(arrayBuffer, input.mimeType);
+      const scanResult = await scanVideo(
+        arrayBuffer,
+        input.mimeType,
+        ctx.ai,
+        ctx.media ? mediaFrameSource(ctx.media) : undefined,
+      );
       if (!scanResult.allowed) {
+        await Promise.resolve(
+          ctx.supabaseAdmin
+            .from('audit_logs')
+            .insert({
+              action: 'MEAL_VIDEO_BLOCKED',
+              user_id: ctx.userId,
+              new_data: {
+                reason: scanResult.reason,
+                flags: scanResult.flags,
+                mealId: input.mealId,
+                declaredMimeType: input.mimeType,
+              },
+            })
+        ).catch(() => {});
+
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message: scanResult.reason ?? 'Video failed security check',

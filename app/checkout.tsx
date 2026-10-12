@@ -29,7 +29,7 @@ import { useAuth } from '@/hooks/auth-context';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { trpc } from '@/lib/trpc';
 import { useCart } from '@/hooks/cart-context';
-import { calculateOrderSplit } from '@/lib/fees';
+import { buyerCardCharge, calculateOrderSplit } from '@/lib/fees';
 import { isSampleMealId } from '@/lib/sample-meals';
 import { CartItem } from '@/types';
 
@@ -264,6 +264,7 @@ function CongratsFlash({ visible, footerOffset, onEnd }: CongratsFlashProps) {
 export default function CheckoutScreen() {
   const { items, clearCart, totalPrice, updatePickupTime, updateSpecialInstructions, updateAllergies, updateCookingTemperature } = useCart();
   const checkoutSplit = calculateOrderSplit(totalPrice || 0);
+  const cardCharge = buyerCardCharge(checkoutSplit.totalCaptured);
   const { user } = useAuth();
   const [accepted, setAccepted] = useState<boolean>(false);
   const [feesAcknowledged, setFeesAcknowledged] = useState<boolean>(false);
@@ -492,6 +493,16 @@ export default function CheckoutScreen() {
                 <Text style={styles.paymentInfo}>${checkoutSplit.sellerFee.toFixed(2)}</Text>
               </View>
               <View style={styles.paymentRow}>
+                <Text style={styles.paymentLabel}>Card fee</Text>
+                <Text style={styles.paymentInfo}>${cardCharge.stripeFee.toFixed(2)}</Text>
+              </View>
+              {cardCharge.taxAmount > 0 ? (
+                <View style={styles.paymentRow}>
+                  <Text style={styles.paymentLabel}>Tax</Text>
+                  <Text style={styles.paymentInfo}>${cardCharge.taxAmount.toFixed(2)}</Text>
+                </View>
+              ) : null}
+              <View style={styles.paymentRow}>
                 <Text style={styles.paymentLabel}>You pay</Text>
                 <LinearGradient
                   colors={monoGradients.gold}
@@ -499,7 +510,7 @@ export default function CheckoutScreen() {
                   end={{ x: 1, y: 0 }}
                   style={styles.priceGradient}
                 >
-                  <Text style={styles.paymentAmount}>${checkoutSplit.totalCaptured.toFixed(2)}</Text>
+                  <Text style={styles.paymentAmount}>${cardCharge.cardCharge.toFixed(2)}</Text>
                 </LinearGradient>
               </View>
               <Text style={styles.paymentInfo}>HomeCookedPlate keeps both non-refundable 10% fees. A refund returns the cook&apos;s share only. These fees are not returned.</Text>
@@ -511,7 +522,7 @@ export default function CheckoutScreen() {
                 <View style={[styles.checkbox, feesAcknowledged ? styles.checkboxChecked : undefined]} />
                 <Text style={styles.checkboxLabel}>I understand HomeCookedPlate keeps both non-refundable 10% fees</Text>
               </GlassPressable>
-              <Text style={styles.paymentInfo}>Pickup from your cook. Stripe charges the total above after this acknowledgement.</Text>
+              <Text style={styles.paymentInfo}>Pickup from your cook. You pay the card fee, and sales tax when it applies. Stripe charges the total above after this acknowledgement.</Text>
               <Text style={styles.paymentInfo}>Meet in a public place during daylight. Do not exchange phone numbers in the app. A prepaid delivery is brought by the cook with someone else along.</Text>
               <Text style={styles.paymentInfo}>{BUYER_AFTER_NOTE}</Text>
               <FoodHandlingLink />

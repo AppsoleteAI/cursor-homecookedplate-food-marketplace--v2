@@ -83,7 +83,15 @@ export default function MealPrepCheckoutScreen() {
     }
     setBlock(null);
     try {
-      const paid = await chargeShop('meal_prep', lines.map((line) => ({ productId: line.itemId, quantity: line.quantity })));
+      const paid = await chargeShop('meal_prep', lines.map((line) => ({ productId: line.itemId, quantity: line.quantity })), {
+        shop: 'meal_prep',
+        cookId,
+        cookName,
+        handoff,
+        windowLabel: chosenWindow,
+        address: handoff === 'dropoff' ? address.trim() : catalogCook?.handoffNote ?? kitchen?.handoffNote ?? '',
+        mix,
+      });
       if (!paid) return;
       const order = placeOrder({
         id: paid.orderId,

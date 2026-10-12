@@ -1,5 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
+import type { SavedShopOrder } from '@/backend/lib/shop-fulfillment';
+import { useSavedShopOrders } from '@/hooks/use-saved-shop-orders';
+import { mergeById, sameOrders, truckOrdersFromSaved } from '@/lib/saved-shop-order';
 import type { PickupSlot, TruckPermitRecord } from '@/lib/food-truck-permit';
 import { evaluateTruckMenuItem } from '@/lib/food-truck-permit';
 
@@ -85,7 +88,7 @@ export function hydrateFoodTruck() {
       state = {
         items: parsed.items ?? [],
         follows: parsed.follows ?? [],
-        orders: parsed.orders ?? [],
+        orders: mergeById(parsed.orders ?? [], state.orders),
         permit: parsed.permit ?? null,
         listings: parsed.listings ?? [],
         ownerActive: parsed.ownerActive ?? false,
@@ -185,13 +188,21 @@ export function placeTruckOrder(input: {
     createdAt: new Date().toISOString(),
     ...rest,
   };
-  state = { ...state, items: [], orders: [order, ...state.orders] };
+  state = { ...state, items: [], orders: [order, ...state.orders.filter((existing) => existing.id !== order.id)] };
   emit();
   return order;
 }
 
+export function applyServerTruckOrders(rows: SavedShopOrder[]) {
+  const next = mergeById(state.orders, truckOrdersFromSaved(rows));
+  if (sameOrders(state.orders, next)) return;
+  state = { ...state, orders: next };
+  emit();
+}
+
 export function useFoodTruck() {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  useSavedShopOrders('food_truck', applyServerTruckOrders);
   const itemCount = snapshot.items.reduce((sum, item) => sum + item.quantity, 0);
   return {
     ...snapshot,

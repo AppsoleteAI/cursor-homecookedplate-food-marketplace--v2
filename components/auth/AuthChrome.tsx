@@ -14,7 +14,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { AuthColors, authGradient, authGradientLocations, goldButtonColors } from '@/constants/auth-palette';
+import { AuthColors, authGradient, authGradientLocations, goldButtonColors, preAppFont, wordmarkFont } from '@/constants/auth-palette';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { titleCase } from '@/lib/title-case';
 
@@ -170,10 +170,11 @@ const styles = StyleSheet.create({
     left: 0,
   },
   brandWord: {
+    ...wordmarkFont,
     color: AuthColors.white,
     fontSize: 26,
     fontWeight: '700',
-    fontFamily: Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia' }),
+    letterSpacing: -0.6,
     textShadowColor: Platform.OS === 'web' ? 'transparent' : 'rgba(70, 28, 6, 0.55)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: Platform.OS === 'web' ? 0 : 2,
@@ -202,6 +203,7 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
   label: {
+    ...preAppFont,
     color: AuthColors.white,
     fontSize: 17,
     fontWeight: '700',

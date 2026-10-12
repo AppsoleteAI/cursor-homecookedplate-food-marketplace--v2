@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/react-native";
+import { scrubSentryEvent, sentryIdentity } from "@/lib/sentry-user";
 
 export function captureException(error: Error, context?: Record<string, any>) {
   if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
@@ -16,15 +17,7 @@ export function captureMessage(message: string, level: Sentry.SeverityLevel = "i
 
 export function setUser(user: { id: string; email?: string; username?: string } | null) {
   if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
-    if (user) {
-      Sentry.setUser({
-        id: user.id,
-        email: user.email,
-        username: user.username,
-      });
-    } else {
-      Sentry.setUser(null);
-    }
+    Sentry.setUser(sentryIdentity(user));
   }
 }
 
@@ -39,4 +32,4 @@ export function addBreadcrumb(message: string, category: string, data?: Record<s
   }
 }
 
-export { Sentry };
+export { scrubSentryEvent, Sentry };

@@ -35,7 +35,7 @@ export default function TrucksScreen() {
           <View style={styles.copy}>
             <Text style={styles.name}>{titleCase(truck.name)}</Text>
             <Text style={styles.meta}>{truck.city}, {stateName(truck.stateCode)} {truck.zip}</Text>
-            <Text style={styles.meta}>{truck.active ? 'Window open' : 'Window closed'} · {truck.cuisine}</Text>
+            <Text style={styles.meta}>{truck.unit === 'cart' ? 'Food cart' : 'Food truck'} · {truck.active ? 'Open' : 'Closed'} · {truck.cuisine}</Text>
             {follows.includes(truck.id) ? <Text style={styles.follow}>Following</Text> : null}
           </View>
         </GlassPressable>

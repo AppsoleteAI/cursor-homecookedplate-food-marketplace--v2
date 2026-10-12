@@ -12,7 +12,7 @@ import { SIT_DOWN_RULE } from '@/lib/sit-down-license';
 import { titleCase } from '@/lib/title-case';
 
 const LINKS: { title: string; detail: string; href: string; icon: keyof typeof Ionicons.glyphMap; seller?: boolean }[] = [
-  { title: 'Places', detail: 'Coffee, yogurt, ice cream, diners, and small cafes', href: '/sit-down-delicious/places', icon: 'storefront-outline' },
+  { title: 'Places', detail: 'Restaurants, small shops, and independent ghost kitchens', href: '/sit-down-delicious/places', icon: 'storefront-outline' },
   { title: 'Table or takeout', detail: 'One restaurant per order. No courier.', href: '/sit-down-delicious/basket', icon: 'cafe-outline' },
   { title: 'Restaurant orders', detail: 'Separate from plates, farms, trucks, and catering', href: '/sit-down-delicious/orders', icon: 'list-outline' },
   { title: 'Shop owner', detail: 'Open the dining room and see the payout', href: '/sit-down-delicious/seller', icon: 'restaurant-outline', seller: true },
@@ -33,10 +33,10 @@ export default function SitDownDeliciousHome() {
           <GlassIconButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/(home)/home'))} testID="sit-hub-back" accessibilityLabel="Back">
             <Ionicons name="chevron-back" size={22} color={Colors.white} />
           </GlassIconButton>
-          <Text style={styles.kicker}>Independent restaurants. Sit down or takeout.</Text>
+          <Text style={styles.kicker}>Independent restaurants and ghost kitchens.</Text>
           <Text style={styles.title}>SitDownDelicious</Text>
           <Text style={styles.lead}>
-            Coffee, yogurt, ice cream, diners, and small cafes. Sit at a table or pick up at the counter. Chains are not listed.
+            Coffee, yogurt, ice cream, diners, small cafes, and independent ghost kitchens. A ghost kitchen is pickup or takeout from a licensed commercial kitchen. Chains are not listed.
           </Text>
           <View style={styles.zipRow}>
             <TextInput

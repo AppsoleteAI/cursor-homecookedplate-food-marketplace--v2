@@ -1,6 +1,6 @@
 import type { DiningService } from '@/lib/sit-down-license';
 
-export type ShopKind = 'coffee' | 'yogurt' | 'ice_cream' | 'diner' | 'cafe';
+export type ShopKind = 'coffee' | 'yogurt' | 'ice_cream' | 'diner' | 'cafe' | 'ghost_kitchen';
 
 export type SitDownPlace = {
   id: string;
@@ -16,6 +16,7 @@ export type SitDownPlace = {
   openNow: boolean;
   services: DiningService[];
   hours: string;
+  sellerId?: string;
 };
 
 export type SitDownItem = {
@@ -35,6 +36,7 @@ export const SHOP_KIND_LABEL: Record<ShopKind, string> = {
   ice_cream: 'Ice cream',
   diner: 'Diner',
   cafe: 'Cafe',
+  ghost_kitchen: 'Ghost kitchen',
 };
 
 export const SIT_DOWN_PLACES: SitDownPlace[] = [
@@ -113,6 +115,21 @@ export const SIT_DOWN_PLACES: SitDownPlace[] = [
     services: ['sit_down', 'takeout'],
     hours: 'Tuesday–Saturday 11:00–3:00',
   },
+  {
+    id: 'lane-ghost',
+    name: 'Lane Kitchen',
+    kind: 'ghost_kitchen',
+    street: '900 Commissary Lane',
+    city: 'Philadelphia',
+    stateCode: 'PA',
+    county: 'Philadelphia',
+    zip: '19123',
+    summary: 'An independent ghost kitchen. The health permit is for this commercial kitchen. Pickup and takeout only. Not a franchise and not a chain.',
+    image: 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=900',
+    openNow: true,
+    services: ['takeout'],
+    hours: 'Daily 11:00–9:00',
+  },
 ];
 
 export const SIT_DOWN_MENU: SitDownItem[] = [
@@ -184,6 +201,16 @@ export const SIT_DOWN_MENU: SitDownItem[] = [
     summary: 'The daily bowl from the cafe pass.',
     ingredients: 'Rice, greens, chicken, sesame',
     allergens: 'Sesame',
+    image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800',
+  },
+  {
+    id: 'lane-bowl',
+    placeId: 'lane-ghost',
+    name: 'Kitchen bowl',
+    price: 13,
+    summary: 'Packed at the ghost kitchen for pickup. There is no dining room.',
+    ingredients: 'Rice, vegetables, chicken',
+    allergens: 'None of the major allergens',
     image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800',
   },
 ];

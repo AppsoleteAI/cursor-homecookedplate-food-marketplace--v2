@@ -55,7 +55,13 @@ export default function SitCheckoutScreen() {
   const place = async () => {
     if (!open || lines.length === 0 || services.length === 0 || charging) return;
     try {
-      const paid = await chargeShop('sit_down', lines.map((line) => ({ productId: line.itemId, quantity: line.quantity })));
+      const paid = await chargeShop('sit_down', lines.map((line) => ({ productId: line.itemId, quantity: line.quantity })), {
+        shop: 'sit_down',
+        placeId,
+        placeName,
+        service: chosen,
+        partySize: chosen === 'sit_down' ? partySize : 1,
+      });
       if (!paid) return;
       const order = placeOrder({
         id: paid.orderId,

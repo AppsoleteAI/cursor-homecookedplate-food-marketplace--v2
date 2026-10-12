@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Image, Platform } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { 
   useSharedValue, 
@@ -9,6 +9,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { Colors } from '@/constants/colors';
+import { wordmarkFont } from '@/constants/auth-palette';
 
 /**
  * Branded Loading Splash Screen
@@ -140,11 +141,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.white,
     letterSpacing: 0.5,
-    fontFamily: Platform.select({
-      ios: 'System',
-      android: 'sans-serif-medium',
-      default: 'sans-serif',
-    }),
+    ...wordmarkFont,
   },
   ellipsisContainer: {
     marginLeft: 4,

@@ -30,5 +30,6 @@ export const meProcedure = protectedProcedure
       metroArea: profile.metro_area || null,
       trialEndsAt: profile.trial_ends_at ? new Date(profile.trial_ends_at) : null,
       foodSafetyAcknowledged: profile.food_safety_acknowledged || false,
+      orderingRemoved: profile.ordering_removed === true,
     };
   });

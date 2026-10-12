@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../../create-context';
-import { calculateFees } from '../../../../lib/fees';
+import { buyerCardCharge, calculateFees } from '../../../../lib/fees';
 import { PAYOUT_HOLD_DAYS } from '../../../../lib/payout-policy';
 
 const inputSchema = z.object({
@@ -106,8 +106,8 @@ export const createPaymentIntentProcedure = protectedProcedure
     // - Seller gets: base - 10% fee (handled by Stripe Connect)
     // Client amount and fee percent are ignored. total_price is the base plate price.
     const fees = calculateFees(serverBaseAmount, 10, 10);
-    
-    const totalChargeInCents = Math.round(fees.totalCharge * 100);
+    const card = buyerCardCharge(fees.totalCharge);
+    const totalChargeInCents = Math.round(card.cardCharge * 100);
 
     // Charge stays on the platform for PAYOUT_HOLD_DAYS. A later Transfer
     // pays the cook's connected account their seller share directly.
@@ -141,7 +141,7 @@ export const createPaymentIntentProcedure = protectedProcedure
 
     console.log(`[Stripe] Payment intent created: ${paymentIntent.id}`);
     console.log(`[Stripe] Fee breakdown: Base=$${fees.baseAmount.toFixed(2)}, Buyer fee=$${fees.buyerFee.toFixed(2)}, Seller fee=$${fees.sellerFee.toFixed(2)}`);
-    console.log(`[Stripe] Buyer pays: $${fees.totalCharge.toFixed(2)}, Platform revenue: $${fees.appTotalRevenue.toFixed(2)}, Seller payout: $${fees.sellerPayout.toFixed(2)}`);
+    console.log(`[Stripe] Buyer pays: $${card.cardCharge.toFixed(2)} (marketplace $${fees.totalCharge.toFixed(2)} + card fee $${card.stripeFee.toFixed(2)}), Platform revenue: $${fees.appTotalRevenue.toFixed(2)}, Seller payout: $${fees.sellerPayout.toFixed(2)}`);
 
     return {
       clientSecret: paymentIntent.client_secret,
@@ -149,7 +149,10 @@ export const createPaymentIntentProcedure = protectedProcedure
       platformFee: fees.appTotalRevenue,
       buyerFee: fees.buyerFee,
       sellerFee: fees.sellerFee,
-      totalCharge: fees.totalCharge,
+      marketplaceTotal: fees.totalCharge,
+      stripeFee: card.stripeFee,
+      taxAmount: card.taxAmount,
+      totalCharge: card.cardCharge,
       sellerPayout: fees.sellerPayout,
     };
   });

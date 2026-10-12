@@ -13,19 +13,30 @@
       body {
         margin: 0;
         min-height: 100vh;
-        font-family: Georgia, "Iowan Old Style", serif;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
         color: #14100c;
-        background: linear-gradient(180deg, #111111 0%, #121212 32%, #6a5715 55%, #cda311 75%, #fcd925 100%);
+        background: linear-gradient(180deg, #c17a10 0%, #f7c451 10%, #f9c85a 22%, #fbd16f 48%, #fcd787 74%, #fdeed1 86%, #fdeed1 100%);
         background-attachment: fixed;
       }
       header { max-width: 42rem; margin: 0 auto; padding: 1.5rem 1rem 0.25rem; }
       .brand {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
         margin: 0;
         text-align: center;
-        color: #ffe14a;
+        font-family: Georgia, "Iowan Old Style", serif;
+        color: #ffffff;
         font-size: 1.75rem;
         font-weight: 700;
-        text-shadow: 0 2px 6px rgba(70, 16, 0, 0.55);
+        text-shadow: 0 1px 2px rgba(90, 46, 0, 0.35);
+      }
+      .brand-mark {
+        width: 46px;
+        height: 38px;
+        flex-shrink: 0;
+        filter: brightness(0) invert(1) drop-shadow(0 2px 2px rgba(70, 28, 6, 0.55));
       }
       main { max-width: 42rem; margin: 0 auto; padding: 0.75rem 1rem 2rem; }
       section {
@@ -40,7 +51,6 @@
         text-align: center;
       }
       h1, h2 {
-        font-family: "Avenir Next", "Segoe UI", sans-serif;
         line-height: 1.2;
         color: #14100c;
         font-size: 1.125rem;
@@ -66,19 +76,19 @@
       a { color: #48101e; font-weight: 700; }
       html {
         scrollbar-width: thin;
-        scrollbar-color: #ffe14a transparent;
+        scrollbar-color: #c17a10 transparent;
       }
       ::-webkit-scrollbar { width: 10px; height: 10px; background: transparent; }
       ::-webkit-scrollbar-track,
       ::-webkit-scrollbar-track-piece,
       ::-webkit-scrollbar-corner { background: transparent; }
-      ::-webkit-scrollbar-thumb { background-color: #ffe14a; border-radius: 999px; }
+      ::-webkit-scrollbar-thumb { background-color: #c17a10; border-radius: 999px; }
       .updated { color: #14100c; margin-bottom: 12px; }
     </style>
   </head>
   <body>
     <header>
-      <p class="brand">HomeCookedPlate</p>
+      <p class="brand"><img class="brand-mark" src="/legal/house-mark.png" alt="" width="46" height="38" />HomeCookedPlate</p>
     </header>
     <main>
       <section class="intro">
@@ -92,7 +102,7 @@
       <section>
         <h2>Information you give us</h2>
         <div class="panel"><ul>
-          <li>Account details: email address, username, password, and whether you are a PlateMaker or a PlateTaker.</li>
+          <li>Account details: email address, username, password, whether you are a PlateMaker or a PlateTaker, and a phone number if you add one.</li>
           <li>Profile and listing media: a profile picture, meal photos, and food review clips you choose or record. The photo library is used for those listings. Photos are not shared with friends from this app.</li>
           <li>Microphone audio only when you record a food review clip.</li>
           <li>Messages you send to another user in the app.</li>
@@ -133,7 +143,7 @@
       <section>
         <h2>How we use information</h2>
         <div class="panel"><p>
-          We use this information to run accounts, show plates in your metro, take orders, pay PlateMakers, moderate uploaded images, send the notifications you turn on, and keep the service secure. We do not sell personal information. We do not use it for cross-app advertising.
+          We use this information to run accounts, show plates in your metro, take orders, pay PlateMakers, moderate uploaded images, send the notifications you turn on, and keep the service secure. Information sent between the app or website and HomeCookedPlate is encrypted in transit. We do not sell personal information. We do not use it for cross-app advertising.
         </p>
         </div>
       </section>
@@ -172,7 +182,8 @@
         <h2>Contact</h2>
         <div class="panel"><p>
           Questions about this policy: <a href="mailto:support@homecookedplate.com">support@homecookedplate.com</a>.
-          Terms: <a href="/terms">HomeCookedPlate Terms of Service</a>.
+          <a href="/support">Support</a>
+          · <a href="/terms">Terms of Service</a>.
         </p>
         </div>
       </section>

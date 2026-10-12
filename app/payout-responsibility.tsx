@@ -48,6 +48,20 @@ export default function PayoutResponsibilityScreen() {
   const connect = trpc.payments.getConnectAccountStatus.useQuery(undefined, {
     enabled: user?.role === 'platemaker',
   });
+  const blockBuyer = trpc.platemaker.blockPlatetaker.useMutation({
+    onSuccess: (result) => {
+      standing.refetch();
+      Alert.alert(
+        'PlateTaker blocked',
+        result.halfFeesReturned > 0
+          ? `They cannot order your offerings. Half of the lost dispute fee was returned on ${result.halfFeesReturned} dispute${result.halfFeesReturned === 1 ? '' : 's'}.`
+          : result.pendingHalfFees > 0
+            ? `They cannot order your offerings. Write to ${result.supportEmail} so the $7.50 return can be finished.`
+            : 'They cannot order your offerings.',
+      );
+    },
+    onError: (error) => Alert.alert('Block was not saved', error.message),
+  });
   const send = trpc.platemaker.sendPayoutAdminMessage.useMutation({
     onSuccess: () => {
       setDraft('');
@@ -155,6 +169,34 @@ export default function PayoutResponsibilityScreen() {
                 <Text style={styles.row}>Chargebacks {data.counts.chargeback}</Text>
                 <Text style={styles.row}>Complaints {data.counts.complaint}</Text>
                 <Text style={styles.row}>Government requests {data.counts.governmentRequest}</Text>
+              </View>
+
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Lost disputes</Text>
+                <Text style={styles.body}>
+                  A lost dispute charges you $15. HomeCookedPlate does not pay it. Block that PlateTaker to stop their orders and return half of the fee ($7.50). Write to {data.supportEmail} to discuss it.
+                </Text>
+                {(data.lostDisputes ?? []).length === 0 ? (
+                  <Text style={styles.meta}>No lost disputes.</Text>
+                ) : (
+                  data.lostDisputes.map((dispute) => (
+                    <View key={dispute.id} style={styles.payout}>
+                      <Text style={styles.row}>{dispute.platetakerName}</Text>
+                      <Text style={styles.meta}>{when(dispute.createdAt)} · $15 fee{dispute.halfRefunded ? ' · $7.50 returned' : ''}</Text>
+                      {dispute.blocked ? (
+                        <Text style={styles.meta}>Blocked from your plates</Text>
+                      ) : (
+                        <GlassPressable
+                          style={styles.button}
+                          onPress={() => blockBuyer.mutate({ platetakerId: dispute.platetakerId })}
+                          disabled={blockBuyer.isPending}
+                        >
+                          <Text style={styles.buttonText}>Block from my plates</Text>
+                        </GlassPressable>
+                      )}
+                    </View>
+                  ))
+                )}
               </View>
 
               <View style={styles.card}>

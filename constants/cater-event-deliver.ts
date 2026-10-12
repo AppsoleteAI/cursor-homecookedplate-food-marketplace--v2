@@ -17,6 +17,7 @@ export type CaterCompany = {
   accepting: boolean;
   dropoffNote: string;
   windows: DropoffWindow[];
+  sellerId?: string;
 };
 
 export type CaterPackage = {

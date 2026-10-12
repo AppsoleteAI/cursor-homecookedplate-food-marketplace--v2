@@ -1,5 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
+import type { SavedShopOrder } from '@/backend/lib/shop-fulfillment';
+import { useSavedShopOrders } from '@/hooks/use-saved-shop-orders';
+import { mergeById, sameOrders, sitOrdersFromSaved } from '@/lib/saved-shop-order';
 import type { DiningService, SitDownLicense } from '@/lib/sit-down-license';
 import { evaluateSitDownItem } from '@/lib/sit-down-license';
 
@@ -86,7 +89,7 @@ export function hydrateSitDown() {
       state = {
         items: parsed.items ?? [],
         follows: parsed.follows ?? [],
-        orders: parsed.orders ?? [],
+        orders: mergeById(parsed.orders ?? [], state.orders),
         license: parsed.license ?? null,
         listings: parsed.listings ?? [],
         ownerOpen: parsed.ownerOpen ?? false,
@@ -187,13 +190,21 @@ export function placeSitOrder(input: {
     createdAt: new Date().toISOString(),
     ...rest,
   };
-  state = { ...state, items: [], orders: [order, ...state.orders] };
+  state = { ...state, items: [], orders: [order, ...state.orders.filter((existing) => existing.id !== order.id)] };
   emit();
   return order;
 }
 
+export function applyServerSitOrders(rows: SavedShopOrder[]) {
+  const next = mergeById(state.orders, sitOrdersFromSaved(rows));
+  if (sameOrders(state.orders, next)) return;
+  state = { ...state, orders: next };
+  emit();
+}
+
 export function useSitDown() {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  useSavedShopOrders('sit_down', applyServerSitOrders);
   const itemCount = snapshot.items.reduce((sum, item) => sum + item.quantity, 0);
   return {
     ...snapshot,

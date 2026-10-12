@@ -16,6 +16,7 @@ import { reactivateAccountProcedure } from "./routes/auth/reactivate-account/rou
 import { verifyEmailProcedure } from "./routes/auth/verify-email/route";
 import { resendVerificationEmailProcedure } from "./routes/auth/resend-verification-email/route";
 import { createMealProcedure } from "./routes/meals/create/route";
+import { updateMealDetailsProcedure } from "./routes/meals/update-details/route";
 import { listMealsProcedure } from "./routes/meals/list/route";
 import { getMealProcedure } from "./routes/meals/get/route";
 import { myMealsProcedure } from "./routes/meals/my-meals/route";
@@ -28,7 +29,8 @@ import { listReviewsProcedure } from "./routes/reviews/list/route";
 import { uploadMediaProcedure } from "./routes/media/upload/route";
 import { uploadProfileImageProcedure } from "./routes/media/upload-profile/route";
 import { createPaymentIntentProcedure } from "./routes/payments/create-payment-intent/route";
-import { confirmShopPaymentProcedure, createShopCheckoutProcedure } from "./routes/payments/create-shop-checkout/route";
+import { confirmShopPaymentProcedure, createShopCheckoutProcedure, listShopOrdersProcedure } from "./routes/payments/create-shop-checkout/route";
+import { confirmCombinedCheckoutProcedure, createCombinedCheckoutProcedure, refundCombinedCheckoutProcedure, setAreaStoreProcedure } from "./routes/payments/combined-checkout/route";
 import { confirmPaymentProcedure } from "./routes/payments/confirm-payment/route";
 import { createConnectAccountProcedure } from "./routes/payments/create-connect-account/route";
 import { getConnectAccountStatusProcedure } from "./routes/payments/get-connect-account-status/route";
@@ -38,6 +40,8 @@ import { sendMessageProcedure } from "./routes/messages/send/route";
 import { listMessagesProcedure } from "./routes/messages/list/route";
 import { listConversationsProcedure } from "./routes/messages/conversations/route";
 import { subscribeProcedure } from "./routes/membership/subscribe/route";
+import { confirmAppleProcedure } from "./routes/membership/confirm-apple/route";
+import { confirmGoogleProcedure } from "./routes/membership/confirm-google/route";
 import { checkTrialEligibilityProcedure } from "./routes/trials/check-eligibility/route";
 import { metroCountsProcedure } from "./routes/admin/metro-counts/route";
 import { updateMaxCapProcedure } from "./routes/admin/update-max-cap/route";
@@ -64,6 +68,7 @@ import { refundOrderProcedure } from "./routes/platemaker/refund-order/route";
 import { getIncomingOrdersProcedure } from "./routes/platemaker/get-incoming-orders/route";
 import { getDashboardStatsProcedure } from "./routes/platemaker/get-dashboard-stats/route";
 import { getPayoutStandingProcedure } from "./routes/platemaker/get-payout-standing/route";
+import { blockPlatetakerProcedure } from "./routes/platemaker/block-platetaker/route";
 import { sendPayoutAdminMessageProcedure } from "./routes/platemaker/send-payout-admin-message/route";
 import { getPayoutReviewProcedure } from "./routes/admin/get-payout-review/route";
 import { recordResponsibilityProcedure } from "./routes/admin/record-responsibility/route";
@@ -102,6 +107,7 @@ export const appRouter = createTRPCRouter({
   }),
   meals: createTRPCRouter({
     create: createMealProcedure,
+    updateDetails: updateMealDetailsProcedure,
     list: listMealsProcedure,
     get: getMealProcedure,
     myMeals: myMealsProcedure,
@@ -124,6 +130,11 @@ export const appRouter = createTRPCRouter({
     createPaymentIntent: createPaymentIntentProcedure,
     createShopCheckout: createShopCheckoutProcedure,
     confirmShopPayment: confirmShopPaymentProcedure,
+    createCombinedCheckout: createCombinedCheckoutProcedure,
+    confirmCombinedCheckout: confirmCombinedCheckoutProcedure,
+    refundCombinedCheckout: refundCombinedCheckoutProcedure,
+    setAreaStore: setAreaStoreProcedure,
+    listShopOrders: listShopOrdersProcedure,
     confirmPayment: confirmPaymentProcedure,
     createConnectAccount: createConnectAccountProcedure,
     getConnectAccountStatus: getConnectAccountStatusProcedure,
@@ -137,6 +148,8 @@ export const appRouter = createTRPCRouter({
   }),
   membership: createTRPCRouter({
     subscribe: subscribeProcedure,
+    confirmApple: confirmAppleProcedure,
+    confirmGoogle: confirmGoogleProcedure,
   }),
   trials: createTRPCRouter({
     checkEligibility: checkTrialEligibilityProcedure,
@@ -172,6 +185,7 @@ export const appRouter = createTRPCRouter({
     refundOrder: refundOrderProcedure,
     getIncomingOrders: getIncomingOrdersProcedure,
     getPayoutStanding: getPayoutStandingProcedure,
+    blockPlatetaker: blockPlatetakerProcedure,
     sendPayoutAdminMessage: sendPayoutAdminMessageProcedure,
   }),
 });

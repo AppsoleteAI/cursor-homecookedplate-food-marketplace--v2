@@ -17,6 +17,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AuthColors } from '@/constants/auth-palette';
 import { AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
 import { MetroProgressBar } from '@/components/Registration/MetroProgressBar';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 import { useSignupForm } from '@/hooks/useSignupForm';
@@ -114,6 +115,7 @@ export default function SignupScreen() {
             showsVerticalScrollIndicator={false}
           >
             <AuthBrand />
+            <OrderHoursSlogan style={{ color: AuthColors.ink, marginBottom: 8 }} />
             <Text style={styles.title}>Create Account</Text>
             <Text style={styles.subtitle}>Join our community of food lovers</Text>
 

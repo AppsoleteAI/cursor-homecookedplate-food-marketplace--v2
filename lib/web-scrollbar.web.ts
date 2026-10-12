@@ -55,6 +55,7 @@ const HEADER_COLORS: [string, string][] = [
   ['/legal', AuthColors.brand],
   ['/privacy', AuthColors.brand],
   ['/terms', AuthColors.brand],
+  ['/support', AuthColors.brand],
   ['/kitchen-rules', AuthColors.brand],
   ['/food-handling', AuthColors.brand],
   ['/login', AuthColors.brand],

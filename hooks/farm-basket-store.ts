@@ -1,7 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
+import type { SavedShopOrder } from '@/backend/lib/shop-fulfillment';
+import { useSavedShopOrders } from '@/hooks/use-saved-shop-orders';
 import type { ComplianceRecord, FarmChannel, RegulatoryTrack } from '@/lib/cottage-food';
 import { evaluateListing } from '@/lib/cottage-food';
+import { farmOrdersFromSaved, mergeById, sameOrders } from '@/lib/saved-shop-order';
 
 const STORAGE_KEY = 'farm_grown_basket_v1';
 
@@ -85,7 +88,7 @@ export function hydrateFarmBasket() {
       state = {
         items: parsed.items ?? [],
         follows: parsed.follows ?? [],
-        orders: parsed.orders ?? [],
+        orders: mergeById(parsed.orders ?? [], state.orders),
         compliance: parsed.compliance ?? null,
         listings: parsed.listings ?? [],
       };
@@ -176,13 +179,21 @@ export function placeFarmOrder(input: {
     buyerPays: input.buyerPays,
     sellerPayout: input.sellerPayout,
   };
-  state = { ...state, items: [], orders: [order, ...state.orders] };
+  state = { ...state, items: [], orders: [order, ...state.orders.filter((existing) => existing.id !== order.id)] };
   emit();
   return order;
 }
 
+export function applyServerFarmOrders(rows: SavedShopOrder[]) {
+  const next = mergeById(state.orders, farmOrdersFromSaved(rows));
+  if (sameOrders(state.orders, next)) return;
+  state = { ...state, orders: next };
+  emit();
+}
+
 export function useFarmBasket() {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  useSavedShopOrders('farm', applyServerFarmOrders);
   const itemCount = snapshot.items.reduce((sum, item) => sum + item.quantity, 0);
   return {
     ...snapshot,

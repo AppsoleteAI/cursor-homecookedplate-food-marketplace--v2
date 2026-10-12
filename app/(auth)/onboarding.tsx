@@ -12,12 +12,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
-import { AuthColors } from '@/constants/auth-palette';
+import { AuthColors, preAppFont } from '@/constants/auth-palette';
 import { AuthBackButton, AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 import { useSignupForm } from '@/hooks/useSignupForm';
 import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { BUYER_AFTER_NOTE } from '@/lib/buyer-safety';
+import { PLATEMAKER_LOST_DISPUTE_SIGNUP, PLATETAKER_LOST_DISPUTE_SIGNUP } from '@/backend/lib/payout-policy';
 import { trpc } from '@/lib/trpc';
 import { GlassPressable, GlassTop } from '@/components/glass-surface';
 
@@ -206,6 +208,7 @@ export default function OnboardingScreen() {
                     <Text style={styles.panelTitle}>Your Location</Text>
                     {askRole ? (
                       <>
+                        <OrderHoursSlogan style={{ color: AuthColors.ink, marginBottom: 8 }} />
                         <Text style={styles.question}>How will you use HomeCookedPlate?</Text>
                         <View style={styles.roleRow}>
                           <GlassPressable
@@ -355,6 +358,9 @@ export default function OnboardingScreen() {
                     <Text style={styles.panelTitle}>Legal & Safety</Text>
                     <Text style={styles.help}>
                       Both acknowledgements are required before the account is created. The full text is on Legal & Safety.
+                    </Text>
+                    <Text style={styles.help}>
+                      {role === 'platemaker' ? PLATEMAKER_LOST_DISPUTE_SIGNUP : PLATETAKER_LOST_DISPUTE_SIGNUP}
                     </Text>
                     <CheckRow
                       checked={agreedToTerms}
@@ -534,9 +540,10 @@ const styles = StyleSheet.create({
     backgroundColor: AuthColors.gold,
   },
   stepLabel: {
+    ...preAppFont,
     color: AuthColors.muted,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   stepLabelOn: {
     color: AuthColors.ink,
@@ -556,21 +563,27 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(255,255,255,0.55)',
   },
   panelTitle: {
+    ...preAppFont,
     color: AuthColors.ink,
     fontSize: 26,
     fontWeight: '700',
+    letterSpacing: -0.6,
     textAlign: 'center',
     marginBottom: 14,
   },
   question: {
+    ...preAppFont,
     color: AuthColors.ink,
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: -0.3,
     marginBottom: 8,
   },
   help: {
+    ...preAppFont,
     color: AuthColors.muted,
     fontSize: 14,
+    fontWeight: '400',
     lineHeight: 20,
     marginBottom: 14,
   },
@@ -588,9 +601,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   roleChoiceText: {
+    ...preAppFont,
     color: AuthColors.ink,
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   roleLine: {
     flexDirection: 'row',
@@ -599,18 +613,22 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   roleLineText: {
+    ...preAppFont,
     color: AuthColors.ink,
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '400',
   },
   roleChange: {
+    ...preAppFont,
     color: AuthColors.maroon,
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   metroResult: {
+    ...preAppFont,
     color: AuthColors.ink,
     fontSize: 15,
+    fontWeight: '400',
     lineHeight: 22,
     marginBottom: 12,
   },
@@ -625,14 +643,18 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   input: {
+    ...preAppFont,
     flex: 1,
     color: AuthColors.ink,
     fontSize: 16,
+    fontWeight: '400',
     paddingVertical: 0,
   },
   hint: {
+    ...preAppFont,
     color: AuthColors.maroon,
     fontSize: 12,
+    fontWeight: '400',
     marginTop: -6,
     marginBottom: 10,
   },
@@ -657,25 +679,31 @@ const styles = StyleSheet.create({
     backgroundColor: AuthColors.brand,
   },
   checkText: {
+    ...preAppFont,
     flex: 1,
     color: AuthColors.ink,
     fontSize: 14,
+    fontWeight: '400',
     lineHeight: 20,
   },
   agreeText: {
+    ...preAppFont,
     flex: 1,
     color: AuthColors.white,
     fontSize: 14,
+    fontWeight: '400',
     lineHeight: 20,
   },
   agreeLink: {
+    ...preAppFont,
     color: AuthColors.white,
-    fontWeight: '700',
+    fontWeight: '600',
     textDecorationLine: 'underline',
   },
   link: {
+    ...preAppFont,
     color: AuthColors.maroon,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   notice: {
     borderWidth: 1,
@@ -686,14 +714,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   noticeNote: {
+    ...preAppFont,
     color: AuthColors.muted,
     fontSize: 12,
+    fontWeight: '400',
     fontStyle: 'italic',
     lineHeight: 16,
   },
   errorText: {
+    ...preAppFont,
     color: AuthColors.error,
     fontSize: 14,
+    fontWeight: '400',
     lineHeight: 20,
     marginBottom: 10,
   },
@@ -701,9 +733,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   continueText: {
+    ...preAppFont,
     color: AuthColors.maroon,
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
     textAlign: 'center',
     marginTop: 14,
   },
@@ -715,17 +748,21 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   successTitle: {
+    ...preAppFont,
     color: AuthColors.ink,
     fontSize: 28,
     fontWeight: '700',
+    letterSpacing: -0.6,
     marginTop: 8,
     textShadowColor: 'rgba(70, 16, 0, 0.55)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 6,
   },
   successText: {
+    ...preAppFont,
     color: AuthColors.ink,
     fontSize: 16,
+    fontWeight: '400',
     lineHeight: 22,
     textAlign: 'center',
     marginBottom: 12,

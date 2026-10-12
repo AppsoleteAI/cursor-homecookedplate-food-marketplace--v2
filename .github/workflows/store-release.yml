@@ -38,6 +38,38 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
         run: |
           test -n "$EXPO_TOKEN"
-          npx --yes eas-cli build --non-interactive --platform "${{ inputs.platform }}" --profile production --no-wait
+          test -n "$EXPO_PUBLIC_SENTRY_DSN"
+          test -n "$SENTRY_AUTH_TOKEN"
+          test -n "$SENTRY_ORG"
+          test -n "$SENTRY_PROJECT"
+          # The production profile reads this environment inside the EAS builder,
+          # where the Sentry plugin uploads source maps for the release build.
+          sync_env() {
+            name="$1"
+            value="$2"
+            visibility="$3"
+            npx --yes eas-cli@16.28.0 env:create \
+              --environment production \
+              --name "$name" \
+              --value "$value" \
+              --visibility "$visibility" \
+              --type string \
+              --non-interactive \
+              --force \
+            || npx --yes eas-cli@16.28.0 env:update \
+              --environment production \
+              --variable-name "$name" \
+              --value "$value" \
+              --visibility "$visibility" \
+              --non-interactive
+          }
+          sync_env EXPO_PUBLIC_SENTRY_DSN "$EXPO_PUBLIC_SENTRY_DSN" plaintext
+          sync_env SENTRY_AUTH_TOKEN "$SENTRY_AUTH_TOKEN" secret
+          sync_env SENTRY_ORG "$SENTRY_ORG" plaintext
+          sync_env SENTRY_PROJECT "$SENTRY_PROJECT" plaintext
+          npx --yes eas-cli@16.28.0 build --non-interactive --platform "${{ inputs.platform }}" --profile production --no-wait

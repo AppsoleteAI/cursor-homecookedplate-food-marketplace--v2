@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Switch } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router, type Href } from 'expo-router';
@@ -10,6 +10,7 @@ import { useCaterEvent } from '@/hooks/cater-event-store';
 import { evaluateCaterLicense } from '@/lib/cater-event-license';
 import { stateName } from '@/lib/cottage-food';
 import { calculateOrderSplit } from '@/lib/fees';
+import { AreaStoreSwitch } from '@/components/AreaStoreSwitch';
 
 export default function CaterSellerScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -36,7 +37,7 @@ export default function CaterSellerScreen() {
       <View style={styles.card}>
         <View style={styles.activeRow}>
           <Text style={styles.activeLabel}>{accepting ? 'Accepting drop-offs' : 'Not accepting orders'}</Text>
-          <Switch value={accepting} onValueChange={setAccepting} trackColor={{ true: '#6D28D9', false: Colors.gray[300] }} />
+          <AreaStoreSwitch area="catering" value={accepting} onValueChange={setAccepting} trackColor={{ true: '#6D28D9', false: Colors.gray[300] }} />
         </View>
         <Text style={styles.meta}>Accepting puts your packages on the board. A closed company can still show a calendar, and it cannot take an order.</Text>
       </View>

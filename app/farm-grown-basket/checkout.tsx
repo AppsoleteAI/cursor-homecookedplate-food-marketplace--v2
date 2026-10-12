@@ -62,7 +62,10 @@ export default function FarmCheckoutScreen() {
   const place = async () => {
     if (block || lines.length === 0 || charging) return;
     try {
-      const paid = await chargeShop('farm', lines.map((line) => ({ productId: line.productId, quantity: line.quantity })));
+      const paid = await chargeShop('farm', lines.map((line) => ({ productId: line.productId, quantity: line.quantity })), {
+        shop: 'farm',
+        channel,
+      });
       if (!paid) return;
       const order = placeOrder({
         id: paid.orderId,

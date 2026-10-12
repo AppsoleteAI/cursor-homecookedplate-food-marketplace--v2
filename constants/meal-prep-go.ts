@@ -21,6 +21,7 @@ export type PrepCook = {
   weekLabel: string;
   handoffNote: string;
   windows: PrepWindow[];
+  sellerId?: string;
 };
 
 export type PrepItem = {

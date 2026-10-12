@@ -10,6 +10,7 @@ export type FarmStand = {
   summary: string;
   model: 'direct' | 'neighborhood' | 'hub';
   image: string;
+  sellerId?: string;
 };
 
 export type FarmProduct = {

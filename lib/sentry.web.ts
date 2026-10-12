@@ -4,6 +4,7 @@
  */
 import * as SentryBrowser from '@sentry/browser';
 import { SENTRY_TRACE_SAMPLE_RATE } from '@/lib/sentry-rate';
+import { scrubSentryEvent, sentryIdentity } from '@/lib/sentry-user';
 
 let ready = false;
 
@@ -26,6 +27,11 @@ function start(options?: { dsn?: string; tracesSampleRate?: number; debug?: bool
       debug: options?.debug,
       environment: options?.environment,
       tracesSampleRate,
+      sendDefaultPii: false,
+      beforeSend(event) {
+        scrubSentryEvent(event);
+        return event;
+      },
     });
     ready = true;
   } catch (error) {
@@ -48,7 +54,7 @@ export function captureMessage(message: string, level: "info" | "warning" | "err
 export function setUser(user: { id: string; email?: string; username?: string } | null) {
   if (!dsn()) return;
   start();
-  SentryBrowser.setUser(user);
+  SentryBrowser.setUser(sentryIdentity(user));
 }
 
 export function addBreadcrumb(message: string, category: string, data?: Record<string, any>) {
@@ -61,6 +67,8 @@ export function addBreadcrumb(message: string, category: string, data?: Record<s
     level: "info",
   });
 }
+
+export { scrubSentryEvent };
 
 export const Sentry = {
   init: start,

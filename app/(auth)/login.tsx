@@ -21,8 +21,9 @@ import { router, type Href } from 'expo-router';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
 import { isLoginLegalBoxChecked, readLegalAgreement, setLoginLegalBoxChecked, clearLoginLegalBox, toCompletedLegalAgreement } from '@/lib/legal-agreement';
-import { AuthColors } from '@/constants/auth-palette';
+import { AuthColors, preAppFont } from '@/constants/auth-palette';
 import { AuthBackButton, AuthBackground, AuthBrand } from '@/components/auth/AuthChrome';
+import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 
 const ORDER_PHOTO = require('../../assets/order-a-plate.png');
@@ -180,6 +181,7 @@ export default function LoginScreen() {
           >
             {router.canGoBack() ? <AuthBackButton onPress={() => router.back()} /> : null}
             <AuthBrand toSignIn={false} />
+            <OrderHoursSlogan style={{ color: AuthColors.ink, marginBottom: 12 }} />
 
             <View style={styles.doors}>
               <GlassPressable
@@ -436,9 +438,11 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   doorLabel: {
+    ...preAppFont,
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: -0.2,
     textAlign: 'center',
     paddingHorizontal: 8,
     paddingBottom: 14,
@@ -470,6 +474,7 @@ const styles = StyleSheet.create({
     height: 22,
   },
   appleText: {
+    ...preAppFont,
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600',
@@ -491,13 +496,16 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   googleText: {
+    ...preAppFont,
     color: AuthColors.white,
     fontSize: 15,
     fontWeight: '600',
   },
   providerNotice: {
+    ...preAppFont,
     color: AuthColors.ink,
     fontSize: 13,
+    fontWeight: '400',
     lineHeight: 18,
     textAlign: 'center',
     paddingHorizontal: 8,
@@ -517,9 +525,11 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   panelTitle: {
+    ...preAppFont,
     color: AuthColors.ink,
     fontSize: 26,
     fontWeight: '700',
+    letterSpacing: -0.6,
     textAlign: 'center',
     marginBottom: 16,
   },
@@ -538,9 +548,11 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   input: {
+    ...preAppFont,
     flex: 1,
     marginLeft: 10,
     fontSize: 16,
+    fontWeight: '400',
     color: AuthColors.ink,
     paddingVertical: 0,
   },
@@ -554,8 +566,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   forgotPasswordText: {
+    ...preAppFont,
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     color: AuthColors.maroon,
   },
   errorContainer: {
@@ -565,17 +578,20 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   errorText: {
+    ...preAppFont,
     color: AuthColors.error,
     fontSize: 14,
+    fontWeight: '400',
     lineHeight: 20,
   },
   retryButton: {
     alignSelf: 'flex-start',
   },
   retryButtonText: {
+    ...preAppFont,
     color: AuthColors.maroon,
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   signInButton: {
     borderRadius: 24,
@@ -598,6 +614,7 @@ const styles = StyleSheet.create({
     backgroundColor: AuthColors.maroonDeep,
   },
   signInText: {
+    ...preAppFont,
     color: AuthColors.white,
     fontSize: 17,
     fontWeight: '700',
@@ -609,13 +626,16 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   switchMuted: {
+    ...preAppFont,
     color: AuthColors.ink,
     fontSize: 14,
+    fontWeight: '400',
   },
   switchLink: {
+    ...preAppFont,
     color: AuthColors.maroon,
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   legalRow: {
     flexDirection: 'row',
@@ -645,24 +665,30 @@ const styles = StyleSheet.create({
     backgroundColor: AuthColors.brand,
   },
   legalAgreement: {
+    ...preAppFont,
     flex: 1,
     color: AuthColors.ink,
     fontSize: 14,
+    fontWeight: '400',
     lineHeight: 20,
   },
   legalStar: {
+    ...preAppFont,
     color: AuthColors.ink,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   legalText: {
+    ...preAppFont,
     color: AuthColors.ink,
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     textDecorationLine: 'underline',
   },
   legalNotice: {
+    ...preAppFont,
     color: AuthColors.ink,
     fontSize: 13,
+    fontWeight: '400',
     lineHeight: 18,
     paddingHorizontal: 8,
   },
@@ -684,8 +710,9 @@ const styles = StyleSheet.create({
     height: 64,
   },
   creditText: {
+    ...preAppFont,
     color: AuthColors.ink,
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
   },
 });

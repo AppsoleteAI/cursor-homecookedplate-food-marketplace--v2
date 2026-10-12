@@ -9,10 +9,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
-import { AuthColors, goldButtonColors } from '@/constants/auth-palette';
+import { AuthColors, goldButtonColors, preAppFont } from '@/constants/auth-palette';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AuthBackButton, AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
 import { useAuth } from '@/hooks/auth-context';
+import { SUBSCRIPTION_PRICES } from '@/backend/lib/fees';
+import { PLATEMAKER_LOST_DISPUTE_SIGNUP, PLATETAKER_LOST_DISPUTE_SIGNUP } from '@/backend/lib/payout-policy';
 import { BUYER_AFTER_NOTE, BUYER_FOOD_NOTE, BUYER_MEETING_NOTE } from '@/lib/buyer-safety';
 import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { titleCase } from '@/lib/title-case';
@@ -46,6 +49,33 @@ const BENEFITS: { emoji: string; title: string; body: string }[] = [
 ];
 
 const WELCOME_SEEN_KEY = 'hcp_welcome_seen_v1';
+
+const MEMBERSHIP_PRICES: { id: string; caption: string; amount: number; label: string }[] = [
+  {
+    id: 'platemaker-monthly',
+    caption: 'PlateMaker · Monthly',
+    amount: SUBSCRIPTION_PRICES.PLATEMAKER_MONTHLY,
+    label: 'PlateMaker, 4.99 dollars a month',
+  },
+  {
+    id: 'platetaker-monthly',
+    caption: 'PlateTaker · Monthly',
+    amount: SUBSCRIPTION_PRICES.PLATETAKER_MONTHLY,
+    label: 'PlateTaker, 7.99 dollars a month',
+  },
+  {
+    id: 'platemaker-yearly',
+    caption: 'PlateMaker · Yearly',
+    amount: SUBSCRIPTION_PRICES.PLATEMAKER_ANNUAL,
+    label: 'PlateMaker, 39.99 dollars a year',
+  },
+  {
+    id: 'platetaker-yearly',
+    caption: 'PlateTaker · Yearly',
+    amount: SUBSCRIPTION_PRICES.PLATETAKER_ANNUAL,
+    label: 'PlateTaker, 75.99 dollars a year',
+  },
+];
 
 function roleParam(value: string | string[] | undefined): Role | undefined {
   const raw = typeof value === 'string' ? value : undefined;
@@ -168,6 +198,7 @@ export default function WelcomeScreen() {
                   <Text style={styles.help}>
                     HomeCookedPlate is a marketplace for meals cooked in home kitchens. Order a plate, or start cooking.
                   </Text>
+                  <OrderHoursSlogan style={{ color: AuthColors.ink, marginBottom: 12 }} />
                   {BENEFITS.map((item) => (
                     <View key={item.title} style={styles.benefit}>
                       <Text style={styles.benefitEmoji}>{item.emoji}</Text>
@@ -183,22 +214,26 @@ export default function WelcomeScreen() {
               {step === 1 ? (
                 <>
                   <Text style={styles.panelTitle}>Membership</Text>
-                  <GlassPressable
-                    style={styles.priceButton}
-                    onPress={openMembership}
-                    accessibilityRole="button"
-                    accessibilityLabel="4.99 dollars a month. Create an account, or sign in."
-                    testID="membership-price"
-                  >
-                    <LinearGradient
-                      colors={[...goldButtonColors]}
-                      locations={[0, 0.42, 1]}
-                      style={styles.priceFill}
-                    />
-                    <Text style={styles.price}>$4.99</Text>
-                  </GlassPressable>
+                  {MEMBERSHIP_PRICES.map((plan) => (
+                    <View key={plan.id} style={styles.priceBlock}>
+                      <Text style={styles.priceCaption}>{plan.caption}</Text>
+                      <GlassPressable
+                        style={styles.priceButton}
+                        onPress={openMembership}
+                        accessibilityRole="button"
+                        accessibilityLabel={plan.label}
+                        testID={plan.id === 'platemaker-monthly' ? 'membership-price' : `membership-price-${plan.id}`}
+                      >
+                        <LinearGradient
+                          colors={[...goldButtonColors]}
+                          locations={[0, 0.42, 1]}
+                          style={styles.priceFill}
+                        />
+                        <Text style={styles.price}>{`$${plan.amount.toFixed(2)}`}</Text>
+                      </GlassPressable>
+                    </View>
+                  ))}
                   <View style={styles.priceNotes}>
-                    <Text style={styles.priceNote}>Premium is $4.99 a month after any free period.</Text>
                     <Text style={styles.priceNote}>Premium features access</Text>
                     <Text style={styles.priceNote}>Priority support</Text>
                     <Text style={styles.priceNote}>Cancel anytime</Text>
@@ -206,10 +241,10 @@ export default function WelcomeScreen() {
                   <View style={styles.earlyBird}>
                     <Text style={styles.earlyTitle}>Early Bird</Text>
                     <Text style={styles.earlyBody}>
-                      Early Bird is 90 days of Premium at no charge. It is free early access, open while your metro still has a spot. Each metro has a limited number of Early Bird places for people ordering plates and for people cooking.
+                      PlateMakers get 90 days of Premium at no charge while their metro still has a spot. A valid credit card starts those 90 days. The $4.99 monthly or $39.99 yearly charge begins after they end. Cancel before then and you are not charged.
                     </Text>
                     <Text style={styles.earlyBody}>
-                      A payment method starts those 90 days. The $4.99 charge begins after they end. Cancel before then and you are not charged.
+                      PlateTakers get free access. Premium is the upgrade that cuts the service fee on the receipt from 10% to 5% on orders of $20 or more.
                     </Text>
                     <Text style={styles.earlyBody}>
                       Outside an active metro, Early Bird is not available.
@@ -245,6 +280,7 @@ export default function WelcomeScreen() {
                       <Text style={styles.benefitBody}>{BUYER_AFTER_NOTE}</Text>
                     </View>
                   </View>
+                  <Text style={styles.help}>{PLATETAKER_LOST_DISPUTE_SIGNUP}</Text>
                   <FoodHandlingLink color="#3D7EBE" />
                 </>
               ) : null}
@@ -290,6 +326,7 @@ export default function WelcomeScreen() {
                     <Text style={styles.checkText}>
                       Alcoholic meals, pastries, and drinks are not allowed on this app.
                     </Text>
+                    <Text style={[styles.checkText, { marginTop: 8 }]}>{PLATEMAKER_LOST_DISPUTE_SIGNUP}</Text>
                   </View>
                   <FoodHandlingLink color="#3D7EBE" label="Food handling temperatures for the kitchen" />
                 </>
@@ -351,9 +388,10 @@ const styles = StyleSheet.create({
     backgroundColor: AuthColors.gold,
   },
   stepLabel: {
+    ...preAppFont,
     color: AuthColors.muted,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   stepLabelOn: {
     color: AuthColors.ink,
@@ -373,15 +411,19 @@ const styles = StyleSheet.create({
     ...cardShadow,
   },
   panelTitle: {
+    ...preAppFont,
     color: AuthColors.ink,
     fontSize: 26,
     fontWeight: '700',
+    letterSpacing: -0.6,
     textAlign: 'center',
     marginBottom: 14,
   },
   help: {
+    ...preAppFont,
     color: AuthColors.muted,
     fontSize: 15,
+    fontWeight: '400',
     lineHeight: 22,
     marginBottom: 16,
   },
@@ -400,15 +442,31 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   benefitTitle: {
+    ...preAppFont,
     color: AuthColors.ink,
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: -0.3,
     marginBottom: 4,
   },
   benefitBody: {
+    ...preAppFont,
     color: AuthColors.muted,
     fontSize: 14,
+    fontWeight: '400',
     lineHeight: 20,
+  },
+  priceBlock: {
+    marginBottom: 16,
+  },
+  priceCaption: {
+    ...preAppFont,
+    color: AuthColors.ink,
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: -0.3,
+    textAlign: 'center',
+    marginBottom: 8,
   },
   priceButton: {
     backgroundColor: 'transparent',
@@ -417,7 +475,6 @@ const styles = StyleSheet.create({
     minHeight: 112,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    marginBottom: 16,
     alignItems: 'center',
     justifyContent: 'center',
     ...glassSurface,
@@ -430,6 +487,7 @@ const styles = StyleSheet.create({
     left: 0,
   },
   price: {
+    ...preAppFont,
     color: AuthColors.white,
     fontSize: 72,
     lineHeight: 80,
@@ -444,10 +502,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   priceNote: {
+    ...preAppFont,
     color: '#000000',
     fontSize: 15,
     lineHeight: 22,
-    fontWeight: '600',
+    fontWeight: '400',
   },
   earlyBird: {
     backgroundColor: AuthColors.white,
@@ -457,13 +516,17 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   earlyTitle: {
+    ...preAppFont,
     color: '#000000',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: -0.3,
   },
   earlyBody: {
+    ...preAppFont,
     color: '#000000',
     fontSize: 14,
+    fontWeight: '400',
     lineHeight: 20,
   },
   notice: {
@@ -475,22 +538,29 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   noticeTitle: {
+    ...preAppFont,
     color: AuthColors.maroon,
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: -0.3,
   },
   checkText: {
+    ...preAppFont,
     color: AuthColors.ink,
     fontSize: 14,
+    fontWeight: '400',
     lineHeight: 20,
   },
   link: {
+    ...preAppFont,
     color: AuthColors.maroon,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   noticeNote: {
+    ...preAppFont,
     color: AuthColors.muted,
     fontSize: 12,
+    fontWeight: '400',
     fontStyle: 'italic',
     lineHeight: 16,
   },
@@ -502,8 +572,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   signInText: {
+    ...preAppFont,
     color: AuthColors.ink,
-    fontWeight: '700',
+    fontWeight: '600',
     fontSize: 15,
   },
 });

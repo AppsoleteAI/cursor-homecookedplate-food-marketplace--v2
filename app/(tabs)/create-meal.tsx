@@ -15,7 +15,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, inAppHeaderBand, monoGradients, pagePastel } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
-import { cuisineTypes } from '@/mocks/data';
 import { router , type Href } from 'expo-router';
 import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,6 +24,7 @@ import { trpc } from '@/lib/trpc';
 import { readLocalMedia } from '@/lib/read-local-media';
 import { Ionicons } from '@expo/vector-icons';
 import { calculateOrderBreakdown, calculateOrderSplit } from '@/lib/fees';
+import { canPublishMeal } from '@/lib/meal-publish';
 
 // Import expo-video with platform-specific shim for web compatibility
 // Metro will automatically resolve to lib/expo-video.web.ts on web platform
@@ -75,13 +75,8 @@ function VideoPreview({ uri, testID }: { uri: string; testID?: string }) {
 
 interface FormState {
   name: string;
-  category: string;
   price: string;
-  ingredientList: string;
-  freshnessExpiryDate?: string;
-  freshnessReceiptDate?: string;
   media: MediaItem[];
-  freshnessMedia: MediaItem[];
   availabilityWindows: {
     dayOfWeek: number;
     startTime: string;
@@ -95,13 +90,8 @@ export default function CreateMealScreen() {
   const [headerHeight, setHeaderHeight] = useState(0);
   const [form, setForm] = useState<FormState>({
     name: '',
-    category: '',
     price: '',
-    ingredientList: '',
-    freshnessExpiryDate: '',
-    freshnessReceiptDate: '',
     media: [],
-    freshnessMedia: [],
     availabilityWindows: [],
   });
   const { addMeal } = useMeals();
@@ -239,7 +229,7 @@ export default function CreateMealScreen() {
     const hasPerm = await ensureLibraryPermission();
     if (!hasPerm) return;
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: false,
       quality: 1,
       allowsMultipleSelection: true,
@@ -284,30 +274,6 @@ export default function CreateMealScreen() {
       availabilityWindows: prev.availabilityWindows.filter((_, i) => i !== index),
     }));
   }, []);
-
-  const pickFreshnessMedia = useCallback(async () => {
-    const hasPerm = await ensureLibraryPermission();
-    if (!hasPerm) return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
-      allowsEditing: false,
-      quality: 1,
-      allowsMultipleSelection: true,
-    });
-    if (!result.canceled) {
-      const next: MediaItem[] = [];
-      result.assets.forEach(a => {
-        const type: MediaType = (a.type === 'video' || a.type === 'image') ? a.type : (a.duration ? 'video' : 'image');
-        const duration = typeof a.duration === 'number' ? a.duration : undefined;
-        if (type === 'video' && typeof duration === 'number' && duration > 8) {
-          Alert.alert('Video too long', 'Please select videos up to 8 seconds.');
-          return;
-        }
-        next.push({ uri: a.uri, type, duration });
-      });
-      setForm(prev => ({ ...prev, freshnessMedia: [...prev.freshnessMedia, ...next] }));
-    }
-  }, [ensureLibraryPermission]);
 
   const startCountdown = useCallback(async (seconds: number) => {
     setCountdown(seconds);
@@ -377,18 +343,20 @@ export default function CreateMealScreen() {
     }
   }, [priceNumber]);
 
-  const isValid = useMemo(() => {
-    const hasFreshness = !!(form.freshnessExpiryDate || form.freshnessReceiptDate);
-    return (
-      form.name.trim().length > 0 &&
-      form.category.trim().length > 0 &&
-      priceNumber > 0 &&
-      form.ingredientList.trim().length > 0 &&
-      hasFreshness &&
-      form.media.length > 0 &&
-      foodSafetyAcknowledged
-    );
-  }, [form, priceNumber, foodSafetyAcknowledged]);
+  const photoCount = useMemo(
+    () => form.media.filter((item) => item.type === 'image').length,
+    [form.media],
+  );
+
+  const isValid = useMemo(
+    () => canPublishMeal({
+      name: form.name,
+      price: priceNumber,
+      photoCount,
+      foodSafetyAcknowledged,
+    }),
+    [form.name, priceNumber, photoCount, foodSafetyAcknowledged],
+  );
 
   // Set acknowledgment to true if user has already acknowledged in their profile
   useEffect(() => {
@@ -401,19 +369,15 @@ export default function CreateMealScreen() {
     if (!isValid) return;
     try {
       setSaving(true);
-      const cuisine = form.category.trim();
-      const ingredients = form.ingredientList.split(',').map(s => s.trim()).filter(Boolean);
       const created = await createMeal.mutateAsync({
         name: form.name.trim(),
-        description: ingredients.join(', '),
+        description: form.name.trim(),
         price: Number(priceNumber),
         images: [],
-        ingredients,
-        cuisine,
-        category: cuisine === 'Bakery' ? 'dessert' : 'dinner',
+        ingredients: [],
+        cuisine: '',
+        category: 'dinner', // meal-time column cannot be blank; cuisine stays empty until the later step
         preparationTime: 30,
-        expiryDate: form.freshnessExpiryDate || undefined,
-        receiptDate: form.freshnessReceiptDate || undefined,
       });
       const media: { uri: string; type: MediaType }[] = [];
       for (const item of form.media) {
@@ -430,18 +394,19 @@ export default function CreateMealScreen() {
         id: created.id,
         ownerId: user?.id ?? 'unknown',
         name: form.name.trim(),
-        category: form.category.trim(),
+        category: '',
         price: Number(priceNumber),
-        ingredients,
+        ingredients: [],
         media,
-        freshness: {
-          expiryDate: form.freshnessExpiryDate || undefined,
-          receiptDate: form.freshnessReceiptDate || undefined,
-          attachments: form.freshnessMedia.map(m => ({ uri: m.uri, type: m.type, addedAt: new Date() })),
-        },
+        freshness: { attachments: [] },
       });
-      Alert.alert('Saved', 'Meal published successfully');
-      router.back();
+      setForm({
+        name: '',
+        price: '',
+        media: [],
+        availabilityWindows: [],
+      });
+      router.replace({ pathname: '/meal-details', params: { id: created.id } } as Href);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to save meal. Please try again.';
       Alert.alert('Error', message);
@@ -587,7 +552,7 @@ export default function CreateMealScreen() {
           >
             <View style={styles.headerInner}>
               <Text style={styles.title}>Create New Meal</Text>
-              <Text style={styles.subtitle}>Complete all required fields to publish</Text>
+              <Text style={styles.subtitle}>Name, price, and one photo</Text>
             </View>
           </LinearGradient>
         </View>
@@ -612,22 +577,6 @@ export default function CreateMealScreen() {
             style={styles.input}
             testID="meal-name"
           />
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>Category / Cuisine</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-            {cuisineTypes.map(c => (
-              <GlassPressable
-                key={c}
-                onPress={() => onChange('category', c)}
-                style={[styles.chip, form.category === c && styles.chipActive]}
-                testID={`chip-${c}`}
-              >
-                <Text style={[styles.chipText, form.category === c && styles.chipTextActive]}>{c}</Text>
-              </GlassPressable>
-            ))}
-          </ScrollView>
         </View>
 
         <View style={styles.section}>
@@ -677,12 +626,12 @@ export default function CreateMealScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.label}>Images / Videos</Text>
-          <Text style={styles.helper}>Tap to select or drag-and-drop images or short videos (≤ 8s) here (web)</Text>
+          <Text style={styles.label}>Photo</Text>
+          <Text style={styles.helper}>One photo publishes the plate. A short video is optional.</Text>
           <View style={styles.dropZone} testID="drop-zone">
             <View style={styles.dropZoneInner}>
               <GlassPressable onPress={pickMedia} style={styles.uploadAction} testID="pick-media">
-                <Text style={styles.uploadActionText}>Choose from Gallery</Text>
+                <Text style={styles.uploadActionText}>Choose a photo</Text>
               </GlassPressable>
               <GlassPressable onPress={captureMedia} style={[styles.uploadAction, styles.uploadActionSecondary]} testID="capture-media" accessibilityLabel="Record video with camera">
                 <Text style={[styles.uploadActionText, styles.uploadActionTextSecondary]}>Photo / Video</Text>
@@ -787,79 +736,6 @@ export default function CreateMealScreen() {
           />
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.label}>Ingredient Freshness Documentation</Text>
-          <Text style={styles.helper}>Provide either Expiration Date of Ingredients or Date of Receipt</Text>
-          <View style={styles.row}>
-            <View style={styles.half}>
-              <Text style={styles.smallLabel}>Expiration Date (YYYY-MM-DD)</Text>
-              <TextInput
-                value={form.freshnessExpiryDate ?? ''}
-                onChangeText={t => onChange('freshnessExpiryDate', t)}
-                placeholder="2025-10-03"
-                placeholderTextColor={Colors.gray[400]}
-                style={styles.input}
-                testID="expiry-date"
-              />
-            </View>
-            <View style={styles.half}>
-              <Text style={styles.smallLabel}>Receipt/Purchase Date (YYYY-MM-DD)</Text>
-              <TextInput
-                value={form.freshnessReceiptDate ?? ''}
-                onChangeText={t => onChange('freshnessReceiptDate', t)}
-                placeholder="2025-10-01"
-                placeholderTextColor={Colors.gray[400]}
-                style={styles.input}
-                testID="receipt-date"
-              />
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <GradientButton
-            title="Add Ingredients Freshness"
-            onPress={pickFreshnessMedia}
-            baseColor="orange"
-            testID="add-ingredients-freshness"
-          />
-          {form.freshnessMedia.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.previewRow}>
-              {form.freshnessMedia.map((item, idx) => (
-                <View key={`${item.uri}-fresh-${idx}`} style={styles.previewItem}>
-                  {item.type === 'image' ? (
-                    <Image source={{ uri: item.uri }} style={styles.previewImage} />
-                  ) : (
-                    Platform.OS === 'web' ? (
-                      // @ts-ignore web-only built-in element
-                      React.createElement('video', { style: styles.previewImage as any, controls: true, loop: true, src: item.uri, playsInline: true })
-                    ) : (
-                      <VideoPreview
-                        uri={item.uri}
-                        testID={`preview-fresh-video-${idx}`}
-                      />
-                    )
-                  )}
-                </View>
-              ))}
-            </ScrollView>
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>Full Ingredient List</Text>
-          <TextInput
-            value={form.ingredientList}
-            onChangeText={t => onChange('ingredientList', t)}
-            placeholder="List all ingredients. Example: Chicken, cream, garlic, parmesan, chili flakes..."
-            placeholderTextColor={Colors.gray[400]}
-            style={[styles.input, styles.textArea]}
-            multiline
-            numberOfLines={5}
-            testID="ingredient-list"
-          />
-        </View>
-
         <View style={styles.footerSpacer} />
       </ScrollView>
 
@@ -918,7 +794,7 @@ export default function CreateMealScreen() {
           </GlassPressable>
         </View>
           <GradientButton
-            title={saving ? 'Publishing…' : 'Save / Publish Meal'}
+            title={saving ? 'Publishing…' : 'Publish'}
             onPress={saveMeal}
             disabled={!isValid || saving}
             loading={saving}

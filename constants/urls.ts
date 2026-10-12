@@ -1,6 +1,6 @@
 /**
- * Public legal URLs. The pages are static files in pages/legal and are copied
- * to /privacy and /terms by the Cloudflare Pages build.
+ * Public legal and support URLs. The pages are static files in pages/legal and
+ * are copied to /privacy, /terms, and /support by the Cloudflare Pages build.
  *
  * App Store Connect and Play Console must use these same URLs. They answer
  * only after homecookedplate.com points at the Cloudflare Pages project.

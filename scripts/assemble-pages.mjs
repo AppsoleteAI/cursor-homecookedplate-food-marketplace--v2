@@ -29,8 +29,13 @@ function walk(dir) {
 walk(dist);
 copyFileSync(join(root, "pages", "_worker.js"), join(dist, "_worker.js"));
 
-for (const name of ["privacy", "terms"]) {
+const legalDir = join(dist, "legal");
+mkdirSync(legalDir, { recursive: true });
+copyFileSync(join(root, "assets", "house-mark.png"), join(legalDir, "house-mark.png"));
+for (const name of ["privacy", "terms", "support"]) {
+  const file = join(root, "pages", "legal", `${name}.html`);
+  copyFileSync(file, join(legalDir, `${name}.html`));
   const dir = join(dist, name);
   mkdirSync(dir, { recursive: true });
-  copyFileSync(join(root, "pages", "legal", `${name}.html`), join(dir, "index.html"));
+  copyFileSync(file, join(dir, "index.html"));
 }

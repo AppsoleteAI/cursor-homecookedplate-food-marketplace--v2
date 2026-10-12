@@ -1,4 +1,4 @@
-// eslint-disable-next-line import/no-unresolved
+ 
 import { Resend } from 'resend';
 
 // Error logging function - uses console.error since sentry may not be available in backend
@@ -262,5 +262,19 @@ export async function sendPasswordResetEmail(
       });
     }
     throw error;
+  }
+}
+
+export async function sendNoticeEmail(email: string, subject: string, body: string): Promise<void> {
+  if (!resend || !email) return;
+  try {
+    await resend.emails.send({
+      from: officialEmailFrom,
+      to: email,
+      subject,
+      text: body,
+    });
+  } catch (error) {
+    console.error('[Email Service] Notice email failed:', error);
   }
 }

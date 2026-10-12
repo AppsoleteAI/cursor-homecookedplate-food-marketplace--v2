@@ -5,6 +5,7 @@ import {
   PLATEMAKER_RESPONSIBILITY_STATEMENT,
   REMOVAL_THRESHOLDS,
   RESPONSIBILITY_WINDOW_DAYS,
+  SUPPORT_EMAIL,
   warningReasons,
 } from '../../../../lib/payout-policy';
 import { countResponsibility, releaseDuePayouts } from '../../../../lib/stripe-marketplace';
@@ -40,6 +41,24 @@ export const getPayoutStandingProcedure = protectedProcedure.query(async ({ ctx 
     .order('created_at', { ascending: false })
     .limit(30);
 
+  const { data: disputes } = await ctx.supabaseAdmin
+    .from('platetaker_lost_disputes')
+    .select('id, platetaker_id, fee_half_refunded, created_at')
+    .eq('platemaker_id', ctx.userId)
+    .order('created_at', { ascending: false })
+    .limit(30);
+
+  const platetakerIds = [...new Set((disputes ?? []).map((row) => row.platetaker_id).filter(Boolean))];
+  const { data: people } = platetakerIds.length
+    ? await ctx.supabaseAdmin.from('profiles').select('id, username').in('id', platetakerIds)
+    : { data: [] };
+  const { data: blocks } = await ctx.supabaseAdmin
+    .from('cook_buyer_blocks')
+    .select('platetaker_id')
+    .eq('platemaker_id', ctx.userId);
+  const blockedIds = new Set((blocks ?? []).map((row) => row.platetaker_id));
+  const names = new Map((people ?? []).map((row) => [row.id, row.username]));
+
   const { data: messages } = await ctx.supabaseAdmin
     .from('platemaker_admin_messages')
     .select('id, sender_role, body, created_at')
@@ -55,6 +74,7 @@ export const getPayoutStandingProcedure = protectedProcedure.query(async ({ ctx 
     sellingRemoved: standing?.selling_removed === true,
     sellingRemovedReason: standing?.selling_removed_reason ?? null,
     stripeConnected: Boolean(standing?.stripe_account_id),
+    supportEmail: SUPPORT_EMAIL,
     counts,
     warnings: warningReasons(counts),
     payouts: (payouts ?? []).map((row) => ({
@@ -64,6 +84,14 @@ export const getPayoutStandingProcedure = protectedProcedure.query(async ({ ctx 
       status: row.status,
       releaseAt: row.payout_release_at,
       settledAt: row.payout_settled_at,
+      createdAt: row.created_at,
+    })),
+    lostDisputes: (disputes ?? []).map((row) => ({
+      id: row.id,
+      platetakerId: row.platetaker_id,
+      platetakerName: names.get(row.platetaker_id) || 'PlateTaker',
+      halfRefunded: row.fee_half_refunded === true,
+      blocked: blockedIds.has(row.platetaker_id),
       createdAt: row.created_at,
     })),
     messages: (messages ?? []).map((row) => ({

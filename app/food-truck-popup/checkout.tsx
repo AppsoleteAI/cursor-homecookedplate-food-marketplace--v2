@@ -45,7 +45,12 @@ export default function TruckCheckoutScreen() {
   const place = async () => {
     if (!windowOpen || lines.length === 0 || charging) return;
     try {
-      const paid = await chargeShop('food_truck', lines.map((line) => ({ productId: line.itemId, quantity: line.quantity })));
+      const paid = await chargeShop('food_truck', lines.map((line) => ({ productId: line.itemId, quantity: line.quantity })), {
+        shop: 'food_truck',
+        truckId,
+        truckName,
+        pickupSlot: slot,
+      });
       if (!paid) return;
       const order = placeOrder({
         id: paid.orderId,

@@ -1,5 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
+import type { SavedShopOrder } from '@/backend/lib/shop-fulfillment';
+import { useSavedShopOrders } from '@/hooks/use-saved-shop-orders';
+import { caterOrdersFromSaved, mergeById, sameOrders } from '@/lib/saved-shop-order';
 import type { CaterLicenseRecord, DropOffWindow } from '@/lib/cater-event-license';
 import { evaluateCaterPackage } from '@/lib/cater-event-license';
 
@@ -88,7 +91,7 @@ export function hydrateCaterEvent() {
       state = {
         items: parsed.items ?? [],
         follows: parsed.follows ?? [],
-        orders: parsed.orders ?? [],
+        orders: mergeById(parsed.orders ?? [], state.orders),
         license: parsed.license ?? null,
         listings: parsed.listings ?? [],
         accepting: parsed.accepting ?? false,
@@ -193,13 +196,21 @@ export function placeCaterOrder(input: {
     createdAt: new Date().toISOString(),
     ...rest,
   };
-  state = { ...state, items: [], orders: [order, ...state.orders] };
+  state = { ...state, items: [], orders: [order, ...state.orders.filter((existing) => existing.id !== order.id)] };
   emit();
   return order;
 }
 
+export function applyServerCaterOrders(rows: SavedShopOrder[]) {
+  const next = mergeById(state.orders, caterOrdersFromSaved(rows));
+  if (sameOrders(state.orders, next)) return;
+  state = { ...state, orders: next };
+  emit();
+}
+
 export function useCaterEvent() {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  useSavedShopOrders('catering', applyServerCaterOrders);
   const headcount = snapshot.items.reduce((sum, item) => sum + item.headcount, 0);
   return {
     ...snapshot,

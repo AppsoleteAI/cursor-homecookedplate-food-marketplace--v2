@@ -47,6 +47,52 @@ export const calculateOrderSplit = (baseAmount: number) => {
   return result;
 };
 
+function roundMoney(amount: number): number {
+  return Math.round(amount * 100) / 100;
+}
+
+const STRIPE_PERCENT = 0.029;
+const STRIPE_FIXED = 0.30;
+
+/**
+ * Mirrors backend/lib/fees.ts buyerCardCharge.
+ * The buyer pays the service total, tax when a tax amount applies, and the
+ * Stripe card fee. The card fee is grossed up so it is not taken from the platform share.
+ */
+export function buyerCardCharge(marketplaceTotal: number, taxAmount = 0) {
+  if (!Number.isFinite(marketplaceTotal) || marketplaceTotal < 0) {
+    throw new Error(`Invalid marketplaceTotal: ${marketplaceTotal}. Must be a finite, non-negative number.`);
+  }
+  if (!Number.isFinite(taxAmount) || taxAmount < 0) {
+    throw new Error(`Invalid taxAmount: ${taxAmount}. Must be a finite, non-negative number.`);
+  }
+
+  const netCents = Math.round(marketplaceTotal * 100) + Math.round(taxAmount * 100);
+  if (netCents === 0) {
+    return {
+      marketplaceTotal: 0,
+      taxAmount: 0,
+      stripeFee: 0,
+      cardCharge: 0,
+    };
+  }
+
+  const fixedCents = Math.round(STRIPE_FIXED * 100);
+  let chargeCents = Math.round((netCents + fixedCents) / (1 - STRIPE_PERCENT));
+  let stripeCents = Math.round(chargeCents * STRIPE_PERCENT + fixedCents);
+  for (let attempt = 0; attempt < 3 && chargeCents - stripeCents !== netCents; attempt += 1) {
+    chargeCents += netCents - (chargeCents - stripeCents);
+    stripeCents = Math.round(chargeCents * STRIPE_PERCENT + fixedCents);
+  }
+
+  return {
+    marketplaceTotal: roundMoney(marketplaceTotal),
+    taxAmount: roundMoney(taxAmount),
+    stripeFee: stripeCents / 100,
+    cardCharge: chargeCents / 100,
+  };
+}
+
 /**
  * Calculate order breakdown for UI display and API consistency.
  * 

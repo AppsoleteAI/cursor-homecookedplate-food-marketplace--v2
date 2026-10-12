@@ -69,7 +69,14 @@ export default function CaterCheckoutScreen() {
     }
     setBlock(null);
     try {
-      const paid = await chargeShop('catering', lines.map((line) => ({ productId: line.packageId, quantity: line.headcount })));
+      const paid = await chargeShop('catering', lines.map((line) => ({ productId: line.packageId, quantity: line.headcount })), {
+        shop: 'catering',
+        companyId,
+        companyName,
+        organization: organization.trim(),
+        dropoffWindow,
+        address: address.trim(),
+      });
       if (!paid) return;
       const order = placeOrder({
         id: paid.orderId,

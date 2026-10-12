@@ -10,10 +10,12 @@ import { logAdminAlert } from "./lib/alerts";
 import { sendExpoPushNotification } from "./lib/expo-push-notifications";
 import { calculateFees } from "./lib/fees";
 import { payoutReleaseAt } from "./lib/payout-policy";
-import { handleChargeDispute, releaseDuePayouts } from "./lib/stripe-marketplace";
+import { handleChargeDispute, handleLostDispute, releaseDuePayouts } from "./lib/stripe-marketplace";
+import type { MediaFrameBinding } from "./lib/image-security";
 
 type Bindings = {
   RATE_LIMIT_KV?: KVNamespace;
+  ENVIRONMENT?: string;
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   EXPO_PUBLIC_SUPABASE_ANON_KEY?: string;
@@ -22,11 +24,19 @@ type Bindings = {
   METRO_WEBHOOK_SECRET?: string;
   // Cloudflare Workers AI binding for image NSFW moderation
   AI?: Ai;
+  // Still frames from uploaded meal videos
+  MEDIA?: MediaFrameBinding;
+  GOOGLE_PLAY_SERVICE_ACCOUNT_JSON?: string;
 };
 
 export const app = new Hono<{ Bindings: Bindings }>();
 
 const inMemoryRateLimit = new Map<string, { count: number; resetTime: number }>();
+
+function runtimeIsProduction(env: Bindings | undefined): boolean {
+  const name = env?.ENVIRONMENT || process.env.ENVIRONMENT || process.env.NODE_ENV;
+  return name === "production";
+}
 
 const rateLimit = (maxRequests: number, windowMs: number) => {
   return async (c: any, next: any) => {
@@ -35,6 +45,11 @@ const rateLimit = (maxRequests: number, windowMs: number) => {
     const key = `ratelimit:${ip}`;
 
     const kv = c.env?.RATE_LIMIT_KV;
+
+    if (!kv && runtimeIsProduction(c.env)) {
+      console.error("[Rate Limit] Refusing request because RATE_LIMIT_KV is not bound");
+      return c.json({ error: "Service temporarily unavailable." }, 503);
+    }
     
     if (kv) {
       const recordStr = await kv.get(key);
@@ -276,6 +291,15 @@ app.post("/webhook/stripe", async (c) => {
       // Create transaction record for each order with fee breakdowns
       // Use order.total_price as base price (each order calculates fees independently)
       for (const order of updatedOrders) {
+        const { data: existingTx } = await supabaseAdmin
+          .from('transactions')
+          .select('id')
+          .eq('order_id', order.id)
+          .limit(1);
+        if (existingTx && existingTx.length > 0) {
+          continue;
+        }
+
         // Base price from order (meal.price * quantity)
         const basePrice = parseFloat(order.total_price);
         
@@ -470,14 +494,18 @@ app.post("/webhook/stripe", async (c) => {
     }
   }
 
-  if (event.type === 'charge.dispute.created') {
+  if (event.type === 'charge.dispute.created' || event.type === 'charge.dispute.closed') {
     const stripeSecretKey = c.env?.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
     if (!stripeSecretKey) {
       console.error('[Stripe Webhook] Missing Stripe key for dispute');
       return c.json({ error: 'Server configuration error' }, 500);
     }
     try {
-      await handleChargeDispute(supabaseAdmin, stripeSecretKey, event.data.object);
+      if (event.type === 'charge.dispute.created') {
+        await handleChargeDispute(supabaseAdmin, stripeSecretKey, event.data.object);
+      } else {
+        await handleLostDispute(supabaseAdmin, stripeSecretKey, event.data.object);
+      }
     } catch (disputeError) {
       console.error('[Stripe Webhook] Dispute handling failed:', disputeError);
       return c.json({ error: 'Dispute handling failed' }, 500);
@@ -590,6 +618,8 @@ app.use(
         EXPO_PUBLIC_WEB_URL: c.env?.EXPO_PUBLIC_WEB_URL ?? process.env.EXPO_PUBLIC_WEB_URL,
         // Cloudflare Workers AI binding — only available in CF runtime (undefined in local Bun dev)
         AI: c.env?.AI,
+        MEDIA: c.env?.MEDIA,
+        GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: c.env?.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON,
       };
       return await createContext(opts, env);
     },

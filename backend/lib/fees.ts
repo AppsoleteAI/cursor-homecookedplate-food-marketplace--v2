@@ -99,6 +99,50 @@ export const calculateOrderSplit = (baseAmount: number) => {
   return result;
 };
 
+function roundMoney(amount: number): number {
+  return Math.round(amount * 100) / 100;
+}
+
+/**
+ * Card charge for a marketplace total.
+ * The buyer pays the 10% service total, sales tax when a tax amount applies,
+ * and the Stripe card fee of 2.9% + $0.30. The card fee is grossed up so it
+ * is not taken out of the platform's 20% share.
+ */
+export function buyerCardCharge(marketplaceTotal: number, taxAmount = 0) {
+  if (!Number.isFinite(marketplaceTotal) || marketplaceTotal < 0) {
+    throw new Error(`Invalid marketplaceTotal: ${marketplaceTotal}. Must be a finite, non-negative number.`);
+  }
+  if (!Number.isFinite(taxAmount) || taxAmount < 0) {
+    throw new Error(`Invalid taxAmount: ${taxAmount}. Must be a finite, non-negative number.`);
+  }
+
+  const netCents = Math.round(marketplaceTotal * 100) + Math.round(taxAmount * 100);
+  if (netCents === 0) {
+    return {
+      marketplaceTotal: 0,
+      taxAmount: 0,
+      stripeFee: 0,
+      cardCharge: 0,
+    };
+  }
+
+  const fixedCents = Math.round(PLATFORM_FEES.STRIPE_FIXED * 100);
+  let chargeCents = Math.round((netCents + fixedCents) / (1 - PLATFORM_FEES.STRIPE_PERCENT));
+  let stripeCents = Math.round(chargeCents * PLATFORM_FEES.STRIPE_PERCENT + fixedCents);
+  for (let attempt = 0; attempt < 3 && chargeCents - stripeCents !== netCents; attempt += 1) {
+    chargeCents += netCents - (chargeCents - stripeCents);
+    stripeCents = Math.round(chargeCents * PLATFORM_FEES.STRIPE_PERCENT + fixedCents);
+  }
+
+  return {
+    marketplaceTotal: roundMoney(marketplaceTotal),
+    taxAmount: roundMoney(taxAmount),
+    stripeFee: stripeCents / 100,
+    cardCharge: chargeCents / 100,
+  };
+}
+
 /**
  * Buyer refund on a cook-issued refund: the cook's share only.
  * The platform keeps both 10% fees. Source of truth is calculateOrderSplit.
@@ -212,6 +256,12 @@ export const PLATFORM_FEES = {
   STRIPE_PERCENT: 0.029,     // 2.9% Stripe Fee
 } as const;
 
+/** Charged to the cook when a card dispute is lost. The platform does not pay it. */
+export const LOST_DISPUTE_FEE = 15;
+export const LOST_DISPUTE_FEE_CENTS = 1500;
+/** Returned to the cook after they block that PlateTaker from their plates. */
+export const LOST_DISPUTE_FEE_HALF_CENTS = 750;
+
 /**
  * Net payout calculation for Platemaker transparency.
  * @param amount - The base order amount before fees
@@ -230,7 +280,8 @@ export const getNetPayout = (amount: number): number => {
  * These helpers power admin revenue projections and earnings transparency.
  *
  * Key assumptions (defaults are set in the UI layer; functions remain pure):
- * - Membership pricing: $4.99/mo or $39.99/yr
+ * - PlateMaker membership: $4.99/mo or $39.99/yr
+ * - PlateTaker membership: $7.99/mo or $75.99/yr
  * - GMV model: AOV + orders-per-platetaker-per-month
  * - Fee model: 10% platetaker fee + 10% platemaker rake (two-sided "double 10")
  */
@@ -287,6 +338,10 @@ export interface RevenueBreakdown {
 export const SUBSCRIPTION_PRICES = {
   MONTHLY: 4.99,
   ANNUAL: 39.99,
+  PLATEMAKER_MONTHLY: 4.99,
+  PLATEMAKER_ANNUAL: 39.99,
+  PLATETAKER_MONTHLY: 7.99,
+  PLATETAKER_ANNUAL: 75.99,
   LIFETIME: 0.00, // Promotional lifetime slots
   // Env var names used by server/edge code (values provided via Supabase secrets).
   STRIPE_MONTHLY_ID_ENV: 'STRIPE_PRICE_ID_STANDARD_MONTHLY',

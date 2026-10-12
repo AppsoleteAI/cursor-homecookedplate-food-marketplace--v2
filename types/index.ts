@@ -16,6 +16,7 @@ export interface User {
   metroArea?: string | null;
   trialEndsAt?: Date | null;
   foodSafetyAcknowledged?: boolean;
+  orderingRemoved?: boolean;
 }
 
 export interface PlateMaker extends User {

@@ -21,6 +21,10 @@ preview_id = "c985bfb57b2942de9a204dc3df91121b"
 [ai]
 binding = "AI"
 
+# Still frames from meal videos, scanned with the AI binding before the file is stored.
+[media]
+binding = "MEDIA"
+
 [vars]
 ENVIRONMENT = "production"
 EXPO_PUBLIC_WEB_URL = "https://homecookedplate.com"
@@ -38,6 +42,9 @@ preview_id = "c985bfb57b2942de9a204dc3df91121b"
 
 [env.production.ai]
 binding = "AI"
+
+[env.production.media]
+binding = "MEDIA"
 
 [env.production.vars]
 ENVIRONMENT = "production"

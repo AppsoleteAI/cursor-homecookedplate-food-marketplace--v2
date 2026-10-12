@@ -8,6 +8,7 @@ interface MealsState {
   meals: CreatedMeal[];
   isLoading: boolean;
   addMeal: (input: Omit<CreatedMeal, 'id' | 'createdAt'> & { id?: string }) => Promise<CreatedMeal>;
+  updateMealDetails: (mealId: string, details: Pick<CreatedMeal, 'category' | 'ingredients' | 'freshness'>) => Promise<void>;
   addFreshnessAttachment: (mealId: string, attachment: Omit<FreshnessAttachment, 'addedAt'>) => Promise<void>;
   getMyMeals: (ownerId: string) => CreatedMeal[];
 }
@@ -95,6 +96,14 @@ export const [MealsProvider, useMeals] = createContextHook<MealsState>(() => {
     return meal;
   }, [persist]);
 
+  const updateMealDetails = useCallback(async (mealId: string, details: Pick<CreatedMeal, 'category' | 'ingredients' | 'freshness'>) => {
+    setMeals(prev => {
+      const next = prev.map(meal => (meal.id === mealId ? { ...meal, ...details } : meal));
+      persist(next).catch(err => console.error('[Meals] persist details error', err));
+      return next;
+    });
+  }, [persist]);
+
   const addFreshnessAttachment = useCallback(async (mealId: string, attachment: Omit<FreshnessAttachment, 'addedAt'>) => {
     setMeals(prev => {
       const next = prev.map(m => (m.id === mealId ? { ...m, freshness: { ...m.freshness, attachments: [...m.freshness.attachments, { ...attachment, addedAt: new Date() }] } } : m));
@@ -105,5 +114,5 @@ export const [MealsProvider, useMeals] = createContextHook<MealsState>(() => {
 
   const getMyMeals = useCallback((ownerId: string) => meals.filter(m => m.ownerId === ownerId), [meals]);
 
-  return useMemo(() => ({ meals, isLoading, addMeal, addFreshnessAttachment, getMyMeals }), [meals, isLoading, addMeal, addFreshnessAttachment, getMyMeals]);
+  return useMemo(() => ({ meals, isLoading, addMeal, updateMealDetails, addFreshnessAttachment, getMyMeals }), [meals, isLoading, addMeal, updateMealDetails, addFreshnessAttachment, getMyMeals]);
 });

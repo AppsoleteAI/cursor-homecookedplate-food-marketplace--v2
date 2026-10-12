@@ -2,7 +2,7 @@ import { COMMISSARY_REQUIRED_STATES } from '@/lib/kitchen-rules';
 import { stateName } from '@/lib/cottage-food';
 
 export const FOOD_TRUCK_RULE =
-  'FoodTruckPopup is for licensed mobile food units. Customers order ahead and pick up at the service window. Cottage food laws do not cover a food truck. A hot menu needs the health permit for the city or county where the window is open, and in most states a commissary agreement before that permit is issued. This app does not inspect the truck, issue the permit, or look up the fee.';
+  'FoodTruckPopup is for licensed mobile food units: independent food trucks and independent food carts. Customers order ahead and pick up at the window or the cart. Cottage food laws do not cover either one. A hot menu needs the health permit for the city or county where the unit is open, and in most states a commissary agreement before that permit is issued. A franchise cart is not listed. This app does not inspect the unit, issue the permit, or look up the fee.';
 
 export const PICKUP_SLOTS = ['Next 15 minutes', 'In 30 minutes', 'In 45 minutes'] as const;
 export type PickupSlot = (typeof PICKUP_SLOTS)[number];

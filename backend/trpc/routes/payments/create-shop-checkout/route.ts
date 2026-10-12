@@ -3,7 +3,14 @@ import { TRPCError } from '@trpc/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { protectedProcedure } from '../../../create-context';
 import { calculateFees } from '../../../../lib/fees';
+import { assertBuyerCanOrder } from '../../../../lib/buyer-order-access';
 import { quoteShopOrder, SHOP_NAMES } from '../../../../lib/shop-catalog';
+import {
+  packShopLines,
+  presentSavedShopOrder,
+  shopFulfillmentSchema,
+  type ShopFulfillment,
+} from '../../../../lib/shop-fulfillment';
 
 const lineSchema = z.object({
   productId: z.string().min(1).max(80),
@@ -13,10 +20,12 @@ const lineSchema = z.object({
 const checkoutInput = z.object({
   shop: z.enum(SHOP_NAMES),
   lines: z.array(lineSchema).min(1).max(20),
+  sellerId: z.string().uuid().optional(),
 });
 
 type ShopRecord = {
   id: string;
+  shop: string;
   buyerId: string;
   totalCharge: number;
   paid: boolean;
@@ -69,6 +78,7 @@ async function insertShopRecord(
   if (!primary.error && primary.data) {
     return {
       id: primary.data.id as string,
+      shop,
       buyerId,
       totalCharge,
       paid: false,
@@ -97,6 +107,7 @@ async function insertShopRecord(
   }
   return {
     id: audit.data.id as string,
+    shop,
     buyerId,
     totalCharge,
     paid: false,
@@ -142,7 +153,7 @@ async function loadByPayment(
 ): Promise<ShopRecord | null> {
   const primary = await admin
     .from('shop_orders')
-    .select('id, buyer_id, total_charge, paid, payment_intent_id')
+    .select('id, shop, buyer_id, total_charge, paid, payment_intent_id')
     .eq('payment_intent_id', paymentIntentId)
     .maybeSingle();
 
@@ -150,6 +161,7 @@ async function loadByPayment(
     if (primary.data.buyer_id !== buyerId) return null;
     return {
       id: primary.data.id as string,
+      shop: primary.data.shop as string,
       buyerId,
       totalCharge: Number(primary.data.total_charge),
       paid: Boolean(primary.data.paid),
@@ -170,6 +182,7 @@ async function loadByPayment(
   const data = asRecord(audit.data.new_data);
   return {
     id: audit.data.id as string,
+    shop: typeof data.shop === 'string' ? data.shop : '',
     buyerId,
     totalCharge: Number(data.total_charge),
     paid: data.paid === true,
@@ -178,11 +191,25 @@ async function loadByPayment(
   };
 }
 
-async function markPaid(admin: { from: (table: string) => any }, record: ShopRecord) {
+async function markPaid(
+  admin: { from: (table: string) => any },
+  record: ShopRecord,
+  fulfillment: ShopFulfillment,
+) {
+  if (fulfillment.shop !== record.shop) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'This handoff does not match the shop that was charged' });
+  }
   if (record.store === 'shop_orders') {
+    const existing = await admin
+      .from('shop_orders')
+      .select('lines')
+      .eq('id', record.id)
+      .eq('buyer_id', record.buyerId)
+      .single();
+    if (existing.error || !existing.data) throw new Error('Failed to record the shop payment');
     const { error } = await admin
       .from('shop_orders')
-      .update({ paid: true })
+      .update({ paid: true, lines: packShopLines(existing.data.lines, fulfillment) })
       .eq('id', record.id)
       .eq('buyer_id', record.buyerId);
     if (error) throw new Error('Failed to record the shop payment');
@@ -195,9 +222,16 @@ async function markPaid(admin: { from: (table: string) => any }, record: ShopRec
     .eq('user_id', record.buyerId)
     .single();
   if (existing.error || !existing.data) throw new Error('Failed to record the shop payment');
+  const current = asRecord(existing.data.new_data);
   const { error } = await admin
     .from('audit_logs')
-    .update({ new_data: { ...asRecord(existing.data.new_data), paid: true } })
+    .update({
+      new_data: {
+        ...current,
+        paid: true,
+        lines: packShopLines(current.lines, fulfillment),
+      },
+    })
     .eq('id', record.id)
     .eq('user_id', record.buyerId);
   if (error) throw new Error('Failed to record the shop payment');
@@ -210,6 +244,8 @@ export const createShopCheckoutProcedure = protectedProcedure
     if (!stripeSecretKey) {
       throw new Error('Stripe secret key not configured');
     }
+
+    await assertBuyerCanOrder(ctx.supabaseAdmin, ctx.userId, input.sellerId);
 
     let quote;
     try {
@@ -268,7 +304,10 @@ export const createShopCheckoutProcedure = protectedProcedure
   });
 
 export const confirmShopPaymentProcedure = protectedProcedure
-  .input(z.object({ paymentIntentId: z.string().min(3) }))
+  .input(z.object({
+    paymentIntentId: z.string().min(3),
+    fulfillment: shopFulfillmentSchema,
+  }))
   .mutation(async ({ input, ctx }) => {
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
     if (!stripeSecretKey) {
@@ -304,6 +343,29 @@ export const confirmShopPaymentProcedure = protectedProcedure
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Payment does not match this order' });
     }
 
-    await markPaid(ctx.supabaseAdmin, record);
+    await markPaid(ctx.supabaseAdmin, record, input.fulfillment);
     return { orderId: record.id, paid: true };
+  });
+
+export const listShopOrdersProcedure = protectedProcedure
+  .input(z.object({ shop: z.enum(SHOP_NAMES) }))
+  .query(async ({ input, ctx }) => {
+    const { data, error } = await ctx.supabase
+      .from('shop_orders')
+      .select('id, shop, lines, base_amount, total_charge, paid, created_at')
+      .eq('buyer_id', ctx.userId)
+      .eq('shop', input.shop)
+      .eq('paid', true)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      if (missingTable(error)) return [];
+      console.error('[ShopOrders] List error:', error);
+      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Could not load shop orders' });
+    }
+
+    return (data ?? []).flatMap((row) => {
+      const saved = presentSavedShopOrder(row);
+      return saved ? [saved] : [];
+    });
   });

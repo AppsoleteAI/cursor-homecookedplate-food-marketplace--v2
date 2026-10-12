@@ -21,6 +21,7 @@ if (__DEV__) {
   }
 }
 
+import '@/lib/apply-default-font';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Slot, usePathname, useRootNavigationState } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -41,7 +42,7 @@ import { trpc, trpcClient } from "@/lib/trpc";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { StripeProvider } from '@/lib/stripe';
 import { navLogger } from '@/lib/nav-logger';
-import { captureException, Sentry } from '@/lib/sentry';
+import { captureException, scrubSentryEvent, Sentry } from '@/lib/sentry';
 import { SENTRY_TRACE_SAMPLE_RATE } from '@/lib/sentry-rate';
 import { applyScrollbarAccent } from '@/lib/web-scrollbar';
 
@@ -53,6 +54,11 @@ if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
     debug: __DEV__,
     tracesSampleRate: SENTRY_TRACE_SAMPLE_RATE,
     environment: process.env.NODE_ENV || 'production',
+    sendDefaultPii: false,
+    beforeSend(event) {
+      scrubSentryEvent(event);
+      return event;
+    },
   });
 }
 
