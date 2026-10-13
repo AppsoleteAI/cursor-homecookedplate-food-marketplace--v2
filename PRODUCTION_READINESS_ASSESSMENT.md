@@ -983,6 +983,7 @@ tracesSampleRate: 0.1, // 10% in production (adjust based on volume)
 - [ ] Configure backup retention (30-90 days)
 - [ ] Set up backup verification (monthly restore test)
 - [ ] Document backup restoration procedures
+- Breach notice procedure, if a backup or the live database is exposed: `docs/BREACH_NOTICE.md`
 
 #### 11.2 Disaster Recovery Plan
 **Status:** ❌ Missing

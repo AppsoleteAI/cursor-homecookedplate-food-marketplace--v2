@@ -34,7 +34,7 @@ const isBuildTime = typeof process !== 'undefined' && process.env && !process.en
 if (!isCloudflareWorker && hasEnvVars && !isBuildTime) {
   // Validate all required environment variables are present (Bun/Node only, not during build)
   if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
-    throw new Error('❌ Missing Supabase environment variables in backend/.env. Required: SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY');
+    throw new Error('❌ Missing Supabase environment. SUPABASE_SERVICE_ROLE_KEY is a Worker secret on plate-marketplace-api and is read from c.env. Do not put it in a file. Required: SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY');
   }
 
   /**

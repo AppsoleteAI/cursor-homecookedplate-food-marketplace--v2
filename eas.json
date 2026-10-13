@@ -10,7 +10,8 @@
       "environment": "production"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "environment": "preview"
     }
   },
   "submit": {

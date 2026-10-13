@@ -288,7 +288,7 @@ Beyond the License Agreement itself, the following App Store Review Guidelines a
     Confirm `@stripe/stripe-react-native`, `@sentry/react-native`, and `expo-location` supply Apple-required privacy manifests (`.xcprivacy`) for iOS 17+ builds.
 
 12. **Breach Notification Procedure**  
-    Establish an internal procedure (even if manual) for notifying affected users in the event of a data breach, as required by applicable state laws and Section 3.3.3(C).
+    Manual procedure: `docs/BREACH_NOTICE.md`, stored with the Supabase backup notes. It names who gets called, how affected users are emailed, and that state notice deadlines differ. Required by applicable state laws and Section 3.3.3(C).
 
 ---
 

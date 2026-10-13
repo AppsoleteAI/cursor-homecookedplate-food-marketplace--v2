@@ -5,6 +5,7 @@
   "scripts": {
     "start": "expo start --tunnel",
     "dev:server": "bun backend/server.ts",
+    "dev:api": "wrangler dev --local --config wrangler.worker.toml --port 3000",
     "start-web": "expo start --web --tunnel",
     "share": "EXPO_TUNNEL_SUBDOMAIN=homecookedplate expo start --web --tunnel",
     "start-web-dev": "DEBUG=expo* expo start --web --tunnel",
