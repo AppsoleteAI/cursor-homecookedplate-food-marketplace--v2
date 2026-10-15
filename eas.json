@@ -18,6 +18,8 @@
     "production": {
       "ios": {
         "bundleIdentifier": "app.rork.homecookedplate-dynamic-gradient-food-marketplace-v1-1",
+        "ascAppId": "6823007581",
+        "appleTeamId": "Y7B9AH6UF8",
         "language": "en-US"
       },
       "android": {

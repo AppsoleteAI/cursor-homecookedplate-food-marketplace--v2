@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AuthColors } from '@/constants/auth-palette';
 import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { BUYER_AFTER_NOTE } from '@/lib/buyer-safety';
-import { AuthBackground, AuthBackButton, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { AuthBackground, AuthBackButton, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
 import { GlassPressable, GlassTop } from '@/components/glass-surface';
@@ -104,6 +104,7 @@ export default function LegalScreen() {
       <ScrollView showsVerticalScrollIndicator={false} testID="legal-scroll" keyboardShouldPersistTaps="handled">
         <View style={styles.content} testID="legal-content">
           <AuthBackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/(auth)/login'))} />
+          <AuthBrand toSignIn={false} />
           <Text style={styles.brand}>Legal & Safety</Text>
           <View style={styles.warningCard}>
             <GlassTop />
@@ -310,7 +311,7 @@ const styles = StyleSheet.create({
     color: AuthColors.ink,
     fontSize: 28,
     fontWeight: '700',
-    textAlign: 'center',
+    textAlign: 'left',
     marginBottom: 16,
     textShadowColor: 'rgba(70, 16, 0, 0.55)',
     textShadowOffset: { width: 0, height: 2 },

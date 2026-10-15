@@ -32,6 +32,7 @@ copyFileSync(join(root, "pages", "_worker.js"), join(dist, "_worker.js"));
 const legalDir = join(dist, "legal");
 mkdirSync(legalDir, { recursive: true });
 copyFileSync(join(root, "assets", "house-mark.png"), join(legalDir, "house-mark.png"));
+copyFileSync(join(root, "pages", "legal", "privacy-preview.png"), join(legalDir, "privacy-preview.png"));
 for (const name of ["privacy", "terms", "support"]) {
   const file = join(root, "pages", "legal", `${name}.html`);
   copyFileSync(file, join(legalDir, `${name}.html`));

@@ -16,7 +16,8 @@ html, body, * {
 }
 *::-webkit-scrollbar-track,
 *::-webkit-scrollbar-track-piece,
-*::-webkit-scrollbar-corner {
+*::-webkit-scrollbar-corner,
+*::-webkit-scrollbar-button {
   background: transparent;
   background-color: transparent;
   box-shadow: none;

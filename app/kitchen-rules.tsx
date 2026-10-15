@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router, type Href } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { AuthBackButton, AuthBackground } from '@/components/auth/AuthChrome';
+import { AuthBackButton, AuthBackground, AuthBrand } from '@/components/auth/AuthChrome';
 import { SellerOnly } from '@/components/RoleGuard';
 import { AuthColors } from '@/constants/auth-palette';
 import { GlassPressable } from '@/components/glass-surface';
@@ -30,6 +30,7 @@ export default function KitchenRulesScreen() {
       <Stack.Screen options={{ title: 'Kitchen Rules', headerShown: false }} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <AuthBackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/profile'))} />
+        <AuthBrand toSignIn={false} />
         <Text style={styles.brand}>Kitchen Rules</Text>
         <Text style={styles.audience}>A resource for PlateMakers</Text>
 

@@ -8,24 +8,53 @@
       name="description"
       content="How HomeCookedPlate collects, uses, and deletes account, location, photo, order, and payment information."
     />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="HomeCookedPlate" />
+    <meta property="og:url" content="https://homecookedplate.com/privacy" />
+    <meta property="og:title" content="Privacy Policy" />
+    <meta
+      property="og:description"
+      content="How HomeCookedPlate collects, uses, and deletes account, location, photo, order, and payment information."
+    />
+    <meta property="og:image" content="https://homecookedplate.com/legal/privacy-preview.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="HomeCookedPlate Privacy Policy" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Privacy Policy" />
+    <meta
+      name="twitter:description"
+      content="How HomeCookedPlate collects, uses, and deletes account, location, photo, order, and payment information."
+    />
+    <meta name="twitter:image" content="https://homecookedplate.com/legal/privacy-preview.png" />
     <style>
       :root { color-scheme: light; }
+      html, body {
+        min-height: 100%;
+        min-height: 100dvh;
+      }
+      html {
+        background-color: #fdeed1;
+        background-image: linear-gradient(180deg, #c17a10 0%, #f7c451 10%, #f9c85a 22%, #fbd16f 48%, #fcd787 74%, #fdeed1 86%, #fdeed1 100%);
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        background-size: 100% 100%;
+      }
       body {
         margin: 0;
-        min-height: 100vh;
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
         color: #14100c;
-        background: linear-gradient(180deg, #c17a10 0%, #f7c451 10%, #f9c85a 22%, #fbd16f 48%, #fcd787 74%, #fdeed1 86%, #fdeed1 100%);
-        background-attachment: fixed;
+        background: transparent;
       }
       header { max-width: 42rem; margin: 0 auto; padding: 1.5rem 1rem 0.25rem; }
       .brand {
         display: flex;
         align-items: center;
-        justify-content: center;
+        justify-content: flex-start;
         gap: 8px;
         margin: 0;
-        text-align: center;
+        text-align: left;
         font-family: Georgia, "Iowan Old Style", serif;
         color: #ffffff;
         font-size: 1.75rem;
@@ -74,15 +103,26 @@
       ul { margin: 0; padding-left: 1.15rem; }
       li + li { margin-top: 0.45rem; }
       a { color: #48101e; font-weight: 700; }
-      html {
+      html, body, * {
         scrollbar-width: thin;
         scrollbar-color: #c17a10 transparent;
       }
-      ::-webkit-scrollbar { width: 10px; height: 10px; background: transparent; }
-      ::-webkit-scrollbar-track,
-      ::-webkit-scrollbar-track-piece,
-      ::-webkit-scrollbar-corner { background: transparent; }
-      ::-webkit-scrollbar-thumb { background-color: #c17a10; border-radius: 999px; }
+      *::-webkit-scrollbar { width: 10px; height: 10px; background: transparent; background-color: transparent; }
+      *::-webkit-scrollbar-track,
+      *::-webkit-scrollbar-track-piece,
+      *::-webkit-scrollbar-corner,
+      *::-webkit-scrollbar-button {
+        background: transparent;
+        background-color: transparent;
+        box-shadow: none;
+        border: none;
+      }
+      *::-webkit-scrollbar-thumb {
+        background-color: #c17a10;
+        background-clip: padding-box;
+        border: 2px solid transparent;
+        border-radius: 999px;
+      }
       .updated { color: #14100c; margin-bottom: 12px; }
     </style>
   </head>
@@ -93,7 +133,7 @@
     <main>
       <section class="intro">
         <h1>Privacy Policy</h1>
-        <p class="updated">HomeCookedPlate · Appsolete · Updated 8 October 2026</p>
+        <p class="updated">HomeCookedPlate · Appsolete · Updated 10 October 2026</p>
         <p>
           This policy describes the information HomeCookedPlate collects when you create an account, order food, or sell food. It applies to the iOS app, the Android app, and the website.
         </p>

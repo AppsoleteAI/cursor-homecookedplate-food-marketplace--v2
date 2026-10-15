@@ -1,13 +1,15 @@
 import { Platform, type TextStyle } from 'react-native';
 
 /** UI copy. See docs/FONTS.md. New screens inherit this from lib/apply-default-font.ts. */
-export const preAppFont: TextStyle = {
-  fontFamily: Platform.select({
-    ios: 'System',
-    android: 'sans-serif',
-    default: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif',
-  }),
-};
+export const preAppFont: TextStyle =
+  Platform.OS === 'ios'
+    ? {}
+    : {
+        fontFamily: Platform.select({
+          android: 'sans-serif',
+          default: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif',
+        }),
+      };
 
 /** HomeCookedPlate wordmark only. */
 export const wordmarkFont: TextStyle = {
@@ -56,6 +58,14 @@ export const authGradient = [
 ] as const;
 
 export const authGradientLocations = [0, 0.2, 0.32, 0.48, 0.74, 0.86, 1] as const;
+
+/** Same stops as `authGradient`, for the web document canvas. */
+export const authGradientCss = `linear-gradient(180deg, ${authGradient
+  .map((color, index) => {
+    const percent = Math.round(authGradientLocations[index] * 1000) / 10;
+    return `${color} ${percent}%`;
+  })
+  .join(', ')})`;
 
 /**
  * Dark mode pre-app. Not mounted.

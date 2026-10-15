@@ -72,4 +72,5 @@ jobs:
           sync_env SENTRY_AUTH_TOKEN "$SENTRY_AUTH_TOKEN" secret
           sync_env SENTRY_ORG "$SENTRY_ORG" plaintext
           sync_env SENTRY_PROJECT "$SENTRY_PROJECT" plaintext
+          sync_env SENTRY_DISABLE_AUTO_UPLOAD false plaintext
           npx --yes eas-cli@16.28.0 build --non-interactive --platform "${{ inputs.platform }}" --profile production --no-wait

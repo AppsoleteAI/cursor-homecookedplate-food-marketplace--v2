@@ -28,7 +28,7 @@ import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState, useCallback } from "react";
 import { StyleSheet, Platform, View, ActivityIndicator } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { NavigationContainer } from "@react-navigation/native";
+import { DefaultTheme, NavigationContainer } from "@react-navigation/native";
 import { Asset } from "expo-asset";
 import { AuthProvider, useAuth } from "@/hooks/auth-context";
 import { CartProvider } from "@/hooks/cart-context";
@@ -45,6 +45,7 @@ import { navLogger } from '@/lib/nav-logger';
 import { captureException, scrubSentryEvent, Sentry } from '@/lib/sentry';
 import { SENTRY_TRACE_SAMPLE_RATE } from '@/lib/sentry-rate';
 import { applyScrollbarAccent } from '@/lib/web-scrollbar';
+import { applyPageFill } from '@/lib/web-page-fill';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -114,10 +115,19 @@ function LayoutContent() {
   return <Slot />;
 }
 
+const webNavigationTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: 'transparent',
+  },
+};
+
 function ScrollbarAccent() {
   const path = usePathname();
   useEffect(() => {
     applyScrollbarAccent(path);
+    applyPageFill(path);
   }, [path]);
   return null;
 }
@@ -234,7 +244,7 @@ function RootLayout() {
         <GestureHandlerRootView style={styles.container}>
           <CoreProviders>
             <ConditionalAppProviders>
-              <NavigationContainer {...({ independent: true } as any)}>
+              <NavigationContainer {...({ independent: true } as any)} theme={webNavigationTheme}>
                 <ScrollbarAccent />
                 {content}
               </NavigationContainer>
@@ -245,32 +255,10 @@ function RootLayout() {
     );
   }
 
-  // Native: Simplified gate system - only essential gates remain
-  // Extended Splash: Native splash stays visible until auth ready (handled in ExtendedSplashHandler)
-  // This prevents PreventRemoveContext crash while maintaining fast boot
-  if (!isNativeLayoutReady || (!hasEverHadKey && !isWeb)) {
-    // Log which lock is blocking for better debugging
-    if (__DEV__) {
-      console.log('[Stability Gate] Blocked:', {
-        isNativeLayoutReady,
-        hasEverHadKey,
-        hasNavigationKey,
-        platform: Platform.OS,
-      });
-    }
-    return (
-      <View
-        style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1A0F0A' }}
-        onLayout={onLayoutRootView}
-      >
-        <ActivityIndicator size="large" color="#ffffff" />
-      </View>
-    );
-  }
+  // The navigation key is created by the mounted slot. Holding the slot
+  // behind hasEverHadKey leaves that flag false, so the splash never leaves.
+  const navigationLocked = !isNativeLayoutReady || !hasEverHadKey;
 
-  // Native: Straight-line render after essential locks pass
-  // Extended Splash: Splash hide is handled by ExtendedSplashHandler (inside CoreProviders)
-  // Same structure as web - just wrapped in onLayout for native bridge sync
   return (
     <ErrorBoundary>
       <GestureHandlerRootView style={styles.container}>
@@ -285,6 +273,14 @@ function RootLayout() {
               </ExtendedSplashHandler>
             </ConditionalAppProviders>
           </CoreProviders>
+          {navigationLocked ? (
+            <View
+              pointerEvents="auto"
+              style={[StyleSheet.absoluteFill, styles.gate]}
+            >
+              <ActivityIndicator size="large" color="#ffffff" />
+            </View>
+          ) : null}
         </View>
       </GestureHandlerRootView>
     </ErrorBoundary>
@@ -294,6 +290,11 @@ function RootLayout() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  gate: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1A0F0A',
   },
 });
 

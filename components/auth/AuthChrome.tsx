@@ -36,7 +36,9 @@ export function AuthBackground({
     <LinearGradient
       colors={[...authGradient]}
       locations={[...authGradientLocations]}
-      style={styles.bg}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+      style={[styles.bg, Platform.OS === 'web' ? { minHeight: '100dvh' } as any : null]}
       testID={testID}
     >
       {children}
@@ -140,6 +142,7 @@ export function AuthGoldButton({
 const styles = StyleSheet.create({
   bg: {
     flex: 1,
+    width: '100%',
     backgroundColor: AuthColors.gradientBottom,
   },
   back: {

@@ -22,6 +22,7 @@ import Animated, {
   interpolate,
   Easing,
   runOnJS,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -49,7 +50,7 @@ function ConfettiParticle({
   progress, 
 }: { 
   particle: ReturnType<typeof createParticle>[0]; 
-  progress: Animated.SharedValue<number>;
+  progress: SharedValue<number>;
 }) {
   const animatedStyle = useAnimatedStyle(() => {
     const translateX = interpolate(progress.value, [0, 1], [particle.startX, particle.endX]);

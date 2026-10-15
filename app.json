@@ -15,12 +15,14 @@
     },
     "ios": {
       "supportsTablet": true,
+      "buildNumber": "2",
       "bundleIdentifier": "app.rork.homecookedplate-dynamic-gradient-food-marketplace-v1-1",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "HomeCookedPlate uses your photo library so you can choose a profile picture, meal photos, and food review clips.",
         "NSCameraUsageDescription": "HomeCookedPlate uses the camera so you can take a profile picture, meal photos, and food review clips.",
         "NSMicrophoneUsageDescription": "HomeCookedPlate uses the microphone so food review clips can include sound.",
         "NSLocationWhenInUseUsageDescription": "HomeCookedPlate uses your location while the app is open to check that you are in a supported metro.",
+        "ITSAppUsesNonExemptEncryption": false,
         "CFBundleAllowMixedLocalizations": true,
         "CFBundleLocalizations": [
           "fr"
@@ -52,7 +54,7 @@
           "data": {
             "scheme": "homecookedplate",
             "host": "(auth)",
-            "path": "reset-password"
+            "path": "/reset-password"
           },
           "category": [
             "BROWSABLE",

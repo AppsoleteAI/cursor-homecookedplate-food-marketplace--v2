@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { AuthBackButton, AuthBackground } from '@/components/auth/AuthChrome';
+import { AuthBackButton, AuthBackground, AuthBrand } from '@/components/auth/AuthChrome';
 import { AuthColors } from '@/constants/auth-palette';
 import { FOOD_HANDLING_NOTICE, FOOD_HANDLING_SECTIONS, FOOD_HANDLING_SOURCES } from '@/lib/food-handling';
 import { titleCase } from '@/lib/title-case';
@@ -22,6 +22,7 @@ export default function FoodHandlingScreen() {
         <Stack.Screen options={{ title: 'Food Handling', headerShown: false }} />
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <AuthBackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/profile'))} />
+          <AuthBrand toSignIn={false} />
           <Text style={styles.brand}>Food Handling</Text>
           <Text style={styles.audience}>Temperatures and hygiene for PlateMakers and PlateTakers</Text>
 
