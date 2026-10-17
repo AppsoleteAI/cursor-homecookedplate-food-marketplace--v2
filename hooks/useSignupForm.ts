@@ -9,6 +9,28 @@ import * as Location from 'expo-location';
 import { supabase } from '@/lib/supabase';
 import * as WebBrowser from 'expo-web-browser';
 
+const WEBSITE_MEMBERSHIP = 'https://homecookedplate.com/membership';
+
+async function paymentSetupMessage(error: unknown): Promise<string> {
+  const context = (error as { context?: { clone?: () => { json: () => Promise<unknown>; text: () => Promise<string> } } })?.context;
+  if (context?.clone) {
+    try {
+      const body = await context.clone().json() as { error?: unknown; message?: unknown };
+      if (typeof body?.error === 'string') return body.error;
+      if (typeof body?.message === 'string') return body.message;
+    } catch {
+      try {
+        const text = await context.clone().text();
+        if (text) return text.slice(0, 300);
+      } catch {
+        // The status line below is the fallback.
+      }
+    }
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return 'Failed to create checkout session. Please try again or contact support.';
+}
+
 export interface UseSignupFormOptions {
   onSuccess?: (result: { requiresLogin: boolean; requiresCheckout?: boolean; needsEmailConfirmation?: boolean }) => void;
   onError?: (error: Error) => void;
@@ -315,10 +337,16 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
       // If Remote/Over-cap user requires checkout, redirect to Stripe checkout
       if (result.requiresCheckout) {
         try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const accessToken = sessionData.session?.access_token;
+          if (!accessToken) {
+            throw new Error('Sign-in did not finish, so payment could not start.');
+          }
           const { data: checkoutResult, error: checkoutError } = await supabase.functions.invoke(
             'create-checkout-session',
             {
-              body: { returnUrl: 'homecookedplate://payment-success' },
+              body: { returnUrl: WEBSITE_MEMBERSHIP },
+              headers: { Authorization: `Bearer ${accessToken}` },
             }
           );
 
@@ -327,21 +355,17 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
           }
 
           if (checkoutResult.checkoutUrl) {
-            // Open Stripe Hosted Checkout in browser
-            await WebBrowser.openBrowserAsync(checkoutResult.checkoutUrl);
-            const paymentMessage = 'Please complete your payment to activate your premium membership. You\'ll be redirected back to the app after payment.';
             if (Platform.OS === 'web') {
-              window.alert('Complete Payment: ' + paymentMessage);
+              window.location.assign(checkoutResult.checkoutUrl);
             } else {
-              Alert.alert('Complete Payment', paymentMessage, [{ text: 'OK' }]);
+              await WebBrowser.openBrowserAsync(checkoutResult.checkoutUrl);
+              Alert.alert('Complete Payment', 'Please complete your payment to activate your premium membership. You\'ll be redirected back to the app after payment.', [{ text: 'OK' }]);
             }
             setLoading(false);
             return;
           }
         } catch (checkoutError: unknown) {
-          const checkoutErrorMessage = checkoutError instanceof Error 
-            ? checkoutError.message 
-            : 'Failed to create checkout session. Please try again or contact support.';
+          const checkoutErrorMessage = await paymentSetupMessage(checkoutError);
           console.error('[Signup] Checkout session error:', checkoutError);
           if (Platform.OS === 'web') {
             window.alert('Payment Setup Error: ' + checkoutErrorMessage);
