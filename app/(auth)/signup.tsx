@@ -10,6 +10,7 @@ import {
   Modal,
   Switch,
   ActivityIndicator,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -301,7 +302,7 @@ export default function SignupScreen() {
                 </GlassPressable>
               </View>
 
-              <GlassPressable
+              <Pressable
                 style={styles.termsContainer}
                 onPress={() => setFormData({ ...formData, agreedToTerms: !agreedToTerms })}
               >
@@ -318,7 +319,7 @@ export default function SignupScreen() {
                   </Text>
                   {' '}and understand the legal disclaimers
                 </Text>
-              </GlassPressable>
+              </Pressable>
 
               {/* Cottage Laws Warning - ALWAYS SHOWN for ALL users */}
               <View style={styles.foodSafetyContainer}>
@@ -329,7 +330,7 @@ export default function SignupScreen() {
                       Ingredients and allergens are listed by the cook. Tell them about your allergies before you order. If something looks or smells wrong at pickup, do not eat it.
                     </Text>
                     <Text style={[styles.foodSafetyInfoText, { marginTop: 8 }]}>
-                      Meet in a public place during daylight. Do not exchange phone numbers in the app. A prepaid delivery is brought by the cook with someone else along.
+                      Meet in a public place during daylight. Do not exchange phone numbers in the app. If a prepaid delivery is agreed upon, we suggest the cook brings someone else along, for safety.
                     </Text>
                     <Text style={[styles.foodSafetyInfoText, { marginTop: 8 }]}>
                       {BUYER_AFTER_NOTE}
@@ -337,7 +338,7 @@ export default function SignupScreen() {
                     <FoodHandlingLink />
                   </View>
                 </View>
-                <GlassPressable
+                <Pressable
                   style={styles.termsContainer}
                   onPress={() => setFormData({ ...formData, foodSafetyAcknowledged: !foodSafetyAcknowledged })}
                 >
@@ -347,7 +348,7 @@ export default function SignupScreen() {
                   <Text style={styles.termsText}>
                     I understand these safety notes. I will check the ingredients, meet in a public place during daylight, and eat the food promptly.
                   </Text>
-                </GlassPressable>
+                </Pressable>
               </View>
 
               {/* Error message display */}
