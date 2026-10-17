@@ -239,7 +239,15 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   useEffect(() => {
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      // Return immediately. Awaiting auth.me here calls getSession while Supabase
+      // still holds its auth lock, so signup never starts and the 15s timer fires.
+      setTimeout(() => {
+        void handleAuthEvent(event, nextSession);
+      }, 0);
+    });
+
+    async function handleAuthEvent(event: string, nextSession: Session | null) {
       try {
         if (!mountedRef.current) return;
 
@@ -303,7 +311,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         console.error('[Auth Listener] Error handling event:', event, e);
         captureException(e as Error, { context: 'onAuthStateChange', event });
       }
-    });
+    }
 
     return () => {
       subscription.unsubscribe();
