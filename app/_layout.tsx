@@ -28,7 +28,7 @@ import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState, useCallback } from "react";
 import { StyleSheet, Platform, View, ActivityIndicator } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { DefaultTheme, NavigationContainer } from "@react-navigation/native";
+import { DefaultTheme, NavigationContainer, NavigationIndependentTree } from "@react-navigation/native";
 import { Asset } from "expo-asset";
 import { AuthProvider, useAuth } from "@/hooks/auth-context";
 import { CartProvider } from "@/hooks/cart-context";
@@ -244,10 +244,13 @@ function RootLayout() {
         <GestureHandlerRootView style={styles.container}>
           <CoreProviders>
             <ConditionalAppProviders>
-              <NavigationContainer {...({ independent: true } as any)} theme={webNavigationTheme}>
-                <ScrollbarAccent />
-                {content}
-              </NavigationContainer>
+              <NavigationIndependentTree>
+                <NavigationContainer {...({ independent: true } as any)} theme={webNavigationTheme}>
+                  <View />
+                </NavigationContainer>
+              </NavigationIndependentTree>
+              <ScrollbarAccent />
+              {content}
             </ConditionalAppProviders>
           </CoreProviders>
         </GestureHandlerRootView>
