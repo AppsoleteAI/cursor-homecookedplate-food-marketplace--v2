@@ -11,11 +11,14 @@ import { useFoodTruck, type TruckOrderLine } from '@/hooks/food-truck-store';
 import { PICKUP_SLOTS, type PickupSlot } from '@/lib/food-truck-permit';
 import { calculateOrderSplit } from '@/lib/fees';
 import { useShopCardPayment } from '@/hooks/use-shop-payment';
+import { CombinedCartLock } from '@/components/CombinedCartLock';
+import { useCombinedBill } from '@/hooks/use-combined-bill';
 
 export default function TruckCheckoutScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const { items, listings, permit, ownerActive, placeOrder } = useFoodTruck();
   const { chargeShop, charging } = useShopCardPayment();
+  const { payInMainCart } = useCombinedBill();
   const [slot, setSlot] = useState<PickupSlot>('Next 15 minutes');
   const [orderId, setOrderId] = useState<string | null>(null);
 
@@ -43,7 +46,7 @@ export default function TruckCheckoutScreen() {
   }
 
   const place = async () => {
-    if (!windowOpen || lines.length === 0 || charging) return;
+    if (payInMainCart || !windowOpen || lines.length === 0 || charging) return;
     try {
       const paid = await chargeShop('food_truck', lines.map((line) => ({ productId: line.itemId, quantity: line.quantity })), {
         shop: 'food_truck',
@@ -109,9 +112,10 @@ export default function TruckCheckoutScreen() {
         <Text style={styles.totalStrong}>You pay ${split.totalCaptured.toFixed(2)}</Text>
       </View>
       <Text style={styles.note}>Dedicated truck ordering here is pickup only. A 15% to 30% courier commission is not added.</Text>
+      <CombinedCartLock />
       <GlassPressable
-        style={[styles.button, (!windowOpen || lines.length === 0 || charging) && styles.buttonOff]}
-        disabled={!windowOpen || lines.length === 0 || charging}
+        style={[styles.button, (payInMainCart || !windowOpen || lines.length === 0 || charging) && styles.buttonOff]}
+        disabled={payInMainCart || !windowOpen || lines.length === 0 || charging}
         onPress={place}
         testID="place-truck-order"
       >

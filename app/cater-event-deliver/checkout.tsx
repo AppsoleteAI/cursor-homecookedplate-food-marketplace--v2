@@ -11,11 +11,14 @@ import { useCaterEvent, type CaterOrderLine } from '@/hooks/cater-event-store';
 import { DROP_OFF_WINDOWS, type DropOffWindow } from '@/lib/cater-event-license';
 import { calculateOrderSplit } from '@/lib/fees';
 import { useShopCardPayment } from '@/hooks/use-shop-payment';
+import { CombinedCartLock } from '@/components/CombinedCartLock';
+import { useCombinedBill } from '@/hooks/use-combined-bill';
 
 export default function CaterCheckoutScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const { items, listings, license, accepting, placeOrder } = useCaterEvent();
   const { chargeShop, charging } = useShopCardPayment();
+  const { payInMainCart } = useCombinedBill();
   const [dropoffWindow, setDropoffWindow] = useState<DropOffWindow>('Weekday lunch, 11:00–1:00');
   const [organization, setOrganization] = useState('');
   const [address, setAddress] = useState('');
@@ -54,7 +57,7 @@ export default function CaterCheckoutScreen() {
   }
 
   const place = async () => {
-    if (!open || lines.length === 0 || charging) return;
+    if (payInMainCart || !open || lines.length === 0 || charging) return;
     if (organization.trim().length < 2) {
       setBlock('Name the organization this order is for. Spend is tracked under that name.');
       return;
@@ -157,9 +160,10 @@ export default function CaterCheckoutScreen() {
       </View>
       <Text style={styles.note}>The catering company arranges drop-off and tray setup. A 15% to 25% marketplace commission is not added.</Text>
       {block ? <Text style={styles.block}>{block}</Text> : null}
+      <CombinedCartLock />
       <GlassPressable
-        style={[styles.button, (!open || lines.length === 0 || charging) && styles.buttonOff]}
-        disabled={!open || lines.length === 0 || charging}
+        style={[styles.button, (payInMainCart || !open || lines.length === 0 || charging) && styles.buttonOff]}
+        disabled={payInMainCart || !open || lines.length === 0 || charging}
         onPress={place}
         testID="place-cater-order"
       >

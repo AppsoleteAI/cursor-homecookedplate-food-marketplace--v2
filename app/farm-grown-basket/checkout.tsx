@@ -18,11 +18,14 @@ import {
 } from '@/lib/cottage-food';
 import { calculateOrderSplit } from '@/lib/fees';
 import { useShopCardPayment } from '@/hooks/use-shop-payment';
+import { CombinedCartLock } from '@/components/CombinedCartLock';
+import { useCombinedBill } from '@/hooks/use-combined-bill';
 
 export default function FarmCheckoutScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const { items, listings, placeOrder } = useFarmBasket();
   const { chargeShop, charging } = useShopCardPayment();
+  const { payInMainCart } = useCombinedBill();
   const [channel, setChannel] = useState<FarmChannel>('farm_pickup');
   const [orderId, setOrderId] = useState<string | null>(null);
 
@@ -60,7 +63,7 @@ export default function FarmCheckoutScreen() {
   }
 
   const place = async () => {
-    if (block || lines.length === 0 || charging) return;
+    if (payInMainCart || block || lines.length === 0 || charging) return;
     try {
       const paid = await chargeShop('farm', lines.map((line) => ({ productId: line.productId, quantity: line.quantity })), {
         shop: 'farm',
@@ -125,9 +128,10 @@ export default function FarmCheckoutScreen() {
         <Text style={styles.totalStrong}>You pay ${split.totalCaptured.toFixed(2)}</Text>
       </View>
       <Text style={styles.note}>Mail shipping is not offered. The person who made the food hands it to you.</Text>
+      <CombinedCartLock />
       <GlassPressable
-        style={[styles.button, (Boolean(block) || lines.length === 0 || charging) && styles.buttonOff]}
-        disabled={Boolean(block) || lines.length === 0 || charging}
+        style={[styles.button, (payInMainCart || Boolean(block) || lines.length === 0 || charging) && styles.buttonOff]}
+        disabled={payInMainCart || Boolean(block) || lines.length === 0 || charging}
         onPress={place}
         testID="place-farm-order"
       >

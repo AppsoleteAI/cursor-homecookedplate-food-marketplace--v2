@@ -67,6 +67,7 @@ export function ListingPhotoField({ label, value, onChange, testID }: ListingPho
   return (
     <View style={styles.wrap} testID={testID}>
       <Text style={styles.label}>{label}</Text>
+      <Text style={styles.note}>Use good lighting. Showcase the best photo of the food, and capture the heart of the cooking space, truck, cart, event space, or farmers table.</Text>
       <View style={styles.row}>
         {value ? <Image source={{ uri: value }} style={styles.preview} /> : <View style={styles.preview} />}
         <View style={styles.actions}>
@@ -84,7 +85,8 @@ export function ListingPhotoField({ label, value, onChange, testID }: ListingPho
 
 const styles = StyleSheet.create({
   wrap: { marginBottom: 12 },
-  label: { color: Colors.gray[800], fontWeight: '700', marginBottom: 8 },
+  label: { color: Colors.gray[800], fontWeight: '700', marginBottom: 4 },
+  note: { color: Colors.gray[600], lineHeight: 20, marginBottom: 8 },
   row: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   preview: {
     ...glassSurface,

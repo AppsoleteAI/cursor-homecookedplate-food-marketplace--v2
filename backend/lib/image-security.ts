@@ -32,6 +32,7 @@ export interface VideoFrameMedia {
   frame(video: Uint8Array, time: string): Promise<Uint8Array>;
 }
 
+const NSFW_MODEL = '@cf/llava-hf/llava-1.5-7b-hf';
 const NSFW_PROMPT =
   'This image is from a home-cooked food marketplace. Does it contain nudity, sexual content, graphic violence, gore, or any content inappropriate for a general audience? Answer with ONE word only: SAFE or UNSAFE.';
 
@@ -44,13 +45,14 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-async function nsfwVerdict(ai: CloudflareAI, image: string): Promise<string> {
-  const result = await ai.run('@cf/llava-1.5-7b-hf', {
-    image,
+async function nsfwVerdict(ai: CloudflareAI, bytes: Uint8Array): Promise<string> {
+  const result = await ai.run(NSFW_MODEL, {
+    image: Array.from(bytes),
     prompt: NSFW_PROMPT,
-    max_tokens: 5,
+    max_tokens: 8,
   });
-  return ((result?.response as string) ?? '').trim().toUpperCase();
+  const text = typeof result?.response === 'string' ? result.response : '';
+  return text.trim().toUpperCase();
 }
 
 export interface ImageScanResult {
@@ -129,12 +131,17 @@ const AI_IMAGE_MARKERS: RegExp[] = [
   /cfg scale/i,
 ];
 
+function looksLikeDownloadedImage(text: string): boolean {
+  const urls = text.match(/https?:\/\/[^\s"'<>]+/gi) ?? [];
+  return urls.some((url) => !/^https?:\/\/(ns\.|www\.w3\.org|purl\.org|schemas\.)/i.test(url));
+}
+
 export function profilePhotoMetadataReason(texts: string[]): string | null {
   const joined = texts.join('\n');
   if (AI_IMAGE_MARKERS.some((pattern) => pattern.test(joined))) {
     return 'This file looks like an AI-generated image. Take a photo with your camera.';
   }
-  if (/https?:\/\//i.test(joined)) {
+  if (looksLikeDownloadedImage(joined)) {
     return 'This file looks like an image from the internet. Take a photo with your camera.';
   }
   return null;
@@ -329,7 +336,15 @@ export async function scanImage(
     };
   }
   try {
-    const verdict = await nsfwVerdict(ai, base64Data);
+    const verdict = await nsfwVerdict(ai, buf);
+    if (!verdict) {
+      return {
+        allowed: false,
+        detectedMime,
+        flags: [...flags, 'NSFW_SCAN_UNAVAILABLE'],
+        reason: 'Image could not be scanned',
+      };
+    }
     if (verdict.startsWith('UNSAFE')) {
       return {
         allowed: false,

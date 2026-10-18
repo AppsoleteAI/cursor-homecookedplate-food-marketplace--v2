@@ -5,6 +5,8 @@ import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, type Href } from 'expo-router';
 import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
 import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
+import { CombinedCartLock } from '@/components/CombinedCartLock';
+import { useCombinedBill } from '@/hooks/use-combined-bill';
 import { Colors } from '@/constants/colors';
 import { getCompany, getPackage } from '@/constants/cater-event-deliver';
 import { useCaterEvent } from '@/hooks/cater-event-store';
@@ -12,6 +14,7 @@ import { calculateOrderSplit } from '@/lib/fees';
 
 export default function CaterBasketScreen() {
   const { items, listings, license, setHeadcount, clearItems } = useCaterEvent();
+  const { payInMainCart } = useCombinedBill();
   const lines = useMemo(() => {
     return items.flatMap((item) => {
       const catalog = getPackage(item.packageId);
@@ -70,9 +73,10 @@ export default function CaterBasketScreen() {
         <Text style={styles.totalLine}>Service fee ${(split.totalCaptured - baseAmount).toFixed(2)}</Text>
         <Text style={styles.totalStrong}>You pay ${split.totalCaptured.toFixed(2)}</Text>
       </View>
+      <CombinedCartLock />
       <GlassPressable
-        style={[styles.button, lines.length === 0 && styles.buttonOff]}
-        disabled={lines.length === 0}
+        style={[styles.button, (lines.length === 0 || payInMainCart) && styles.buttonOff]}
+        disabled={lines.length === 0 || payInMainCart}
         onPress={() => router.push('/cater-event-deliver/checkout' as Href)}
         testID="cater-basket-checkout"
       >

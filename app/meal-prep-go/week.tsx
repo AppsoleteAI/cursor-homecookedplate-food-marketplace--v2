@@ -5,6 +5,8 @@ import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, type Href } from 'expo-router';
 import { MealPrepScreen } from '@/components/meal-prep/MealPrepScreen';
 import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
+import { CombinedCartLock } from '@/components/CombinedCartLock';
+import { useCombinedBill } from '@/hooks/use-combined-bill';
 import { Colors } from '@/constants/colors';
 import { getPrepCook, getPrepItem, type PrepLane } from '@/constants/meal-prep-go';
 import { useMealPrep } from '@/hooks/meal-prep-store';
@@ -12,6 +14,7 @@ import { WEEK_SIZES, laneLabel, weekMix } from '@/lib/meal-prep-go';
 
 export default function MealPrepWeekScreen() {
   const { items, listings, kitchen, setQuantity, clearWeek } = useMealPrep();
+  const { payInMainCart } = useCombinedBill();
 
   const lines = useMemo(() => {
     return items.flatMap((line) => {
@@ -66,7 +69,8 @@ export default function MealPrepWeekScreen() {
             </View>
           ))}
           <Text style={styles.total}>Week ${baseAmount.toFixed(2)} before the service fee</Text>
-          <GlassPressable style={styles.button} onPress={() => router.push('/meal-prep-go/checkout' as Href)} testID="prep-week-checkout">
+          <CombinedCartLock />
+          <GlassPressable style={[styles.button, payInMainCart && styles.buttonOff]} disabled={payInMainCart} onPress={() => router.push('/meal-prep-go/checkout' as Href)} testID="prep-week-checkout">
             <Text style={styles.buttonText}>Checkout</Text>
           </GlassPressable>
           <GlassPressable onPress={clearWeek}>
@@ -94,6 +98,7 @@ const styles = StyleSheet.create({
   link: { color: '#0E7490', fontWeight: '700' },
   total: { marginTop: 16, fontWeight: '700', color: Colors.gray[900] },
   button: { ...glassSurface, marginTop: 12, backgroundColor: '#0E7490', borderRadius: 14, paddingVertical: 14, alignItems: 'center'  },
+  buttonOff: { backgroundColor: Colors.gray[400] },
   buttonText: { color: Colors.white, fontWeight: '700' },
   clear: { marginTop: 12, color: '#9F1239', fontWeight: '700' },
 });

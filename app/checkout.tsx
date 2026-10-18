@@ -12,6 +12,7 @@ import {
   Dimensions,
   Platform,
   TextInput,
+  Pressable,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -30,6 +31,8 @@ import { useAuth } from '@/hooks/auth-context';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { trpc } from '@/lib/trpc';
 import { useCart } from '@/hooks/cart-context';
+import { useCombinedBill } from '@/hooks/use-combined-bill';
+import { CombinedCartLock } from '@/components/CombinedCartLock';
 import { buyerCardCharge, calculateOrderSplit } from '@/lib/fees';
 import { isSampleMealId } from '@/lib/sample-meals';
 import { CartItem } from '@/types';
@@ -264,6 +267,7 @@ function CongratsFlash({ visible, footerOffset, onEnd }: CongratsFlashProps) {
 
 export default function CheckoutScreen() {
   const { items, clearCart, totalPrice, updatePickupTime, updateSpecialInstructions, updateAllergies, updateCookingTemperature } = useCart();
+  const { payInMainCart } = useCombinedBill();
   const checkoutSplit = calculateOrderSplit(totalPrice || 0);
   const cardCharge = buyerCardCharge(checkoutSplit.totalCaptured);
   const { user } = useAuth();
@@ -290,6 +294,7 @@ export default function CheckoutScreen() {
 
   const handlePayment = async () => {
     try {
+      if (payInMainCart) return;
       if (!feesAcknowledged) {
         Alert.alert('Non-refundable fees', 'Acknowledge both non-refundable 10% fees before entering payment details.');
         return;
@@ -515,16 +520,18 @@ export default function CheckoutScreen() {
                 </LinearGradient>
               </View>
               <Text style={styles.paymentInfo}>HomeCookedPlate keeps both non-refundable 10% fees. A refund returns the cook&apos;s share only. These fees are not returned.</Text>
-              <GlassPressable
+              <Pressable
                 onPress={() => setFeesAcknowledged((prev) => !prev)}
                 style={[styles.checkboxRow, feesAcknowledged ? styles.checkboxRowActive : undefined]}
                 testID="fee-acknowledgement"
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: feesAcknowledged }}
               >
                 <View style={[styles.checkbox, feesAcknowledged ? styles.checkboxChecked : undefined]} />
                 <Text style={styles.checkboxLabel}>I understand HomeCookedPlate keeps both non-refundable 10% fees</Text>
-              </GlassPressable>
+              </Pressable>
               <Text style={styles.paymentInfo}>Pickup from your cook. You pay the card fee, and sales tax when it applies. Stripe charges the total above after this acknowledgement.</Text>
-              <Text style={styles.paymentInfo}>Meet in a public place during daylight. Do not exchange phone numbers in the app. A prepaid delivery is brought by the cook with someone else along.</Text>
+              <Text style={styles.paymentInfo}>Meet in a public place during daylight. Do not exchange phone numbers in the app. If a prepaid delivery is agreed upon, we suggest the cook brings someone else along, for safety.</Text>
               <Text style={styles.paymentInfo}>{BUYER_AFTER_NOTE}</Text>
               <FoodHandlingLink />
               <GlassPressable onPress={() => router.push('/farm-grown-basket/checkout' as Href)} testID="checkout-farm-link">
@@ -610,23 +617,26 @@ export default function CheckoutScreen() {
             <Text style={styles.waiverText}>
               By using and ordering from our PlateMakers on HomeCookedPlate, you agree to not exchange phone numbers or personal information via online food exchanges or during app ordering / communications. You personally accept all responsibility if you give any other person your personal information through the HomeCookedPlate app or any other Appsolete affiliated portal. You waive any right to hold HomeCookedPlate app or any other Appsolete affiliated portal liable for any in-person meetings you conduct while utilizing this app.
             </Text>
-            <GlassPressable
+            <Pressable
               onPress={() => setAccepted(prev => !prev)}
               style={[styles.checkboxRow, accepted ? styles.checkboxRowActive : undefined]}
               testID="waiver-accept"
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: accepted }}
             >
               <View style={[styles.checkbox, accepted ? styles.checkboxChecked : undefined]} />
               <Text style={styles.checkboxLabel}>I have read and accept the liability waiver</Text>
-            </GlassPressable>
+            </Pressable>
           </View>
         </View>
       </ScrollView>
 
         <View style={styles.footer} onLayout={(e) => setFooterHeight(e.nativeEvent.layout.height)}>
+          {payInMainCart ? <CombinedCartLock /> : null}
           <GlassPressable
             onPress={handlePayment}
-            disabled={!accepted || !feesAcknowledged || showThankYou || processing}
-            style={[styles.placeOrderButton, (!accepted || !feesAcknowledged || showThankYou || processing) && styles.placeOrderButtonDisabled]}
+            disabled={payInMainCart || !accepted || !feesAcknowledged || showThankYou || processing}
+            style={[styles.placeOrderButton, (payInMainCart || !accepted || !feesAcknowledged || showThankYou || processing) && styles.placeOrderButtonDisabled]}
             testID="place-order"
           >
             <LinearGradient

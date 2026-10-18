@@ -11,11 +11,14 @@ import { useMealPrep, type PrepOrderLine } from '@/hooks/meal-prep-store';
 import { weekMix } from '@/lib/meal-prep-go';
 import { calculateOrderSplit } from '@/lib/fees';
 import { useShopCardPayment } from '@/hooks/use-shop-payment';
+import { CombinedCartLock } from '@/components/CombinedCartLock';
+import { useCombinedBill } from '@/hooks/use-combined-bill';
 
 export default function MealPrepCheckoutScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const { items, listings, kitchen, accepting, placeOrder } = useMealPrep();
   const { chargeShop, charging } = useShopCardPayment();
+  const { payInMainCart } = useCombinedBill();
   const [handoff, setHandoff] = useState<'pickup' | 'dropoff'>('pickup');
   const [windowLabel, setWindowLabel] = useState('');
   const [address, setAddress] = useState('');
@@ -60,7 +63,7 @@ export default function MealPrepCheckoutScreen() {
   }
 
   const place = async () => {
-    if (lines.length === 0 || charging) return;
+    if (payInMainCart || lines.length === 0 || charging) return;
     if (mealCount < 1) {
       setBlock('Add a ready meal or a cook kit. An add-on rides with the week.');
       return;
@@ -177,9 +180,10 @@ export default function MealPrepCheckoutScreen() {
         <Text style={styles.totalStrong}>You pay ${split.totalCaptured.toFixed(2)}</Text>
       </View>
       <Text style={styles.note}>The cook hands you the week. This app does not book a driver.</Text>
+      <CombinedCartLock />
       <GlassPressable
-        style={[styles.button, (lines.length === 0 || charging) && styles.buttonOff]}
-        disabled={lines.length === 0 || charging}
+        style={[styles.button, (payInMainCart || lines.length === 0 || charging) && styles.buttonOff]}
+        disabled={payInMainCart || lines.length === 0 || charging}
         onPress={place}
         testID="place-prep-order"
       >

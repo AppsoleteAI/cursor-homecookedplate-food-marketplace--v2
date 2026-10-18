@@ -23,7 +23,7 @@ const lineSchema = z.object({
 
 const checkoutSchema = z.object({
   area: z.enum(CHECKOUT_AREAS),
-  sellerId: z.string().uuid(),
+  sellerId: z.string().uuid().optional(),
   lines: z.array(lineSchema).min(1).max(20),
 });
 
@@ -144,6 +144,9 @@ async function priceCheckout(
   checkout: z.infer<typeof checkoutSchema>,
   sellerName: string,
 ): Promise<QuotedCheckout> {
+  if (!checkout.sellerId) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'This checkout has no seller.' });
+  }
   const merged = new Map<string, number>();
   for (const line of checkout.lines) {
     merged.set(line.productId, (merged.get(line.productId) ?? 0) + line.quantity);
@@ -181,7 +184,7 @@ async function buildReceipt(
 ): Promise<QuotedCheckout[]> {
   const grouped = new Map<string, z.infer<typeof checkoutSchema>>();
   for (const checkout of checkouts) {
-    const key = checkoutKey(checkout.area, checkout.sellerId);
+    const key = checkoutKey(checkout.area, checkout.sellerId ?? checkout.area);
     const existing = grouped.get(key);
     if (!existing) {
       grouped.set(key, checkout);
@@ -192,6 +195,40 @@ async function buildReceipt(
 
   const quoted: QuotedCheckout[] = [];
   for (const checkout of grouped.values()) {
+    if (!checkout.sellerId) {
+      if (checkout.area === 'home') {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'A plate in this checkout has no cook.' });
+      }
+      const shop = shopForArea(checkout.area);
+      if (!shop) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'This checkout cannot be priced.' });
+      }
+      const merged = new Map<string, number>();
+      for (const line of checkout.lines) {
+        merged.set(line.productId, (merged.get(line.productId) ?? 0) + line.quantity);
+      }
+      const lines = [...merged.entries()].map(([productId, quantity]) => ({ productId, quantity }));
+      let priced: QuotedLine[];
+      try {
+        priced = quoteShopOrder(shop, lines).lines.map((line) => ({
+          name: line.name,
+          quantity: line.quantity,
+          unitPrice: line.unitPrice,
+        }));
+      } catch (error) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: error instanceof Error ? error.message : 'This checkout cannot be priced.',
+        });
+      }
+      quoted.push(quoteCheckout({
+        area: checkout.area,
+        sellerId: checkout.area,
+        sellerName: CHECKOUT_AREA_LABEL[checkout.area],
+        lines: priced,
+      }));
+      continue;
+    }
     const seller = await assertSellerCanTakeOrders(admin, checkout.sellerId, checkout.area);
     quoted.push(await priceCheckout(admin, checkout, seller.username || 'Seller'));
   }
@@ -358,7 +395,8 @@ export const createCombinedCheckoutProcedure = protectedProcedure
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
     if (!stripeSecretKey) throw new Error('Stripe secret key not configured');
 
-    const sellerIds = [...new Set(input.checkouts.map((checkout) => checkout.sellerId))];
+    await assertBuyerCanOrder(ctx.supabaseAdmin, ctx.userId);
+    const sellerIds = [...new Set(input.checkouts.flatMap((checkout) => checkout.sellerId ? [checkout.sellerId] : []))];
     for (const sellerId of sellerIds) {
       await assertBuyerCanOrder(ctx.supabaseAdmin, ctx.userId, sellerId);
     }
@@ -443,7 +481,9 @@ export const confirmCombinedCheckoutProcedure = protectedProcedure
       if (checkout.area === 'home' && !orderId) {
         throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'The card was charged, but the plate order was not saved. Retry confirm to finish it.' });
       }
-      await holdPayout(ctx.supabaseAdmin, ctx.userId, checkout, input.paymentIntentId, checkout.area === 'home' ? orderId : null);
+      if (input.checkouts.some((item) => item.sellerId === checkout.sellerId)) {
+        await holdPayout(ctx.supabaseAdmin, ctx.userId, checkout, input.paymentIntentId, checkout.area === 'home' ? orderId : null);
+      }
     }
 
     return { paymentIntentId: input.paymentIntentId, receipt, alreadyRecorded: false };

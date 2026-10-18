@@ -11,6 +11,8 @@ import { useSitDown, type SitOrderLine } from '@/hooks/sit-down-store';
 import { SERVICE_LABEL, type DiningService } from '@/lib/sit-down-license';
 import { calculateOrderSplit } from '@/lib/fees';
 import { useShopCardPayment } from '@/hooks/use-shop-payment';
+import { CombinedCartLock } from '@/components/CombinedCartLock';
+import { useCombinedBill } from '@/hooks/use-combined-bill';
 
 const PARTY = [1, 2, 3, 4, 5, 6, 8, 10, 12];
 
@@ -18,6 +20,7 @@ export default function SitCheckoutScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const { items, listings, license, ownerOpen, placeOrder } = useSitDown();
   const { chargeShop, charging } = useShopCardPayment();
+  const { payInMainCart } = useCombinedBill();
   const [service, setService] = useState<DiningService>('sit_down');
   const [partySize, setPartySize] = useState(2);
   const [orderId, setOrderId] = useState<string | null>(null);
@@ -53,7 +56,7 @@ export default function SitCheckoutScreen() {
   }
 
   const place = async () => {
-    if (!open || lines.length === 0 || services.length === 0 || charging) return;
+    if (payInMainCart || !open || lines.length === 0 || services.length === 0 || charging) return;
     try {
       const paid = await chargeShop('sit_down', lines.map((line) => ({ productId: line.itemId, quantity: line.quantity })), {
         shop: 'sit_down',
@@ -137,9 +140,10 @@ export default function SitCheckoutScreen() {
         <Text style={styles.totalStrong}>You pay ${split.totalCaptured.toFixed(2)}</Text>
       </View>
       <Text style={styles.note}>This order is served at the restaurant. A 15% to 30% courier commission is not added, and paying more does not move a shop up the list.</Text>
+      <CombinedCartLock />
       <GlassPressable
-        style={[styles.button, (!open || lines.length === 0 || charging) && styles.buttonOff]}
-        disabled={!open || lines.length === 0 || charging}
+        style={[styles.button, (payInMainCart || !open || lines.length === 0 || charging) && styles.buttonOff]}
+        disabled={payInMainCart || !open || lines.length === 0 || charging}
         onPress={place}
         testID="place-sit-order"
       >

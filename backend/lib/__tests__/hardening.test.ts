@@ -42,6 +42,23 @@ describe('media scans fail closed', () => {
     expect(profilePhotoMetadataReason(['https://images.unsplash.com/photo'])).toMatch(/internet/);
     expect(profilePhotoMetadataReason(['Made with Midjourney'])).toMatch(/AI-generated/);
     expect(profilePhotoMetadataReason(['JFIF'])).toBeNull();
+    expect(profilePhotoMetadataReason(['http://ns.adobe.com/xap/1.0/'])).toBeNull();
+  });
+
+  it('sends camera bytes to the vision model', async () => {
+    let model = '';
+    let image: unknown;
+    const result = await scanImage(JPEG.buffer, '', 'profile', 'image/jpeg', {
+      run: async (name, input) => {
+        model = name;
+        image = input.image;
+        return { response: 'SAFE' };
+      },
+    });
+    expect(result.allowed).toBe(true);
+    expect(model).toBe('@cf/llava-hf/llava-1.5-7b-hf');
+    expect(Array.isArray(image)).toBe(true);
+    expect((image as number[]).slice(0, 3)).toEqual([0xff, 0xd8, 0xff]);
   });
 
   it('refuses an image when the scanner throws', async () => {

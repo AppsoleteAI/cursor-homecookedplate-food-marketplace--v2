@@ -15,18 +15,21 @@ import { router , type Href } from 'expo-router';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
 import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
+import { CHECKOUT_AREA_LABEL } from '@/backend/lib/combined-checkout';
 import { useCart } from '@/hooks/cart-context';
+import { useCombinedBill } from '@/hooks/use-combined-bill';
 import { calculateOrderSplit } from '@/lib/fees';
 
 export default function CartScreen() {
   const { items, totalPrice, updateQuantity, removeFromCart } = useCart();
+  const { payInMainCart, preview, gathered } = useCombinedBill();
   const insets = useSafeAreaInsets();
 
   const split = calculateOrderSplit(totalPrice);
   const serviceFee = split.totalCaptured - totalPrice;
   const finalTotal = split.totalCaptured;
 
-  if (items.length === 0) {
+  if (items.length === 0 && !payInMainCart) {
     return (
       <BuyerOnly>
         <SafeAreaView style={styles.container}>
@@ -126,7 +129,31 @@ export default function CartScreen() {
           </View>
         ))}
 
-        <View style={styles.summaryContainer}>
+        {payInMainCart ? (
+          <View style={styles.summaryContainer} testID="combined-bill">
+            <Text style={styles.summaryTitle}>One bill</Text>
+            <Text style={styles.summaryNote}>Each section keeps its own service fee. One card pays all of them.</Text>
+            {preview.checkouts.map((checkout) => (
+              <View key={checkout.id} style={styles.sectionBill}>
+                <Text style={styles.itemName}>{CHECKOUT_AREA_LABEL[checkout.area]} · {checkout.sellerName}</Text>
+                {checkout.lines.map((line) => (
+                  <Text key={`${checkout.id}-${line.name}`} style={styles.summaryNote}>{line.quantity} × {line.name} · ${line.unitPrice.toFixed(2)}</Text>
+                ))}
+                <Text style={styles.summaryNote}>Section ${checkout.baseAmount.toFixed(2)} · Service fee ${checkout.buyerFee.toFixed(2)} · You pay ${checkout.buyerPays.toFixed(2)}</Text>
+              </View>
+            ))}
+            {gathered.blocked.map((reason) => (
+              <Text key={reason} style={styles.blocked}>{reason}</Text>
+            ))}
+            <View style={styles.divider} />
+            <View style={styles.summaryRow}>
+              <Text style={styles.totalLabel}>Total</Text>
+              <Text style={styles.totalValue}>${preview.combinedBuyerPays.toFixed(2)}</Text>
+            </View>
+          </View>
+        ) : null}
+
+        {!payInMainCart ? <View style={styles.summaryContainer}>
           <Text style={styles.summaryTitle}>Order Summary</Text>
           
           <View style={styles.summaryRow}>
@@ -147,7 +174,7 @@ export default function CartScreen() {
             <Text style={styles.totalLabel}>Total</Text>
             <Text style={styles.totalValue}>${finalTotal.toFixed(2)}</Text>
           </View>
-        </View>
+        </View> : null}
       </ScrollView>
 
         <View style={styles.footer}>
@@ -156,21 +183,27 @@ export default function CartScreen() {
               <Text style={styles.warningText}>⚠️ You waive any right to hold HomeCookedPlate app or any other AppsoleteAI affiliated business entity, investor or individual associated with HomeCookedPlate, liable for any items you purchase as a PlateTaker and you affirm all local, county, state and federal food service laws are actively being adhered to, in every transaction via the HomeCookedPlate app.</Text>
             </ScrollView>
           </View>
-          <GlassPressable style={styles.together} onPress={() => router.push('/combined-checkout' as Href)} testID="pay-together">
-            <Text style={styles.togetherText}>Pay every open checkout together</Text>
-          </GlassPressable>
-          <GradientButton
-            title={`Checkout • ${finalTotal.toFixed(2)}`}
-            onPress={() => {
-              try {
-                router.push('/checkout');
-              } catch (error) {
-                console.error('[cart] Error navigating to checkout:', error);
-              }
-            }}
-            baseColor="green"
-            testID="go-to-checkout"
-          />
+          {payInMainCart ? (
+            <GradientButton
+              title={`Pay this bill • ${preview.combinedBuyerPays.toFixed(2)}`}
+              onPress={() => router.push('/combined-checkout' as Href)}
+              baseColor="green"
+              testID="pay-together"
+            />
+          ) : (
+            <GradientButton
+              title={`Checkout • ${finalTotal.toFixed(2)}`}
+              onPress={() => {
+                try {
+                  router.push('/checkout');
+                } catch (error) {
+                  console.error('[cart] Error navigating to checkout:', error);
+                }
+              }}
+              baseColor="green"
+              testID="go-to-checkout"
+            />
+          )}
         </View>
       </SafeAreaView>
     </BuyerOnly>
@@ -356,8 +389,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.gradient.green,
   },
-  together: { borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginBottom: 10, backgroundColor: Colors.gray[900] },
-  togetherText: { color: Colors.white, fontWeight: '700' },
+  sectionBill: { marginBottom: 12 },
+  blocked: { color: '#9A3412', lineHeight: 20, marginBottom: 8 },
   footer: {
     paddingHorizontal: 24,
     paddingVertical: 16,

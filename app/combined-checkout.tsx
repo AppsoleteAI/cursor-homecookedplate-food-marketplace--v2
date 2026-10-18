@@ -16,7 +16,7 @@ import { useFarmBasket } from '@/hooks/farm-basket-store';
 import { useFoodTruck } from '@/hooks/food-truck-store';
 import { useMealPrep } from '@/hooks/meal-prep-store';
 import { useSitDown } from '@/hooks/sit-down-store';
-import { gatherCombinedCheckouts } from '@/lib/gather-combined-checkouts';
+import { gatherCombinedCheckouts, payableCheckouts } from '@/lib/gather-combined-checkouts';
 import { useStripe } from '@/lib/stripe';
 import { trpc } from '@/lib/trpc';
 
@@ -89,7 +89,8 @@ export default function CombinedCheckoutScreen() {
     }
     setCharging(true);
     try {
-      const created = await createCheckout.mutateAsync({ checkouts: gathered.checkouts });
+      const checkouts = payableCheckouts(gathered.checkouts);
+      const created = await createCheckout.mutateAsync({ checkouts });
       const initPaymentSheet = stripe?.initPaymentSheet;
       const presentPaymentSheet = stripe?.presentPaymentSheet;
       if (!initPaymentSheet || !presentPaymentSheet || !created.clientSecret) {
@@ -108,7 +109,7 @@ export default function CombinedCheckoutScreen() {
       }
       await confirmCheckout.mutateAsync({
         paymentIntentId: created.paymentIntentId,
-        checkouts: gathered.checkouts,
+        checkouts,
       });
       if (gathered.checkouts.some((checkout) => checkout.area === 'home')) cart.clearCart();
       if (gathered.checkouts.some((checkout) => checkout.area === 'farm')) farm.clearItems();

@@ -17,6 +17,18 @@ export type CombinedCheckoutDraft = {
 
 type Bucket = CombinedCheckoutDraft;
 
+function sellerOrCatalog(sellerId?: string): string {
+  return sellerId && SELLER_ID.test(sellerId) ? sellerId : '';
+}
+
+export function payableCheckouts(checkouts: CombinedCheckoutDraft[]) {
+  return checkouts.map((checkout) => ({
+    area: checkout.area,
+    lines: checkout.lines,
+    ...(SELLER_ID.test(checkout.sellerId) ? { sellerId: checkout.sellerId } : {}),
+  }));
+}
+
 function addLine(buckets: Map<string, Bucket>, draft: Omit<Bucket, 'lines'>, productId: string, quantity: number) {
   const key = checkoutKey(draft.area, draft.sellerId);
   const existing = buckets.get(key);
@@ -55,54 +67,54 @@ export function gatherCombinedCheckouts(input: {
   for (const item of input.farm) {
     const product = getCatalogProduct(item.productId);
     const farm = product ? getFarm(product.farmId) : undefined;
-    if (!farm?.sellerId || !SELLER_ID.test(farm.sellerId)) {
-      blocked.push(`${product?.name || 'A farm good'} is not open for app payment.`);
+    if (!product || !farm) {
+      blocked.push(`${product?.name || 'A farm good'} is not on the menu, so it cannot be charged.`);
       continue;
     }
-    addLine(buckets, { area: 'farm', sellerId: farm.sellerId, sellerName: farm.name }, item.productId, item.quantity);
+    addLine(buckets, { area: 'farm', sellerId: sellerOrCatalog(farm.sellerId), sellerName: farm.name }, item.productId, item.quantity);
   }
 
   for (const item of input.prep) {
     const cook = getPrepCook(item.cookId);
-    if (!cook?.sellerId || !SELLER_ID.test(cook.sellerId)) {
-      blocked.push(`${cook?.name || 'A prep cook'} is not open for app payment.`);
+    if (!cook) {
+      blocked.push('A weekly item is not on the menu, so it cannot be charged.');
       continue;
     }
-    addLine(buckets, { area: 'meal_prep', sellerId: cook.sellerId, sellerName: cook.name }, item.itemId, item.quantity);
+    addLine(buckets, { area: 'meal_prep', sellerId: sellerOrCatalog(cook.sellerId), sellerName: cook.name }, item.itemId, item.quantity);
   }
 
   for (const item of input.truck) {
     const truck = getTruck(item.truckId);
     const menu = getMenuItem(item.itemId);
-    if (!truck?.sellerId || !SELLER_ID.test(truck.sellerId)) {
-      blocked.push(`${truck?.name || menu?.name || 'A truck'} is not open for app payment.`);
+    if (!truck || !menu) {
+      blocked.push(`${truck?.name || menu?.name || 'A truck item'} is not on the menu, so it cannot be charged.`);
       continue;
     }
     addLine(buckets, {
       area: truck.unit === 'cart' ? 'food_cart' : 'food_truck',
-      sellerId: truck.sellerId,
+      sellerId: sellerOrCatalog(truck.sellerId),
       sellerName: truck.name,
     }, item.itemId, item.quantity);
   }
 
   for (const item of input.cater) {
     const company = getCompany(item.companyId);
-    if (!company?.sellerId || !SELLER_ID.test(company.sellerId)) {
-      blocked.push(`${company?.name || 'A caterer'} is not open for app payment.`);
+    if (!company) {
+      blocked.push('A catering package is not on the menu, so it cannot be charged.');
       continue;
     }
-    addLine(buckets, { area: 'catering', sellerId: company.sellerId, sellerName: company.name }, item.packageId, item.headcount);
+    addLine(buckets, { area: 'catering', sellerId: sellerOrCatalog(company.sellerId), sellerName: company.name }, item.packageId, item.headcount);
   }
 
   for (const item of input.sit) {
     const place = getPlace(item.placeId);
-    if (!place?.sellerId || !SELLER_ID.test(place.sellerId)) {
-      blocked.push(`${place?.name || 'A restaurant'} is not open for app payment.`);
+    if (!place) {
+      blocked.push('A restaurant item is not on the menu, so it cannot be charged.');
       continue;
     }
     addLine(buckets, {
       area: place.kind === 'ghost_kitchen' ? 'ghost_kitchen' : 'sit_down',
-      sellerId: place.sellerId,
+      sellerId: sellerOrCatalog(place.sellerId),
       sellerName: place.name,
     }, item.itemId, item.quantity);
   }
