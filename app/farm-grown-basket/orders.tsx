@@ -4,6 +4,7 @@ import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router , type Href } from 'expo-router';
 import { FarmScreen } from '@/components/farm/FarmScreen';
+import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useFarmBasket } from '@/hooks/farm-basket-store';
@@ -16,6 +17,7 @@ export default function FarmOrdersScreen() {
 
   return (
     <FarmScreen title="Farm orders" subtitle="These are not cooked-plate orders." testID="farm-orders">
+      <FoodHandlingNotice inset testID="farm-orders-food-handling" />
       {orders.length === 0 ? <Text style={styles.empty}>No farm orders yet.</Text> : null}
       {orders.map((order) => (
         <View key={order.id} style={styles.card}>

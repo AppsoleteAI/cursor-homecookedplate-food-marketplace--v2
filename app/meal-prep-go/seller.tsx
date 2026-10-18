@@ -5,6 +5,7 @@ import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router, type Href } from 'expo-router';
 import { MealPrepScreen } from '@/components/meal-prep/MealPrepScreen';
+import { PricedItemCard } from '@/components/PricedItemCard';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useMealPrep } from '@/hooks/meal-prep-store';
@@ -43,11 +44,14 @@ export default function MealPrepSellerScreen() {
       <Text style={styles.section}>On your menu</Text>
       {listings.length === 0 ? <Text style={styles.meta}>No weekly item yet.</Text> : null}
       {listings.map((item) => (
-        <GlassPressable key={item.id} style={styles.card} onPress={() => router.push(`/meal-prep-go/item/${item.id}` as Href)}>
-          <Text style={styles.lane}>{laneLabel(item.lane)}</Text>
-          <Text style={styles.name}>{titleCase(item.name)}</Text>
-          <Text style={styles.meta}>${item.price.toFixed(2)}</Text>
-        </GlassPressable>
+        <PricedItemCard
+          key={item.id}
+          title={titleCase(item.name)}
+          meta={laneLabel(item.lane)}
+          price={`$${item.price.toFixed(2)}`}
+          priceColor="#0E7490"
+          onPress={() => router.push(`/meal-prep-go/item/${item.id}` as Href)}
+        />
       ))}
       <Text style={styles.section}>Payout from recorded weeks</Text>
       <Text style={styles.meta}>${payout.toFixed(2)} after the 10% seller fee. This is the same split as the rest of HomeCookedPlate.</Text>
@@ -64,6 +68,4 @@ const styles = StyleSheet.create({
   buttonText: { color: Colors.white, fontWeight: '700' },
   link: { marginTop: 12, color: '#0E7490', fontWeight: '700' },
   section: { marginTop: 18, marginBottom: 8, fontWeight: '700', color: Colors.gray[900] },
-  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 16, padding: 14, marginBottom: 10  },
-  lane: { color: '#0E7490', fontSize: 12, fontWeight: '700' },
 });

@@ -4,6 +4,7 @@ import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, useLocalSearchParams , type Href } from 'expo-router';
 import { FarmScreen } from '@/components/farm/FarmScreen';
+import { PricedItemCard } from '@/components/PricedItemCard';
 import { Colors } from '@/constants/colors';
 import { getFarm, productsForFarm } from '@/constants/farm-grown-basket';
 import { useFarmBasket } from '@/hooks/farm-basket-store';
@@ -48,12 +49,15 @@ export default function FarmProfileScreen() {
       ) : null}
       <Text style={styles.section}>Goods from this stand</Text>
       {productsForFarm(farm.id).map((product) => (
-        <GlassPressable key={product.id} style={styles.row} onPress={() => router.push(`/farm-grown-basket/product/${product.id}` as Href)}>
-          <View style={styles.copy}>
-            <Text style={styles.name}>{titleCase(product.name)}</Text>
-            <Text style={styles.meta}>{trackLabel(product.track)} · ${product.price.toFixed(2)} / {product.unit}</Text>
-          </View>
-        </GlassPressable>
+        <PricedItemCard
+          key={product.id}
+          image={product.image}
+          title={titleCase(product.name)}
+          meta={trackLabel(product.track)}
+          price={`$${product.price.toFixed(2)} / ${product.unit}`}
+          onPress={() => router.push(`/farm-grown-basket/product/${product.id}` as Href)}
+          testID={`farm-product-${product.id}`}
+        />
       ))}
     </FarmScreen>
   );
@@ -68,8 +72,5 @@ const styles = StyleSheet.create({
   rule: { marginTop: 16, backgroundColor: Colors.white, borderRadius: 16, padding: 14 },
   ruleTitle: { fontWeight: '700', color: Colors.gray[900] },
   link: { color: '#166534', fontWeight: '700', marginTop: 8 },
-  section: { marginTop: 18, fontSize: 16, fontWeight: '700', color: Colors.gray[900] },
-  row: { backgroundColor: Colors.white, borderRadius: 12, padding: 12, marginTop: 8 },
-  copy: {},
-  name: { fontWeight: '700', color: Colors.gray[900] },
+  section: { marginTop: 18, marginBottom: 8, fontSize: 16, fontWeight: '700', color: Colors.gray[900] },
 });

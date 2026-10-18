@@ -4,6 +4,7 @@ import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router , type Href } from 'expo-router';
 import { FarmScreen } from '@/components/farm/FarmScreen';
+import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
 import { Colors } from '@/constants/colors';
 import { getCatalogProduct } from '@/constants/farm-grown-basket';
 import { useFarmBasket } from '@/hooks/farm-basket-store';
@@ -28,6 +29,7 @@ export default function FarmBasketScreen() {
 
   return (
     <FarmScreen title="Farm basket" subtitle="These goods never mix with cooked plates." showBasket={false} testID="farm-basket">
+      <FoodHandlingNotice inset testID="farm-basket-food-handling" />
       {lines.length === 0 ? (
         <View>
           <Text style={styles.empty}>Your farm basket is empty.</Text>

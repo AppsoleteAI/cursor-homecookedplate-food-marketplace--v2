@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Text, StyleSheet, View } from 'react-native';
+import { Text, StyleSheet, View, Image } from 'react-native';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, useLocalSearchParams, router, type Href } from 'expo-router';
@@ -34,6 +34,7 @@ export default function MealPrepItemScreen() {
 
   return (
     <MealPrepScreen title={titleCase(item.name)} subtitle={`${laneLabel(item.lane)} · ${cookName}`} testID="prep-item">
+      {catalog?.image ? <Image source={{ uri: catalog.image }} style={styles.hero} /> : null}
       <Text style={styles.price}>${item.price.toFixed(2)}</Text>
       <Text style={styles.meta}>{dietLabel(item.diet)} · {item.lane === 'addon' ? 'Rides with the week' : `${item.minutes} minutes`}</Text>
       <Text style={styles.body}>{item.summary}</Text>
@@ -67,6 +68,7 @@ export default function MealPrepItemScreen() {
 }
 
 const styles = StyleSheet.create({
+  hero: { ...glassSurface, width: '100%', height: 180, borderRadius: 16, backgroundColor: Colors.gray[200], marginBottom: 12 },
   price: { fontSize: 28, fontWeight: '700', color: Colors.gray[900] },
   meta: { color: '#0E7490', fontWeight: '700', marginTop: 6 },
   label: { marginTop: 14, fontWeight: '700', color: Colors.gray[900] },

@@ -4,6 +4,7 @@ import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router, type Href } from 'expo-router';
 import { FoodTruckScreen } from '@/components/food-truck/FoodTruckScreen';
+import { PricedItemCard } from '@/components/PricedItemCard';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useFoodTruck } from '@/hooks/food-truck-store';
@@ -84,10 +85,14 @@ export default function TruckSellerScreen() {
       <Text style={styles.section}>Your menu</Text>
       {listings.length === 0 ? <Text style={styles.meta}>Nothing listed yet.</Text> : null}
       {listings.map((item) => (
-        <GlassPressable key={item.id} style={styles.card} onPress={() => router.push(`/food-truck-popup/item/${item.id}` as Href)}>
-          <Text style={styles.itemName}>{titleCase(item.name)}</Text>
-          <Text style={styles.meta}>${item.price.toFixed(2)} · {ownerActive ? 'On the board' : 'Hidden while the window is closed'}</Text>
-        </GlassPressable>
+        <PricedItemCard
+          key={item.id}
+          title={titleCase(item.name)}
+          meta={ownerActive ? 'On the board' : 'Hidden while the window is closed'}
+          price={`$${item.price.toFixed(2)}`}
+          priceColor="#C2410C"
+          onPress={() => router.push(`/food-truck-popup/item/${item.id}` as Href)}
+        />
       ))}
     </FoodTruckScreen>
   );

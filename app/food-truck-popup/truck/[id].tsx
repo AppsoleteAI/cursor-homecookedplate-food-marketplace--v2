@@ -4,6 +4,7 @@ import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { FoodTruckScreen } from '@/components/food-truck/FoodTruckScreen';
+import { PricedItemCard } from '@/components/PricedItemCard';
 import { Colors } from '@/constants/colors';
 import { getTruck, menuForTruck } from '@/constants/food-truck-popup';
 import { useFoodTruck } from '@/hooks/food-truck-store';
@@ -57,10 +58,16 @@ export default function TruckProfileScreen() {
       </View>
       <Text style={styles.section}>Menu</Text>
       {menuForTruck(truck.id).map((item) => (
-        <GlassPressable key={item.id} style={styles.row} onPress={() => router.push(`/food-truck-popup/item/${item.id}` as Href)}>
-          <Text style={styles.name}>{titleCase(item.name)}</Text>
-          <Text style={styles.meta}>${item.price.toFixed(2)} · {truck.active ? 'Order ahead' : 'Window closed'}</Text>
-        </GlassPressable>
+        <PricedItemCard
+          key={item.id}
+          image={item.image}
+          title={titleCase(item.name)}
+          meta={truck.active ? 'Order ahead' : 'Window closed'}
+          price={`$${item.price.toFixed(2)}`}
+          priceColor="#C2410C"
+          onPress={() => router.push(`/food-truck-popup/item/${item.id}` as Href)}
+          testID={`truck-item-${item.id}`}
+        />
       ))}
     </FoodTruckScreen>
   );
@@ -78,7 +85,5 @@ const styles = StyleSheet.create({
   panel: { marginTop: 16, backgroundColor: Colors.white, borderRadius: 16, padding: 14 },
   panelTitle: { fontWeight: '700', color: Colors.gray[900] },
   link: { color: '#C2410C', fontWeight: '700', marginTop: 8 },
-  section: { marginTop: 18, fontSize: 16, fontWeight: '700', color: Colors.gray[900] },
-  row: { backgroundColor: Colors.white, borderRadius: 12, padding: 12, marginTop: 8 },
-  name: { fontWeight: '700', color: Colors.gray[900] },
+  section: { marginTop: 18, marginBottom: 8, fontSize: 16, fontWeight: '700', color: Colors.gray[900] },
 });

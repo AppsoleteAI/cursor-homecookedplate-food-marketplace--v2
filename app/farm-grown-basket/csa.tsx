@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router , type Href } from 'expo-router';
@@ -21,11 +21,16 @@ export default function CsaScreen() {
         const farm = getFarm(share.farmId);
         return (
           <View key={share.id} style={styles.card}>
-            <Text style={styles.name}>{titleCase(share.name)}</Text>
-            <Text style={styles.meta}>{farm?.name}</Text>
+            <View style={styles.row}>
+              <Image source={{ uri: share.image }} style={styles.image} />
+              <View style={styles.copy}>
+                <Text style={styles.name}>{titleCase(share.name)}</Text>
+                <Text style={styles.meta}>{farm?.name}</Text>
+                <Text style={styles.price}>${share.price.toFixed(2)} / {share.unit}</Text>
+              </View>
+            </View>
             <Text style={styles.body}>{share.summary}</Text>
             <Text style={styles.body}>{share.seasonNote}</Text>
-            <Text style={styles.price}>${share.price.toFixed(2)} / {share.unit}</Text>
             <View style={styles.actions}>
               <GlassPressable style={styles.button} onPress={() => addItem(share.id, 1)} testID={`add-csa-${share.id}`}>
                 <Text style={styles.buttonText}>Add Current Box</Text>
@@ -46,8 +51,11 @@ export default function CsaScreen() {
 
 const styles = StyleSheet.create({
   lead: { color: Colors.gray[700], lineHeight: 20 },
-  card: { ...glassSurface, marginTop: 14, backgroundColor: Colors.white, borderRadius: 16, padding: 14  },
-  name: { fontSize: 18, fontWeight: '700', color: Colors.gray[900] },
+  card: { ...glassSurface, marginTop: 14, backgroundColor: Colors.white, borderRadius: 16, padding: 10  },
+  row: { flexDirection: 'row', gap: 12 },
+  image: { ...glassSurface, width: 84, height: 84, borderRadius: 12, backgroundColor: Colors.gray[200] },
+  copy: { flex: 1, justifyContent: 'center' },
+  name: { fontSize: 16, fontWeight: '700', color: Colors.gray[900] },
   meta: { color: Colors.gray[500], marginTop: 4 },
   body: { color: Colors.gray[700], marginTop: 8, lineHeight: 20 },
   price: { marginTop: 8, color: '#166534', fontWeight: '700', fontSize: 16 },

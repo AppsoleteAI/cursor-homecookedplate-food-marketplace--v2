@@ -26,6 +26,7 @@ import { useAuth } from '@/hooks/auth-context';
 import * as WebBrowser from 'expo-web-browser';
 import { trpc } from '@/lib/trpc';
 import { SkeletonDashboard } from '@/components/SkeletonDashboard';
+import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
 
 export default function DashboardScreen() {
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
@@ -398,6 +399,7 @@ export default function DashboardScreen() {
             </GlassPressable>
           </View>
 
+          <FoodHandlingNotice inset testID="dashboard-orders-food-handling" />
           {orders.filter(o => o.status !== 'completed').map(order => (
             <View key={order.id} style={styles.orderCard}>
               <Image source={{ uri: order.mealImage }} style={styles.orderImage} />

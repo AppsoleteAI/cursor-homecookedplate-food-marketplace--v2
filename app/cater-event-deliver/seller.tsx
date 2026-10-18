@@ -4,6 +4,7 @@ import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router, type Href } from 'expo-router';
 import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
+import { PricedItemCard } from '@/components/PricedItemCard';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useCaterEvent } from '@/hooks/cater-event-store';
@@ -70,10 +71,14 @@ export default function CaterSellerScreen() {
       <Text style={styles.section}>Your packages</Text>
       {listings.length === 0 ? <Text style={styles.meta}>Nothing listed yet.</Text> : null}
       {listings.map((item) => (
-        <GlassPressable key={item.id} style={styles.card} onPress={() => router.push(`/cater-event-deliver/package/${item.id}` as Href)}>
-          <Text style={styles.itemName}>{titleCase(item.name)}</Text>
-          <Text style={styles.meta}>${item.pricePerPerson.toFixed(2)} per person · minimum {item.minimumHeadcount} · {accepting ? 'On the board' : 'Hidden while you are closed'}</Text>
-        </GlassPressable>
+        <PricedItemCard
+          key={item.id}
+          title={titleCase(item.name)}
+          meta={`Minimum ${item.minimumHeadcount} · ${accepting ? 'On the board' : 'Hidden while you are closed'}`}
+          price={`$${item.pricePerPerson.toFixed(2)} per person`}
+          priceColor="#6D28D9"
+          onPress={() => router.push(`/cater-event-deliver/package/${item.id}` as Href)}
+        />
       ))}
     </CaterEventScreen>
   );

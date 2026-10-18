@@ -4,6 +4,7 @@ import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
+import { PricedItemCard } from '@/components/PricedItemCard';
 import { Colors } from '@/constants/colors';
 import { getCompany, packagesForCompany } from '@/constants/cater-event-deliver';
 import { useCaterEvent } from '@/hooks/cater-event-store';
@@ -52,10 +53,16 @@ export default function CaterCompanyScreen() {
       </View>
       <Text style={styles.section}>Packages</Text>
       {packagesForCompany(company.id).map((item) => (
-        <GlassPressable key={item.id} style={styles.row} onPress={() => router.push(`/cater-event-deliver/package/${item.id}` as Href)}>
-          <Text style={styles.name}>{titleCase(item.name)}</Text>
-          <Text style={styles.meta}>${item.pricePerPerson.toFixed(2)} per person · minimum {item.minimumHeadcount} · {company.accepting ? 'Order' : 'Not accepting'}</Text>
-        </GlassPressable>
+        <PricedItemCard
+          key={item.id}
+          image={item.image}
+          title={titleCase(item.name)}
+          meta={`Minimum ${item.minimumHeadcount} · ${company.accepting ? 'Order' : 'Not accepting'}`}
+          price={`$${item.pricePerPerson.toFixed(2)} per person`}
+          priceColor="#6D28D9"
+          onPress={() => router.push(`/cater-event-deliver/package/${item.id}` as Href)}
+          testID={`cater-package-${item.id}`}
+        />
       ))}
     </CaterEventScreen>
   );
@@ -73,7 +80,5 @@ const styles = StyleSheet.create({
   panel: { marginTop: 16, backgroundColor: Colors.white, borderRadius: 16, padding: 14 },
   panelTitle: { fontWeight: '700', color: Colors.gray[900] },
   link: { color: '#6D28D9', fontWeight: '700', marginTop: 8 },
-  section: { marginTop: 18, fontSize: 16, fontWeight: '700', color: Colors.gray[900] },
-  row: { backgroundColor: Colors.white, borderRadius: 12, padding: 12, marginTop: 8 },
-  name: { fontWeight: '700', color: Colors.gray[900] },
+  section: { marginTop: 18, marginBottom: 8, fontSize: 16, fontWeight: '700', color: Colors.gray[900] },
 });

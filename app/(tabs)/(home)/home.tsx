@@ -7,7 +7,6 @@ import {
   StyleSheet,
   ScrollView,
   Image,
-  Pressable,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
@@ -205,15 +204,6 @@ export default function HomeScreen() {
         scrollEventThrottle={16}
       >
           <View>
-          <Pressable
-            style={styles.handlingEntry}
-            onPress={() => router.push('/food-handling' as Href)}
-            testID="open-food-handling"
-          >
-            <Text style={styles.handlingKicker}>Food handling</Text>
-            <Text style={styles.handlingTitle}>Temperatures for pickup and leftovers</Text>
-            <Text style={styles.handlingBody}>Cold food at or below 41°F. Hot food at or above 135°F. Refrigerate perishable food within 2 hours.</Text>
-          </Pressable>
           <GlassPressable
             style={styles.farmEntry}
             onPress={() => router.push('/farm-grown-basket' as Href)}
@@ -668,35 +658,6 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
     color: Colors.gray[500],
-  },
-  handlingEntry: {
-    marginHorizontal: 24,
-    marginTop: 16,
-    marginBottom: 8,
-    backgroundColor: Colors.blue[50],
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.blue[200],
-  },
-  handlingKicker: {
-    color: Colors.blue[700],
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-  handlingTitle: {
-    color: Colors.blue[700],
-    fontSize: 18,
-    fontWeight: '700',
-    marginTop: 4,
-  },
-  handlingBody: {
-    color: Colors.blue[600],
-    fontSize: 14,
-    marginTop: 4,
-    lineHeight: 20,
   },
   farmEntry: {
     marginHorizontal: 24,

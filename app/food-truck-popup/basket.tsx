@@ -4,6 +4,7 @@ import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, type Href } from 'expo-router';
 import { FoodTruckScreen } from '@/components/food-truck/FoodTruckScreen';
+import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
 import { Colors } from '@/constants/colors';
 import { getMenuItem, getTruck } from '@/constants/food-truck-popup';
 import { useFoodTruck } from '@/hooks/food-truck-store';
@@ -29,6 +30,7 @@ export default function TruckBasketScreen() {
 
   return (
     <FoodTruckScreen title="Window order" subtitle="One truck. Pickup at the window." showBasket={false} testID="truck-basket">
+      <FoodHandlingNotice inset testID="truck-basket-food-handling" />
       {lines.length === 0 ? (
         <View>
           <Text style={styles.empty}>No truck order yet.</Text>

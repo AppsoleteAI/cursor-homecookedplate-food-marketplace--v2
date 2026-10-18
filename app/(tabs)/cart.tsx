@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router , type Href } from 'expo-router';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
+import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
 import { useCart } from '@/hooks/cart-context';
 import { calculateOrderSplit } from '@/lib/fees';
 
@@ -30,6 +31,7 @@ export default function CartScreen() {
       <BuyerOnly>
         <SafeAreaView style={styles.container}>
           <View style={styles.emptyContainer}>
+            <FoodHandlingNotice inset testID="cart-food-handling" />
             <Text style={styles.emptyTitle}>Your cart is empty</Text>
             <Text style={styles.emptyText}>Add some delicious meals to get started!</Text>
             <GlassPressable onPress={() => router.push('/farm-grown-basket' as Href)} testID="empty-cart-farm">
@@ -87,6 +89,7 @@ export default function CartScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContentWithHeader}
         >
+        <FoodHandlingNotice testID="cart-food-handling" />
         {items.map(item => (
           <View key={item.meal.id} style={styles.cartItem}>
             <Image source={{ uri: item.meal.images[0] }} style={styles.itemImage} />

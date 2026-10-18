@@ -4,6 +4,7 @@ import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, type Href } from 'expo-router';
 import { FoodTruckScreen } from '@/components/food-truck/FoodTruckScreen';
+import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useFoodTruck } from '@/hooks/food-truck-store';
@@ -15,6 +16,7 @@ export default function TruckOrdersScreen() {
 
   return (
     <FoodTruckScreen title="Truck orders" subtitle="Window tickets. Not plate orders." testID="truck-orders">
+      <FoodHandlingNotice inset testID="truck-orders-food-handling" />
       {orders.length === 0 ? <Text style={styles.empty}>No truck orders yet.</Text> : null}
       {orders.map((order) => (
         <View key={order.id} style={styles.card}>

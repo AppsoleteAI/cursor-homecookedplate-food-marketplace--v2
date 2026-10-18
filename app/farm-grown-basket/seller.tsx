@@ -4,6 +4,7 @@ import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router , type Href } from 'expo-router';
 import { FarmScreen } from '@/components/farm/FarmScreen';
+import { PricedItemCard } from '@/components/PricedItemCard';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useFarmBasket } from '@/hooks/farm-basket-store';
@@ -63,10 +64,13 @@ export default function FarmSellerScreen() {
       <Text style={styles.section}>Your listings</Text>
       {listings.length === 0 ? <Text style={styles.meta}>Nothing listed yet.</Text> : null}
       {listings.map((listing) => (
-        <GlassPressable key={listing.id} style={styles.card} onPress={() => router.push(`/farm-grown-basket/product/${listing.id}` as Href)}>
-          <Text style={styles.valueSmall}>{titleCase(listing.name)}</Text>
-          <Text style={styles.meta}>${listing.price.toFixed(2)} / {listing.unit} · {trackLabel(listing.track)}</Text>
-        </GlassPressable>
+        <PricedItemCard
+          key={listing.id}
+          title={titleCase(listing.name)}
+          meta={trackLabel(listing.track)}
+          price={`$${listing.price.toFixed(2)} / ${listing.unit}`}
+          onPress={() => router.push(`/farm-grown-basket/product/${listing.id}` as Href)}
+        />
       ))}
     </FarmScreen>
   );

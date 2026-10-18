@@ -4,6 +4,7 @@ import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, type Href } from 'expo-router';
 import { SitDownScreen } from '@/components/sit-down/SitDownScreen';
+import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
 import { Colors } from '@/constants/colors';
 import { getPlace, getSitItem } from '@/constants/sit-down-delicious';
 import { useSitDown } from '@/hooks/sit-down-store';
@@ -29,6 +30,7 @@ export default function SitBasketScreen() {
 
   return (
     <SitDownScreen title="Restaurant order" subtitle="One shop. A table or counter takeout." showBasket={false} testID="sit-basket">
+      <FoodHandlingNotice inset testID="sit-basket-food-handling" />
       {lines.length === 0 ? (
         <View>
           <Text style={styles.empty}>No restaurant order yet.</Text>

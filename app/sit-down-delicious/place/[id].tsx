@@ -4,6 +4,7 @@ import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { SitDownScreen } from '@/components/sit-down/SitDownScreen';
+import { PricedItemCard } from '@/components/PricedItemCard';
 import { Colors } from '@/constants/colors';
 import { SHOP_KIND_LABEL, getPlace, menuForPlace } from '@/constants/sit-down-delicious';
 import { useSitDown } from '@/hooks/sit-down-store';
@@ -49,10 +50,16 @@ export default function PlaceScreen() {
       </View>
       <Text style={styles.section}>Menu</Text>
       {menuForPlace(place.id).map((item) => (
-        <GlassPressable key={item.id} style={styles.row} onPress={() => router.push(`/sit-down-delicious/item/${item.id}` as Href)}>
-          <Text style={styles.name}>{titleCase(item.name)}</Text>
-          <Text style={styles.meta}>${item.price.toFixed(2)} · {place.openNow ? 'Order now' : 'Shop closed'}</Text>
-        </GlassPressable>
+        <PricedItemCard
+          key={item.id}
+          image={item.image}
+          title={titleCase(item.name)}
+          meta={place.openNow ? 'Order now' : 'Shop closed'}
+          price={`$${item.price.toFixed(2)}`}
+          priceColor="#92400E"
+          onPress={() => router.push(`/sit-down-delicious/item/${item.id}` as Href)}
+          testID={`sit-item-${item.id}`}
+        />
       ))}
     </SitDownScreen>
   );
@@ -70,7 +77,5 @@ const styles = StyleSheet.create({
   panel: { marginTop: 16, backgroundColor: Colors.white, borderRadius: 16, padding: 14 },
   panelTitle: { fontWeight: '700', color: Colors.gray[900] },
   link: { color: '#92400E', fontWeight: '700', marginTop: 8 },
-  section: { marginTop: 18, fontSize: 16, fontWeight: '700', color: Colors.gray[900] },
-  row: { backgroundColor: Colors.white, borderRadius: 12, padding: 12, marginTop: 8 },
-  name: { fontWeight: '700', color: Colors.gray[900] },
+  section: { marginTop: 18, marginBottom: 8, fontSize: 16, fontWeight: '700', color: Colors.gray[900] },
 });

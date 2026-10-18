@@ -20,6 +20,7 @@ import { useCart } from '@/hooks/cart-context';
 import { useFavorites } from '@/hooks/favorites-context';
 import { useRouter } from 'expo-router';
 import { SkeletonOrdersList } from '@/components/SkeletonOrdersList';
+import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
 export default function OrdersScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -151,6 +152,7 @@ export default function OrdersScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 140 }]}
         >
+          <FoodHandlingNotice inset testID="orders-food-handling" />
           {!orders || orders.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyEmoji}>📦</Text>

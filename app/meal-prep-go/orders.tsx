@@ -3,6 +3,7 @@ import { Text, StyleSheet, View } from 'react-native';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, type Href } from 'expo-router';
 import { MealPrepScreen } from '@/components/meal-prep/MealPrepScreen';
+import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
 import { Colors } from '@/constants/colors';
 import { useMealPrep } from '@/hooks/meal-prep-store';
 
@@ -11,6 +12,7 @@ export default function MealPrepOrdersScreen() {
 
   return (
     <MealPrepScreen title="Prep orders" subtitle="Weekly plans stay out of plate orders." testID="prep-orders">
+      <FoodHandlingNotice inset testID="prep-orders-food-handling" />
       {orders.length === 0 ? (
         <GlassPressable onPress={() => router.push('/meal-prep-go/board' as Href)}>
           <Text style={styles.link}>No weekly order yet. Find a cook who is open.</Text>

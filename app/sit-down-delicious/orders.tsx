@@ -4,6 +4,7 @@ import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, type Href } from 'expo-router';
 import { SitDownScreen } from '@/components/sit-down/SitDownScreen';
+import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useSitDown } from '@/hooks/sit-down-store';
@@ -16,6 +17,7 @@ export default function SitOrdersScreen() {
 
   return (
     <SitDownScreen title="Restaurant orders" subtitle="Tables and takeout. Not plate orders." testID="sit-orders">
+      <FoodHandlingNotice inset testID="sit-orders-food-handling" />
       {orders.length === 0 ? <Text style={styles.empty}>No restaurant orders yet.</Text> : null}
       {orders.map((order) => (
         <View key={order.id} style={styles.card}>

@@ -4,6 +4,7 @@ import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router, type Href } from 'expo-router';
 import { SitDownScreen } from '@/components/sit-down/SitDownScreen';
+import { PricedItemCard } from '@/components/PricedItemCard';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useSitDown } from '@/hooks/sit-down-store';
@@ -84,10 +85,14 @@ export default function SitSellerScreen() {
       <Text style={styles.section}>Your menu</Text>
       {listings.length === 0 ? <Text style={styles.meta}>Nothing listed yet.</Text> : null}
       {listings.map((item) => (
-        <GlassPressable key={item.id} style={styles.card} onPress={() => router.push(`/sit-down-delicious/item/${item.id}` as Href)}>
-          <Text style={styles.itemName}>{titleCase(item.name)}</Text>
-          <Text style={styles.meta}>${item.price.toFixed(2)} · {ownerOpen ? 'On the list' : 'Hidden while the shop is closed'}</Text>
-        </GlassPressable>
+        <PricedItemCard
+          key={item.id}
+          title={titleCase(item.name)}
+          meta={ownerOpen ? 'On the list' : 'Hidden while the shop is closed'}
+          price={`$${item.price.toFixed(2)}`}
+          priceColor="#92400E"
+          onPress={() => router.push(`/sit-down-delicious/item/${item.id}` as Href)}
+        />
       ))}
     </SitDownScreen>
   );

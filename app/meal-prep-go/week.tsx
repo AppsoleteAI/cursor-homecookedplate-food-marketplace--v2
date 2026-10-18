@@ -4,6 +4,7 @@ import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, type Href } from 'expo-router';
 import { MealPrepScreen } from '@/components/meal-prep/MealPrepScreen';
+import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
 import { Colors } from '@/constants/colors';
 import { getPrepCook, getPrepItem, type PrepLane } from '@/constants/meal-prep-go';
 import { useMealPrep } from '@/hooks/meal-prep-store';
@@ -35,6 +36,7 @@ export default function MealPrepWeekScreen() {
 
   return (
     <MealPrepScreen title="Your week" subtitle={lines.length === 0 ? 'Nothing added yet' : cookName} testID="prep-week">
+      <FoodHandlingNotice inset testID="prep-week-food-handling" />
       {lines.length === 0 ? (
         <GlassPressable onPress={() => router.push('/meal-prep-go/board' as Href)}>
           <Text style={styles.link}>Find a cook who is open this week.</Text>

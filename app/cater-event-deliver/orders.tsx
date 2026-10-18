@@ -4,6 +4,7 @@ import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, type Href } from 'expo-router';
 import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
+import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useCaterEvent } from '@/hooks/cater-event-store';
@@ -23,6 +24,7 @@ export default function CaterOrdersScreen() {
 
   return (
     <CaterEventScreen title="Catering orders" subtitle="Group drop-offs. Not plate orders." testID="cater-orders">
+      <FoodHandlingNotice inset testID="cater-orders-food-handling" />
       {orders.length === 0 ? <Text style={styles.empty}>No catering orders yet.</Text> : null}
       {spend.length > 0 ? (
         <View style={styles.card}>

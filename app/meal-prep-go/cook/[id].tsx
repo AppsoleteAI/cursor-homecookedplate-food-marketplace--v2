@@ -4,10 +4,11 @@ import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, useLocalSearchParams, router, type Href } from 'expo-router';
 import { MealPrepScreen } from '@/components/meal-prep/MealPrepScreen';
+import { PricedItemCard } from '@/components/PricedItemCard';
 import { Colors } from '@/constants/colors';
 import { getPrepCook, itemsForCook, type PrepItem, type PrepLane } from '@/constants/meal-prep-go';
 import { useMealPrep, type PrepListing } from '@/hooks/meal-prep-store';
-import { dietLabel, laneDetail, laneLabel } from '@/lib/meal-prep-go';
+import { dietLabel, laneLabel } from '@/lib/meal-prep-go';
 import { stateName } from '@/lib/cottage-food';
 
 const FILTERS: { id: 'all' | PrepLane; label: string }[] = [
@@ -65,12 +66,16 @@ export default function MealPrepCookScreen() {
       </View>
       {visible.length === 0 ? <Text style={styles.meta}>Nothing is listed in this lane yet.</Text> : null}
       {visible.map((item) => (
-        <GlassPressable key={item.id} style={styles.card} onPress={() => router.push(`/meal-prep-go/item/${item.id}` as Href)} testID={`prep-item-${item.id}`}>
-          <Text style={styles.lane}>{laneLabel(item.lane)}</Text>
-          <Text style={styles.name}>{titleCase(item.name)}</Text>
-          <Text style={styles.meta}>{dietLabel(item.diet)} · {item.lane === 'addon' ? 'Rides with the week' : `${item.minutes} min`} · ${item.price.toFixed(2)}</Text>
-          <Text style={styles.summary}>{laneDetail(item.lane)}</Text>
-        </GlassPressable>
+        <PricedItemCard
+          key={item.id}
+          image={item.image}
+          title={titleCase(item.name)}
+          meta={`${laneLabel(item.lane)} · ${dietLabel(item.diet)} · ${item.lane === 'addon' ? 'Rides with the week' : `${item.minutes} min`}`}
+          price={`$${item.price.toFixed(2)}`}
+          priceColor="#0E7490"
+          onPress={() => router.push(`/meal-prep-go/item/${item.id}` as Href)}
+          testID={`prep-item-${item.id}`}
+        />
       ))}
     </MealPrepScreen>
   );
@@ -89,12 +94,9 @@ const styles = StyleSheet.create({
   closed: { color: '#9F1239' },
   summary: { color: Colors.gray[700], lineHeight: 20 },
   meta: { color: Colors.gray[600], marginTop: 6, lineHeight: 20 },
-  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14, marginBottom: 10 },
   chip: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   chipOn: { backgroundColor: '#0E7490' },
   chipText: { color: Colors.gray[800], fontWeight: '700' },
   chipTextOn: { color: Colors.white },
-  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 16, padding: 14, marginTop: 10  },
-  lane: { color: '#0E7490', fontSize: 12, fontWeight: '700' },
-  name: { fontSize: 17, fontWeight: '700', color: Colors.gray[900], marginTop: 4 },
 });

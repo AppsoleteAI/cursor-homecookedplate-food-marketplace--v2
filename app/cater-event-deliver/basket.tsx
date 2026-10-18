@@ -4,6 +4,7 @@ import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, type Href } from 'expo-router';
 import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
+import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
 import { Colors } from '@/constants/colors';
 import { getCompany, getPackage } from '@/constants/cater-event-deliver';
 import { useCaterEvent } from '@/hooks/cater-event-store';
@@ -30,6 +31,7 @@ export default function CaterBasketScreen() {
 
   return (
     <CaterEventScreen title="Group order" subtitle="One company. Price is per person." showOrder={false} testID="cater-basket">
+      <FoodHandlingNotice inset testID="cater-basket-food-handling" />
       {lines.length === 0 ? (
         <View>
           <Text style={styles.empty}>No catering order yet.</Text>
