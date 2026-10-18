@@ -1,4 +1,4 @@
-import { mediaFrameSource, scanImage, scanVideo, type CloudflareAI, type MediaFrameBinding, type VideoFrameMedia } from '../image-security';
+import { mediaFrameSource, profilePhotoMetadataReason, scanImage, scanVideo, type CloudflareAI, type MediaFrameBinding, type VideoFrameMedia } from '../image-security';
 import { quoteShopOrder } from '../shop-catalog';
 
 const JPEG = Uint8Array.from([
@@ -36,6 +36,12 @@ describe('media scans fail closed', () => {
     );
     expect(result.allowed).toBe(false);
     expect(result.flags).toContain('NSFW_SCAN_SKIPPED_LARGE');
+  });
+
+  it('refuses a profile photo that carries an internet address or an AI tool name', () => {
+    expect(profilePhotoMetadataReason(['https://images.unsplash.com/photo'])).toMatch(/internet/);
+    expect(profilePhotoMetadataReason(['Made with Midjourney'])).toMatch(/AI-generated/);
+    expect(profilePhotoMetadataReason(['JFIF'])).toBeNull();
   });
 
   it('refuses an image when the scanner throws', async () => {

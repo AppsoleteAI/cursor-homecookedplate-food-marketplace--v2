@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -15,13 +15,29 @@ import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { screenName } from '@/lib/title-case';
 import { useAuth } from '@/hooks/auth-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MembershipPromoBanner } from '@/components/MembershipPromoBanner';
+import { ProfilePhotoCapture, type CapturedPhoto } from '@/components/ProfilePhotoCapture';
 import * as WebBrowser from 'expo-web-browser';
 import { trpc } from '@/lib/trpc';
 import { GlassPressable } from '@/components/glass-surface';
 
+function savedProfilePhoto(uri?: string | null): string | null {
+  if (!uri || !uri.includes('/storage/v1/object/public/profile-images/')) return null;
+  return uri;
+}
+
+function tell(message: string) {
+  if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined') window.alert(message);
+    return;
+  }
+  Alert.alert('Profile photo', message);
+}
+
 export default function ProfileScreen() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateProfile } = useAuth();
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [savingPhoto, setSavingPhoto] = useState(false);
+  const uploadPhoto = trpc.media.uploadProfile.useMutation();
   const utils = trpc.useUtils();
   const updateProfileMutation = trpc.auth.updateProfile.useMutation({
     onSuccess: () => {
@@ -122,10 +138,28 @@ export default function ProfileScreen() {
         }]
       : []),
     {
+      icon: 'home-outline',
+      title: 'Home Kitchens',
+      subtitle: 'Plates cooked near you',
+      onPress: () => router.push('/(tabs)/(home)/home' as Href),
+    },
+    {
       icon: 'leaf-outline',
       title: 'FarmGrownBasket',
       subtitle: 'Farms, gardens, and pickup',
       onPress: () => router.push('/farm-grown-basket' as Href),
+    },
+    {
+      icon: 'nutrition-outline',
+      title: 'MealPrepGo',
+      subtitle: 'Meals built for the week',
+      onPress: () => router.push('/meal-prep-go' as Href),
+    },
+    {
+      icon: 'people-outline',
+      title: 'CaterEventDeliver',
+      subtitle: 'Group drop-off for offices and events',
+      onPress: () => router.push('/cater-event-deliver' as Href),
     },
     {
       icon: 'bus-outline',
@@ -151,25 +185,49 @@ export default function ProfileScreen() {
     },
   ];
 
-  const userLocation = user?.phone || user?.bio || null; // Using profile location if available
+  const photo = savedProfilePhoto(user?.profileImage);
+
+  const saveCameraPhoto = async (captured: CapturedPhoto | null) => {
+    setCameraOpen(false);
+    if (!captured) return;
+    setSavingPhoto(true);
+    try {
+      const uploaded = await uploadPhoto.mutateAsync({
+        base64Data: captured.base64,
+        mimeType: captured.mimeType,
+      });
+      await updateProfile({ profileImage: uploaded.uri });
+      await utils.auth.me.invalidate();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'That photo was not accepted. Take a new one with the camera.';
+      tell(message);
+    } finally {
+      setSavingPhoto(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Promo Banner */}
-        {membershipTier === 'free' && (
-          <MembershipPromoBanner
-            userLocation={userLocation}
-            membershipTier={membershipTier}
-            audience={user?.role === 'platemaker' ? 'platemaker' : 'platetaker'}
-          />
-        )}
-
         <View style={styles.header}>
-          <Image
-            source={{ uri: (user?.profileImage ?? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400') }}
-            style={styles.avatar}
-          />
+          <View style={styles.avatarWrap}>
+            {photo ? (
+              <Image source={{ uri: photo }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, styles.avatarFallback]}>
+                <Ionicons name="person" size={42} color={Colors.gray[500]} />
+              </View>
+            )}
+            <GlassPressable
+              testID="profile-camera"
+              style={styles.cameraButton}
+              onPress={() => setCameraOpen(true)}
+              disabled={savingPhoto}
+              accessibilityLabel="Take a profile photo with the camera"
+            >
+              <Ionicons name="camera" size={18} color={Colors.white} />
+            </GlassPressable>
+          </View>
           <Text style={styles.name}>{screenName(user?.username)}</Text>
           <Text style={styles.email}>{user?.email || 'guest@example.com'}</Text>
           <View style={[styles.roleTag, { 
@@ -201,6 +259,8 @@ export default function ProfileScreen() {
             </LinearGradient>
           </View>
         </View>
+
+        {cameraOpen ? <ProfilePhotoCapture onDone={saveCameraPhoto} /> : null}
 
         <View style={styles.menuContainer}>
           {menuItems.map((item, index) => (
@@ -296,11 +356,33 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.gray[100],
   },
+  avatarWrap: {
+    width: 100,
+    height: 100,
+    marginBottom: 16,
+  },
   avatar: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    marginBottom: 16,
+  },
+  avatarFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.gray[200],
+  },
+  cameraButton: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.gradient.green,
+    borderWidth: 2,
+    borderColor: Colors.white,
   },
   name: {
     fontSize: 24,

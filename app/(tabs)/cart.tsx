@@ -235,7 +235,9 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   browseButton: {
-    paddingHorizontal: 32,
+    alignSelf: 'stretch',
+    width: '100%',
+    marginTop: 28,
   },
   cartItem: {
     flexDirection: 'row',

@@ -59,13 +59,12 @@ export const updateProfileProcedure = protectedProcedure
     }
 
     if (input.profileImage !== undefined) {
-      // Only accept HTTPS URLs or empty string — reject local file:// URIs and data: URLs
-      // which would be device-local and inaccessible to other users.
       const trimmed = input.profileImage.trim();
-      if (trimmed !== '' && !trimmed.startsWith('https://')) {
+      const uploadedHere = `/storage/v1/object/public/profile-images/${ctx.userId}/`;
+      if (trimmed !== '' && !(trimmed.startsWith('https://') && trimmed.includes(uploadedHere))) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
-          message: 'Profile image must be an uploaded HTTPS URL. Use media.uploadProfile to upload the image first.',
+          message: 'Profile photo must be a picture taken with the camera in the app.',
         });
       }
       updateData.profile_image = trimmed;

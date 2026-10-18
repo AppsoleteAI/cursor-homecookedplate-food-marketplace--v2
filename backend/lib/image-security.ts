@@ -114,6 +114,32 @@ function containsInjection(text: string): boolean {
   return INJECTION_PATTERNS.some((p) => p.test(text));
 }
 
+const AI_IMAGE_MARKERS: RegExp[] = [
+  /stable\s*diffusion/i,
+  /midjourney/i,
+  /dall[- ]?e/i,
+  /\bopenai\b/i,
+  /adobe firefly/i,
+  /comfyui/i,
+  /novelai/i,
+  /leonardo\.ai/i,
+  /c2pa/i,
+  /trainedalgorithmicmedia/i,
+  /negative prompt/i,
+  /cfg scale/i,
+];
+
+export function profilePhotoMetadataReason(texts: string[]): string | null {
+  const joined = texts.join('\n');
+  if (AI_IMAGE_MARKERS.some((pattern) => pattern.test(joined))) {
+    return 'This file looks like an AI-generated image. Take a photo with your camera.';
+  }
+  if (/https?:\/\//i.test(joined)) {
+    return 'This file looks like an image from the internet. Take a photo with your camera.';
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // JPEG metadata extraction
 // ---------------------------------------------------------------------------
@@ -268,6 +294,18 @@ export async function scanImage(
         detectedMime,
         flags: [...flags, 'PROMPT_INJECTION_IN_METADATA'],
         reason: 'Image metadata contains prompt injection content',
+      };
+    }
+  }
+
+  if (context === 'profile') {
+    const profileReason = profilePhotoMetadataReason(metaStrings);
+    if (profileReason) {
+      return {
+        allowed: false,
+        detectedMime,
+        flags: [...flags, 'PROFILE_NOT_CAMERA'],
+        reason: profileReason,
       };
     }
   }

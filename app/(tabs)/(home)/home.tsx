@@ -32,8 +32,6 @@ import { useOrders } from '@/hooks/orders-context';
 import { trpc } from '@/lib/trpc';
 import type { Meal } from '@/types';
 import { SkeletonMealList } from '@/components/SkeletonMealList';
-import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
-
 export default function HomeScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
@@ -185,8 +183,7 @@ export default function HomeScreen() {
           <View style={styles.heroContent}>
             <Text style={styles.heroTitle}>Fresh, Homemade</Text>
             <Text style={styles.heroSubtitle}>Meals Near You</Text>
-            <OrderHoursSlogan style={{ color: Colors.white, marginTop: 6 }} />
-            
+
             {currentMeal && (
               <Animated.View style={animatedImageStyle}>
                 <Image
