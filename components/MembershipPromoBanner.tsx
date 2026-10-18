@@ -41,7 +41,7 @@ export const MembershipPromoBanner: React.FC<MembershipPromoBannerProps> = ({
     if (onPress) {
       onPress();
     } else {
-      router.push('/membership');
+      router.push('/membership-access');
     }
   };
 
@@ -68,7 +68,7 @@ export const MembershipPromoBanner: React.FC<MembershipPromoBannerProps> = ({
             <View style={styles.textContainer}>
               <View style={styles.headerRow}>
                 <Ionicons name="star" size={20} color={Colors.white} />
-                <Text style={styles.title}>Limited Time Offer</Text>
+                <Text style={styles.title}>Free to join</Text>
                 {dismissible && (
                   <GlassPressable
                     onPress={(e) => {
@@ -83,7 +83,7 @@ export const MembershipPromoBanner: React.FC<MembershipPromoBannerProps> = ({
                 )}
               </View>
               <Text style={styles.message}>
-                You are in {matchedMetro}! You may be eligible for 3 months FREE.
+                You are in {matchedMetro}. You can use HomeCookedPlate without paying.
               </Text>
               <Text style={styles.cta}>Tap to learn more →</Text>
             </View>

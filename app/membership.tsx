@@ -46,7 +46,13 @@ export default function MembershipScreen() {
   const membershipTier = user?.membershipTier || 'free';
   // Use metroArea from profile (locked at signup via PostGIS)
   const userMetro = user?.metroArea || null;
-  const isEligibleForTrial = membershipTier === 'free' && userMetro !== null;
+  // PlateTakers join free. Early Bird is 90 days for a PlateMaker in an active metro that still has a spot.
+  const isPlateTaker = user?.role !== 'platemaker';
+  const earlyBird = membershipTier === 'free' && user?.role === 'platemaker' && !!userMetro && userMetro !== 'Remote/Other';
+  const isEligibleForTrial = earlyBird;
+  const joinFree = useCallback(() => {
+    router.replace(user?.role === 'platemaker' ? '/(tabs)/dashboard' : '/(tabs)/(home)/home');
+  }, [router, user?.role]);
 
   // Request GPS permission and get coordinates
   const requestLocationAndGetCoordinates = useCallback(async (): Promise<{ lat: number; lng: number } | null> => {
@@ -333,20 +339,27 @@ export default function MembershipScreen() {
                 </Text>
               )}
               
-              {membershipTier === 'free' && isEligibleForTrial && (
+              {membershipTier === 'free' && earlyBird && (
                 <Text style={styles.statusText}>
-                  You&apos;re eligible for a free trial!
+                  Your metro still has an Early Bird spot. A card on the phone app starts 90 days of Premium.
+                </Text>
+              )}
+
+              {membershipTier === 'free' && !earlyBird && (
+                <Text style={styles.statusText}>
+                  Payment is not required. You can use the app as a free member.
                 </Text>
               )}
             </View>
           </View>
 
           {/* Promo Banner */}
-          {membershipTier === 'free' && isEligibleForTrial && (
+          {membershipTier === 'free' && userMetro && (
             <View style={styles.bannerSection}>
               <MembershipPromoBanner
                 userLocation={userMetro}
                 membershipTier={membershipTier}
+                onPress={() => router.push('/membership-access')}
               />
             </View>
           )}
@@ -409,7 +422,7 @@ export default function MembershipScreen() {
           {/* Payment Setup Section */}
           {membershipTier === 'free' && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Subscribe</Text>
+              <Text style={styles.sectionTitle}>{isPlateTaker || !earlyBird ? 'Join' : 'Subscribe'}</Text>
               <View style={styles.pricingCard}>
                 <View style={styles.pricingHeader}>
                   <Text style={styles.price}>$4.99</Text>
@@ -437,9 +450,14 @@ export default function MembershipScreen() {
                     <Text style={styles.featureText}>Cancel anytime</Text>
                   </View>
                 </View>
+                {(isPlateTaker || Platform.OS === 'web' || !earlyBird) && (
+                  <Text style={styles.trialText}>
+                    Join free and use the app now. The price above is an optional Premium upgrade.
+                  </Text>
+                )}
                 <GradientButton
-                  title={Platform.OS === 'android' ? 'Subscribe with Google Play' : (IAP_REQUIRED ? 'Subscribe with Apple' : (isEligibleForTrial ? 'Start Free Trial' : 'Subscribe Now'))}
-                  onPress={handleSubscribe}
+                  title={(isPlateTaker || Platform.OS === 'web' || !earlyBird) ? 'Join free' : (Platform.OS === 'android' ? 'Subscribe with Google Play' : (IAP_REQUIRED ? 'Subscribe with Apple' : 'Start Free Trial'))}
+                  onPress={(isPlateTaker || Platform.OS === 'web' || !earlyBird) ? joinFree : handleSubscribe}
                   loading={processing}
                   disabled={processing}
                   style={styles.subscribeButton}
@@ -463,10 +481,9 @@ export default function MembershipScreen() {
             <Text style={styles.sectionTitle}>Terms</Text>
             <View style={styles.termsCard}>
               <Text style={styles.termsText}>
-                • Subscription auto-renews after trial period
-                {'\n'}• Cancel anytime before trial ends to avoid charges
-                {'\n'}• Payment required to activate trial (charged after trial period)
-                {'\n'}• Refund policy: Full refund within 7 days of first charge
+                {earlyBird
+                  ? '• A card starts 90 days of Premium while your metro still has a spot\n• The $4.99 monthly charge begins after those 90 days\n• Cancel before then and you are not charged\n• You can also join free and skip Premium'
+                  : '• PlateTakers use the app free\n• Premium is optional. It cuts the service fee from 10% to 5% on orders of $20 or more\n• PlateMaker Early Bird is 90 days, and only in an active metro that still has a spot\n• Outside an active metro, those 90 days are not available'}
               </Text>
             </View>
           </View>
