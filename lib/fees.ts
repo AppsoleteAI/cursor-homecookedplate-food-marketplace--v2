@@ -51,6 +51,41 @@ function roundMoney(amount: number): number {
   return Math.round(amount * 100) / 100;
 }
 
+/** Platform share added on top of the delivery amount the PlateMaker sets. Mirrors backend/lib/fees.ts. */
+export const DELIVERY_PLATFORM_RATE = 0.05;
+
+/**
+ * The PlateMaker sets the delivery amount and receives it.
+ * The PlateTaker pays that amount plus 5%. The platform keeps the 5%.
+ */
+export function calculateDeliveryLevy(deliveryFee: number) {
+  if (!Number.isFinite(deliveryFee) || deliveryFee < 0) {
+    throw new Error(`Invalid deliveryFee: ${deliveryFee}. Must be a finite, non-negative number.`);
+  }
+  const fee = roundMoney(deliveryFee);
+  const platformFee = roundMoney(fee * DELIVERY_PLATFORM_RATE);
+  return {
+    deliveryFee: fee,
+    platformFee,
+    buyerPays: roundMoney(fee + platformFee),
+    sellerReceives: fee,
+  };
+}
+
+/** Food split plus one delivery levy. A zero delivery fee leaves the food split unchanged. */
+export function orderTotalWithDelivery(
+  foodBuyerPays: number,
+  foodSellerPayout: number,
+  deliveryFee: number,
+) {
+  const levy = calculateDeliveryLevy(deliveryFee);
+  return {
+    levy,
+    buyerPays: roundMoney(foodBuyerPays + levy.buyerPays),
+    sellerReceives: roundMoney(foodSellerPayout + levy.sellerReceives),
+  };
+}
+
 const STRIPE_PERCENT = 0.029;
 const STRIPE_FIXED = 0.30;
 

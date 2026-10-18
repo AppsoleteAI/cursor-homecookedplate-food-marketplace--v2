@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../../create-context';
-import { buyerCardCharge, calculateFees } from '../../../../lib/fees';
+import { buyerCardCharge, calculateDeliveryLevy, calculateFees, orderTotalWithDelivery } from '../../../../lib/fees';
+import { savedDeliveryFee } from '../../../../lib/delivery-fee';
 import { PAYOUT_HOLD_DAYS } from '../../../../lib/payout-policy';
 
 const inputSchema = z.object({
@@ -10,6 +11,7 @@ const inputSchema = z.object({
   orderIds: z.array(z.string()).optional(),
   sellerId: z.string(),
   platformFeePercent: z.number().min(0).max(100).default(10),
+  deliver: z.boolean().optional(),
 });
 
 export const createPaymentIntentProcedure = protectedProcedure
@@ -106,7 +108,11 @@ export const createPaymentIntentProcedure = protectedProcedure
     // - Seller gets: base - 10% fee (handled by Stripe Connect)
     // Client amount and fee percent are ignored. total_price is the base plate price.
     const fees = calculateFees(serverBaseAmount, 10, 10);
-    const card = buyerCardCharge(fees.totalCharge);
+    const levy = input.deliver
+      ? calculateDeliveryLevy(await savedDeliveryFee(ctx.supabaseAdmin, input.sellerId))
+      : calculateDeliveryLevy(0);
+    const withDelivery = orderTotalWithDelivery(fees.totalCharge, fees.sellerPayout, levy.deliveryFee);
+    const card = buyerCardCharge(withDelivery.buyerPays);
     const totalChargeInCents = Math.round(card.cardCharge * 100);
 
     // Charge stays on the platform for PAYOUT_HOLD_DAYS. A later Transfer
@@ -119,6 +125,9 @@ export const createPaymentIntentProcedure = protectedProcedure
       'metadata[seller_id]': input.sellerId,
       'metadata[seller_account_id]': sellerProfile.stripe_account_id,
       'metadata[payout_hold_days]': String(PAYOUT_HOLD_DAYS),
+      'metadata[delivery_fee]': levy.deliveryFee.toFixed(2),
+      'metadata[delivery_platform_fee]': levy.platformFee.toFixed(2),
+      'metadata[delivery_buyer_pays]': levy.buyerPays.toFixed(2),
       transfer_group: input.orderIds.join(','),
     });
 
@@ -153,6 +162,9 @@ export const createPaymentIntentProcedure = protectedProcedure
       stripeFee: card.stripeFee,
       taxAmount: card.taxAmount,
       totalCharge: card.cardCharge,
-      sellerPayout: fees.sellerPayout,
+      sellerPayout: withDelivery.sellerReceives,
+      deliveryFee: levy.deliveryFee,
+      deliveryPlatformFee: levy.platformFee,
+      deliveryBuyerPays: levy.buyerPays,
     };
   });

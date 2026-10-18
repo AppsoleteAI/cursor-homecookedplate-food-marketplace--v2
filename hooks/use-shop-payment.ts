@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import { trpc } from '@/lib/trpc';
 import { useStripe } from '@/lib/stripe';
 import type { ShopName } from '@/backend/lib/shop-catalog';
+import { fulfillmentIsDelivery } from '@/backend/lib/delivery-fee';
 import type { ShopFulfillment } from '@/backend/lib/shop-fulfillment';
 
 type ShopLine = { productId: string; quantity: number };
@@ -25,7 +26,7 @@ export function useShopCardPayment() {
   const confirmPayment = trpc.payments.confirmShopPayment.useMutation();
   const [charging, setCharging] = useState(false);
 
-  const chargeShop = useCallback(async (shop: ShopName, lines: ShopLine[], fulfillment: ShopFulfillment) => {
+  const chargeShop = useCallback(async (shop: ShopName, lines: ShopLine[], fulfillment: ShopFulfillment, sellerAccountId?: string) => {
     if (fulfillment.shop !== shop) {
       throw new Error('This handoff does not match the shop.');
     }
@@ -34,8 +35,14 @@ export function useShopCardPayment() {
     }
     setCharging(true);
     try {
-      const sellerId = offeringOwnerId(fulfillment);
-      const created = await createCheckout.mutateAsync({ shop, lines, ...(sellerId ? { sellerId } : {}) });
+      const explicitSeller = sellerAccountId && OFFERING_OWNER.test(sellerAccountId) ? sellerAccountId : undefined;
+      const sellerId = explicitSeller ?? offeringOwnerId(fulfillment);
+      const created = await createCheckout.mutateAsync({
+        shop,
+        lines,
+        ...(sellerId ? { sellerId } : {}),
+        deliver: fulfillmentIsDelivery(fulfillment),
+      });
       const initPaymentSheet = stripe?.initPaymentSheet;
       const presentPaymentSheet = stripe?.presentPaymentSheet;
       if (!initPaymentSheet || !presentPaymentSheet || !created.clientSecret) {

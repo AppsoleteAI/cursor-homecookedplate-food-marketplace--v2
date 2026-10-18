@@ -27,6 +27,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { trpc } from '@/lib/trpc';
 import { SkeletonDashboard } from '@/components/SkeletonDashboard';
 import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
+import { DeliveryFeeCard } from '@/components/DeliveryFeeCard';
 
 export default function DashboardScreen() {
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
@@ -187,6 +188,8 @@ export default function DashboardScreen() {
               : 'You are currently accepting new orders'}
           </Text>
         </View>
+
+        <DeliveryFeeCard />
 
         <View style={styles.statsGrid}>
           <GlassPressable style={styles.statCard} testID="card-today-earnings" onPress={() => router.push('/finance/today')}>

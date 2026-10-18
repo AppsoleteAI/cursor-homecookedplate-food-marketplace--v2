@@ -33,7 +33,8 @@ import { trpc } from '@/lib/trpc';
 import { useCart } from '@/hooks/cart-context';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
-import { buyerCardCharge, calculateOrderSplit } from '@/lib/fees';
+import { buyerCardCharge, calculateOrderSplit, orderTotalWithDelivery } from '@/lib/fees';
+import { DeliveryLevyLines, useDeliveryQuote } from '@/components/DeliveryFeeCard';
 import { isSampleMealId } from '@/lib/sample-meals';
 import { CartItem } from '@/types';
 
@@ -268,8 +269,12 @@ function CongratsFlash({ visible, footerOffset, onEnd }: CongratsFlashProps) {
 export default function CheckoutScreen() {
   const { items, clearCart, totalPrice, updatePickupTime, updateSpecialInstructions, updateAllergies, updateCookingTemperature } = useCart();
   const { payInMainCart } = useCombinedBill();
+  const [deliver, setDeliver] = useState(false);
   const checkoutSplit = calculateOrderSplit(totalPrice || 0);
-  const cardCharge = buyerCardCharge(checkoutSplit.totalCaptured);
+  const sellerId = items[0]?.meal.plateMakerId;
+  const delivery = useDeliveryQuote(sellerId, deliver);
+  const withDelivery = orderTotalWithDelivery(checkoutSplit.totalCaptured, checkoutSplit.sellerPayout, delivery.deliveryFee);
+  const cardCharge = buyerCardCharge(withDelivery.buyerPays);
   const { user } = useAuth();
   const [accepted, setAccepted] = useState<boolean>(false);
   const [feesAcknowledged, setFeesAcknowledged] = useState<boolean>(false);
@@ -294,7 +299,7 @@ export default function CheckoutScreen() {
 
   const handlePayment = async () => {
     try {
-      if (payInMainCart) return;
+      if (payInMainCart || delivery.loading) return;
       if (!feesAcknowledged) {
         Alert.alert('Non-refundable fees', 'Acknowledge both non-refundable 10% fees before entering payment details.');
         return;
@@ -373,6 +378,7 @@ export default function CheckoutScreen() {
         sellerId: firstSellerId,
         platformFeePercent: 10,
         orderIds: createdOrderIds,
+        deliver,
       });
 
       // Link orders to payment intent ID before proceeding to payment sheet
@@ -608,8 +614,20 @@ export default function CheckoutScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Delivery Details</Text>
-            <Text style={styles.placeholder}>Address and delivery options would go here</Text>
+            <Text style={styles.sectionTitle}>Pickup or delivery</Text>
+            <View style={styles.checkboxRow}>
+              <GlassPressable onPress={() => setDeliver(false)} testID="handoff-pickup">
+                <Text style={styles.checkboxLabel}>{deliver ? 'Pickup' : 'Pickup selected'}</Text>
+              </GlassPressable>
+              <GlassPressable onPress={() => setDeliver(true)} testID="handoff-delivery">
+                <Text style={styles.checkboxLabel}>{deliver ? 'Delivery selected' : 'Delivery'}</Text>
+              </GlassPressable>
+            </View>
+            <DeliveryLevyLines deliveryFee={delivery.deliveryFee} active={deliver} />
+            {deliver && delivery.deliveryFee <= 0 && !delivery.loading ? (
+              <Text style={styles.paymentInfo}>This cook has not set a delivery fee, so delivery is not charged.</Text>
+            ) : null}
+            <Text style={styles.placeholder}>Pickup is from the cook. Delivery uses the fee that cook saved.</Text>
           </View>
 
           <View style={styles.section} testID="liability-waiver">
@@ -635,7 +653,7 @@ export default function CheckoutScreen() {
           {payInMainCart ? <CombinedCartLock /> : null}
           <GlassPressable
             onPress={handlePayment}
-            disabled={payInMainCart || !accepted || !feesAcknowledged || showThankYou || processing}
+            disabled={payInMainCart || delivery.loading || !accepted || !feesAcknowledged || showThankYou || processing}
             style={[styles.placeOrderButton, (payInMainCart || !accepted || !feesAcknowledged || showThankYou || processing) && styles.placeOrderButtonDisabled]}
             testID="place-order"
           >

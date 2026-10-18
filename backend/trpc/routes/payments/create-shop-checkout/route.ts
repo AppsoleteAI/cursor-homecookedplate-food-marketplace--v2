@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { protectedProcedure } from '../../../create-context';
-import { calculateFees } from '../../../../lib/fees';
+import { calculateDeliveryLevy, calculateFees, orderTotalWithDelivery } from '../../../../lib/fees';
+import { fulfillmentIsDelivery, savedDeliveryFee } from '../../../../lib/delivery-fee';
 import { assertBuyerCanOrder } from '../../../../lib/buyer-order-access';
 import { quoteShopOrder, SHOP_NAMES } from '../../../../lib/shop-catalog';
 import {
@@ -21,6 +22,7 @@ const checkoutInput = z.object({
   shop: z.enum(SHOP_NAMES),
   lines: z.array(lineSchema).min(1).max(20),
   sellerId: z.string().uuid().optional(),
+  deliver: z.boolean().optional(),
 });
 
 type ShopRecord = {
@@ -258,7 +260,10 @@ export const createShopCheckoutProcedure = protectedProcedure
     }
 
     const fees = calculateFees(quote.baseAmount, 10, 10);
-    const totalCharge = money(fees.totalCharge);
+    const levy = input.deliver && input.sellerId
+      ? calculateDeliveryLevy(await savedDeliveryFee(ctx.supabaseAdmin, input.sellerId))
+      : calculateDeliveryLevy(0);
+    const totalCharge = money(orderTotalWithDelivery(fees.totalCharge, fees.sellerPayout, levy.deliveryFee).buyerPays);
     const record = await insertShopRecord(
       ctx.supabaseAdmin,
       ctx.userId,
@@ -275,6 +280,10 @@ export const createShopCheckoutProcedure = protectedProcedure
       'metadata[shop]': input.shop,
       'metadata[shop_order_id]': record.id,
       'metadata[buyer_id]': ctx.userId,
+      'metadata[delivery_fee]': levy.deliveryFee.toFixed(2),
+      'metadata[delivery_platform_fee]': levy.platformFee.toFixed(2),
+      'metadata[delivery_buyer_pays]': levy.buyerPays.toFixed(2),
+      ...(input.sellerId ? { 'metadata[seller_id]': input.sellerId } : {}),
     });
 
     const response = await fetch('https://api.stripe.com/v1/payment_intents', {
@@ -332,8 +341,17 @@ export const confirmShopPaymentProcedure = protectedProcedure
     const paymentIntent = await response.json() as {
       status: string;
       amount: number;
-      metadata?: { shop_order_id?: string; buyer_id?: string };
+      metadata?: { shop_order_id?: string; buyer_id?: string; seller_id?: string; delivery_buyer_pays?: string };
     };
+    const deliver = fulfillmentIsDelivery(input.fulfillment);
+    const sellerId = paymentIntent.metadata?.seller_id;
+    const expectedDelivery = deliver && sellerId
+      ? calculateDeliveryLevy(await savedDeliveryFee(ctx.supabaseAdmin, sellerId)).buyerPays
+      : 0;
+    const chargedDelivery = Number(paymentIntent.metadata?.delivery_buyer_pays ?? 0);
+    if (Math.round(expectedDelivery * 100) !== Math.round(chargedDelivery * 100)) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'The delivery fee changed. Start checkout again.' });
+    }
 
     const expectedCents = Math.round(record.totalCharge * 100);
     if (paymentIntent.status !== 'succeeded' || paymentIntent.amount !== expectedCents) {

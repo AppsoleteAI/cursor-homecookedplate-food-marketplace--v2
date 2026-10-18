@@ -8,7 +8,7 @@ import { createContext } from "./trpc/create-context";
 import { createSupabaseAdmin } from "./lib/supabase";
 import { logAdminAlert } from "./lib/alerts";
 import { sendExpoPushNotification } from "./lib/expo-push-notifications";
-import { calculateFees } from "./lib/fees";
+import { appRevenueWithDelivery, calculateFees, orderTotalWithDelivery } from "./lib/fees";
 import { payoutReleaseAt } from "./lib/payout-policy";
 import { handleChargeDispute, handleLostDispute, releaseDuePayouts } from "./lib/stripe-marketplace";
 import type { MediaFrameBinding } from "./lib/image-security";
@@ -290,6 +290,7 @@ app.post("/webhook/stripe", async (c) => {
 
       // Create transaction record for each order with fee breakdowns
       // Use order.total_price as base price (each order calculates fees independently)
+      let deliveryApplied = false;
       for (const order of updatedOrders) {
         const { data: existingTx } = await supabaseAdmin
           .from('transactions')
@@ -305,6 +306,10 @@ app.post("/webhook/stripe", async (c) => {
         
         // Calculate fees using standard utility (20% take rate: buyer +10%, seller -10%)
         const fees = calculateFees(basePrice, 10, 10);
+        const rawDelivery = !deliveryApplied ? Number(paymentIntent.metadata?.delivery_fee ?? 0) : 0;
+        const deliveryFee = Number.isFinite(rawDelivery) && rawDelivery > 0 ? rawDelivery : 0;
+        const withDelivery = orderTotalWithDelivery(fees.totalCharge, fees.sellerPayout, deliveryFee);
+        if (withDelivery.levy.buyerPays > 0) deliveryApplied = true;
 
         const { error: transactionError } = await supabaseAdmin
           .from('transactions')
@@ -315,12 +320,12 @@ app.post("/webhook/stripe", async (c) => {
             seller_id: order.seller_id,
             meal_id: order.meal_id,
             base_price: parseFloat(basePrice.toFixed(2)),
-            buyer_payment: parseFloat(fees.totalCharge.toFixed(2)),
-            seller_payout: parseFloat(fees.sellerPayout.toFixed(2)),
-            app_revenue: parseFloat(fees.appTotalRevenue.toFixed(2)),
+            buyer_payment: withDelivery.buyerPays,
+            seller_payout: withDelivery.sellerReceives,
+            app_revenue: appRevenueWithDelivery(fees.appTotalRevenue, deliveryFee),
             buyer_fee: parseFloat(fees.buyerFee.toFixed(2)),
             seller_fee: parseFloat(fees.sellerFee.toFixed(2)),
-            total_fee: parseFloat(fees.appTotalRevenue.toFixed(2)),
+            total_fee: appRevenueWithDelivery(fees.appTotalRevenue, deliveryFee),
             stripe_charge_id: chargeId,
             stripe_transfer_id: transferId,
             stripe_application_fee_id: applicationFeeId,

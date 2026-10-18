@@ -5,7 +5,7 @@ import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router , type Href } from 'expo-router';
 import { FarmScreen } from '@/components/farm/FarmScreen';
 import { Colors } from '@/constants/colors';
-import { getCatalogProduct } from '@/constants/farm-grown-basket';
+import { getCatalogProduct, getFarm } from '@/constants/farm-grown-basket';
 import { useAuth } from '@/hooks/auth-context';
 import { useFarmBasket, type FarmOrderLine } from '@/hooks/farm-basket-store';
 import {
@@ -16,7 +16,8 @@ import {
   type FarmChannel,
   type RegulatoryTrack,
 } from '@/lib/cottage-food';
-import { calculateOrderSplit } from '@/lib/fees';
+import { calculateOrderSplit, orderTotalWithDelivery } from '@/lib/fees';
+import { DeliveryLevyLines, useDeliveryQuote } from '@/components/DeliveryFeeCard';
 import { useShopCardPayment } from '@/hooks/use-shop-payment';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
@@ -51,6 +52,10 @@ export default function FarmCheckoutScreen() {
   const tracks = lines.map((line) => line.track);
   const baseAmount = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
   const split = calculateOrderSplit(baseAmount);
+  const farmSellerId = getFarm(getCatalogProduct(items[0]?.productId ?? '')?.farmId ?? '')?.sellerId;
+  const delivering = channel === 'hand_delivery' || channel === 'hub_delivery';
+  const delivery = useDeliveryQuote(farmSellerId, delivering);
+  const priced = orderTotalWithDelivery(split.totalCaptured, split.sellerPayout, delivery.deliveryFee);
   const block = tracks.map((track) => buyerChannelBlock(track, channel)).find(Boolean) ?? null;
   const warnings = [...new Set(
     tracks
@@ -63,20 +68,20 @@ export default function FarmCheckoutScreen() {
   }
 
   const place = async () => {
-    if (payInMainCart || block || lines.length === 0 || charging) return;
+    if (payInMainCart || delivery.loading || block || lines.length === 0 || charging) return;
     try {
       const paid = await chargeShop('farm', lines.map((line) => ({ productId: line.productId, quantity: line.quantity })), {
         shop: 'farm',
         channel,
-      });
+      }, farmSellerId);
       if (!paid) return;
       const order = placeOrder({
         id: paid.orderId,
         channel,
         lines,
         baseAmount,
-        buyerPays: split.totalCaptured,
-        sellerPayout: split.sellerPayout,
+        buyerPays: priced.buyerPays,
+        sellerPayout: priced.sellerReceives,
       });
       setOrderId(order.id);
     } catch (error) {
@@ -125,13 +130,14 @@ export default function FarmCheckoutScreen() {
       <View style={styles.totals}>
         <Text style={styles.totalLine}>Goods ${baseAmount.toFixed(2)}</Text>
         <Text style={styles.totalLine}>Service fee ${(split.totalCaptured - baseAmount).toFixed(2)}</Text>
-        <Text style={styles.totalStrong}>You pay ${split.totalCaptured.toFixed(2)}</Text>
+        <DeliveryLevyLines deliveryFee={delivery.deliveryFee} active={delivering} />
+        <Text style={styles.totalStrong}>You pay ${priced.buyerPays.toFixed(2)}</Text>
       </View>
       <Text style={styles.note}>Mail shipping is not offered. The person who made the food hands it to you.</Text>
       <CombinedCartLock />
       <GlassPressable
         style={[styles.button, (payInMainCart || Boolean(block) || lines.length === 0 || charging) && styles.buttonOff]}
-        disabled={payInMainCart || Boolean(block) || lines.length === 0 || charging}
+        disabled={payInMainCart || delivery.loading || Boolean(block) || lines.length === 0 || charging}
         onPress={place}
         testID="place-farm-order"
       >

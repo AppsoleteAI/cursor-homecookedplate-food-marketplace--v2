@@ -68,6 +68,7 @@ import { refundOrderProcedure } from "./routes/platemaker/refund-order/route";
 import { getIncomingOrdersProcedure } from "./routes/platemaker/get-incoming-orders/route";
 import { getDashboardStatsProcedure } from "./routes/platemaker/get-dashboard-stats/route";
 import { getPayoutStandingProcedure } from "./routes/platemaker/get-payout-standing/route";
+import { getDeliveryFeeProcedure, setDeliveryFeeProcedure } from "./routes/platemaker/delivery-fee/route";
 import { blockPlatetakerProcedure } from "./routes/platemaker/block-platetaker/route";
 import { sendPayoutAdminMessageProcedure } from "./routes/platemaker/send-payout-admin-message/route";
 import { getPayoutReviewProcedure } from "./routes/admin/get-payout-review/route";
@@ -185,6 +186,8 @@ export const appRouter = createTRPCRouter({
     refundOrder: refundOrderProcedure,
     getIncomingOrders: getIncomingOrdersProcedure,
     getPayoutStanding: getPayoutStandingProcedure,
+    getDeliveryFee: getDeliveryFeeProcedure,
+    setDeliveryFee: setDeliveryFeeProcedure,
     blockPlatetaker: blockPlatetakerProcedure,
     sendPayoutAdminMessage: sendPayoutAdminMessageProcedure,
   }),

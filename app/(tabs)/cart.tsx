@@ -166,7 +166,7 @@ export default function CartScreen() {
             <Text style={styles.summaryValue}>${serviceFee.toFixed(2)}</Text>
           </View>
 
-          <Text style={styles.summaryNote}>Pickup from your cook. No delivery fee is added.</Text>
+          <Text style={styles.summaryNote}>Pickup has no delivery fee. For delivery, the cook sets the fee and you pay that fee plus 5%.</Text>
           
           <View style={styles.divider} />
           

@@ -9,7 +9,8 @@ import { getPrepCook, getPrepItem } from '@/constants/meal-prep-go';
 import { useAuth } from '@/hooks/auth-context';
 import { useMealPrep, type PrepOrderLine } from '@/hooks/meal-prep-store';
 import { weekMix } from '@/lib/meal-prep-go';
-import { calculateOrderSplit } from '@/lib/fees';
+import { calculateOrderSplit, orderTotalWithDelivery } from '@/lib/fees';
+import { DeliveryLevyLines, useDeliveryQuote } from '@/components/DeliveryFeeCard';
 import { useShopCardPayment } from '@/hooks/use-shop-payment';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
@@ -56,6 +57,8 @@ export default function MealPrepCheckoutScreen() {
   const mix = weekMix(readyCount, cookCount);
   const baseAmount = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
   const split = calculateOrderSplit(baseAmount);
+  const delivery = useDeliveryQuote(cookId, handoff === 'dropoff');
+  const priced = orderTotalWithDelivery(split.totalCaptured, split.sellerPayout, delivery.deliveryFee);
   const chosenWindow = windowLabel || (windows[0] ? `${windows[0].day} ${windows[0].hours} · ${windows[0].place}` : 'Cook confirms the handoff');
 
   if (!isLoading && !isAuthenticated) {
@@ -63,7 +66,7 @@ export default function MealPrepCheckoutScreen() {
   }
 
   const place = async () => {
-    if (payInMainCart || lines.length === 0 || charging) return;
+    if (payInMainCart || delivery.loading || lines.length === 0 || charging) return;
     if (mealCount < 1) {
       setBlock('Add a ready meal or a cook kit. An add-on rides with the week.');
       return;
@@ -106,8 +109,8 @@ export default function MealPrepCheckoutScreen() {
         mix,
         lines,
         baseAmount,
-        buyerPays: split.totalCaptured,
-        sellerPayout: split.sellerPayout,
+        buyerPays: priced.buyerPays,
+        sellerPayout: priced.sellerReceives,
       });
       setOrderId(order.id);
     } catch (error) {
@@ -177,13 +180,14 @@ export default function MealPrepCheckoutScreen() {
       <View style={styles.totals}>
         <Text style={styles.totalLine}>Week ${baseAmount.toFixed(2)}</Text>
         <Text style={styles.totalLine}>Service fee ${(split.totalCaptured - baseAmount).toFixed(2)}</Text>
-        <Text style={styles.totalStrong}>You pay ${split.totalCaptured.toFixed(2)}</Text>
+        <DeliveryLevyLines deliveryFee={delivery.deliveryFee} active={handoff === 'dropoff'} />
+        <Text style={styles.totalStrong}>You pay ${priced.buyerPays.toFixed(2)}</Text>
       </View>
       <Text style={styles.note}>The cook hands you the week. This app does not book a driver.</Text>
       <CombinedCartLock />
       <GlassPressable
         style={[styles.button, (payInMainCart || lines.length === 0 || charging) && styles.buttonOff]}
-        disabled={payInMainCart || lines.length === 0 || charging}
+        disabled={payInMainCart || delivery.loading || lines.length === 0 || charging}
         onPress={place}
         testID="place-prep-order"
       >

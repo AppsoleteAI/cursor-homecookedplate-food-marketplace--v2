@@ -9,7 +9,8 @@ import { getCompany, getPackage } from '@/constants/cater-event-deliver';
 import { useAuth } from '@/hooks/auth-context';
 import { useCaterEvent, type CaterOrderLine } from '@/hooks/cater-event-store';
 import { DROP_OFF_WINDOWS, type DropOffWindow } from '@/lib/cater-event-license';
-import { calculateOrderSplit } from '@/lib/fees';
+import { calculateOrderSplit, orderTotalWithDelivery } from '@/lib/fees';
+import { DeliveryLevyLines, useDeliveryQuote } from '@/components/DeliveryFeeCard';
 import { useShopCardPayment } from '@/hooks/use-shop-payment';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
@@ -50,6 +51,9 @@ export default function CaterCheckoutScreen() {
   const open = companyId === 'owner-company' ? accepting : Boolean(catalogCompany?.accepting);
   const baseAmount = lines.reduce((sum, line) => sum + line.pricePerPerson * line.headcount, 0);
   const split = calculateOrderSplit(baseAmount);
+  const sellerAccount = catalogCompany?.sellerId ?? (companyId === 'owner-company' ? user?.id : undefined);
+  const delivery = useDeliveryQuote(sellerAccount, true);
+  const priced = orderTotalWithDelivery(split.totalCaptured, split.sellerPayout, delivery.deliveryFee);
   const shortHeadcount = lines.find((line) => line.headcount < line.minimum);
 
   if (!isLoading && !isAuthenticated) {
@@ -57,7 +61,7 @@ export default function CaterCheckoutScreen() {
   }
 
   const place = async () => {
-    if (payInMainCart || !open || lines.length === 0 || charging) return;
+    if (payInMainCart || delivery.loading || !open || lines.length === 0 || charging) return;
     if (organization.trim().length < 2) {
       setBlock('Name the organization this order is for. Spend is tracked under that name.');
       return;
@@ -79,7 +83,7 @@ export default function CaterCheckoutScreen() {
         organization: organization.trim(),
         dropoffWindow,
         address: address.trim(),
-      });
+      }, sellerAccount);
       if (!paid) return;
       const order = placeOrder({
         id: paid.orderId,
@@ -90,8 +94,8 @@ export default function CaterCheckoutScreen() {
         address: address.trim(),
         lines: lines.map(({ packageId, name, headcount, pricePerPerson }) => ({ packageId, name, headcount, pricePerPerson })),
         baseAmount,
-        buyerPays: split.totalCaptured,
-        sellerPayout: split.sellerPayout,
+        buyerPays: priced.buyerPays,
+        sellerPayout: priced.sellerReceives,
       });
       setOrderId(order.id);
     } catch (error) {
@@ -156,14 +160,15 @@ export default function CaterCheckoutScreen() {
       <View style={styles.totals}>
         <Text style={styles.totalLine}>Food ${baseAmount.toFixed(2)}</Text>
         <Text style={styles.totalLine}>Service fee ${(split.totalCaptured - baseAmount).toFixed(2)}</Text>
-        <Text style={styles.totalStrong}>You pay ${split.totalCaptured.toFixed(2)}</Text>
+        <DeliveryLevyLines deliveryFee={delivery.deliveryFee} active />
+        <Text style={styles.totalStrong}>You pay ${priced.buyerPays.toFixed(2)}</Text>
       </View>
       <Text style={styles.note}>The catering company arranges drop-off and tray setup. A 15% to 25% marketplace commission is not added.</Text>
       {block ? <Text style={styles.block}>{block}</Text> : null}
       <CombinedCartLock />
       <GlassPressable
         style={[styles.button, (payInMainCart || !open || lines.length === 0 || charging) && styles.buttonOff]}
-        disabled={payInMainCart || !open || lines.length === 0 || charging}
+        disabled={payInMainCart || delivery.loading || !open || lines.length === 0 || charging}
         onPress={place}
         testID="place-cater-order"
       >
