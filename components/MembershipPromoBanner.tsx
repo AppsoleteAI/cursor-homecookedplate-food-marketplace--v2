@@ -39,7 +39,6 @@ export const MembershipPromoBanner: React.FC<MembershipPromoBannerProps> = ({
         title: 'Where you can eat',
         message: 'Home kitchens, farms, weekly prep, catering, carts, trucks, and restaurants.',
       };
-  void userLocation;
 
   const handlePress = () => {
     if (onPress) {
