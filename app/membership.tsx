@@ -19,6 +19,7 @@ import { GradientButton } from '@/components/GradientButton';
 import { MembershipPromoBanner } from '@/components/MembershipPromoBanner';
 import { finishIAP, IAP_REQUIRED, MEMBERSHIP_MONTHLY_PRODUCT_ID, purchaseIAP, restoreIAPPurchases } from '@/lib/iap';
 import { useAuth } from '@/hooks/auth-context';
+import { supabase } from '@/lib/supabase';
 import { trpc } from '@/lib/trpc';
 import { GlassPressable } from '@/components/glass-surface';
 
@@ -119,7 +120,31 @@ export default function MembershipScreen() {
 
   const handleSubscribe = useCallback(async () => {
     if (Platform.OS === 'web') {
-      Alert.alert('Not Available', 'Subscription is only available on mobile devices.');
+      setProcessing(true);
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+        if (!accessToken) {
+          window.alert('Sign in before paying.');
+          return;
+        }
+        const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+          body: { returnUrl: 'https://homecookedplate.com/membership' },
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (error) {
+          window.alert(error instanceof Error ? error.message : 'Payment could not start.');
+          return;
+        }
+        const checkoutUrl = (data as { checkoutUrl?: string } | null)?.checkoutUrl;
+        if (checkoutUrl) {
+          window.location.assign(checkoutUrl);
+          return;
+        }
+        window.alert('Payment could not start.');
+      } finally {
+        setProcessing(false);
+      }
       return;
     }
 
@@ -329,7 +354,7 @@ export default function MembershipScreen() {
                   color={Colors.white}
                 />
                 <Text style={styles.badgeText}>
-                  {membershipTier === 'premium' ? 'Premium Member' : 'Free Member'}
+                  {membershipTier === 'premium' ? 'Premium Member' : (isPlateTaker ? 'PlateTaker' : 'PlateMaker')}
                 </Text>
               </LinearGradient>
               
@@ -347,18 +372,19 @@ export default function MembershipScreen() {
 
               {membershipTier === 'free' && !earlyBird && (
                 <Text style={styles.statusText}>
-                  Payment is not required. You can use the app as a free member.
+                  You have access to the app. Premium is only if you choose it.
                 </Text>
               )}
             </View>
           </View>
 
           {/* Promo Banner */}
-          {membershipTier === 'free' && userMetro && (
+          {membershipTier === 'free' && (
             <View style={styles.bannerSection}>
               <MembershipPromoBanner
                 userLocation={userMetro}
                 membershipTier={membershipTier}
+                audience={isPlateTaker ? 'platetaker' : 'platemaker'}
                 onPress={() => router.push('/membership-access')}
               />
             </View>
@@ -422,7 +448,7 @@ export default function MembershipScreen() {
           {/* Payment Setup Section */}
           {membershipTier === 'free' && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{isPlateTaker || !earlyBird ? 'Join' : 'Subscribe'}</Text>
+              <Text style={styles.sectionTitle}>Subscribe</Text>
               <View style={styles.pricingCard}>
                 <View style={styles.pricingHeader}>
                   <Text style={styles.price}>$4.99</Text>
@@ -450,19 +476,22 @@ export default function MembershipScreen() {
                     <Text style={styles.featureText}>Cancel anytime</Text>
                   </View>
                 </View>
-                {(isPlateTaker || Platform.OS === 'web' || !earlyBird) && (
-                  <Text style={styles.trialText}>
-                    Join free and use the app now. The price above is an optional Premium upgrade.
-                  </Text>
-                )}
+                <Text style={styles.trialText}>
+                  {isPlateTaker
+                    ? 'The green button opens payment. Use it only if you want Premium.'
+                    : 'The green button opens payment if you choose Premium.'}
+                </Text>
                 <GradientButton
-                  title={(isPlateTaker || Platform.OS === 'web' || !earlyBird) ? 'Join free' : (Platform.OS === 'android' ? 'Subscribe with Google Play' : (IAP_REQUIRED ? 'Subscribe with Apple' : 'Start Free Trial'))}
-                  onPress={(isPlateTaker || Platform.OS === 'web' || !earlyBird) ? joinFree : handleSubscribe}
+                  title={Platform.OS === 'web' ? 'Continue to payment' : (Platform.OS === 'android' ? 'Subscribe with Google Play' : (IAP_REQUIRED ? 'Subscribe with Apple' : 'Continue to payment'))}
+                  onPress={handleSubscribe}
                   loading={processing}
                   disabled={processing}
                   style={styles.subscribeButton}
                   baseColor="green"
                 />
+                <GlassPressable onPress={joinFree} style={styles.restoreButton}>
+                  <Text style={styles.restoreText}>Use the app</Text>
+                </GlassPressable>
                 {IAP_REQUIRED && (
                   <GlassPressable
                     onPress={handleRestore}
@@ -481,9 +510,9 @@ export default function MembershipScreen() {
             <Text style={styles.sectionTitle}>Terms</Text>
             <View style={styles.termsCard}>
               <Text style={styles.termsText}>
-                {earlyBird
-                  ? '• A card starts 90 days of Premium while your metro still has a spot\n• The $4.99 monthly charge begins after those 90 days\n• Cancel before then and you are not charged\n• You can also join free and skip Premium'
-                  : '• PlateTakers use the app free\n• Premium is optional. It cuts the service fee from 10% to 5% on orders of $20 or more\n• PlateMaker Early Bird is 90 days, and only in an active metro that still has a spot\n• Outside an active metro, those 90 days are not available'}
+                {isPlateTaker
+                  ? '• You already have access to the app\n• Premium is optional and cuts the service fee from 10% to 5% on orders of $20 or more\n• The green button opens card payment. It is not required to look, order, or meet'
+                  : '• You already have access to the app\n• A card can start 90 days of Premium while an active metro still has a spot\n• Outside an active metro, those 90 days are not available\n• The green button opens payment only if you choose Premium'}
               </Text>
             </View>
           </View>

@@ -12,14 +12,15 @@ import { GlassPressable } from '@/components/glass-surface';
 interface MembershipPromoBannerProps {
   userLocation?: string | null;
   membershipTier?: 'free' | 'premium';
+  audience?: 'platetaker' | 'platemaker';
   onPress?: () => void;
   dismissible?: boolean;
   onDismiss?: () => void;
 }
 
 export const MembershipPromoBanner: React.FC<MembershipPromoBannerProps> = ({
-  userLocation,
   membershipTier = 'free',
+  audience = 'platetaker',
   onPress,
   dismissible = false,
   onDismiss,
@@ -29,13 +30,16 @@ export const MembershipPromoBanner: React.FC<MembershipPromoBannerProps> = ({
     return null;
   }
 
-  // userLocation should be the metro_area from profile (locked at signup)
-  // Only show if metro area is set
-  if (!userLocation) {
-    return null;
-  }
-
-  const matchedMetro = userLocation;
+  const story = audience === 'platemaker'
+    ? {
+        title: 'Your cook path',
+        message: 'Home plates, then catering, a cart, a truck, and a restaurant.',
+      }
+    : {
+        title: 'Where you can eat',
+        message: 'Home kitchens, farms, weekly prep, catering, carts, trucks, and restaurants.',
+      };
+  void userLocation;
 
   const handlePress = () => {
     if (onPress) {
@@ -68,7 +72,7 @@ export const MembershipPromoBanner: React.FC<MembershipPromoBannerProps> = ({
             <View style={styles.textContainer}>
               <View style={styles.headerRow}>
                 <Ionicons name="star" size={20} color={Colors.white} />
-                <Text style={styles.title}>Free to join</Text>
+                <Text style={styles.title}>{story.title}</Text>
                 {dismissible && (
                   <GlassPressable
                     onPress={(e) => {
@@ -82,9 +86,7 @@ export const MembershipPromoBanner: React.FC<MembershipPromoBannerProps> = ({
                   </GlassPressable>
                 )}
               </View>
-              <Text style={styles.message}>
-                You are in {matchedMetro}. You can use HomeCookedPlate without paying.
-              </Text>
+              <Text style={styles.message}>{story.message}</Text>
               <Text style={styles.cta}>Tap to learn more →</Text>
             </View>
           </View>

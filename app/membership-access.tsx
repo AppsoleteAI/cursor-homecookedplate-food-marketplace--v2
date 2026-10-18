@@ -1,40 +1,48 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
 import { Colors } from '@/constants/colors';
-import { GradientButton } from '@/components/GradientButton';
 import { useAuth } from '@/hooks/auth-context';
+
+const BUYER_PLACES = [
+  ['Home kitchens', 'Plates cooked near you, for pickup.'],
+  ['FarmGrownBasket', 'Produce, eggs, honey, and homemade goods. Pick them up from the farm.'],
+  ['MealPrepGo', 'Heat-and-eat meals, cook-at-home kits, or a mix. Built for the week.'],
+  ['CaterEventDeliver', 'Per-person packages for offices, clinics, and events.'],
+  ['FoodTruckPopup', 'Independent food carts and food trucks. Order ahead and pick up at the window or the cart.'],
+  ['SitDownDelicious', 'Independent restaurants. Coffee, yogurt, ice cream, and small dining rooms. Sit down or take out.'],
+] as const;
+
+const COOK_PATH = [
+  ['Home', 'Start with plates from your own kitchen.'],
+  ['Catering', 'CaterEventDeliver is group drop-off for offices, clinics, and events.'],
+  ['Cart', 'An independent food cart on FoodTruckPopup. Pickup is at the cart.'],
+  ['Truck', 'An independent food truck on FoodTruckPopup. Pickup is at the service window.'],
+  ['Restaurant', 'SitDownDelicious is a licensed independent restaurant. Guests sit down or take out.'],
+] as const;
 
 export default function MembershipAccessScreen() {
   const { user } = useAuth();
-  const router = useRouter();
-  const joinFree = useCallback(() => {
-    router.replace(user?.role === 'platemaker' ? '/(tabs)/dashboard' : '/(tabs)/(home)/home');
-  }, [router, user?.role]);
+  const isMaker = user?.role === 'platemaker';
+  const places = isMaker ? COOK_PATH : BUYER_PLACES;
 
   return (
     <SafeAreaView style={styles.container}>
-      <Stack.Screen options={{ title: 'Joining', headerShown: true }} />
+      <Stack.Screen options={{ title: isMaker ? 'Cook path' : 'Where to eat', headerShown: true }} />
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>You can join free</Text>
+        <Text style={styles.title}>{isMaker ? 'Grow with the kitchen you have' : 'Plates from more than one place'}</Text>
         <Text style={styles.body}>
-          Payment is not required to use HomeCookedPlate. Leave the $4.99 page and choose Join free.
+          {isMaker
+            ? 'The places a PlateTaker can order from are also places a cook can grow into. Home plates come first. Catering, a cart, a truck, and a restaurant come after, each with its own license.'
+            : 'You already have access. Look through home kitchens, then farms, weekly prep, catering, carts, trucks, and restaurants. Premium is a choice if you want the lower service fee.'}
         </Text>
-        <View style={styles.card}>
-          <Text style={styles.heading}>PlateTakers</Text>
-          <Text style={styles.body}>
-            PlateTakers use the app free. Premium is optional. It cuts the service fee on the receipt from 10% to 5% on orders of $20 or more.
-          </Text>
-          <Text style={styles.heading}>PlateMakers</Text>
-          <Text style={styles.body}>
-            A PlateMaker in an active metro that still has a spot can start 90 days of Premium with a card. The $4.99 monthly charge begins after those 90 days. Cancel before then and you are not charged.
-          </Text>
-          <Text style={styles.body}>
-            Outside an active metro, those 90 days are not available. You can still join free.
-          </Text>
-        </View>
-        <GradientButton title="Join free" onPress={joinFree} baseColor="green" />
+        {places.map(([name, detail]) => (
+          <View key={name} style={styles.card}>
+            <Text style={styles.heading}>{name}</Text>
+            <Text style={styles.body}>{detail}</Text>
+          </View>
+        ))}
       </ScrollView>
     </SafeAreaView>
   );
@@ -58,7 +66,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: Colors.gray[900],
-    marginTop: 8,
   },
   body: {
     fontSize: 16,

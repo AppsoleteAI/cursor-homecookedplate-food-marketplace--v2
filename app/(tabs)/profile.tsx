@@ -161,6 +161,7 @@ export default function ProfileScreen() {
           <MembershipPromoBanner
             userLocation={userLocation}
             membershipTier={membershipTier}
+            audience={user?.role === 'platemaker' ? 'platemaker' : 'platetaker'}
           />
         )}
 
