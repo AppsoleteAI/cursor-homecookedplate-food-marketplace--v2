@@ -63,6 +63,7 @@ export default function FarmMarketScreen() {
             .filter((listing) => filter === 'all' || listing.track === filter)
             .map((listing) => (
               <GlassPressable key={listing.id} style={styles.card} onPress={() => router.push(`/farm-grown-basket/product/${listing.id}` as Href)}>
+                {listing.image ? <Image source={{ uri: listing.image }} style={styles.image} /> : null}
                 <View style={styles.copy}>
                   <Text style={styles.name}>{titleCase(listing.name)}</Text>
                   <Text style={styles.meta}>{listing.farmName} · {trackLabel(listing.track)}</Text>

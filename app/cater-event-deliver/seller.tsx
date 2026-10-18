@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router, type Href } from 'expo-router';
@@ -29,6 +29,7 @@ export default function CaterSellerScreen() {
 
   return (
     <CaterEventScreen title="Catering company" subtitle="Drop-off payouts stay separate from plate earnings." testID="cater-seller">
+      {license?.image ? <Image source={{ uri: license.image }} style={styles.placePhoto} /> : null}
       <View style={styles.card}>
         <Text style={styles.label}>Catering food sold</Text>
         <Text style={styles.value}>${baseAmount.toFixed(2)}</Text>
@@ -73,6 +74,7 @@ export default function CaterSellerScreen() {
       {listings.map((item) => (
         <PricedItemCard
           key={item.id}
+          image={item.image}
           title={titleCase(item.name)}
           meta={`Minimum ${item.minimumHeadcount} · ${accepting ? 'On the board' : 'Hidden while you are closed'}`}
           price={`$${item.pricePerPerson.toFixed(2)} per person`}
@@ -99,4 +101,5 @@ const styles = StyleSheet.create({
   secondary: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginBottom: 8  },
   secondaryText: { color: '#6D28D9', fontWeight: '700' },
   section: { marginTop: 8, marginBottom: 8, fontWeight: '700', color: Colors.gray[900] },
+  placePhoto: { width: '100%', height: 160, borderRadius: 16, marginBottom: 10, backgroundColor: Colors.gray[200] },
 });

@@ -15,6 +15,7 @@ import {
   evaluateTruckPermit,
   type TruckPermitRecord,
 } from '@/lib/food-truck-permit';
+import { ListingPhotoField } from '@/components/ListingPhotoField';
 
 const EMPTY: TruckPermitRecord = {
   truckName: '',
@@ -108,6 +109,7 @@ export default function TruckPermitScreen() {
         </Text>
       ) : null}
 
+      <ListingPhotoField label="Photo of the truck or cart" value={draft.image} onChange={(image) => set({ image })} testID="truck-permit-photo" />
       <Field label="Truck name" value={draft.truckName} onChangeText={(truckName) => set({ truckName })} />
       <Field label="City" value={draft.city} onChangeText={(city) => set({ city })} />
       <Field label="County" value={draft.county} onChangeText={(county) => set({ county })} />

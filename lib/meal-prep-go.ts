@@ -69,6 +69,7 @@ export type PrepKitchenRecord = {
   handlerCard: string;
   regulationsConfirmed: boolean;
   weekIsSeparate: boolean;
+  image?: string;
   updatedAt: string;
 };
 

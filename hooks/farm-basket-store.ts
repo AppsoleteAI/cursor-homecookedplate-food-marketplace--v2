@@ -43,6 +43,7 @@ export type FarmListing = {
   county: string;
   ingredients: string;
   allergens: string;
+  image?: string;
 };
 
 type FarmState = {
@@ -141,9 +142,11 @@ export function publishFarmListing(input: {
   price: number;
   unit: string;
   summary: string;
+  image?: string;
 }): { ok: true } | { ok: false; blocks: string[] } {
   const check = evaluateListing(state.compliance);
   if (!check.ok || !state.compliance) return { ok: false, blocks: check.blocks };
+  if (!input.image) return { ok: false, blocks: ['Add a photo of this good.'] };
   const listing: FarmListing = {
     id: `listing-${Date.now()}`,
     name: input.name.trim(),
@@ -156,6 +159,7 @@ export function publishFarmListing(input: {
     county: state.compliance.county.trim(),
     ingredients: state.compliance.ingredients.trim(),
     allergens: state.compliance.allergens.trim(),
+    image: input.image,
   };
   state = { ...state, listings: [listing, ...state.listings] };
   emit();

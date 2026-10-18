@@ -20,6 +20,7 @@ import {
   type ComplianceRecord,
   type RegulatoryTrack,
 } from '@/lib/cottage-food';
+import { ListingPhotoField } from '@/components/ListingPhotoField';
 
 const TRACKS: RegulatoryTrack[] = ['whole_produce', 'csa_share', 'cottage_non_tcs', 'shell_eggs', 'temperature_control'];
 
@@ -159,6 +160,7 @@ export default function CottageLawScreen() {
         <Text style={styles.body}>{permitFeeGuidance(framework)}</Text>
       </View>
 
+      <ListingPhotoField label="Photo of the stand or kitchen" value={draft.image} onChange={(image) => set({ image })} testID="farm-stand-photo" />
       <Field label="Agency you confirmed with" value={draft.agencyName} onChangeText={(agencyName) => set({ agencyName })} />
       <Field label="What the current rule says" value={draft.statuteNote} onChangeText={(statuteNote) => set({ statuteNote })} multiline />
       <Field label="Testing protocol you were given" value={draft.testingProtocol} onChangeText={(testingProtocolText) => set({ testingProtocol: testingProtocolText })} multiline />

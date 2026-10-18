@@ -42,6 +42,7 @@ export type SitListing = {
   summary: string;
   ingredients: string;
   allergens: string;
+  image?: string;
 };
 
 type SitState = {
@@ -156,9 +157,11 @@ export function publishSitItem(input: {
   summary: string;
   ingredients: string;
   allergens: string;
+  image?: string;
 }): { ok: true } | { ok: false; blocks: string[] } {
   const check = evaluateSitDownItem(state.license, input);
   if (!check.ok) return check;
+  if (!input.image) return { ok: false, blocks: ['Add a photo of this menu item.'] };
   const listing: SitListing = {
     id: `sit-item-${Date.now()}`,
     placeId: 'owner-place',
@@ -167,6 +170,7 @@ export function publishSitItem(input: {
     summary: input.summary.trim(),
     ingredients: input.ingredients.trim(),
     allergens: input.allergens.trim(),
+    image: input.image,
   };
   state = { ...state, listings: [listing, ...state.listings] };
   emit();

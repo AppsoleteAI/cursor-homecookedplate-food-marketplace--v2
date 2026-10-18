@@ -44,6 +44,7 @@ export type CaterListing = {
   summary: string;
   ingredients: string;
   allergens: string;
+  image?: string;
 };
 
 type CaterState = {
@@ -160,9 +161,11 @@ export function publishCaterPackage(input: {
   summary: string;
   ingredients: string;
   allergens: string;
+  image?: string;
 }): { ok: true } | { ok: false; blocks: string[] } {
   const check = evaluateCaterPackage(state.license, input);
   if (!check.ok) return check;
+  if (!input.image) return { ok: false, blocks: ['Add a photo of this package.'] };
   const listing: CaterListing = {
     id: `cater-package-${Date.now()}`,
     companyId: 'owner-company',
@@ -172,6 +175,7 @@ export function publishCaterPackage(input: {
     summary: input.summary.trim(),
     ingredients: input.ingredients.trim(),
     allergens: input.allergens.trim(),
+    image: input.image,
   };
   state = { ...state, listings: [listing, ...state.listings] };
   emit();

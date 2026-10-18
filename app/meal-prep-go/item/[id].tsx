@@ -34,7 +34,7 @@ export default function MealPrepItemScreen() {
 
   return (
     <MealPrepScreen title={titleCase(item.name)} subtitle={`${laneLabel(item.lane)} · ${cookName}`} testID="prep-item">
-      {catalog?.image ? <Image source={{ uri: catalog.image }} style={styles.hero} /> : null}
+      {catalog?.image || listing?.image ? <Image source={{ uri: catalog?.image || listing?.image }} style={styles.hero} /> : null}
       <Text style={styles.price}>${item.price.toFixed(2)}</Text>
       <Text style={styles.meta}>{dietLabel(item.diet)} · {item.lane === 'addon' ? 'Rides with the week' : `${item.minutes} minutes`}</Text>
       <Text style={styles.body}>{item.summary}</Text>

@@ -29,6 +29,7 @@ export type SitDownLicense = {
   fixedLicensedKitchen: boolean;
   cottageDoesNotApply: boolean;
   regulationsConfirmed: boolean;
+  image?: string;
   updatedAt: string;
 };
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router, type Href } from 'expo-router';
@@ -30,6 +30,7 @@ export default function SitSellerScreen() {
 
   return (
     <SitDownScreen title="Shop owner" subtitle="Restaurant payouts stay separate from plate earnings." testID="sit-seller">
+      {license?.image ? <Image source={{ uri: license.image }} style={styles.placePhoto} /> : null}
       <View style={styles.card}>
         <Text style={styles.label}>Restaurant food sold</Text>
         <Text style={styles.value}>${baseAmount.toFixed(2)}</Text>
@@ -87,6 +88,7 @@ export default function SitSellerScreen() {
       {listings.map((item) => (
         <PricedItemCard
           key={item.id}
+          image={item.image}
           title={titleCase(item.name)}
           meta={ownerOpen ? 'On the list' : 'Hidden while the shop is closed'}
           price={`$${item.price.toFixed(2)}`}
@@ -108,6 +110,7 @@ const styles = StyleSheet.create({
   ok: { color: '#166534', marginTop: 8, fontWeight: '600' },
   activeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   section: { marginTop: 8, marginBottom: 8, fontWeight: '700', color: Colors.gray[900] },
+  placePhoto: { width: '100%', height: 160, borderRadius: 16, marginBottom: 10, backgroundColor: Colors.gray[200] },
   button: { ...glassSurface, backgroundColor: '#92400E', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginBottom: 8  },
   buttonText: { color: Colors.white, fontWeight: '700' },
   secondary: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginBottom: 8  },

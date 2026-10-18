@@ -50,6 +50,7 @@ export type PrepListing = {
   ingredients: string;
   allergens: string;
   recipeNote: string;
+  image?: string;
 };
 
 type PrepState = {
@@ -151,9 +152,11 @@ export function publishPrepItem(input: {
   ingredients: string;
   allergens: string;
   recipeNote: string;
+  image?: string;
 }): { ok: true } | { ok: false; blocks: string[] } {
   const check = evaluatePrepItem(state.kitchen, input);
   if (!check.ok) return check;
+  if (!input.image) return { ok: false, blocks: ['Add a photo of this weekly item.'] };
   const listing: PrepListing = {
     id: `prep-item-${Date.now()}`,
     cookId: 'owner-kitchen',
@@ -166,6 +169,7 @@ export function publishPrepItem(input: {
     ingredients: input.ingredients.trim(),
     allergens: input.allergens.trim(),
     recipeNote: input.recipeNote.trim(),
+    image: input.image,
   };
   state = { ...state, listings: [listing, ...state.listings] };
   emit();

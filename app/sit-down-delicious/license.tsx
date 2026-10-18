@@ -8,6 +8,7 @@ import { Colors } from '@/constants/colors';
 import { useSitDown } from '@/hooks/sit-down-store';
 import { US_STATE_NAMES } from '@/lib/cottage-food';
 import { SIT_DOWN_RULE, evaluateSitDownLicense, type SitDownLicense } from '@/lib/sit-down-license';
+import { ListingPhotoField } from '@/components/ListingPhotoField';
 
 const EMPTY: SitDownLicense = {
   placeName: '',
@@ -93,6 +94,7 @@ export default function SitLicenseScreen() {
       </View>
       {states.length === 0 ? <Text style={styles.note}>Type a state name, such as Pennsylvania or Texas.</Text> : null}
 
+      <ListingPhotoField label="Photo of the restaurant" value={draft.image} onChange={(image) => set({ image })} testID="sit-license-photo" />
       <Field label="Restaurant or shop name" value={draft.placeName} onChangeText={(placeName) => set({ placeName })} />
       <Field label="Street address on the permit" value={draft.street} onChangeText={(street) => set({ street })} />
       <Field label="City" value={draft.city} onChangeText={(city) => set({ city })} />

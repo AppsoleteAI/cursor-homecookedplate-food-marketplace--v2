@@ -37,7 +37,7 @@ export default function SitItemScreen() {
 
   return (
     <SitDownScreen title={name} subtitle={placeName} testID="sit-item">
-      {catalog ? <Image source={{ uri: catalog.image }} style={styles.hero} /> : null}
+      {catalog?.image || listing?.image ? <Image source={{ uri: catalog?.image || listing?.image }} style={styles.hero} /> : null}
       <Text style={styles.price}>${price.toFixed(2)}</Text>
       <Text style={[styles.status, open ? styles.open : styles.closed]}>{open ? 'Open for a table or takeout' : 'Shop is closed'}</Text>
       <Text style={styles.body}>{summary}</Text>

@@ -8,6 +8,7 @@ import type { PrepDiet, PrepLane } from '@/constants/meal-prep-go';
 import { useAuth } from '@/hooks/auth-context';
 import { useMealPrep } from '@/hooks/meal-prep-store';
 import { PREP_DIETS, PREP_LANES, dietLabel, evaluatePrepKitchen, laneLabel } from '@/lib/meal-prep-go';
+import { ListingPhotoField } from '@/components/ListingPhotoField';
 
 export default function ListPrepItemScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -21,6 +22,7 @@ export default function ListPrepItemScreen() {
   const [ingredients, setIngredients] = useState('');
   const [allergens, setAllergens] = useState('None');
   const [recipeNote, setRecipeNote] = useState('');
+  const [image, setImage] = useState('');
   const [blocks, setBlocks] = useState<string[]>([]);
   const kitchenCheck = evaluatePrepKitchen(kitchen);
 
@@ -51,6 +53,7 @@ export default function ListPrepItemScreen() {
       ingredients,
       allergens,
       recipeNote,
+      image,
     });
     if (!result.ok) {
       setBlocks(result.blocks);
@@ -78,6 +81,7 @@ export default function ListPrepItemScreen() {
           </GlassPressable>
         ))}
       </View>
+      <ListingPhotoField label="Photo of this weekly item" value={image} onChange={setImage} testID="prep-list-photo" />
       <TextInput value={name} onChangeText={setName} placeholder="Item name" placeholderTextColor={Colors.gray[400]} style={styles.input} testID="prep-list-name" />
       <TextInput value={priceText} onChangeText={setPriceText} placeholder="Price" placeholderTextColor={Colors.gray[400]} keyboardType="decimal-pad" style={styles.input} testID="prep-list-price" />
       <TextInput value={minutesText} onChangeText={setMinutesText} placeholder="Minutes" placeholderTextColor={Colors.gray[400]} keyboardType="number-pad" style={styles.input} />

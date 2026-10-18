@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, StyleSheet, View } from 'react-native';
+import { Text, StyleSheet, View, Image } from 'react-native';
 import { AreaStoreSwitch } from '@/components/AreaStoreSwitch';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
@@ -26,6 +26,7 @@ export default function MealPrepSellerScreen() {
 
   return (
     <MealPrepScreen title="Your kitchen" subtitle="A weekly menu, separate from single plates." testID="prep-seller">
+      {kitchen?.image ? <Image source={{ uri: kitchen.image }} style={styles.placePhoto} /> : null}
       <Text style={styles.meta}>{kitchen ? kitchen.cookName : 'Kitchen record not saved yet.'}</Text>
       {check.ok ? (
         <View style={styles.row}>
@@ -46,6 +47,7 @@ export default function MealPrepSellerScreen() {
       {listings.map((item) => (
         <PricedItemCard
           key={item.id}
+          image={item.image}
           title={titleCase(item.name)}
           meta={laneLabel(item.lane)}
           price={`$${item.price.toFixed(2)}`}
@@ -68,4 +70,5 @@ const styles = StyleSheet.create({
   buttonText: { color: Colors.white, fontWeight: '700' },
   link: { marginTop: 12, color: '#0E7490', fontWeight: '700' },
   section: { marginTop: 18, marginBottom: 8, fontWeight: '700', color: Colors.gray[900] },
+  placePhoto: { width: '100%', height: 160, borderRadius: 16, marginBottom: 10, backgroundColor: Colors.gray[200] },
 });

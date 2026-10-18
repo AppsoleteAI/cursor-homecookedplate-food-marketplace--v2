@@ -40,6 +40,7 @@ export type ComplianceRecord = {
   allergens: string;
   disclaimerAccepted: boolean;
   honeyInfantWarning: boolean;
+  image?: string;
   updatedAt: string;
 };
 

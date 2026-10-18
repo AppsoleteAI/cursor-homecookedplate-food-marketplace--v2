@@ -26,6 +26,7 @@ export type CaterLicenseRecord = {
   regulationsConfirmed: boolean;
   cottageDoesNotApply: boolean;
   companyArrangesDropoff: boolean;
+  image?: string;
   updatedAt: string;
 };
 

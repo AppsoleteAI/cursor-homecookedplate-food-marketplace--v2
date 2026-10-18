@@ -84,7 +84,7 @@ export default function MealPrepCookScreen() {
 function listingToItem(listing: PrepListing): PrepItem {
   return {
     ...listing,
-    image: '',
+    image: listing.image ?? '',
   };
 }
 

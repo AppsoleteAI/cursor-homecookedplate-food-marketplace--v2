@@ -23,6 +23,7 @@ export type TruckPermitRecord = {
   regulationsConfirmed: boolean;
   cottageDoesNotApply: boolean;
   windowOnly: boolean;
+  image?: string;
   updatedAt: string;
 };
 

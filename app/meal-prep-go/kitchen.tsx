@@ -7,6 +7,7 @@ import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useMealPrep } from '@/hooks/meal-prep-store';
 import { MEAL_PREP_RULE, evaluatePrepKitchen, type PrepKitchenRecord } from '@/lib/meal-prep-go';
+import { ListingPhotoField } from '@/components/ListingPhotoField';
 
 export default function MealPrepKitchenScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -22,6 +23,7 @@ export default function MealPrepKitchenScreen() {
   const [handlerCard, setHandlerCard] = useState(kitchen?.handlerCard ?? '');
   const [regulationsConfirmed, setRegulationsConfirmed] = useState(kitchen?.regulationsConfirmed ?? false);
   const [weekIsSeparate, setWeekIsSeparate] = useState(kitchen?.weekIsSeparate ?? false);
+  const [image, setImage] = useState(kitchen?.image ?? '');
   const [blocks, setBlocks] = useState<string[]>([]);
 
   if (!isLoading && !isAuthenticated) {
@@ -44,6 +46,7 @@ export default function MealPrepKitchenScreen() {
       handlerCard,
       regulationsConfirmed,
       weekIsSeparate,
+      image,
       updatedAt: new Date().toISOString(),
     };
     const check = evaluatePrepKitchen(record);
@@ -58,6 +61,7 @@ export default function MealPrepKitchenScreen() {
   return (
     <MealPrepScreen title="Kitchen record" subtitle="The app does not inspect this kitchen." testID="prep-kitchen">
       <Text style={styles.rule}>{MEAL_PREP_RULE}</Text>
+      <ListingPhotoField label="Photo of the kitchen" value={image} onChange={setImage} testID="prep-kitchen-photo" />
       <TextInput value={cookName} onChangeText={setCookName} placeholder="Cook or kitchen name" placeholderTextColor={Colors.gray[400]} style={styles.input} testID="prep-kitchen-name" />
       <TextInput value={stateCode} onChangeText={setStateCode} placeholder="State code" placeholderTextColor={Colors.gray[400]} autoCapitalize="characters" maxLength={2} style={styles.input} />
       <TextInput value={city} onChangeText={setCity} placeholder="City" placeholderTextColor={Colors.gray[400]} style={styles.input} />

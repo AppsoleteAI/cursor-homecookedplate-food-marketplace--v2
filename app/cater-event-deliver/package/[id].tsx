@@ -42,7 +42,7 @@ export default function CaterPackageScreen() {
 
   return (
     <CaterEventScreen title={name} subtitle={companyName} testID="cater-package">
-      {catalog ? <Image source={{ uri: catalog.image }} style={styles.hero} /> : null}
+      {catalog?.image || listing?.image ? <Image source={{ uri: catalog?.image || listing?.image }} style={styles.hero} /> : null}
       <Text style={styles.price}>${pricePerPerson.toFixed(2)} per person</Text>
       <Text style={[styles.status, open ? styles.open : styles.closed]}>{open ? 'Accepting this drop-off' : 'Not accepting orders'}</Text>
       <Text style={styles.body}>{summary}</Text>

@@ -7,6 +7,7 @@ import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useCaterEvent } from '@/hooks/cater-event-store';
 import { evaluateCaterLicense, evaluateCaterPackage } from '@/lib/cater-event-license';
+import { ListingPhotoField } from '@/components/ListingPhotoField';
 
 export default function ListCaterPackageScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -17,6 +18,7 @@ export default function ListCaterPackageScreen() {
   const [summary, setSummary] = useState('');
   const [ingredients, setIngredients] = useState('');
   const [allergens, setAllergens] = useState('');
+  const [image, setImage] = useState('');
   const [blocks, setBlocks] = useState<string[]>([]);
   const licenseCheck = evaluateCaterLicense(license);
 
@@ -35,6 +37,7 @@ export default function ListCaterPackageScreen() {
       summary,
       ingredients,
       allergens,
+      image,
     };
     const resultCheck = evaluateCaterPackage(license, item);
     if (!resultCheck.ok) {
@@ -56,6 +59,7 @@ export default function ListCaterPackageScreen() {
       ) : (
         <Text style={styles.block}>Save the catering license before a package can go up.</Text>
       )}
+      <ListingPhotoField label="Photo of this package" value={image} onChange={setImage} testID="cater-list-photo" />
       <TextInput value={name} onChangeText={setName} placeholder="Package name" placeholderTextColor={Colors.gray[400]} style={styles.input} testID="cater-list-name" />
       <TextInput value={priceText} onChangeText={setPriceText} placeholder="Price per person" placeholderTextColor={Colors.gray[400]} keyboardType="decimal-pad" style={styles.input} testID="cater-list-price" />
       <TextInput value={headcountText} onChangeText={setHeadcountText} placeholder="Minimum headcount" placeholderTextColor={Colors.gray[400]} keyboardType="number-pad" style={styles.input} testID="cater-list-headcount" />

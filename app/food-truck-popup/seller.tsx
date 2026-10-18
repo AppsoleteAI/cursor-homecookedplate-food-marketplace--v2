@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router, type Href } from 'expo-router';
@@ -30,6 +30,7 @@ export default function TruckSellerScreen() {
 
   return (
     <FoodTruckScreen title="Truck owner" subtitle="Window payouts stay separate from plate earnings." testID="truck-seller">
+      {permit?.image ? <Image source={{ uri: permit.image }} style={styles.placePhoto} /> : null}
       <View style={styles.card}>
         <Text style={styles.label}>Truck food sold</Text>
         <Text style={styles.value}>${baseAmount.toFixed(2)}</Text>
@@ -87,6 +88,7 @@ export default function TruckSellerScreen() {
       {listings.map((item) => (
         <PricedItemCard
           key={item.id}
+          image={item.image}
           title={titleCase(item.name)}
           meta={ownerActive ? 'On the board' : 'Hidden while the window is closed'}
           price={`$${item.price.toFixed(2)}`}
@@ -112,4 +114,5 @@ const styles = StyleSheet.create({
   secondary: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginBottom: 8  },
   secondaryText: { color: '#C2410C', fontWeight: '700' },
   section: { marginTop: 8, marginBottom: 8, fontWeight: '700', color: Colors.gray[900] },
+  placePhoto: { width: '100%', height: 160, borderRadius: 16, marginBottom: 10, backgroundColor: Colors.gray[200] },
 });

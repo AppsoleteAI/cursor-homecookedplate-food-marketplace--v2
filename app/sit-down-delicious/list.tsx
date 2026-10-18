@@ -7,6 +7,7 @@ import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useSitDown } from '@/hooks/sit-down-store';
 import { evaluateSitDownItem, evaluateSitDownLicense } from '@/lib/sit-down-license';
+import { ListingPhotoField } from '@/components/ListingPhotoField';
 
 export default function ListSitItemScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -16,6 +17,7 @@ export default function ListSitItemScreen() {
   const [summary, setSummary] = useState('');
   const [ingredients, setIngredients] = useState('');
   const [allergens, setAllergens] = useState('');
+  const [image, setImage] = useState('');
   const [blocks, setBlocks] = useState<string[]>([]);
   const licenseCheck = evaluateSitDownLicense(license);
 
@@ -28,7 +30,7 @@ export default function ListSitItemScreen() {
 
   const publish = () => {
     const price = Number(priceText);
-    const item = { name, price, summary, ingredients, allergens };
+    const item = { name, price, summary, ingredients, allergens, image };
     const resultCheck = evaluateSitDownItem(license, item);
     if (!resultCheck.ok) {
       setBlocks(resultCheck.blocks);
@@ -49,6 +51,7 @@ export default function ListSitItemScreen() {
       ) : (
         <Text style={styles.block}>Save the retail food license before a menu item can go up.</Text>
       )}
+      <ListingPhotoField label="Photo of this menu item" value={image} onChange={setImage} testID="sit-list-photo" />
       <TextInput value={name} onChangeText={setName} placeholder="Item name" placeholderTextColor={Colors.gray[400]} style={styles.input} testID="sit-list-name" />
       <TextInput value={priceText} onChangeText={setPriceText} placeholder="Price" placeholderTextColor={Colors.gray[400]} keyboardType="decimal-pad" style={styles.input} testID="sit-list-price" />
       <TextInput value={summary} onChangeText={setSummary} placeholder="What the guest orders" placeholderTextColor={Colors.gray[400]} style={[styles.input, styles.area]} multiline />

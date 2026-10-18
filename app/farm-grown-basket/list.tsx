@@ -7,6 +7,7 @@ import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useFarmBasket } from '@/hooks/farm-basket-store';
 import { evaluateListing, trackLabel } from '@/lib/cottage-food';
+import { ListingPhotoField } from '@/components/ListingPhotoField';
 
 export default function ListFarmGoodScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -15,6 +16,7 @@ export default function ListFarmGoodScreen() {
   const [priceText, setPriceText] = useState('');
   const [unit, setUnit] = useState('');
   const [summary, setSummary] = useState('');
+  const [image, setImage] = useState('');
   const [blocks, setBlocks] = useState<string[]>([]);
   const check = evaluateListing(compliance);
 
@@ -36,7 +38,7 @@ export default function ListFarmGoodScreen() {
       setBlocks(nextBlocks);
       return;
     }
-    const result = publishListing({ name, price, unit, summary });
+    const result = publishListing({ name, price, unit, summary, image });
     if (!result.ok) {
       setBlocks(result.blocks);
       return;
@@ -51,6 +53,7 @@ export default function ListFarmGoodScreen() {
       ) : (
         <Text style={styles.block}>Save the cottage food record before you can list.</Text>
       )}
+      <ListingPhotoField label="Photo of this good" value={image} onChange={setImage} testID="farm-list-photo" />
       <TextInput value={name} onChangeText={setName} placeholder="Product name" placeholderTextColor={Colors.gray[400]} style={styles.input} testID="farm-list-name" />
       <TextInput value={priceText} onChangeText={setPriceText} placeholder="Price" placeholderTextColor={Colors.gray[400]} keyboardType="decimal-pad" style={styles.input} testID="farm-list-price" />
       <TextInput value={unit} onChangeText={setUnit} placeholder="Unit (jar, dozen, pound)" placeholderTextColor={Colors.gray[400]} style={styles.input} />

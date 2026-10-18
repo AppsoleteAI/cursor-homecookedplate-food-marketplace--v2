@@ -7,6 +7,7 @@ import { useSellerGate } from '@/components/RoleGuard';
 import { Colors } from '@/constants/colors';
 import { useCaterEvent } from '@/hooks/cater-event-store';
 import { US_STATE_NAMES } from '@/lib/cottage-food';
+import { ListingPhotoField } from '@/components/ListingPhotoField';
 import {
   CATER_EVENT_RULE,
   evaluateCaterLicense,
@@ -98,6 +99,7 @@ export default function CaterLicenseScreen() {
       </View>
       {states.length === 0 ? <Text style={styles.note}>Type a state name, such as Texas or California.</Text> : null}
 
+      <ListingPhotoField label="Photo of the catering kitchen or event space" value={draft.image} onChange={(image) => set({ image })} testID="cater-license-photo" />
       <Field label="Company name" value={draft.companyName} onChangeText={(companyName) => set({ companyName })} />
       <Field label="City" value={draft.city} onChangeText={(city) => set({ city })} />
       <Field label="County" value={draft.county} onChangeText={(county) => set({ county })} />

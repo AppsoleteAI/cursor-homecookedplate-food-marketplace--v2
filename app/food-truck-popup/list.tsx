@@ -7,6 +7,7 @@ import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useFoodTruck } from '@/hooks/food-truck-store';
 import { evaluateTruckMenuItem, evaluateTruckPermit } from '@/lib/food-truck-permit';
+import { ListingPhotoField } from '@/components/ListingPhotoField';
 
 export default function ListTruckItemScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -16,6 +17,7 @@ export default function ListTruckItemScreen() {
   const [summary, setSummary] = useState('');
   const [ingredients, setIngredients] = useState('');
   const [allergens, setAllergens] = useState('');
+  const [image, setImage] = useState('');
   const [blocks, setBlocks] = useState<string[]>([]);
   const permitCheck = evaluateTruckPermit(permit);
 
@@ -28,7 +30,7 @@ export default function ListTruckItemScreen() {
 
   const publish = () => {
     const price = Number(priceText);
-    const item = { name, price, summary, ingredients, allergens };
+    const item = { name, price, summary, ingredients, allergens, image };
     const resultCheck = evaluateTruckMenuItem(permit, item);
     if (!resultCheck.ok) {
       setBlocks(resultCheck.blocks);
@@ -49,6 +51,7 @@ export default function ListTruckItemScreen() {
       ) : (
         <Text style={styles.block}>Save the mobile permit before a menu item can go up.</Text>
       )}
+      <ListingPhotoField label="Photo of this menu item" value={image} onChange={setImage} testID="truck-list-photo" />
       <TextInput value={name} onChangeText={setName} placeholder="Item name" placeholderTextColor={Colors.gray[400]} style={styles.input} testID="truck-list-name" />
       <TextInput value={priceText} onChangeText={setPriceText} placeholder="Price" placeholderTextColor={Colors.gray[400]} keyboardType="decimal-pad" style={styles.input} testID="truck-list-price" />
       <TextInput value={summary} onChangeText={setSummary} placeholder="What the customer picks up" placeholderTextColor={Colors.gray[400]} style={[styles.input, styles.area]} multiline />

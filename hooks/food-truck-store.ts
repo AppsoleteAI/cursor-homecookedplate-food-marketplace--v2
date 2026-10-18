@@ -41,6 +41,7 @@ export type TruckListing = {
   summary: string;
   ingredients: string;
   allergens: string;
+  image?: string;
 };
 
 type TruckState = {
@@ -155,9 +156,11 @@ export function publishTruckItem(input: {
   summary: string;
   ingredients: string;
   allergens: string;
+  image?: string;
 }): { ok: true } | { ok: false; blocks: string[] } {
   const check = evaluateTruckMenuItem(state.permit, input);
   if (!check.ok) return check;
+  if (!input.image) return { ok: false, blocks: ['Add a photo of this menu item.'] };
   const listing: TruckListing = {
     id: `truck-item-${Date.now()}`,
     truckId: 'owner-truck',
@@ -166,6 +169,7 @@ export function publishTruckItem(input: {
     summary: input.summary.trim(),
     ingredients: input.ingredients.trim(),
     allergens: input.allergens.trim(),
+    image: input.image,
   };
   state = { ...state, listings: [listing, ...state.listings] };
   emit();
