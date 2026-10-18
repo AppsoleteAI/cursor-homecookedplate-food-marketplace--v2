@@ -7,6 +7,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -242,14 +243,17 @@ export default function OnboardingScreen() {
                         </GlassPressable>
                         <Text style={styles.question}>{metroQuestion}</Text>
                         <Text style={styles.help}>
-                          Your location determines your options. Sign up today. Early Bird eligibility is limited.
+                          Your location determines your options. Sign up today.
+                          {role === 'platemaker' ? ' Early Bird eligibility is limited.' : ''}
                         </Text>
                         {metroStatus === 'found' && metroName ? (
                           <Text style={styles.metroResult}>You are in {metroName}.</Text>
                         ) : null}
                         {metroStatus === 'outside' ? (
                           <Text style={styles.metroResult}>
-                            You are outside an active location. The account will be Remote, and Early Bird is not available here.
+                            {role === 'platemaker'
+                              ? 'You are outside an active location. The account will be Remote, and Early Bird is not available here.'
+                              : 'You are outside an active location. The account will be Remote.'}
                           </Text>
                         ) : null}
                         {metroStatus === 'denied' ? (
@@ -380,7 +384,7 @@ export default function OnboardingScreen() {
                         Ingredients and allergens are listed by the cook. Tell them about your allergies before you order. If something looks or smells wrong at pickup, do not eat it.
                       </Text>
                       <Text style={[styles.checkText, { marginTop: 8 }]}>
-                        Meet in a public place during daylight. Do not exchange phone numbers in the app. A prepaid delivery is brought by the cook with someone else along.
+                        Meet in a public place during daylight. Do not exchange phone numbers in the app. If a prepaid delivery is agreed upon, we suggest the cook brings someone else along, for safety.
                       </Text>
                       <Text style={[styles.checkText, { marginTop: 8 }]}>
                         {BUYER_AFTER_NOTE}
@@ -483,7 +487,7 @@ function CheckRow({
   testID?: string;
 }) {
   return (
-    <GlassPressable
+    <Pressable
       style={styles.checkRow}
       onPress={onPress}
       testID={testID}
@@ -494,7 +498,7 @@ function CheckRow({
         {checked ? <Ionicons name="checkmark" size={14} color={AuthColors.ink} /> : null}
       </View>
       {children}
-    </GlassPressable>
+    </Pressable>
   );
 }
 

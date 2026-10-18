@@ -15,6 +15,8 @@ export interface User {
   stripeSubscriptionId?: string;
   metroArea?: string | null;
   trialEndsAt?: Date | null;
+  trialExpired?: boolean;
+  trialCountdownDays?: number | null;
   foodSafetyAcknowledged?: boolean;
   orderingRemoved?: boolean;
 }

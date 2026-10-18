@@ -2,26 +2,36 @@
 -- Location: backend/sql/auto_create_profile.sql
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  chosen_role text;
 BEGIN
-  INSERT INTO public.profiles (id, username, email, role)
+  chosen_role := COALESCE(NEW.raw_user_meta_data->>'role', 'platetaker');
+  IF chosen_role NOT IN ('platemaker', 'platetaker') THEN
+    chosen_role := 'platetaker';
+  END IF;
+
+  INSERT INTO public.profiles (id, username, email, role, is_admin)
   VALUES (
-    new.id,
-    -- Fallback: Use username from metadata, or the start of their email if missing
-    COALESCE(new.raw_user_meta_data->>'username', SPLIT_PART(new.email, '@', 1)),
-    new.email,
-    -- Fallback: Use role from metadata (platemaker/platetaker), default to platetaker
-    COALESCE(new.raw_user_meta_data->>'role', 'platetaker')
-  );
+    NEW.id,
+    COALESCE(NULLIF(NEW.raw_user_meta_data->>'username', ''), SPLIT_PART(COALESCE(NEW.email, 'member'), '@', 1)),
+    COALESCE(NEW.email, NEW.id::text || '@users.local'),
+    chosen_role,
+    false
+  )
+  ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
 EXCEPTION
-  WHEN unique_violation THEN
-    -- If the profile already exists, we just move on
+  WHEN OTHERS THEN
+    -- A profile copy must not roll back the auth user. Signup finishes the profile with the service role.
+    RAISE LOG 'handle_new_user failed for %: %', NEW.id, SQLERRM;
     RETURN NEW;
-  WHEN others THEN
-    RAISE EXCEPTION 'Failed to create profile: %', SQLERRM;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- Drop the trigger if it exists to avoid error 42710
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;

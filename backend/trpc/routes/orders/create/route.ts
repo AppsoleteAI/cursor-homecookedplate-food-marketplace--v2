@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { calculateOrderBreakdown } from "@/backend/lib/fees";
 import { isSampleMealId } from "@/lib/sample-meals";
 import { assertBuyerCanOrder } from "@/backend/lib/buyer-order-access";
+import { salesVolumeBlock } from "@/backend/lib/stripe-marketplace";
 
 /**
  * Create Order Procedure
@@ -83,10 +84,14 @@ export const createOrderProcedure = protectedProcedure
       });
     }
 
+    const breakdown = calculateOrderBreakdown(input.unitPrice, input.quantity);
+    const volumeBlock = await salesVolumeBlock(ctx.supabaseAdmin, input.sellerId, breakdown.subtotal);
+    if (volumeBlock) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: volumeBlock });
+    }
+
     // Calculate fees based on the unit price provided (matches UI calculation)
     // SQL trigger will overwrite this if it's wrong, but we calculate here for consistency
-    const breakdown = calculateOrderBreakdown(input.unitPrice, input.quantity);
-
     const { data, error } = await ctx.supabase
       .from('orders')
       .insert({

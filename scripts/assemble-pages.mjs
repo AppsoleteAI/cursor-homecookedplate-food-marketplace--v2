@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -28,6 +28,14 @@ function walk(dir) {
 
 walk(dist);
 copyFileSync(join(root, "pages", "_worker.js"), join(dist, "_worker.js"));
+copyFileSync(join(root, "assets", "images", "favicon.png"), join(dist, "favicon.png"));
+
+const faviconLink = '<link rel="icon" type="image/png" href="/favicon.png" />';
+const html = readFileSync(indexHtml, "utf8");
+const withFavicon = html.includes('href="/favicon.png"')
+  ? html
+  : html.replace("</head>", `  ${faviconLink}\n  </head>`);
+writeFileSync(indexHtml, withFavicon);
 
 const legalDir = join(dist, "legal");
 mkdirSync(legalDir, { recursive: true });

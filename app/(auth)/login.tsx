@@ -10,6 +10,7 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -348,7 +349,7 @@ export default function LoginScreen() {
               </View>
 
               <View style={styles.legalRow}>
-                <GlassPressable
+                <Pressable
                   onPress={() => {
                     setLegalChecked((current) => {
                       const next = !current;
@@ -366,7 +367,7 @@ export default function LoginScreen() {
                   <View style={[styles.legalCheckbox, legalChecked && styles.legalCheckboxOn]}>
                     {legalChecked ? <Ionicons name="checkmark" size={14} color={AuthColors.ink} /> : null}
                   </View>
-                </GlassPressable>
+                </Pressable>
                 <Text style={styles.legalAgreement}>
                   {legalNotice ? <Text style={styles.legalStar}>* </Text> : null}
                   I agree to the{' '}

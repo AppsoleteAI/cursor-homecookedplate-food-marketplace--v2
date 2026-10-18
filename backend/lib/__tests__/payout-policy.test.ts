@@ -1,5 +1,5 @@
-import { LOST_DISPUTE_FEE, sellerRefundAmount } from '../fees';
-import { lostDisputeOutcome, payoutReleaseAt, removalReasons, warningReasons } from '../payout-policy';
+import { LOST_DISPUTE_FEE, salesVolumeCap, sellerRefundAmount } from '../fees';
+import { lostDisputeOutcome, payoutReleaseAt, removalReasons, salesCapForCook, salesVolumeBlockMessage, warningReasons } from '../payout-policy';
 
 describe('payout hold and responsibility', () => {
   it('refunds only the cook share', () => {
@@ -54,6 +54,41 @@ describe('payout hold and responsibility', () => {
     );
     expect(fourth.banned).toBe(true);
     expect(fourth.count).toBe(4);
+  });
+
+  it('raises the sales cap every clear 30 days and stops at the ceiling', () => {
+    expect(salesVolumeCap(0)).toEqual({ weekly: 1000, monthly: 3500 });
+    expect(salesVolumeCap(29)).toEqual({ weekly: 1000, monthly: 3500 });
+    expect(salesVolumeCap(30)).toEqual({ weekly: 2000, monthly: 7000 });
+    expect(salesVolumeCap(90)).toEqual({ weekly: 4000, monthly: 14000 });
+    expect(salesVolumeCap(120)).toEqual({ weekly: 5000, monthly: 17500 });
+    expect(salesVolumeCap(400)).toEqual({ weekly: 5000, monthly: 17500 });
+  });
+
+  it('keeps a new cook and a cook with a complaint on the base sales cap', () => {
+    const started = new Date('2026-01-01T00:00:00.000Z');
+    const later = new Date('2026-06-01T00:00:00.000Z');
+    expect(salesCapForCook({
+      accountStartedAt: started,
+      chargebacks: 0,
+      complaints: 0,
+      now: new Date('2026-01-10T00:00:00.000Z'),
+    }).weekly).toBe(1000);
+    expect(salesCapForCook({
+      accountStartedAt: started,
+      chargebacks: 0,
+      complaints: 1,
+      now: later,
+    })).toMatchObject({ weekly: 1000, monthly: 3500, clearDays: 0 });
+    expect(salesCapForCook({
+      accountStartedAt: started,
+      chargebacks: 0,
+      complaints: 0,
+      now: later,
+    }).weekly).toBe(5000);
+    expect(salesVolumeBlockMessage({ weekly: 1000, monthly: 3500 }, 900, 1000, 200)).toMatch(/7 days/);
+    expect(salesVolumeBlockMessage({ weekly: 1000, monthly: 3500 }, 100, 3400, 200)).toMatch(/30 days/);
+    expect(salesVolumeBlockMessage({ weekly: 1000, monthly: 3500 }, 800, 3000, 200)).toBeNull();
   });
 
   it('warns one event before a rolling 30-day block', () => {

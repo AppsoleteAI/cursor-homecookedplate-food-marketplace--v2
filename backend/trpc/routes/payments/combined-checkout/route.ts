@@ -5,6 +5,7 @@ import { protectedProcedure } from '../../../create-context';
 import { quoteShopOrder, type ShopName } from '../../../../lib/shop-catalog';
 import {
   CHECKOUT_AREAS,
+  CHECKOUT_AREA_LABEL,
   checkoutKey,
   quoteCheckout,
   quoteCombined,

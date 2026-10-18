@@ -12,7 +12,7 @@ import type { Session } from '@supabase/supabase-js';
 import { captureException, setUser as setSentryUser, addBreadcrumb } from '@/lib/sentry';
 import { runHardwareAudit } from '@/lib/hardwareAudit';
 import { router } from 'expo-router';
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { navLogger } from '@/lib/nav-logger';
 
 interface AuthState {
@@ -45,6 +45,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [session, setSession] = useState<Session | null>(null);
   const mountedRef = useRef<boolean>(true);
+  const trialPromptedRef = useRef(false);
 
   const loginMutation = trpc.auth.login.useMutation();
   const signupMutation = trpc.auth.signup.useMutation();
@@ -339,6 +340,14 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     if (meData && mountedRef.current) {
       setUser(meData);
       persistUser(meData).catch(err => captureException(err as Error, { context: 'persist meData' }));
+      if (meData.trialExpired && !trialPromptedRef.current) {
+        trialPromptedRef.current = true;
+        Alert.alert(
+          'Your free trial has ended',
+          'Subscribe to keep Premium.',
+          [{ text: 'See membership', onPress: () => router.push('/membership') }],
+        );
+      }
     }
   }, [meData, persistSession, persistUser]);
 

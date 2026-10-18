@@ -13,7 +13,11 @@ import {
   lostDisputeOutcome,
   lostDisputeWindowStart,
   removalReasons,
+  RESPONSIBILITY_WINDOW_DAYS,
   responsibilityWindowStart,
+  salesCapForCook,
+  salesVolumeBlockMessage,
+  SALES_WEEK_DAYS,
   warningNotice,
 } from './payout-policy';
 
@@ -80,6 +84,57 @@ export async function countResponsibility(
     if (row.kind === 'government_request') counts.governmentRequest += 1;
   }
   return counts;
+}
+
+export async function salesVolumeBlock(
+  supabaseAdmin: SupabaseClient,
+  sellerId: string,
+  nextSale: number,
+): Promise<string | null> {
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from('profiles')
+    .select('created_at')
+    .eq('id', sellerId)
+    .maybeSingle();
+  if (profileError || !profile?.created_at) {
+    return 'This cook’s sales limit could not be checked.';
+  }
+
+  const counts = await countResponsibility(supabaseAdmin, sellerId);
+  const cap = salesCapForCook({
+    accountStartedAt: new Date(profile.created_at),
+    chargebacks: counts.chargeback,
+    complaints: counts.complaint,
+  });
+
+  const since = new Date(Date.now() - RESPONSIBILITY_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const weekStart = Date.now() - SALES_WEEK_DAYS * 24 * 60 * 60 * 1000;
+  const { data, error } = await supabaseAdmin
+    .from('transactions')
+    .select('base_price, status, created_at')
+    .eq('seller_id', sellerId)
+    .gte('created_at', since)
+    .limit(2000);
+  if (error) {
+    console.error('[SalesCap] Volume query failed:', error.message);
+    return 'This cook’s sales limit could not be checked.';
+  }
+  if ((data ?? []).length >= 2000) {
+    return `This cook is at the $${cap.monthly.toLocaleString('en-US')} sales limit for 30 days.`;
+  }
+
+  let weeklySales = 0;
+  let monthlySales = 0;
+  for (const row of data ?? []) {
+    if (row.status === 'refunded') continue;
+    const amount = Number(row.base_price);
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+    monthlySales += amount;
+    const created = new Date(row.created_at).getTime();
+    if (Number.isFinite(created) && created >= weekStart) weeklySales += amount;
+  }
+
+  return salesVolumeBlockMessage(cap, weeklySales, monthlySales, nextSale);
 }
 
 export async function applyRemovalIfNeeded(

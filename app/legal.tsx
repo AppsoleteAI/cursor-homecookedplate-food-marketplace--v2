@@ -6,6 +6,7 @@ import {
   ScrollView,
   TextInput,
   Alert,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
@@ -16,7 +17,7 @@ import { BUYER_AFTER_NOTE } from '@/lib/buyer-safety';
 import { AuthBackground, AuthBackButton, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
-import { GlassPressable, GlassTop } from '@/components/glass-surface';
+import { GlassTop } from '@/components/glass-surface';
 import {
   allSectionsAgreed,
   emptyLegalSections,
@@ -134,7 +135,7 @@ export default function LegalScreen() {
             </View>
             <View style={styles.noticeBox}>
               <Text style={styles.noticeText}>
-                Meet in a public place during daylight. Do not exchange phone numbers in the app. A prepaid delivery is brought by the cook with someone else along.
+                Meet in a public place during daylight. Do not exchange phone numbers in the app. If a prepaid delivery is agreed upon, we suggest the cook brings someone else along, for safety.
               </Text>
             </View>
           </LegalSection>
@@ -281,7 +282,7 @@ function LegalSection({
   return (
     <View style={styles.section}>
       <GlassTop />
-      <GlassPressable
+      <Pressable
         style={styles.sectionCheck}
         onPress={() => onToggle(id)}
         accessibilityRole="checkbox"
@@ -292,7 +293,7 @@ function LegalSection({
         <View style={[styles.checkbox, checked && styles.checkboxOn]}>
           {checked ? <Ionicons name="checkmark" size={14} color={AuthColors.ink} /> : null}
         </View>
-      </GlassPressable>
+      </Pressable>
       <View style={styles.sectionBody}>{children}</View>
     </View>
   );

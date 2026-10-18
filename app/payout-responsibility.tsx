@@ -7,6 +7,7 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -140,15 +141,17 @@ export default function PayoutResponsibilityScreen() {
                     : 'Finish Stripe Express setup so sales can be paid to you directly.'}
                 </Text>
                 {!connect.data?.payoutsEnabled ? (
-                  <GlassPressable
+                  <Pressable
                     onPress={() => setFeesAcknowledged((prev) => !prev)}
                     style={[styles.ackRow, feesAcknowledged ? styles.ackRowOn : undefined]}
                     testID="cook-fee-acknowledgement"
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: feesAcknowledged }}
                   >
                     <Text style={styles.body}>
                       {feesAcknowledged ? 'Acknowledged. ' : ''}I understand HomeCookedPlate keeps both non-refundable 10% fees.
                     </Text>
-                  </GlassPressable>
+                  </Pressable>
                 ) : null}
                 {!connect.data?.payoutsEnabled && feesAcknowledged && user?.email ? (
                   <GlassPressable

@@ -1,3 +1,4 @@
+import { platemakerTrialCountdownDays, unpaidPlatemakerTrialEnded } from "../../../../lib/trial-access";
 import { protectedProcedure } from "../../../create-context";
 
 export const meProcedure = protectedProcedure
@@ -12,6 +13,20 @@ export const meProcedure = protectedProcedure
       throw new Error('Profile not found');
     }
 
+    const trialExpired = unpaidPlatemakerTrialEnded(profile);
+    let membershipTier = (profile.membership_tier as 'free' | 'premium') || 'free';
+    if (trialExpired && profile.membership_tier === 'premium') {
+      const { error: expireError } = await ctx.supabaseAdmin
+        .from('profiles')
+        .update({ membership_tier: 'free' })
+        .eq('id', profile.id)
+        .eq('role', 'platemaker');
+      if (expireError) {
+        console.error('[auth.me] Could not end PlateMaker trial:', expireError.message);
+      }
+      membershipTier = 'free';
+    }
+
     return {
       id: profile.id,
       username: profile.username,
@@ -24,7 +39,9 @@ export const meProcedure = protectedProcedure
       createdAt: new Date(profile.created_at),
       isPaused: profile.is_paused,
       twoFactorEnabled: profile.two_factor_enabled,
-      membershipTier: (profile.membership_tier as 'free' | 'premium') || 'free',
+      membershipTier,
+      trialExpired,
+      trialCountdownDays: platemakerTrialCountdownDays(profile),
       stripeCustomerId: profile.stripe_customer_id || undefined,
       stripeSubscriptionId: profile.stripe_subscription_id || undefined,
       metroArea: profile.metro_area || null,

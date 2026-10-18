@@ -9,6 +9,32 @@ import { sendEmailConfirmation } from "@/backend/lib/email";
 // Force module reload by adding version to export
 const SIGNUP_PROCEDURE_VERSION = `v4-insert-then-update-20250118-${Date.now()}`;
 
+type CheckoutSession = { access_token: string; refresh_token: string };
+
+async function mintCheckoutSession(admin: any, email: string): Promise<CheckoutSession | null> {
+  const link = await admin.auth.admin.generateLink({ type: "magiclink", email });
+  const tokenHash = link.data?.properties?.hashed_token;
+  if (link.error || !tokenHash) {
+    console.error("[Signup] Checkout link failed:", link.error?.message || "missing token");
+    return null;
+  }
+
+  const verified = await admin.auth.verifyOtp({
+    token_hash: tokenHash,
+    type: "magiclink",
+  });
+  const session = verified.data?.session;
+  if (verified.error || !session?.access_token || !session?.refresh_token) {
+    console.error("[Signup] Checkout verify failed:", verified.error?.message || "missing session");
+    return null;
+  }
+
+  return {
+    access_token: session.access_token,
+    refresh_token: session.refresh_token,
+  };
+}
+
 console.log('[Signup Route] PROCEDURE_EXPORT - Version:', SIGNUP_PROCEDURE_VERSION);
 
 // Strict password validation schema - matches frontend PasswordStrengthMeter requirements
@@ -52,7 +78,7 @@ const createSignupProcedure = () => {
           email: input.email,
           password: input.password,
           email_confirm: false,
-          user_metadata: { username: input.username }
+          user_metadata: { username: input.username, role: input.role }
         });
         authData = { user: result.data.user, session: null };
         authError = result.error;
@@ -71,10 +97,74 @@ const createSignupProcedure = () => {
           authError?.code === '23505';
 
         if (isDuplicateEmail) {
-          throw new TRPCError({
-            code: 'BAD_REQUEST',
-            message: 'An account with this email already exists. Please use login instead.',
+          const passwordCheck = await ctx.supabase.auth.signInWithPassword({
+            email: input.email,
+            password: input.password,
           });
+          const passwordMessage = passwordCheck.error?.message?.toLowerCase() || "";
+          const passwordAccepted = Boolean(passwordCheck.data?.session) || passwordMessage.includes("not confirmed");
+          if (!passwordAccepted) {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: 'An account with this email already exists. Please use login instead.',
+            });
+          }
+
+          const { data: existingProfile, error: existingProfileError } = await ctx.supabaseAdmin
+            .from("profiles")
+            .select("id, username, email, role, is_admin, phone, bio, profile_image, created_at, is_paused, two_factor_enabled, metro_area, trial_ends_at, membership_tier")
+            .eq("email", input.email)
+            .maybeSingle();
+
+          if (existingProfileError || !existingProfile) {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: 'An account with this email already exists. Please use login instead.',
+            });
+          }
+
+          if (existingProfile.membership_tier === "premium" && existingProfile.trial_ends_at) {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: 'An account with this email already exists. Please use login instead.',
+            });
+          }
+
+          const session = passwordCheck.data?.session
+            ? {
+                access_token: passwordCheck.data.session.access_token,
+                refresh_token: passwordCheck.data.session.refresh_token,
+              }
+            : await mintCheckoutSession(ctx.supabaseAdmin, input.email);
+
+          if (!session) {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: 'An account with this email already exists. Please use login instead.',
+            });
+          }
+
+          return {
+            status: (existingProfile.role === 'platetaker' ? 'SUCCESS' : 'REDIRECT_TO_PAYMENT') as 'SUCCESS' | 'REDIRECT_TO_PAYMENT',
+            user: {
+              id: existingProfile.id,
+              username: existingProfile.username,
+              email: existingProfile.email,
+              role: existingProfile.role as 'platemaker' | 'platetaker',
+              isAdmin: existingProfile.is_admin || false,
+              phone: existingProfile.phone,
+              bio: existingProfile.bio,
+              profileImage: existingProfile.profile_image,
+              createdAt: new Date(existingProfile.created_at),
+              isPaused: existingProfile.is_paused,
+              twoFactorEnabled: existingProfile.two_factor_enabled,
+              metroArea: existingProfile.metro_area || null,
+              trialEndsAt: existingProfile.trial_ends_at ? new Date(existingProfile.trial_ends_at) : null,
+            },
+            session,
+            metro: existingProfile.metro_area || 'Remote/Other',
+            needsEmailConfirmation: true,
+          };
         }
 
         throw new TRPCError({
@@ -296,6 +386,13 @@ const createSignupProcedure = () => {
         trialEndsAt: profile.trial_ends_at ? new Date(profile.trial_ends_at) : null,
       };
 
+      const checkoutSession = membershipTier === 'premium' && trialEndDate
+        ? null
+        : await mintCheckoutSession(ctx.supabaseAdmin, input.email);
+      if (checkoutSession) {
+        authData.session = checkoutSession;
+      }
+
       // Determine status and return appropriate structure
       // Case 1: SUCCESS - Metro active and under cap (trial granted)
       if (membershipTier === 'premium' && trialEndDate) {
@@ -309,7 +406,18 @@ const createSignupProcedure = () => {
         };
       }
 
-      // Case 2: REDIRECT_TO_PAYMENT - Metro cap reached or Remote/Other
+      // PlateTakers use the app free. Premium is optional.
+      if ((input.role || 'platetaker') === 'platetaker') {
+        return {
+          status: 'SUCCESS' as const,
+          user,
+          session: authData.session,
+          metro: assignedMetro || 'Remote/Other',
+          needsEmailConfirmation: true,
+        };
+      }
+
+      // Case 2: REDIRECT_TO_PAYMENT - PlateMaker outside an active metro, or the metro cap is full
       return {
         status: 'REDIRECT_TO_PAYMENT' as const,
         user,

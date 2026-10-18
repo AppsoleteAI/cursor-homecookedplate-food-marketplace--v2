@@ -21,27 +21,34 @@
 
 create or replace function public.handle_new_user()
 returns trigger
+language plpgsql
+security definer
+set search_path = public
 as $$
+declare
+  chosen_role text;
 begin
+  chosen_role := coalesce(new.raw_user_meta_data->>'role', 'platetaker');
+  if chosen_role not in ('platemaker', 'platetaker') then
+    chosen_role := 'platetaker';
+  end if;
+
   insert into public.profiles (id, username, email, role, is_admin)
   values (
     new.id,
-    coalesce(new.raw_user_meta_data->>'username', split_part(new.email, '@', 1)),
-    new.email,
-    -- Respect portal choice from metadata, default to platetaker
-    coalesce(new.raw_user_meta_data->>'role', 'platetaker'),
-    -- FORCE is_admin to false - admins must be promoted through secure backend process
+    coalesce(nullif(new.raw_user_meta_data->>'username', ''), split_part(coalesce(new.email, 'member'), '@', 1)),
+    coalesce(new.email, new.id::text || '@users.local'),
+    chosen_role,
     false
-  );
+  )
+  on conflict (id) do nothing;
   return new;
 exception
-  when unique_violation then
-    -- Keep message generic in production; consider logging details to audit_logs instead
-    raise exception 'Username or email already exists';
   when others then
-    raise exception 'Failed to create profile: %', sqlerrm;
+    raise log 'handle_new_user failed for %: %', new.id, sqlerrm;
+    return new;
 end;
-$$ language plpgsql security definer set search_path = public;
+$$;
 
 -- ============================================================================
 -- 2. AUTOMATIC ORDER PRICE CALCULATION (CRITICAL SECURITY FIX)

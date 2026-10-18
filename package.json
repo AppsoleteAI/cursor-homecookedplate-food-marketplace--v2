@@ -11,6 +11,7 @@
     "start-web-dev": "DEBUG=expo* expo start --web --tunnel",
     "lint": "expo lint",
     "pages:build": "expo export --platform web --output-dir dist && node scripts/assemble-pages.mjs",
+    "postinstall": "patch-package",
     "lint:fix": "expo lint --fix",
     "android": "expo run:android",
     "ios": "expo run:ios",
@@ -97,6 +98,7 @@
     "eslint-config-expo": "~10.0.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
+    "patch-package": "^8.0.1",
     "typescript": "~5.9.2"
   },
   "private": true,

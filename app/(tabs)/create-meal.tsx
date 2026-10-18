@@ -10,6 +10,7 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
+  Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
@@ -780,10 +781,11 @@ export default function CreateMealScreen() {
               <FoodHandlingLink label="Food handling temperatures, gloves, and containers" />
             </View>
           </View>
-          <GlassPressable
+          <Pressable
             style={styles.acknowledgmentCheckboxRow}
             onPress={() => setFoodSafetyAcknowledged(!foodSafetyAcknowledged)}
-            activeOpacity={0.7}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: foodSafetyAcknowledged }}
           >
             <View style={[styles.acknowledgmentCheckbox, foodSafetyAcknowledged && styles.acknowledgmentCheckboxActive]}>
               {foodSafetyAcknowledged && <Text style={styles.acknowledgmentCheckmark}>✓</Text>}
@@ -791,7 +793,7 @@ export default function CreateMealScreen() {
             <Text style={styles.acknowledgmentText}>
               I acknowledge that I have reviewed cottagefoodlaws.com and understand that I must comply with all local, county, state and federal food laws. I understand that HomeCookedPlate does not allow anyone to violate their local, county, state and/or federal food laws on the HomeCookedPlate App.
             </Text>
-          </GlassPressable>
+          </Pressable>
         </View>
           <GradientButton
             title={saving ? 'Publishing…' : 'Publish'}

@@ -26,6 +26,7 @@ import { useAuth } from '@/hooks/auth-context';
 import * as WebBrowser from 'expo-web-browser';
 import { trpc } from '@/lib/trpc';
 import { SkeletonDashboard } from '@/components/SkeletonDashboard';
+import { TrialCountdownNotice } from '@/components/TrialCountdownNotice';
 import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
 import { DeliveryFeeCard } from '@/components/DeliveryFeeCard';
 
@@ -156,6 +157,10 @@ export default function DashboardScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + headerHeight + 12 }]}
         >
+        {typeof user?.trialCountdownDays === 'number' && (
+          <TrialCountdownNotice daysLeft={user.trialCountdownDays} />
+        )}
+
         {/* Show skeleton while loading dashboard stats */}
         {dashboardStats.isLoading && (
           <SkeletonDashboard />

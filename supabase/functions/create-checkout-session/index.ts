@@ -34,6 +34,24 @@ function getStripePriceId(membershipTier: MembershipTier, isEarlyBird: boolean):
   return standardPriceId;
 }
 
+async function resolveCatalogPriceId(stripeSecretKey: string, configured: string): Promise<string | null> {
+  if (configured.startsWith("price_") && configured !== "price_monthly_499") return configured;
+  if (!configured.startsWith("prod_")) return null;
+
+  const response = await fetch(
+    `https://api.stripe.com/v1/prices?product=${encodeURIComponent(configured)}&active=true&limit=20`,
+    { headers: { Authorization: `Bearer ${stripeSecretKey}` } },
+  );
+  if (!response.ok) return null;
+
+  const body = await response.json();
+  const prices = Array.isArray(body?.data) ? body.data : [];
+  const monthlyMembership = prices.find((price: { unit_amount?: number; currency?: string; recurring?: { interval?: string } }) =>
+    price.currency === "usd" && price.recurring?.interval === "month" && price.unit_amount === 499
+  );
+  return monthlyMembership?.id ?? null;
+}
+
 type CreateCheckoutSessionBody = {
   returnUrl?: string;
 };
@@ -130,17 +148,22 @@ serve(async (req) => {
         },
         body: new URLSearchParams({
           email: profile.email,
-          metadata: JSON.stringify({
-            user_id: profile.id,
-            username: profile.username,
-          }),
+          "metadata[user_id]": profile.id,
+          "metadata[username]": profile.username,
         }).toString(),
       });
 
       if (!customerResponse.ok) {
         const errorText = await customerResponse.text();
         console.error("[Stripe] Customer creation failed:", errorText);
-        return new Response(JSON.stringify({ error: "Failed to create Stripe customer" }), {
+        let stripeMessage = "Failed to create Stripe customer";
+        try {
+          const parsed = JSON.parse(errorText);
+          if (typeof parsed?.error?.message === "string") stripeMessage = parsed.error.message;
+        } catch {
+          stripeMessage = "Failed to create Stripe customer";
+        }
+        return new Response(JSON.stringify({ error: stripeMessage }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -160,24 +183,34 @@ serve(async (req) => {
       }
     }
 
-    // Determine return URLs (deep links)
-    const defaultSuccessUrl = body.returnUrl || "homecookedplate://payment-success";
-    const defaultCancelUrl = body.returnUrl || "homecookedplate://payment-cancel";
+    const websiteReturn = "https://homecookedplate.com/membership";
+    const returnUrl = body.returnUrl && /^https?:\/\//i.test(body.returnUrl)
+      ? body.returnUrl
+      : websiteReturn;
 
     const sessionParams = new URLSearchParams({
       customer: customerId!,
       mode: "subscription",
-      "line_items[0][price]": priceId,
       "line_items[0][quantity]": "1",
-      success_url: `${defaultSuccessUrl}?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: defaultCancelUrl,
-      metadata: JSON.stringify({
-        user_id: profile.id,
-        is_early_bird: String(isEarlyBird),
-        membership_tier: profile.membership_tier || "free",
-        metro_area: profile.metro_area || null,
-      }),
+      success_url: `${returnUrl}?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: returnUrl,
+      "metadata[user_id]": profile.id,
+      "metadata[is_early_bird]": String(isEarlyBird),
+      "metadata[membership_tier]": profile.membership_tier || "free",
+      "metadata[metro_area]": profile.metro_area || "",
+      "payment_method_types[0]": "card",
     });
+
+    const catalogPriceId = await resolveCatalogPriceId(stripeSecretKey, priceId);
+    if (catalogPriceId) {
+      sessionParams.set("line_items[0][price]", catalogPriceId);
+    } else {
+      // $4.99 a month, the same amount as SUBSCRIPTION_PRICES.MONTHLY in backend/lib/fees.ts.
+      sessionParams.set("line_items[0][price_data][currency]", "usd");
+      sessionParams.set("line_items[0][price_data][unit_amount]", "499");
+      sessionParams.set("line_items[0][price_data][recurring][interval]", "month");
+      sessionParams.set("line_items[0][price_data][product_data][name]", "HomeCookedPlate membership");
+    }
 
     const sessionResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",
@@ -191,7 +224,14 @@ serve(async (req) => {
     if (!sessionResponse.ok) {
       const errorText = await sessionResponse.text();
       console.error("[Stripe] Checkout session creation failed:", errorText);
-      return new Response(JSON.stringify({ error: "Failed to create checkout session" }), {
+      let stripeMessage = "Failed to create checkout session";
+      try {
+        const parsed = JSON.parse(errorText);
+        if (typeof parsed?.error?.message === "string") stripeMessage = parsed.error.message;
+      } catch {
+        stripeMessage = "Failed to create checkout session";
+      }
+      return new Response(JSON.stringify({ error: stripeMessage }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

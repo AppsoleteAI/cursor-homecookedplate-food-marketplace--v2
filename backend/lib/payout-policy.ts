@@ -2,9 +2,11 @@
  * Marketplace payout hold and platemaker removal rules.
  * Money amounts stay in fees.ts. This file is only the hold and the counts.
  */
+import { salesVolumeCap } from './fees';
 
 export const PAYOUT_HOLD_DAYS = 7;
 export const RESPONSIBILITY_WINDOW_DAYS = 30;
+export const SALES_WEEK_DAYS = 7;
 
 /** Four lost disputes in a rolling 12 months, one per quarter. Two inside 60 days move the ban to the third. */
 export const LOST_DISPUTE_BAN_COUNT = 4;
@@ -130,6 +132,36 @@ export function lostDisputeBuyerNotice(outcome: LostDisputeOutcome): { title: st
     title: 'Lost dispute recorded',
     body: `A lost dispute is on your account. ${fee} ${countLine} 4 lost disputes in a rolling 12 months permanently ban you. If 2 fall within 60 days, the ban happens on the 3rd. ${support}`,
   };
+}
+
+export function salesCapForCook(input: {
+  accountStartedAt: Date;
+  chargebacks: number;
+  complaints: number;
+  now?: Date;
+}): { weekly: number; monthly: number; clearDays: number } {
+  const now = input.now ?? new Date();
+  const started = input.accountStartedAt.getTime();
+  const ageMs = now.getTime() - started;
+  const ageDays = Number.isFinite(ageMs) && ageMs > 0 ? Math.floor(ageMs / DAY_MS) : 0;
+  const restricted = input.chargebacks > 0 || input.complaints > 0;
+  const clearDays = restricted ? 0 : ageDays;
+  return { ...salesVolumeCap(clearDays), clearDays };
+}
+
+export function salesVolumeBlockMessage(
+  cap: { weekly: number; monthly: number },
+  weeklySales: number,
+  monthlySales: number,
+  nextSale: number,
+): string | null {
+  if (weeklySales + nextSale > cap.weekly) {
+    return `This cook is at the $${cap.weekly.toLocaleString('en-US')} sales limit for 7 days.`;
+  }
+  if (monthlySales + nextSale > cap.monthly) {
+    return `This cook is at the $${cap.monthly.toLocaleString('en-US')} sales limit for 30 days.`;
+  }
+  return null;
 }
 
 export function payoutReleaseAt(paidAt: Date = new Date()): string {

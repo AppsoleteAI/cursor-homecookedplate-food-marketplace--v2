@@ -36,15 +36,6 @@ const NSFW_MODEL = '@cf/llava-hf/llava-1.5-7b-hf';
 const NSFW_PROMPT =
   'This image is from a home-cooked food marketplace. Does it contain nudity, sexual content, graphic violence, gore, or any content inappropriate for a general audience? Answer with ONE word only: SAFE or UNSAFE.';
 
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = '';
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-  return btoa(binary);
-}
-
 async function nsfwVerdict(ai: CloudflareAI, bytes: Uint8Array): Promise<string> {
   const result = await ai.run(NSFW_MODEL, {
     image: Array.from(bytes),
@@ -588,7 +579,7 @@ export async function scanVideo(
 
   try {
     for (const frame of frames) {
-      const verdict = await nsfwVerdict(ai, bytesToBase64(frame));
+      const verdict = await nsfwVerdict(ai, frame);
       if (!verdict) {
         return {
           allowed: false,

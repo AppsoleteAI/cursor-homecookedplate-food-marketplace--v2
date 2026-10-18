@@ -6,8 +6,10 @@ import {
   REMOVAL_THRESHOLDS,
   RESPONSIBILITY_WINDOW_DAYS,
   SUPPORT_EMAIL,
+  salesCapForCook,
   warningReasons,
 } from '../../../../lib/payout-policy';
+import { SALES_VOLUME } from '../../../../lib/fees';
 import { countResponsibility, releaseDuePayouts } from '../../../../lib/stripe-marketplace';
 
 export const getPayoutStandingProcedure = protectedProcedure.query(async ({ ctx }) => {
@@ -28,7 +30,7 @@ export const getPayoutStandingProcedure = protectedProcedure.query(async ({ ctx 
 
   const { data: standing } = await ctx.supabaseAdmin
     .from('profiles')
-    .select('selling_removed, selling_removed_reason, stripe_account_id')
+    .select('selling_removed, selling_removed_reason, stripe_account_id, created_at')
     .eq('id', ctx.userId)
     .single();
 
@@ -66,11 +68,19 @@ export const getPayoutStandingProcedure = protectedProcedure.query(async ({ ctx 
     .order('created_at', { ascending: true })
     .limit(50);
 
+  const salesCap = salesCapForCook({
+    accountStartedAt: new Date(standing?.created_at ?? Date.now()),
+    chargebacks: counts.chargeback,
+    complaints: counts.complaint,
+  });
+  const salesCapLine = `Paid sales stay within $${salesCap.weekly.toLocaleString('en-US')} in 7 days and $${salesCap.monthly.toLocaleString('en-US')} in 30 days. A chargeback or complaint returns the limit to $${SALES_VOLUME.WEEKLY_BASE.toLocaleString('en-US')} and $${SALES_VOLUME.MONTHLY_BASE.toLocaleString('en-US')} for 30 days. The ceiling is $${SALES_VOLUME.WEEKLY_MAX.toLocaleString('en-US')} and $${SALES_VOLUME.MONTHLY_MAX.toLocaleString('en-US')}.`;
+
   return {
     holdDays: PAYOUT_HOLD_DAYS,
     windowDays: RESPONSIBILITY_WINDOW_DAYS,
     thresholds: REMOVAL_THRESHOLDS,
-    statement: PLATEMAKER_RESPONSIBILITY_STATEMENT,
+    salesCap,
+    statement: `${PLATEMAKER_RESPONSIBILITY_STATEMENT} ${salesCapLine}`,
     sellingRemoved: standing?.selling_removed === true,
     sellingRemovedReason: standing?.selling_removed_reason ?? null,
     stripeConnected: Boolean(standing?.stripe_account_id),

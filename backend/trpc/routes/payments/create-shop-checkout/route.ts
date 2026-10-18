@@ -5,6 +5,7 @@ import { protectedProcedure } from '../../../create-context';
 import { calculateDeliveryLevy, calculateFees, orderTotalWithDelivery } from '../../../../lib/fees';
 import { fulfillmentIsDelivery, savedDeliveryFee } from '../../../../lib/delivery-fee';
 import { assertBuyerCanOrder } from '../../../../lib/buyer-order-access';
+import { salesVolumeBlock } from '../../../../lib/stripe-marketplace';
 import { quoteShopOrder, SHOP_NAMES } from '../../../../lib/shop-catalog';
 import {
   packShopLines,
@@ -257,6 +258,11 @@ export const createShopCheckoutProcedure = protectedProcedure
         code: 'BAD_REQUEST',
         message: error instanceof Error ? error.message : 'This order cannot be charged',
       });
+    }
+
+    if (input.sellerId) {
+      const volumeBlock = await salesVolumeBlock(ctx.supabaseAdmin, input.sellerId, quote.baseAmount);
+      if (volumeBlock) throw new TRPCError({ code: 'FORBIDDEN', message: volumeBlock });
     }
 
     const fees = calculateFees(quote.baseAmount, 10, 10);

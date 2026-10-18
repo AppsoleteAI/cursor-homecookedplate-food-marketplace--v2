@@ -7,6 +7,12 @@ module.exports = defineConfig([
     ignores: ["dist/*", "coverage/*"],
   },
   {
+    files: ['supabase/functions/**/*.{js,ts}'],
+    rules: {
+      'import/no-unresolved': 'off',
+    },
+  },
+  {
     files: ['**/*.{js,jsx,ts,tsx}'],
     rules: {
       // CRITICAL: React Hooks Rules - Prevent "Rendered more hooks" errors

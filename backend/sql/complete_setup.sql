@@ -221,24 +221,35 @@ $$ LANGUAGE plpgsql;
 
 -- Function to automatically create profile when user signs up
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger AS $$
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  chosen_role text;
 BEGIN
+  chosen_role := COALESCE(NEW.raw_user_meta_data->>'role', 'platetaker');
+  IF chosen_role NOT IN ('platemaker', 'platetaker') THEN
+    chosen_role := 'platetaker';
+  END IF;
+
   INSERT INTO public.profiles (id, username, email, role, is_admin)
   VALUES (
-    new.id,
-    coalesce(new.raw_user_meta_data->>'username', split_part(new.email, '@', 1)),
-    new.email,
-    coalesce(new.raw_user_meta_data->>'role', 'platetaker'),
+    NEW.id,
+    COALESCE(NULLIF(NEW.raw_user_meta_data->>'username', ''), SPLIT_PART(COALESCE(NEW.email, 'member'), '@', 1)),
+    COALESCE(NEW.email, NEW.id::text || '@users.local'),
+    chosen_role,
     false
-  );
-  RETURN new;
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
 EXCEPTION
-  WHEN unique_violation THEN
-    RAISE EXCEPTION 'Username or email already exists';
-  WHEN others THEN
-    RAISE EXCEPTION 'Failed to create profile: %', SQLERRM;
+  WHEN OTHERS THEN
+    RAISE LOG 'handle_new_user failed for %: %', NEW.id, SQLERRM;
+    RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+$$;
 
 -- Function to automatically calculate order price (prevents price manipulation)
 CREATE OR REPLACE FUNCTION public.calculate_order_price()

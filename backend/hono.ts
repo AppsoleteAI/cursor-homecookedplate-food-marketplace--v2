@@ -127,6 +127,14 @@ app.use(
       }
       // Production: Allow specific Expo origins
       if (!origin) return '*'; // Allow requests without origin (e.g., Postman, curl) - '*' is OK here since no credentials without origin
+      try {
+        const url = new URL(origin);
+        if (url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1')) {
+          return origin;
+        }
+      } catch {
+        return null;
+      }
       const allowedOrigins = [
         'https://homecookedplate.com',
         'https://www.homecookedplate.com',

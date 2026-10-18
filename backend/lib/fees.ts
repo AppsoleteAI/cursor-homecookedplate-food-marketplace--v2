@@ -299,6 +299,35 @@ export const PLATFORM_FEES = {
   STRIPE_PERCENT: 0.029,     // 2.9% Stripe Fee
 } as const;
 
+/**
+ * Paid plate sales a cook may take. A new cook, and any cook with a chargeback
+ * or complaint still inside the 30-day dispute window, uses the base. Each
+ * clear 30 days adds one step until the maximum.
+ */
+export const SALES_VOLUME = {
+  WEEKLY_BASE: 1000,
+  MONTHLY_BASE: 3500,
+  WEEKLY_STEP: 1000,
+  MONTHLY_STEP: 3500,
+  WEEKLY_MAX: 5000,
+  MONTHLY_MAX: 17500,
+  STEP_DAYS: 30,
+} as const;
+
+export function salesVolumeCap(clearDays: number): { weekly: number; monthly: number } {
+  const days = Number.isFinite(clearDays) && clearDays > 0 ? Math.floor(clearDays) : 0;
+  const steps = Math.floor(days / SALES_VOLUME.STEP_DAYS);
+  const weekly = Math.min(
+    SALES_VOLUME.WEEKLY_MAX,
+    SALES_VOLUME.WEEKLY_BASE + steps * SALES_VOLUME.WEEKLY_STEP,
+  );
+  const monthly = Math.min(
+    SALES_VOLUME.MONTHLY_MAX,
+    SALES_VOLUME.MONTHLY_BASE + steps * SALES_VOLUME.MONTHLY_STEP,
+  );
+  return { weekly, monthly };
+}
+
 /** Charged to the cook when a card dispute is lost. The platform does not pay it. */
 export const LOST_DISPUTE_FEE = 15;
 export const LOST_DISPUTE_FEE_CENTS = 1500;

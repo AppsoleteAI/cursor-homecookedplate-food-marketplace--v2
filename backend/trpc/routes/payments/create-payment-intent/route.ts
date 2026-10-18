@@ -4,6 +4,7 @@ import { protectedProcedure } from '../../../create-context';
 import { buyerCardCharge, calculateDeliveryLevy, calculateFees, orderTotalWithDelivery } from '../../../../lib/fees';
 import { savedDeliveryFee } from '../../../../lib/delivery-fee';
 import { PAYOUT_HOLD_DAYS } from '../../../../lib/payout-policy';
+import { salesVolumeBlock } from '../../../../lib/stripe-marketplace';
 
 const inputSchema = z.object({
   amount: z.number().min(0),
@@ -96,6 +97,11 @@ export const createPaymentIntentProcedure = protectedProcedure
         code: 'FORBIDDEN',
         message: 'This cook is not allowed to take payments',
       });
+    }
+
+    const volumeBlock = await salesVolumeBlock(ctx.supabaseAdmin, input.sellerId, serverBaseAmount);
+    if (volumeBlock) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: volumeBlock });
     }
 
     if (!sellerProfile.stripe_account_id) {
