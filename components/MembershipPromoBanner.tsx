@@ -32,12 +32,12 @@ export const MembershipPromoBanner: React.FC<MembershipPromoBannerProps> = ({
 
   const story = audience === 'platemaker'
     ? {
-        title: 'Your cook path',
-        message: 'Home plates, then catering, a cart, a truck, and a restaurant.',
+        title: 'Your Cook Path',
+        message: 'Home, Catering, Cart, Truck, and Restaurant.',
       }
     : {
-        title: 'Where you can eat',
-        message: 'Home kitchens, farms, weekly prep, catering, carts, trucks, and restaurants.',
+        title: 'Where You Can Eat',
+        message: 'Home Kitchens, Farms, Weekly Prep, Catering, Carts, Trucks, and Restaurants.',
       };
 
   const handlePress = () => {

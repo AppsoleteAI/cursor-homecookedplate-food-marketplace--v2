@@ -33,11 +33,21 @@ export default function MembershipAccessScreen() {
       <Stack.Screen options={{ title: isMaker ? 'Cook path' : 'Where to eat', headerShown: true }} />
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>{isMaker ? 'Grow with the kitchen you have' : 'Plates from more than one place'}</Text>
-        <Text style={styles.body}>
-          {isMaker
-            ? 'The places a PlateTaker can order from are also places a cook can grow into. Home comes first. Catering, a Cart, a Truck, and a Restaurant come after, each with its own license.'
-            : 'You already have access. Look through Home Kitchens, then Farms, Weekly Prep, Catering, Carts, Trucks, and Restaurants. Premium is $4.99 a month. It cuts the service fee on the receipt from 10% to 5% on orders of $20 or more.'}
-        </Text>
+        {isMaker ? (
+          <Text style={styles.body}>
+            The places a PlateTaker can order from are also places a cook can grow into. Home, Catering, a Cart, a Truck, and a Restaurant each have their own license.
+          </Text>
+        ) : (
+          <>
+            <Text style={styles.body}>Congratulations. You now have access.</Text>
+            {['Home Kitchens', 'Farms', 'Weekly Prep', 'Catering', 'Carts', 'Trucks', 'Restaurants'].map((section) => (
+              <Text key={section} style={styles.bullet}>{`• ${section}`}</Text>
+            ))}
+            <Text style={styles.body}>
+              Premium is $4.99 a month. It cuts the service fee on the receipt from 10% to 5% on orders of $20 or more.
+            </Text>
+          </>
+        )}
         {places.map((place) => (
           <LinearGradient
             key={place.name}
@@ -78,6 +88,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     color: Colors.gray[700],
+  },
+  bullet: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: Colors.gray[900],
+    fontWeight: '600',
   },
   cardBody: {
     fontSize: 16,
