@@ -13,47 +13,22 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 
-type MembershipTier = "free" | "premium";
+type MembershipRole = "platemaker" | "platetaker";
+type MembershipInterval = "month" | "year";
 
-function getStripePriceId(membershipTier: MembershipTier, isEarlyBird: boolean): string {
-  const earlyBirdPriceId = Deno.env.get("STRIPE_PRICE_ID_EARLY_BIRD_TRIAL") || "";
-  const standardPriceId = Deno.env.get("STRIPE_PRICE_ID_MONTHLY") || "price_monthly_499";
-
-  // SUCCESS: Early Bird users (isEarlyBird=true AND premium) get the trial price ID
-  if (isEarlyBird && membershipTier === "premium") {
-    if (!earlyBirdPriceId) {
-      console.warn(
-        "[create-checkout-session] STRIPE_PRICE_ID_EARLY_BIRD_TRIAL not set, falling back to standard price",
-      );
-      return standardPriceId;
-    }
-    return earlyBirdPriceId;
-  }
-
-  // CAP_REACHED or OUTSIDE_ZONE: Remote users, Over-cap, or free tier use standard monthly price
-  return standardPriceId;
+function membershipCents(role: MembershipRole, interval: MembershipInterval): number {
+  if (role === "platetaker") return interval === "year" ? 7599 : 799;
+  return interval === "year" ? 3999 : 499;
 }
 
-async function resolveCatalogPriceId(stripeSecretKey: string, configured: string): Promise<string | null> {
-  if (configured.startsWith("price_") && configured !== "price_monthly_499") return configured;
-  if (!configured.startsWith("prod_")) return null;
-
-  const response = await fetch(
-    `https://api.stripe.com/v1/prices?product=${encodeURIComponent(configured)}&active=true&limit=20`,
-    { headers: { Authorization: `Bearer ${stripeSecretKey}` } },
-  );
-  if (!response.ok) return null;
-
-  const body = await response.json();
-  const prices = Array.isArray(body?.data) ? body.data : [];
-  const monthlyMembership = prices.find((price: { unit_amount?: number; currency?: string; recurring?: { interval?: string } }) =>
-    price.currency === "usd" && price.recurring?.interval === "month" && price.unit_amount === 499
-  );
-  return monthlyMembership?.id ?? null;
+function membershipName(role: MembershipRole, interval: MembershipInterval): string {
+  const who = role === "platetaker" ? "PlateTaker" : "PlateMaker";
+  return `HomeCookedPlate ${who} ${interval === "year" ? "yearly" : "monthly"}`;
 }
 
 type CreateCheckoutSessionBody = {
   returnUrl?: string;
+  interval?: MembershipInterval;
 };
 
 serve(async (req) => {
@@ -116,7 +91,7 @@ serve(async (req) => {
     // Get user profile to determine Early Bird status and membership tier
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
-      .select("id, email, username, membership_tier, metro_area, trial_ends_at, stripe_customer_id")
+      .select("id, email, username, role, membership_tier, metro_area, trial_ends_at, stripe_customer_id")
       .eq("id", userId)
       .single();
 
@@ -128,13 +103,10 @@ serve(async (req) => {
       });
     }
 
-    // Determine if user is Early Bird (has trial_ends_at and metro_area is not Remote/Other)
-    const isEarlyBird = Boolean(
-      profile.trial_ends_at && profile.metro_area && profile.metro_area !== "Remote/Other",
-    );
-
-    const membershipTier: MembershipTier = (profile.membership_tier || "free") as MembershipTier;
-    const priceId = getStripePriceId(membershipTier, isEarlyBird);
+    const role: MembershipRole = profile.role === "platemaker" ? "platemaker" : "platetaker";
+    const interval: MembershipInterval = body.interval === "year" ? "year" : "month";
+    const unitAmount = membershipCents(role, interval);
+    const productName = membershipName(role, interval);
 
     // Create or retrieve Stripe customer
     let customerId: string | null = profile.stripe_customer_id ?? null;
@@ -195,22 +167,17 @@ serve(async (req) => {
       success_url: `${returnUrl}?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: returnUrl,
       "metadata[user_id]": profile.id,
-      "metadata[is_early_bird]": String(isEarlyBird),
+      "metadata[role]": role,
+      "metadata[interval]": interval,
       "metadata[membership_tier]": profile.membership_tier || "free",
       "metadata[metro_area]": profile.metro_area || "",
       "payment_method_types[0]": "card",
     });
 
-    const catalogPriceId = await resolveCatalogPriceId(stripeSecretKey, priceId);
-    if (catalogPriceId) {
-      sessionParams.set("line_items[0][price]", catalogPriceId);
-    } else {
-      // $4.99 a month, the same amount as SUBSCRIPTION_PRICES.MONTHLY in backend/lib/fees.ts.
-      sessionParams.set("line_items[0][price_data][currency]", "usd");
-      sessionParams.set("line_items[0][price_data][unit_amount]", "499");
-      sessionParams.set("line_items[0][price_data][recurring][interval]", "month");
-      sessionParams.set("line_items[0][price_data][product_data][name]", "HomeCookedPlate membership");
-    }
+    sessionParams.set("line_items[0][price_data][currency]", "usd");
+    sessionParams.set("line_items[0][price_data][unit_amount]", String(unitAmount));
+    sessionParams.set("line_items[0][price_data][recurring][interval]", interval);
+    sessionParams.set("line_items[0][price_data][product_data][name]", productName);
 
     const sessionResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",
@@ -240,15 +207,16 @@ serve(async (req) => {
     const session = await sessionResponse.json();
 
     console.log(
-      `[Stripe] Checkout session created: ${session.id} for user ${profile.id}, price: ${priceId}, early_bird: ${isEarlyBird}`,
+      `[Stripe] Checkout session created: ${session.id} for user ${profile.id}, role: ${role}, interval: ${interval}, cents: ${unitAmount}`,
     );
 
     return new Response(
       JSON.stringify({
         checkoutUrl: session.url,
         sessionId: session.id,
-        priceId,
-        isEarlyBird,
+        role,
+        interval,
+        unitAmount,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

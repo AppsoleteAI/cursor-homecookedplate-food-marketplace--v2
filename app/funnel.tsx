@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import {
   View,
@@ -6,50 +6,30 @@ import {
   StyleSheet,
   TextInput,
   ScrollView,
-  BackHandler,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
 import { Colors, monoGradients } from '@/constants/colors';
 import { MealCard } from '@/components/MealCard';
 import { cuisineTypes, dietaryOptions } from '@/mocks/data';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/hooks/auth-context';
 import type { Meal } from '@/types';
-import { useRouter, Stack } from 'expo-router';
+import { Stack } from 'expo-router';
+import { BackCircle } from '@/components/BackCircle';
+import { useLeaveScreen } from '@/hooks/use-leave-screen';
 
 export default function FunnelScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const { user } = useAuth();
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const leave = useLeaveScreen('/(tabs)/search');
+  const [searchQuery] = useState<string>('');
   const [selectedCuisines, setSelectedCuisines] = useState<string[]>([]);
   const [selectedDietary, setSelectedDietary] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [priceRange, setPriceRange] = useState<{ min: number | null; max: number | null }>({ min: null, max: null });
   const [minRating, setMinRating] = useState<number>(0);
-
-  const resetFiltersAndGoBack = useCallback(() => {
-    setSearchQuery('');
-    setSelectedCuisines([]);
-    setSelectedDietary([]);
-    setSelectedCategories([]);
-    setSelectedTags([]);
-    setPriceRange({ min: null, max: null });
-    setMinRating(0);
-    router.back();
-  }, [router]);
-
-  useEffect(() => {
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      resetFiltersAndGoBack();
-      return true;
-    });
-
-    return () => backHandler.remove();
-  }, [resetFiltersAndGoBack]);
 
   const { data: mealsData, isLoading } = trpc.meals.list.useQuery({
     metroArea: user?.metroArea || undefined,
@@ -144,18 +124,11 @@ export default function FunnelScreen() {
         >
           <View style={styles.headerInner}>
             <View style={styles.headerTop}>
-              <GlassPressable
-                style={styles.backButton}
-                onPress={resetFiltersAndGoBack}
-                accessibilityRole="button"
-                testID="back-to-search"
-              >
-                <Ionicons name="arrow-back" size={24} color={Colors.white} />
-              </GlassPressable>
+              <BackCircle tone="light" onPress={leave} testID="back-to-search" />
               <Text style={styles.title}>Funnel Search</Text>
             </View>
             <View style={styles.headerActions}>
-              <GlassPressable onPress={resetFiltersAndGoBack} testID="back-to-search-button">
+              <GlassPressable onPress={leave} testID="back-to-search-button">
                 <Text style={styles.actionButton}>Back To Search</Text>
               </GlassPressable>
               <GlassPressable onPress={clearFilters} testID="clear-filters">
@@ -339,8 +312,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 12,
   },
   backButton: {
@@ -356,7 +328,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     color: Colors.white,
-    flex: 1,
   },
   headerActions: {
     flexDirection: 'row',

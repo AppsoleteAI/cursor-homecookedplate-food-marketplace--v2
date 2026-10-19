@@ -1,4 +1,4 @@
-import { platemakerTrialCountdownDays, unpaidPlatemakerTrialEnded } from "../../../../lib/trial-access";
+import { metroRequiresMembership, platemakerMayEnter, platemakerTrialCountdownDays, unpaidPlatemakerTrialEnded } from "../../../../lib/trial-access";
 import { protectedProcedure } from "../../../create-context";
 
 export const meProcedure = protectedProcedure
@@ -40,6 +40,9 @@ export const meProcedure = protectedProcedure
       isPaused: profile.is_paused,
       twoFactorEnabled: profile.two_factor_enabled,
       membershipTier,
+      needsMembership: profile.role === 'platemaker'
+        && metroRequiresMembership(profile.metro_area)
+        && !platemakerMayEnter({ ...profile, membership_tier: membershipTier }),
       trialExpired,
       trialCountdownDays: platemakerTrialCountdownDays(profile),
       stripeCustomerId: profile.stripe_customer_id || undefined,
@@ -47,6 +50,7 @@ export const meProcedure = protectedProcedure
       metroArea: profile.metro_area || null,
       trialEndsAt: profile.trial_ends_at ? new Date(profile.trial_ends_at) : null,
       foodSafetyAcknowledged: profile.food_safety_acknowledged || false,
+      legalSafetyAgreement: profile.legal_safety_agreement ?? null,
       orderingRemoved: profile.ordering_removed === true,
     };
   });

@@ -420,6 +420,23 @@ export const SUBSCRIPTION_PRICES = {
   STRIPE_ANNUAL_ID_ENV: 'STRIPE_PRICE_ID_STANDARD_ANNUAL',
 } as const;
 
+export type MembershipRole = 'platemaker' | 'platetaker';
+export type MembershipInterval = 'month' | 'year';
+
+/** Stripe unit_amount for the role and billing interval. Amounts stay in SUBSCRIPTION_PRICES. */
+export function membershipPriceCents(role: MembershipRole, interval: MembershipInterval): number {
+  const dollars = role === 'platetaker'
+    ? (interval === 'year' ? SUBSCRIPTION_PRICES.PLATETAKER_ANNUAL : SUBSCRIPTION_PRICES.PLATETAKER_MONTHLY)
+    : (interval === 'year' ? SUBSCRIPTION_PRICES.PLATEMAKER_ANNUAL : SUBSCRIPTION_PRICES.PLATEMAKER_MONTHLY);
+  return Math.round(dollars * 100);
+}
+
+export function membershipProductName(role: MembershipRole, interval: MembershipInterval): string {
+  const who = role === 'platetaker' ? 'PlateTaker' : 'PlateMaker';
+  const when = interval === 'year' ? 'yearly' : 'monthly';
+  return `HomeCookedPlate ${who} ${when}`;
+}
+
 export const DEFAULT_FORECAST_ASSUMPTIONS: ForecastAssumptions = {
   subscriptionPriceMonthly: SUBSCRIPTION_PRICES.MONTHLY,
   subscriptionPriceAnnual: SUBSCRIPTION_PRICES.ANNUAL,

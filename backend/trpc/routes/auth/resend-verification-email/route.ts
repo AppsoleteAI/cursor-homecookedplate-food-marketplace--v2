@@ -22,42 +22,50 @@ export const resendVerificationEmailProcedure = publicProcedure
     })
   )
   .mutation(async ({ input, ctx }) => {
-    const { email } = input;
+    const email = input.email.trim().toLowerCase();
+    const sent = {
+      success: true,
+      message: 'If an account exists with this email, a new verification link has been sent.',
+    };
 
-    // Find user by email
-    const { data: userData, error: userError } = await ctx.supabaseAdmin.auth.admin.listUsers();
-    
-    if (userError) {
+    const { data: profileRows, error: profileError } = await ctx.supabaseAdmin
+      .from('profiles')
+      .select('id, username, email')
+      .ilike('email', email)
+      .limit(1);
+
+    if (profileError) {
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Failed to lookup user',
       });
     }
 
-    const user = userData.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+    const profile = profileRows?.[0];
+    if (!profile) {
+      return sent;
+    }
 
-    if (!user) {
-      // Don't reveal if email exists for security (prevent email enumeration)
-      // Always return success message regardless
+    const { data: authData, error: authError } = await ctx.supabaseAdmin.auth.admin.getUserById(profile.id);
+    if (authError || !authData.user) {
+      return sent;
+    }
+
+    if (authData.user.email_confirmed_at) {
       return {
         success: true,
-        message: 'If an account exists with this email, a new verification link has been sent.',
+        alreadyConfirmed: true,
+        message: 'This address is already confirmed. You can sign in.',
       };
     }
 
-    if (user.email_confirmed_at) {
-      return {
-        success: true,
-        message: 'If an account exists with this email, a new verification link has been sent.',
-      };
-    }
+    const user = authData.user;
 
     // Check for existing unused tokens
     const { data: existingTokens } = await ctx.supabaseAdmin
       .from('email_verification_tokens')
       .select('id')
       .eq('user_id', user.id)
-      .eq('email', email)
       .is('used_at', null)
       .gt('expires_at', new Date().toISOString())
       .limit(1);
@@ -70,14 +78,8 @@ export const resendVerificationEmailProcedure = publicProcedure
       };
     }
 
-    // Get user profile for username
-    const { data: profile } = await ctx.supabaseAdmin
-      .from('profiles')
-      .select('username')
-      .eq('id', user.id)
-      .single();
-
-    const username = profile?.username || email.split('@')[0];
+    const username = profile.username || email.split('@')[0];
+    const deliveryEmail = (profile.email || email).trim().toLowerCase();
 
     // Generate new secure token
     const confirmationToken = randomBytes(32).toString('hex');
@@ -90,7 +92,7 @@ export const resendVerificationEmailProcedure = publicProcedure
       .insert({
         user_id: user.id,
         token: confirmationToken,
-        email: email,
+        email: deliveryEmail,
         expires_at: expiresAt.toISOString(),
       });
 
@@ -106,12 +108,12 @@ export const resendVerificationEmailProcedure = publicProcedure
     try {
       const webUrl = ctx.webUrl || process.env.EXPO_PUBLIC_WEB_URL || 'https://homecookedplate.com';
       await sendEmailConfirmation(
-        email,
+        deliveryEmail,
         username,
         confirmationToken,
         webUrl
       );
-      console.log(`[Resend Verification] Email sent to ${email}`);
+      console.log(`[Resend Verification] Email sent to ${deliveryEmail}`);
     } catch (emailError) {
       console.error('[Resend Verification] Failed to send email:', emailError);
       throw new TRPCError({

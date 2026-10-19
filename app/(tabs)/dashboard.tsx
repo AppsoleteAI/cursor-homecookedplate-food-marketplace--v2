@@ -19,7 +19,8 @@ import { Colors, inAppHeaderBand, monoGradients, pagePastel } from '@/constants/
 import { GradientButton } from '@/components/GradientButton';
 
 
-import { router, useFocusEffect , type Href } from 'expo-router';
+import { router, useFocusEffect, usePathname, type Href } from 'expo-router';
+import { openFoodHandling } from '@/components/FoodHandlingLink';
 
 import { useOrders } from '@/hooks/orders-context';
 import { useAuth } from '@/hooks/auth-context';
@@ -31,6 +32,7 @@ import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
 import { DeliveryFeeCard } from '@/components/DeliveryFeeCard';
 
 export default function DashboardScreen() {
+  const pathname = usePathname();
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [headerHeight, setHeaderHeight] = useState<number>(0);
   const insets = useSafeAreaInsets();
@@ -270,7 +272,7 @@ export default function DashboardScreen() {
 
         <Pressable
           style={styles.handlingStandCard}
-          onPress={() => router.push('/food-handling' as Href)}
+          onPress={() => openFoodHandling(pathname)}
           testID="dashboard-food-handling"
         >
           <Text style={styles.handlingStandTitle}>Food handling</Text>

@@ -3,6 +3,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { GlassBadge } from "@/components/glass-surface";
 import { Colors } from "@/constants/colors";
+import { userNeedsMembership } from "@/backend/lib/trial-access";
 import { useAuth } from "@/hooks/auth-context";
 import { useCart } from "@/hooks/cart-context";
 import { navLogger } from "@/lib/nav-logger";
@@ -25,6 +26,10 @@ export default function TabLayout() {
       reason: 'session_expired_or_missing',
     });
     return <Redirect href="/(auth)/login" />;
+  }
+
+  if (userNeedsMembership(user)) {
+    return <Redirect href="/membership" />;
   }
 
   return (
@@ -129,6 +134,16 @@ export default function TabLayout() {
       <Tabs.Screen
         name="panic-dashboard"
         options={{ href: null }}
+      />
+      <Tabs.Screen
+        name="food-review-clips"
+        options={{
+          title: "Clips",
+          tabBarLabel: "Clips",
+          tabBarIcon: () => (
+            <Text testID="tab-icon-clips" style={styles.emoji} accessibilityLabel="FoodReviewClips Tab Icon">🎬</Text>
+          ),
+        }}
       />
       <Tabs.Screen
         name="profile"

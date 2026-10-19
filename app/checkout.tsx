@@ -44,6 +44,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter , type Href } from 'expo-router';
 
 import { useStripe } from '@/lib/stripe';
+import { useLeaveScreen, usePaidBack, useStayBack } from '@/hooks/use-leave-screen';
 type ConfettiBurstProps = { headerOffset: number; onEnd: () => void };
 
 type CongratsFlashProps = { visible: boolean; footerOffset: number; onEnd?: () => void };
@@ -284,6 +285,9 @@ export default function CheckoutScreen() {
   const [footerHeight, setFooterHeight] = useState<number>(0);
   const [showCongrats, setShowCongrats] = useState<boolean>(false);
   const [processing, setProcessing] = useState<boolean>(false);
+  const leave = useLeaveScreen('/(tabs)/cart', !showThankYou && !processing);
+  useStayBack(processing && !showThankYou);
+  const paidLeave = usePaidBack('/(tabs)/orders', showThankYou);
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -471,7 +475,7 @@ export default function CheckoutScreen() {
               <View style={styles.thankYouSection}>
                 <Text style={styles.thankYouMessage}>Thank You. Enjoy Your Plate</Text>
                 <GlassPressable
-                  onPress={() => router.replace('/(tabs)/cart')}
+                  onPress={() => (showThankYou ? paidLeave() : processing ? undefined : leave())}
                   style={styles.backToCartButton}
                   testID="back-to-cart"
                 >
@@ -525,7 +529,7 @@ export default function CheckoutScreen() {
                   <Text style={styles.paymentAmount}>${cardCharge.cardCharge.toFixed(2)}</Text>
                 </LinearGradient>
               </View>
-              <Text style={styles.paymentInfo}>HomeCookedPlate keeps both non-refundable 10% fees. A refund returns the cook&apos;s share only. These fees are not returned.</Text>
+              <Text style={styles.paymentInfo}>HomeCookedPlate keeps both non-refundable 10% fees. A refund returns the cook&apos;s share only. These fees are not returned. On delivery, you also pay 5% on the delivery amount the cook set. The cook receives that amount. HomeCookedPlate keeps the 5%.</Text>
               <Pressable
                 onPress={() => setFeesAcknowledged((prev) => !prev)}
                 style={[styles.checkboxRow, feesAcknowledged ? styles.checkboxRowActive : undefined]}

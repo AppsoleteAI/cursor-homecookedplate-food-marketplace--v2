@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import {
   View,
@@ -6,7 +6,6 @@ import {
   StyleSheet,
   TextInput,
   ScrollView,
-  BackHandler,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,6 +16,7 @@ import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/hooks/auth-context';
 import type { Meal } from '@/types';
 import { useRouter } from 'expo-router';
+import { useConsumeBack } from '@/hooks/use-leave-screen';
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
@@ -37,18 +37,7 @@ export default function SearchScreen() {
     setSearchQuery('');
     setIsSearchActive(false);
   }, []);
-
-  useEffect(() => {
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (isSearchActive) {
-        resetSearch();
-        return true;
-      }
-      return false;
-    });
-
-    return () => backHandler.remove();
-  }, [isSearchActive, resetSearch]);
+  useConsumeBack(resetSearch, isSearchActive);
 
   const openFilter = useCallback(() => {
     router.push('/filter');

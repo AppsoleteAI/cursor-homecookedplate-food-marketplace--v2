@@ -1,7 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { clearLoginLegalBox } from '@/lib/legal-agreement';
+import { agreementFromUnknown, clearLoginLegalBox, readLegalAgreement, setLoginLegalBoxChecked, toCompletedLegalAgreement, writeLegalAgreement } from '@/lib/legal-agreement';
 // Import expo-secure-store with platform-specific shim for web compatibility
 // Metro will automatically resolve to lib/expo-secure-store.web.ts on web platform
 import * as SecureStore from '@/lib/expo-secure-store';
@@ -21,7 +21,7 @@ interface AuthState {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<void>;
-  signup: (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }, foodSafetyAcknowledged?: boolean) => Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean; needsEmailConfirmation?: boolean }>;
+  signup: (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }, foodSafetyAcknowledged?: boolean) => Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean; chooseMembership?: boolean; needsEmailConfirmation?: boolean }>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<Pick<User, 'username' | 'email' | 'phone' | 'bio' | 'profileImage'>>) => Promise<void>;
   requestPlatemakerRole: () => Promise<void>;
@@ -395,6 +395,19 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
       const loginPromise = loginMutation.mutateAsync({ email, password });
       const result = await Promise.race([loginPromise, timeoutPromise]);
+      const localAgreement = toCompletedLegalAgreement(await readLegalAgreement());
+      const accountAgreement = agreementFromUnknown(result.legalSafetyAgreement);
+      if (!localAgreement && !accountAgreement) {
+        throw new Error('Complete the Legal & Safety page before signing in.');
+      }
+      if (!localAgreement && accountAgreement) {
+        try {
+          await writeLegalAgreement(accountAgreement);
+        } catch (storageError) {
+          console.error('[Login] Could not save the Legal & Safety agreement on this device', storageError);
+        }
+        setLoginLegalBoxChecked(true);
+      }
 
       if (mountedRef.current) {
         setUser(result.user);
@@ -409,6 +422,9 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       setSentryUser(result.user);
       addBreadcrumb('User logged in', 'auth', { userId: result.user.id, role: result.user.role });
     } catch (error) {
+      if (error instanceof Error && error.message.includes('Complete the Legal & Safety page')) {
+        throw error;
+      }
       captureException(error as Error, { context: 'login' });
       // Re-throw with better error message for network issues
       if (error instanceof Error && (error.message.includes('timeout') || error.message.includes('fetch'))) {
@@ -418,7 +434,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     }
   }, [loginMutation, persistUser, persistSession]);
 
-  const signup = useCallback(async (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }, foodSafetyAcknowledged?: boolean): Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean; needsEmailConfirmation?: boolean }> => {
+  const signup = useCallback(async (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }, foodSafetyAcknowledged?: boolean): Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean; chooseMembership?: boolean; needsEmailConfirmation?: boolean }> => {
     try {
       // Add timeout for stuck network requests (15 seconds for signup)
       const timeoutPromise = new Promise<never>((_, reject) => {
@@ -439,35 +455,38 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
       const result = await Promise.race([signupPromise, timeoutPromise]);
       
-      // Backend returns session: null because admin.createUser() doesn't create sessions
-      // User will need to login after signup
-      // Backend now returns status-based structure: { status: 'SUCCESS' | 'REDIRECT_TO_PAYMENT', user, session, metro, trialEndsAt?, needsEmailConfirmation? }
-      const requiresCheckout = result.status === 'REDIRECT_TO_PAYMENT';
+      // Signup returns a session so Membership can call the server with this account.
+      const chooseMembership = result.status === 'CHOOSE_MEMBERSHIP';
+      const requiresCheckout = false;
       const needsEmailConfirmation = result.needsEmailConfirmation ?? false;
+      const remoteMetro = !result.user.metroArea || result.user.metroArea === 'Remote/Other';
+      const signedUpUser = chooseMembership && !remoteMetro ? { ...result.user, needsMembership: true as const } : result.user;
       
       if (result.session) {
-        // Session returned (e.g., OAuth flows) - persist and go directly to app
-        if (mountedRef.current) {
-          setUser(result.user);
-          setSession(result.session);
-        }
-        await persistUser(result.user);
-        await persistSession(result.session);
-        await supabase.auth.setSession({
+        const opened = await supabase.auth.setSession({
           access_token: result.session.access_token,
           refresh_token: result.session.refresh_token,
         });
+        if (opened.error || !opened.data.session) {
+          throw opened.error ?? new Error('The account was created, but it could not be opened.');
+        }
+        if (mountedRef.current) {
+          setUser(signedUpUser);
+          setSession(opened.data.session);
+        }
+        await persistUser(signedUpUser);
+        await persistSession(opened.data.session);
         setSentryUser(result.user);
         addBreadcrumb('User signed up', 'auth', { userId: result.user.id, role: result.user.role, status: result.status, metro: result.metro });
-        return { success: true, requiresLogin: false, requiresCheckout, needsEmailConfirmation };
+        return { success: true, requiresLogin: false, requiresCheckout, chooseMembership, needsEmailConfirmation };
       } else {
         // No session - user created but needs to login separately
         // Just set user info for the success animation, don't persist session
         if (mountedRef.current) {
-          setUser(result.user);
+          setUser(signedUpUser);
         }
         addBreadcrumb('User signed up (no session - needs login)', 'auth', { userId: result.user.id, role: result.user.role, status: result.status, metro: result.metro });
-        return { success: true, requiresLogin: true, requiresCheckout, needsEmailConfirmation };
+        return { success: true, requiresLogin: true, requiresCheckout, chooseMembership, needsEmailConfirmation };
       }
     } catch (error) {
       captureException(error as Error, { context: 'signup', role });

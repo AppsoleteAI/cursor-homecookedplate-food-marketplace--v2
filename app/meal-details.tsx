@@ -13,6 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { SellerOnly } from '@/components/RoleGuard';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
+import { BackCircle } from '@/components/BackCircle';
+import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { GradientButton } from '@/components/GradientButton';
 import { Colors, pagePastel } from '@/constants/colors';
 import { cuisineTypes } from '@/mocks/data';
@@ -54,10 +56,7 @@ export default function MealDetailsScreen() {
     setFilled(true);
   }, [mealQuery.data, filled]);
 
-  const leave = () => {
-    if (router.canGoBack()) router.back();
-    else router.replace('/(tabs)/dashboard' as Href);
-  };
+  const leave = useLeaveScreen('/(tabs)/dashboard');
 
   const addPhoto = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -116,9 +115,7 @@ export default function MealDetailsScreen() {
       <SafeAreaView style={styles.screen} testID="meal-details">
         <Stack.Screen options={{ headerShown: false }} />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <GlassPressable onPress={leave} testID="meal-details-back">
-            <Text style={styles.back}>Back</Text>
-          </GlassPressable>
+          <BackCircle tone="honey" onPress={leave} testID="meal-details-back" />
           <Text style={styles.title}>Category, ingredients, and freshness</Text>
           <Text style={styles.subtitle}>The plate is already published. Add these when you can.</Text>
 

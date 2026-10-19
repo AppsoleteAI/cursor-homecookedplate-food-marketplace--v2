@@ -107,6 +107,12 @@ export function toCompletedLegalAgreement(
   };
 }
 
+/** Accept a stored account or device record only when every section and the date are present. */
+export function agreementFromUnknown(value: unknown): CompletedLegalAgreement | null {
+  if (!value || typeof value !== 'object') return null;
+  return toCompletedLegalAgreement(value as LegalAgreementRecord);
+}
+
 export async function readLegalAgreement(): Promise<LegalAgreementRecord | null> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);

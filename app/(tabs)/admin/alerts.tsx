@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { GlassPressable, glassSurface } from '@/components/glass-surface';
+import { glassSurface } from '@/components/glass-surface';
 import {
   View,
   Text,
@@ -11,7 +11,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
+import { BackCircle } from '@/components/BackCircle';
+import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { Colors, monoGradients } from '@/constants/colors';
 import { AdminOnly } from '@/components/RoleGuard';
 import { trpc } from '@/lib/trpc';
@@ -29,6 +31,7 @@ interface SystemAlert {
 
 export default function AdminAlertsFeed() {
   const insets = useSafeAreaInsets();
+  const leave = useLeaveScreen('/(tabs)/profile');
   const [refreshing, setRefreshing] = useState(false);
 
   const { data: alerts, isLoading, error, refetch } = trpc.admin.getSystemAlerts.useQuery();
@@ -87,12 +90,7 @@ export default function AdminAlertsFeed() {
             style={[styles.headerGradient, { paddingTop: insets.top }]}
           >
             <View style={styles.headerContent}>
-              <GlassPressable
-                style={styles.backButton}
-                onPress={() => router.back()}
-              >
-                <Ionicons name="arrow-back" size={24} color={Colors.white} />
-              </GlassPressable>
+              <BackCircle tone="light" onPress={leave} gapBelow={false} testID="admin-alerts-back" />
               <Text style={styles.headerTitle}>City Max Alerts</Text>
               <View style={styles.headerSpacer} />
             </View>

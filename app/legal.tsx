@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,16 +9,20 @@ import {
   Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, router } from 'expo-router';
+import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthColors } from '@/constants/auth-palette';
+import { calculateDeliveryLevy, calculateOrderSplit, DELIVERY_PLATFORM_RATE } from '@/lib/fees';
 import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { BUYER_AFTER_NOTE } from '@/lib/buyer-safety';
-import { AuthBackground, AuthBackButton, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { BackCircle } from '@/components/BackCircle';
+import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
 import { GlassTop } from '@/components/glass-surface';
 import {
+  agreementFromUnknown,
   allSectionsAgreed,
   emptyLegalSections,
   parseEnteredDate,
@@ -27,29 +31,64 @@ import {
   todayStamp,
   toCompletedLegalAgreement,
   writeLegalAgreement,
+  type LegalAgreementRecord,
   type LegalSectionId,
 } from '@/lib/legal-agreement';
+
+const MEAL_EXAMPLE = calculateOrderSplit(20);
+const DELIVERY_EXAMPLE = calculateDeliveryLevy(10);
+const DELIVERY_PERCENT = Math.round(DELIVERY_PLATFORM_RATE * 100);
 
 const FINAL_AGREEMENT =
   'By entering today\'s date below, I acknowledge that I have read this Legal & Safety page in full. I confirm that I have checked each section above as my separate agreement to that section. I agree to be bound by the jurisdictional notices, delivery and safety rules, liability waivers, personal-information terms, allergy and food-safety disclaimers, fee terms, and account-termination rules stated on this page. I understand that the date I enter is my signed record of this agreement with HomeCookedPlate and its Appsolete affiliates, and that I may not use the app until this acknowledgment is complete.';
 
 export default function LegalScreen() {
+  const leave = useLeaveScreen('/(auth)/login');
   const { session } = useAuth();
   const saveAgreement = trpc.auth.updateProfile.useMutation();
   const [sections, setSections] = useState(emptyLegalSections);
   const [dateText, setDateText] = useState('');
   const [recordedOn, setRecordedOn] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const accountAgreement = trpc.auth.me.useQuery(undefined, {
+    enabled: Boolean(session),
+    retry: false,
+  });
+
+  useEffect(() => () => {
+    if (leaveTimer.current) clearTimeout(leaveTimer.current);
+  }, []);
+
+  const applyRecord = (record: LegalAgreementRecord) => {
+    setSections({ ...emptyLegalSections(), ...record.sections });
+    const [year, month, day] = record.acknowledgedOn.split('-');
+    if (year && month && day) setDateText(`${month}/${day}/${year}`);
+    setRecordedOn(record.acknowledgedOn);
+  };
 
   useEffect(() => {
-    readLegalAgreement().then((record) => {
-      if (!record) return;
-      setSections({ ...emptyLegalSections(), ...record.sections });
-      const [year, month, day] = record.acknowledgedOn.split('-');
-      if (year && month && day) setDateText(`${month}/${day}/${year}`);
-      setRecordedOn(record.acknowledgedOn);
+    let active = true;
+    readLegalAgreement().then(async (record) => {
+      if (!active) return;
+      if (toCompletedLegalAgreement(record) && record) {
+        applyRecord(record);
+        return;
+      }
+      const fromAccount = agreementFromUnknown(accountAgreement.data?.legalSafetyAgreement);
+      if (!fromAccount) return;
+      try {
+        await writeLegalAgreement(fromAccount);
+      } catch (error) {
+        console.error('[Legal] Could not save the account agreement on this device', error);
+      }
+      if (!active) return;
+      applyRecord(fromAccount);
     });
-  }, []);
+    return () => {
+      active = false;
+    };
+  }, [accountAgreement.data]);
 
   const toggle = (id: LegalSectionId) => {
     if (recordedOn) return;
@@ -83,14 +122,18 @@ export default function LegalScreen() {
     if (session) {
       try {
         await saveAgreement.mutateAsync({ legalSafetyAgreement: record });
-        setNotice('Your acknowledgment is recorded on your account.');
+        setNotice('Your acknowledgment is recorded on your account. Returning to sign in.');
       } catch (error) {
         console.error('[Legal] Failed to store agreement', error);
-        setNotice('Your acknowledgment is saved on this device. It will be added to your account when you sign in.');
+        setNotice('Your acknowledgment is saved on this device. Returning to sign in.');
       }
     } else {
-      setNotice('Your acknowledgment is saved on this device. It will be added to your account when you sign in.');
+      setNotice('Your acknowledgment is saved on this device. Returning to sign in.');
     }
+    if (leaveTimer.current) clearTimeout(leaveTimer.current);
+    leaveTimer.current = setTimeout(() => {
+      leave();
+    }, 2000);
   };
 
   return (
@@ -104,7 +147,7 @@ export default function LegalScreen() {
       />
       <ScrollView showsVerticalScrollIndicator={false} testID="legal-scroll" keyboardShouldPersistTaps="handled">
         <View style={styles.content} testID="legal-content">
-          <AuthBackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/(auth)/login'))} />
+          <BackCircle tone="honey" onPress={leave} testID="legal-back" />
           <AuthBrand toSignIn={false} />
           <Text style={styles.brand}>Legal & Safety</Text>
           <View style={styles.warningCard}>
@@ -207,9 +250,14 @@ export default function LegalScreen() {
               <Text style={styles.feeLabel}>Delivery Fees:</Text>
               <Text style={styles.feeValue}>Set by PlateMaker**</Text>
             </View>
+            <View style={styles.feeItem}>
+              <Text style={styles.feeLabel}>Delivery platform fee:</Text>
+              <Text style={styles.feeValue}>+{DELIVERY_PERCENT}% on the delivery amount</Text>
+            </View>
             <Text style={styles.feeNote}>
-              Example: $20 meal → PlateTaker pays $22.00 (+ 10%); PlateMaker receives $18.00 (– 10%). Platform retains $4.00 (~20%).{'\n'}
-              *Before applicable taxes. **Or Delivery Service.
+              Example: $20 meal → PlateTaker pays ${MEAL_EXAMPLE.totalCaptured.toFixed(2)} (+ 10%); PlateMaker receives ${MEAL_EXAMPLE.sellerPayout.toFixed(2)} (– 10%). Platform retains ${MEAL_EXAMPLE.appRevenue.toFixed(2)} (~20%).{'\n'}
+              A $10 delivery → PlateTaker pays ${DELIVERY_EXAMPLE.buyerPays.toFixed(2)} (+ {DELIVERY_PERCENT}%); PlateMaker receives ${DELIVERY_EXAMPLE.sellerReceives.toFixed(2)}. Platform keeps ${DELIVERY_EXAMPLE.platformFee.toFixed(2)}.{'\n'}
+              *Before applicable taxes. **The PlateMaker sets the delivery amount and receives it. Or a delivery service.
             </Text>
             </View>
           </LegalSection>

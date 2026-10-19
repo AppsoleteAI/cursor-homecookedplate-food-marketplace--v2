@@ -5,10 +5,12 @@ import { useAuth } from '@/hooks/auth-context';
 import { router } from 'expo-router';
 import { AuthColors } from '@/constants/auth-palette';
 import { AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { useStayBack } from '@/hooks/use-leave-screen';
 
 export default function HardwareMismatchScreen() {
   const insets = useSafeAreaInsets();
   const { logout } = useAuth();
+  useStayBack(true);
 
   const handleLogout = async () => {
     await logout();

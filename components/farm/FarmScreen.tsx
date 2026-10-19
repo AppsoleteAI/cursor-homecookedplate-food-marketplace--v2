@@ -9,6 +9,8 @@ import { GlassBadge, GlassIconButton, glassSurface } from '@/components/glass-su
 import { titleCase } from '@/lib/title-case';
 import { useFarmBasket } from '@/hooks/farm-basket-store';
 import { useAuth } from '@/hooks/auth-context';
+import { BackCircle } from '@/components/BackCircle';
+import { useLeaveScreen } from '@/hooks/use-leave-screen';
 
 type FarmScreenProps = {
   title: string;
@@ -17,9 +19,11 @@ type FarmScreenProps = {
   footer?: ReactNode;
   testID?: string;
   showBasket?: boolean;
+  showBack?: boolean;
 };
 
-export function FarmScreen({ title, subtitle, children, footer, testID, showBasket = true }: FarmScreenProps) {
+export function FarmScreen({ title, subtitle, children, footer, testID, showBasket = true, showBack = true }: FarmScreenProps) {
+  const leave = useLeaveScreen('/farm-grown-basket', showBack);
   const { itemCount } = useFarmBasket();
   const { user } = useAuth();
   const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
@@ -27,13 +31,7 @@ export function FarmScreen({ title, subtitle, children, footer, testID, showBask
   return (
     <SafeAreaView style={styles.safe} edges={['top']} testID={testID}>
       <LinearGradient colors={monoGradients.green} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
-        <GlassIconButton
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/farm-grown-basket' as Href))}
-          accessibilityLabel="Back"
-          testID="farm-back"
-        >
-          <Ionicons name="chevron-back" size={22} color={Colors.white} />
-        </GlassIconButton>
+        {showBack ? <BackCircle tone="light" onPress={leave} gapBelow={false} testID="farm-back" /> : <View style={styles.backGap} />}
         <View style={styles.headerText}>
           <Text style={styles.kicker}>FarmGrownBasket</Text>
           <Text style={styles.title}>{titleCase(title)}</Text>
@@ -97,6 +95,7 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: Colors.gray[900], fontSize: 11, fontWeight: '700' },
   badgeSpacer: { width: 24 },
+  backGap: { width: 36, height: 36 },
   body: { padding: 16, paddingBottom: 32 },
   legal: { marginTop: 20, fontSize: 12, lineHeight: 18, color: Colors.gray[500] },
   footer: {

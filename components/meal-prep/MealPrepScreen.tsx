@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { BackCircle } from '@/components/BackCircle';
+import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, inAppHeaderBand, monoGradients } from '@/constants/colors';
 import { GlassBadge, GlassIconButton, glassSurface } from '@/components/glass-surface';
@@ -15,21 +17,17 @@ type MealPrepScreenProps = {
   children: ReactNode;
   testID?: string;
   showWeek?: boolean;
+  showBack?: boolean;
 };
 
-export function MealPrepScreen({ title, subtitle, children, testID, showWeek = true }: MealPrepScreenProps) {
+export function MealPrepScreen({ title, subtitle, children, testID, showWeek = true, showBack = true }: MealPrepScreenProps) {
+  const leave = useLeaveScreen('/meal-prep-go', showBack);
   const { portionCount } = useMealPrep();
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']} testID={testID}>
       <LinearGradient colors={monoGradients.blue} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
-        <GlassIconButton
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/meal-prep-go' as Href))}
-          accessibilityLabel="Back"
-          testID="prep-back"
-        >
-          <Ionicons name="chevron-back" size={22} color={Colors.white} />
-        </GlassIconButton>
+        {showBack ? <BackCircle tone="light" onPress={leave} gapBelow={false} testID="prep-back" /> : <View style={styles.backGap} />}
         <View style={styles.headerText}>
           <Text style={styles.kicker}>MealPrepGo</Text>
           <Text style={styles.title}>{titleCase(title)}</Text>
@@ -90,6 +88,7 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: '#0E7490', fontSize: 11, fontWeight: '700' },
   badgeSpacer: { width: 24 },
+  backGap: { width: 36, height: 36 },
   body: { padding: 16, paddingBottom: 32 },
   legal: { marginTop: 20, fontSize: 12, lineHeight: 18, color: Colors.gray[500] },
 });

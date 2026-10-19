@@ -15,6 +15,7 @@ import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/colors';
 import { GlassPressable } from '@/components/glass-surface';
+import { ScreenBack } from '@/components/BackCircle';
 
 interface FAQ {
   question: string;
@@ -187,6 +188,7 @@ export default function HelpSupportScreen() {
       />
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
+          <ScreenBack fallback="/(tabs)/profile" testID="help-back" />
           <View style={styles.headerCard}>
             <Text style={styles.headerTitle}>How Can We Help You?</Text>
             <Text style={styles.headerDescription}>

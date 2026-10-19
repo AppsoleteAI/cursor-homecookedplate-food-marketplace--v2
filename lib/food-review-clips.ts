@@ -10,6 +10,19 @@ export type FoodReviewPlayerSurface = keyof typeof FOOD_REVIEW_PLAYER_SIZES;
 
 export type FoodReviewReaction = 'smile' | 'heart' | 'star';
 
+/** 75% of the 36px back-arrow chip. */
+export const FOOD_REVIEW_REACTION_EMOJI_SIZE = 27;
+
+/**
+ * Space-between spreads the reactions across the row. Half of that gap
+ * pulls the same three chips toward the center.
+ */
+export function foodReviewReactionGap(rowWidth: number, chipWidth: number, count = FOOD_REVIEW_REACTIONS.length): number {
+  if (rowWidth <= 0 || chipWidth <= 0 || count < 2) return 0;
+  const spread = Math.max(0, rowWidth - chipWidth * count);
+  return spread / (count - 1) / 2;
+}
+
 export const FOOD_REVIEW_REACTIONS: { kind: FoodReviewReaction; emoji: string; label: string }[] = [
   { kind: 'smile', emoji: '😊', label: 'Smile' },
   { kind: 'heart', emoji: '❤️', label: 'Heart' },

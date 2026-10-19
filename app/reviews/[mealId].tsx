@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TextInput, Alert, BackHandler } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, TextInput, Alert } from 'react-native';
 import { titleCase } from '@/lib/title-case';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { Colors, monoGradients } from '@/constants/colors';
 import StarRating from '@/components/StarRating';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/auth-context';
 import { GlassPressable } from '@/components/glass-surface';
+import { BackCircle } from '@/components/BackCircle';
+import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { trpc } from '@/lib/trpc';
 
 export default function ReviewsScreen() {
@@ -38,6 +40,7 @@ export default function ReviewsScreen() {
   const isPlatemaker = role === 'platemaker';
   const scrollRef = useRef<ScrollView | null>(null);
   const [justSubmitted, setJustSubmitted] = useState<boolean>(false);
+  const leave = useLeaveScreen('/(tabs)/(home)/home');
 
   useEffect(() => {
     const initial = Number(params.initialRating ?? 0);
@@ -45,25 +48,6 @@ export default function ReviewsScreen() {
       setRating(initial);
     }
   }, [params.initialRating]);
-
-  useEffect(() => {
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      try {
-        if (params.next) {
-          router.replace(params.next as any);
-        } else if (router.canGoBack()) {
-          router.back();
-        } else {
-          router.replace('/(tabs)/(home)/home');
-        }
-        return true;
-      } catch (e) {
-        console.error('[Reviews] Back handler error:', e);
-        return false;
-      }
-    });
-    return () => sub.remove();
-  }, [params.next]);
 
   const submit = () => {
     if (!mealId) return;
@@ -106,6 +90,7 @@ export default function ReviewsScreen() {
       <LinearGradient colors={monoGradients.yellow} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.headerGradient} />
       <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={[styles.header]}>
+          <BackCircle tone="light" onPress={leave} testID="reviews-back" />
           <Text style={styles.title}>Reviews</Text>
           {meal && <Text style={styles.subtitle}>{titleCase(meal.name)}</Text>}
         </View>

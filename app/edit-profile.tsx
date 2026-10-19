@@ -16,6 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { GlassPressable } from '@/components/glass-surface';
+import { ScreenBack } from '@/components/BackCircle';
 
 export default function EditProfileScreen() {
   const { user, updateProfile } = useAuth();
@@ -130,6 +131,7 @@ export default function EditProfileScreen() {
       />
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
+          <ScreenBack fallback="/(tabs)/profile" testID="edit-profile-back" />
           <View style={styles.avatarContainer}>
             <Image
               source={{ uri: profileImage }}

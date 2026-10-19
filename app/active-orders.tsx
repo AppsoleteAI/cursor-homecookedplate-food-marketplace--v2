@@ -9,7 +9,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Stack, router } from 'expo-router';
+import { Stack } from 'expo-router';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +21,8 @@ import { OrderRefundModal } from '@/components/OrderRefundModal';
 import { calculateOrderSplit } from '@/lib/fees';
 import { SkeletonOrdersList } from '@/components/SkeletonOrdersList';
 import { GlassPressable } from '@/components/glass-surface';
+import { BackCircle } from '@/components/BackCircle';
+import { useLeaveScreen } from '@/hooks/use-leave-screen';
 
 /**
  * Active Orders Screen
@@ -34,6 +36,7 @@ export default function ActiveOrdersModal() {
   const [acceptModalVisible, setAcceptModalVisible] = useState(false);
   const [refundModalVisible, setRefundModalVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const leave = useLeaveScreen('/(tabs)/dashboard');
 
   // CRITICAL SECURITY: Only fetch orders if user is platemaker
   const { data: orders, isLoading, error, refetch } = trpc.platemaker.getIncomingOrders.useQuery(
@@ -151,9 +154,7 @@ export default function ActiveOrdersModal() {
         >
           <View style={styles.headerRow}>
             <Text style={styles.headerTitle}>Incoming Orders</Text>
-            <GlassPressable onPress={() => router.back()} testID="close-active-orders">
-              <Text style={styles.closeText}>Close</Text>
-            </GlassPressable>
+            <BackCircle tone="light" onPress={leave} gapBelow={false} testID="close-active-orders" />
           </View>
           <Text style={styles.headerSubtitle}>Manage your orders chronologically</Text>
         </LinearGradient>

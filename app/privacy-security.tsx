@@ -19,6 +19,8 @@ import { Colors } from '@/constants/colors';
 import { PRIVACY_POLICY_URL, SUPPORT_URL, TERMS_OF_SERVICE_URL } from '@/constants/urls';
 import { useAuth } from '@/hooks/auth-context';
 import { GlassPressable } from '@/components/glass-surface';
+import { ScreenBack } from '@/components/BackCircle';
+import { useConsumeBack } from '@/hooks/use-leave-screen';
 
 
 export default function PrivacySecurityScreen() {
@@ -167,6 +169,7 @@ export default function PrivacySecurityScreen() {
     setDeleteModalVisible(false);
     setConfirmationStep(1);
   }, []);
+  useConsumeBack(handleCancelDelete, deleteModalVisible);
 
   const confirmationData = useMemo(() => {
     switch (confirmationStep) {
@@ -201,6 +204,7 @@ export default function PrivacySecurityScreen() {
       />
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
+          <ScreenBack fallback="/(tabs)/profile" testID="privacy-back" />
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Privacy Settings</Text>
 

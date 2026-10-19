@@ -232,15 +232,6 @@ export default function HomeScreen() {
             <Text style={styles.farmBody}>Per-person packages for offices, clinics, and events. Separate from plates, farms, and trucks.</Text>
           </GlassPressable>
           <GlassPressable
-            style={styles.clipsEntry}
-            onPress={() => router.push('/food-review-clips' as Href)}
-            testID="open-food-review-clips"
-          >
-            <Text style={styles.clipsKicker}>FoodReviewClips</Text>
-            <Text style={styles.farmTitle}>20 second food clips</Text>
-            <Text style={styles.farmBody}>Watch 9:16 POV reviews and react with smile, heart, and star. Posting a clip is for premium members.</Text>
-          </GlassPressable>
-          <GlassPressable
             style={styles.sitEntry}
             onPress={() => router.push('/sit-down-delicious' as Href)}
             testID="open-sit-down-delicious"
@@ -714,21 +705,6 @@ const styles = StyleSheet.create({
   },
   caterKicker: {
     color: '#6D28D9',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  clipsEntry: {
-    marginHorizontal: 24,
-    marginBottom: 8,
-    backgroundColor: '#F0FDF4',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#86EFAC',
-    ...glassSurface,
-  },
-  clipsKicker: {
-    color: '#166534',
     fontSize: 12,
     fontWeight: '700',
   },

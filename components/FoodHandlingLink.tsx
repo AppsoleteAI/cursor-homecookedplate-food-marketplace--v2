@@ -1,20 +1,33 @@
 import React from 'react';
 import { Pressable, Text, StyleSheet } from 'react-native';
-import { router, type Href } from 'expo-router';
+import { router, usePathname, type Href } from 'expo-router';
 import { Colors } from '@/constants/colors';
+
+export function openFoodHandling(returnTo?: string) {
+  const previous = returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//') && returnTo !== '/food-handling'
+    ? returnTo
+    : null;
+  const href: Href = previous
+    ? { pathname: '/food-handling', params: { returnTo: previous } }
+    : '/food-handling';
+  router.push(href);
+}
 
 export function FoodHandlingLink({
   label = 'Food handling temperatures',
   testID = 'open-food-handling',
   color = Colors.blue[600],
+  returnTo,
 }: {
   label?: string;
   testID?: string;
   color?: string;
+  returnTo?: string;
 }) {
+  const pathname = usePathname();
   return (
     <Pressable
-      onPress={() => router.push('/food-handling' as Href)}
+      onPress={() => openFoodHandling(returnTo ?? pathname)}
       accessibilityRole="link"
       testID={testID}
     >

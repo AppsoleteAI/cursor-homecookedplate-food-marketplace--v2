@@ -8,22 +8,36 @@ import {
   Platform,
   ScrollView,
   Alert,
+  type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/hooks/auth-context';
+import { trpc } from '@/lib/trpc';
 import { AuthColors, preAppFont } from '@/constants/auth-palette';
-import { AuthBackground, AuthBackButton, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { BackCircle } from '@/components/BackCircle';
+import { useReplaceBack } from '@/hooks/use-leave-screen';
 import { GlassPressable } from '@/components/glass-surface';
 
-type RecoveryMode = 'password' | 'reactivate';
+type RecoveryMode = 'password' | 'reactivate' | 'confirm';
+
+function startingMode(value: string | string[] | undefined): RecoveryMode {
+  const mode = Array.isArray(value) ? value[0] : value;
+  if (mode === 'confirm' || mode === 'reactivate') return mode;
+  return 'password';
+}
 
 export default function RecoverScreen() {
-  const [mode, setMode] = useState<RecoveryMode>('password');
-  const [email, setEmail] = useState('');
+  const params = useLocalSearchParams<{ mode?: string; email?: string }>();
+  const [mode, setMode] = useState<RecoveryMode>(startingMode(params.mode));
+  const [email, setEmail] = useState(typeof params.email === 'string' ? params.email : '');
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const { resetPassword, reactivateAccount } = useAuth();
+  const resendConfirmation = trpc.auth.resendVerificationEmail.useMutation();
+  const backToSignIn = useReplaceBack('/(auth)/login');
 
   const handleSubmit = async () => {
     if (!email) {
@@ -39,20 +53,26 @@ export default function RecoverScreen() {
     }
 
     setLoading(true);
+    setNotice(null);
     try {
+      if (mode === 'confirm') {
+        const result = await resendConfirmation.mutateAsync({ email: cleanEmail });
+        setNotice(result.message);
+        return;
+      }
       if (mode === 'password') {
         await resetPassword(cleanEmail);
         Alert.alert(
           'Password Reset',
           'If an account exists with this email, a password reset link has been sent. Please check your email.',
-          [{ text: 'OK', onPress: () => router.back() }]
+          [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
         );
       } else {
         await reactivateAccount(cleanEmail);
         Alert.alert(
           'Account Reactivation',
           'If your account was paused, it has been reactivated. You can now log in normally.',
-          [{ text: 'OK', onPress: () => router.back() }]
+          [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
         );
       }
     } catch (error: any) {
@@ -76,7 +96,7 @@ export default function RecoverScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <AuthBackButton onPress={() => router.back()} />
+            <BackCircle tone="honey" onPress={backToSignIn} testID="recover-back" />
 
             <AuthBrand />
 
@@ -93,7 +113,7 @@ export default function RecoverScreen() {
                     size={18}
                     color={mode === 'password' ? AuthColors.ink : AuthColors.ink}
                   />
-                  <Text style={[styles.modeText, mode === 'password' && styles.modeTextOn]}>Reset password</Text>
+                  <Text style={[styles.modeText, mode === 'password' && styles.modeTextOn]} numberOfLines={2}>Reset password</Text>
                 </GlassPressable>
                 <GlassPressable
                   style={[styles.modeButton, mode === 'reactivate' && styles.modeButtonOn]}
@@ -102,18 +122,30 @@ export default function RecoverScreen() {
                   accessibilityLabel="Reactivate account"
                 >
                   <Ionicons name="refresh-outline" size={18} color={AuthColors.ink} />
-                  <Text style={[styles.modeText, mode === 'reactivate' && styles.modeTextOn]}>Reactivate</Text>
+                  <Text style={[styles.modeText, mode === 'reactivate' && styles.modeTextOn]} numberOfLines={2}>Reactivate</Text>
+                </GlassPressable>
+                <GlassPressable
+                  style={[styles.modeButton, mode === 'confirm' && styles.modeButtonOn]}
+                  onPress={() => setMode('confirm')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Resend confirmation email"
+                  testID="recover-confirm-mode"
+                >
+                  <Ionicons name="mail-outline" size={18} color={AuthColors.ink} />
+                  <Text style={[styles.modeText, mode === 'confirm' && styles.modeTextOn]} numberOfLines={2}>Confirm email</Text>
                 </GlassPressable>
               </View>
 
               <View style={styles.panel}>
                 <Text style={styles.panelTitle}>
-                  {mode === 'password' ? 'Forgot Password' : 'Reactivate Account'}
+                  {mode === 'password' ? 'Forgot Password' : mode === 'confirm' ? 'Confirm email' : 'Reactivate Account'}
                 </Text>
                 <Text style={styles.help}>
                   {mode === 'password'
                     ? 'We will email a reset link if this address has an account.'
-                    : 'If this address was paused, we will turn the account back on.'}
+                    : mode === 'confirm'
+                      ? 'We will email a new confirmation link if this address still needs one.'
+                      : 'If this address was paused, we will turn the account back on.'}
                 </Text>
                 <View style={styles.field}>
                   <Ionicons name="mail-outline" size={18} color={AuthColors.maroon} />
@@ -130,11 +162,12 @@ export default function RecoverScreen() {
                   />
                 </View>
                 <AuthGoldButton
-                  title={mode === 'password' ? 'Send reset link' : 'Reactivate account'}
+                  title={mode === 'password' ? 'Send reset link' : mode === 'confirm' ? 'Email me a new link' : 'Reactivate account'}
                   onPress={handleSubmit}
                   loading={loading}
                   testID="recover-submit"
                 />
+                {notice ? <Text style={styles.notice}>{notice}</Text> : null}
                 <GlassPressable onPress={() => router.replace('/(auth)/login')} style={styles.loginLink}>
                   <Text style={styles.loginLinkText}>Back to sign in</Text>
                 </GlassPressable>
@@ -184,10 +217,12 @@ const styles = StyleSheet.create({
   },
   modeRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
   modeButton: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: '30%',
     minHeight: 48,
     borderRadius: 16,
     backgroundColor: AuthColors.field,
@@ -195,7 +230,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as unknown as ViewStyle) : null),
   },
   modeButtonOn: {
     backgroundColor: AuthColors.button,
@@ -203,8 +240,10 @@ const styles = StyleSheet.create({
   modeText: {
     ...preAppFont,
     color: AuthColors.ink,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
+    textAlign: 'center',
+    flexShrink: 1,
   },
   modeTextOn: {
     fontWeight: '700',
@@ -251,6 +290,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '400',
     paddingVertical: 0,
+  },
+  notice: {
+    ...preAppFont,
+    color: AuthColors.ink,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginTop: 12,
   },
   loginLink: {
     alignItems: 'center',

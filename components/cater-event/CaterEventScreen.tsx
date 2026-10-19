@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { BackCircle } from '@/components/BackCircle';
+import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, inAppHeaderBand, monoGradients } from '@/constants/colors';
 import { GlassBadge, GlassIconButton, glassSurface } from '@/components/glass-surface';
@@ -16,9 +18,11 @@ type CaterEventScreenProps = {
   children: ReactNode;
   testID?: string;
   showOrder?: boolean;
+  showBack?: boolean;
 };
 
-export function CaterEventScreen({ title, subtitle, children, testID, showOrder = true }: CaterEventScreenProps) {
+export function CaterEventScreen({ title, subtitle, children, testID, showOrder = true, showBack = true }: CaterEventScreenProps) {
+  const leave = useLeaveScreen('/cater-event-deliver', showBack);
   const { packageCount } = useCaterEvent();
   const { user } = useAuth();
   const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
@@ -26,13 +30,7 @@ export function CaterEventScreen({ title, subtitle, children, testID, showOrder 
   return (
     <SafeAreaView style={styles.safe} edges={['top']} testID={testID}>
       <LinearGradient colors={monoGradients.purple} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
-        <GlassIconButton
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/cater-event-deliver' as Href))}
-          accessibilityLabel="Back"
-          testID="cater-back"
-        >
-          <Ionicons name="chevron-back" size={22} color={Colors.white} />
-        </GlassIconButton>
+        {showBack ? <BackCircle tone="light" onPress={leave} gapBelow={false} testID="cater-back" /> : <View style={styles.backGap} />}
         <View style={styles.headerText}>
           <Text style={styles.kicker}>CaterEventDeliver</Text>
           <Text style={styles.title}>{titleCase(title)}</Text>
@@ -95,6 +93,7 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: '#5B21B6', fontSize: 11, fontWeight: '700' },
   badgeSpacer: { width: 24 },
+  backGap: { width: 36, height: 36 },
   body: { padding: 16, paddingBottom: 32 },
   legal: { marginTop: 20, fontSize: 12, lineHeight: 18, color: Colors.gray[500] },
 });

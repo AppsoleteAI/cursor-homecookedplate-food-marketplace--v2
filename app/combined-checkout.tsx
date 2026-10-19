@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { Alert, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, type Href } from 'expo-router';
 import { CHECKOUT_AREA_LABEL, quoteCheckout, quoteCombined } from '@/backend/lib/combined-checkout';
 import { GlassPressable } from '@/components/glass-surface';
+import { useLeaveScreen, usePaidBack, useStayBack } from '@/hooks/use-leave-screen';
 import { Colors } from '@/constants/colors';
 import { getCatalogProduct } from '@/constants/farm-grown-basket';
 import { getMenuItem } from '@/constants/food-truck-popup';
@@ -54,6 +54,9 @@ export default function CombinedCheckoutScreen() {
   const confirmCheckout = trpc.payments.confirmCombinedCheckout.useMutation();
   const [receiptId, setReceiptId] = useState<string | null>(null);
   const [charging, setCharging] = useState(false);
+  const leave = useLeaveScreen('/(tabs)/cart', receiptId == null && !charging);
+  useStayBack(charging && receiptId == null);
+  const paidLeave = usePaidBack('/(tabs)/orders', receiptId != null);
 
   const gathered = useMemo(() => gatherCombinedCheckouts({
     home: cart.items,
@@ -154,7 +157,7 @@ export default function CombinedCheckoutScreen() {
         <GlassPressable style={styles.button} onPress={pay}>
           <Text style={styles.buttonText}>{charging ? 'Charging…' : 'Pay together'}</Text>
         </GlassPressable>
-        <GlassPressable onPress={() => router.push('/(tabs)/cart' as Href)}>
+        <GlassPressable onPress={() => (receiptId ? paidLeave() : charging ? undefined : leave())}>
           <Text style={styles.link}>Back to carts</Text>
         </GlassPressable>
       </ScrollView>

@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput } from 'react-native';
-import { GlassIconButton, GlassPressable, glassSurface } from '@/components/glass-surface';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
+import { BackCircle } from '@/components/BackCircle';
+import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { Colors, monoGradients } from '@/constants/colors';
 import { useCaterEvent } from '@/hooks/cater-event-store';
 import { useAuth } from '@/hooks/auth-context';
@@ -26,15 +28,14 @@ export default function CaterEventDeliverHome() {
   const { user } = useAuth();
   const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
   const links = LINKS.filter((link) => isMaker || !link.seller);
+  const leave = useLeaveScreen('/(tabs)/(home)/home');
   const [zip, setZip] = useState('');
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']} testID="cater-hub">
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         <LinearGradient colors={monoGradients.purple} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-          <GlassIconButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/(home)/home'))} testID="cater-hub-back" accessibilityLabel="Back">
-            <Ionicons name="chevron-back" size={22} color={Colors.white} />
-          </GlassIconButton>
+          <BackCircle tone="light" onPress={leave} testID="cater-hub-back" />
           <Text style={styles.kicker}>Group drop-off. Not a single plate.</Text>
           <Text style={styles.title}>CaterEventDeliver</Text>
           <Text style={styles.lead}>
@@ -103,7 +104,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F5F3FF' },
   body: { paddingBottom: 32 },
   hero: { ...glassSurface, padding: 20, paddingBottom: 24, borderBottomLeftRadius: 28, borderBottomRightRadius: 28  },
-  kicker: { color: '#EDE9FE', fontSize: 12, fontWeight: '700', marginTop: 12 },
+  kicker: { color: '#EDE9FE', fontSize: 12, fontWeight: '700' },
   title: { color: Colors.white, fontSize: 32, fontWeight: '700', marginTop: 4 },
   lead: { color: '#EDE9FE', fontSize: 16, lineHeight: 22, marginTop: 8 },
   zipRow: { flexDirection: 'row', gap: 8, marginTop: 16 },

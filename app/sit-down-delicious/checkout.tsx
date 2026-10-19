@@ -12,6 +12,7 @@ import { SERVICE_LABEL, type DiningService } from '@/lib/sit-down-license';
 import { calculateOrderSplit } from '@/lib/fees';
 import { useShopCardPayment } from '@/hooks/use-shop-payment';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
+import { usePaidBack } from '@/hooks/use-leave-screen';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
 
 const PARTY = [1, 2, 3, 4, 5, 6, 8, 10, 12];
@@ -24,6 +25,7 @@ export default function SitCheckoutScreen() {
   const [service, setService] = useState<DiningService>('sit_down');
   const [partySize, setPartySize] = useState(2);
   const [orderId, setOrderId] = useState<string | null>(null);
+  usePaidBack('/sit-down-delicious/orders', orderId != null);
 
   const lines = useMemo(() => {
     return items.flatMap((item) => {
@@ -85,7 +87,7 @@ export default function SitCheckoutScreen() {
 
   if (orderId) {
     return (
-      <SitDownScreen title="Order in" subtitle={chosen === 'sit_down' ? 'A table is held' : 'Pick up at the counter'} showBasket={false} testID="sit-checkout-done">
+      <SitDownScreen title="Order in" subtitle={chosen === 'sit_down' ? 'A table is held' : 'Pick up at the counter'} showBasket={false} showBack={false} testID="sit-checkout-done">
         <Text style={styles.lead}>
           {placeName} has order {orderId}.
           {chosen === 'sit_down' ? ` A table is held for ${partySize}.` : ' Pick it up at the counter.'}

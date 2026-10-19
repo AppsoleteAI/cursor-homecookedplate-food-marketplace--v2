@@ -65,7 +65,7 @@ if (profileError?.code === '23505') {
 ## 📍 MEMBERSHIP LOCK-IN
 - **Fields:** `profiles.metro_area` and `profiles.trial_ends_at`.
 - **Constraint:** Once a user is matched to a metro during signup, these fields must be populated to "Lock" the user into their local market.
-- **Promotion:** Grant exactly 90 days for the "Early Bird" trial if `metro_area` is matched (subject to "First 100" rule below).
+- **Promotion:** Grant exactly 90 days for the "Early Bird" trial if `metro_area` is matched and that metro still has an Early Bird slot. Slots are one PlateMaker per 10,000 people, with a minimum of 200 and a maximum of 1,000.
 
 ## 💎 MEMBERSHIP & TIER MAPPING (CRITICAL)
 - **Primary Column:** `membership_tier` (values: 'free' | 'premium').
@@ -92,7 +92,7 @@ if (profileError?.code === '23505') {
 ## 🛠️ ADMIN & ALERTING LOGIC
 - **Cap Monitoring:** Use the `metro_area_counts` table as the source of truth in the Admin Dashboard.
 - **Automated Pings:** Notifications must be triggered via Database Webhooks when any count hits exactly `max_cap`.
-- **Admin Overrides:** Provide a way in the Admin UI to increment the `max_cap` (default 100) if a specific metro needs to expand its Early Bird program manually.
+- **Admin Overrides:** Provide a way in the Admin UI to increment the `max_cap` (default 100) for member-count alerts. Early Bird slots are the population ratio in `backend/lib/early-bird-cap.ts`, from 200 to 1,000.
 
 ### Data Schema Mapping (LOCKED)
 
@@ -444,7 +444,7 @@ These sections form a stability triangle:
 - **Price Selection:**
   - Early Bird (SUCCESS from `increment_metro_count`) → Use Early Bird Trial Price ID.
   - Remote/Over-cap (CAP_REACHED or OUTSIDE_ZONE) → Use Standard Monthly Price ID.
-- **Remote UX:** Users failing the "First 100" check MUST be redirected to checkout before gaining `premium` status.
+- **Remote UX:** Users outside the Early Bird slot count MUST be redirected to checkout before gaining `premium` status.
 - **Supabase Admin:** Use `supabaseAdmin` for all internal tier-flipping after successful Stripe Webhooks.
 - **Checkout Flow:** Remote users sign up → Account created as `free` → Redirected to Stripe Checkout → Webhook upgrades to `premium` on payment.
 - **Price ID Utility:** Use `getStripePriceId()` from `backend/lib/stripe-utils.ts` to select correct price based on Early Bird status and membership tier.

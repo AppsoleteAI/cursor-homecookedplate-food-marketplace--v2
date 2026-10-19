@@ -10,27 +10,21 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
-  Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, inAppHeaderBand, monoGradients, pagePastel } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
 import { router , type Href } from 'expo-router';
-import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useMeals } from '@/hooks/meals-context';
 import { useAuth } from '@/hooks/auth-context';
-import { trpc } from '@/lib/trpc';
-import { readLocalMedia } from '@/lib/read-local-media';
 import { Ionicons } from '@expo/vector-icons';
 import { calculateOrderBreakdown, calculateOrderSplit } from '@/lib/fees';
-import { canPublishMeal } from '@/lib/meal-publish';
+import { onPlatePublished, writePlateDraft } from '@/lib/plate-draft';
 
 // Import expo-video with platform-specific shim for web compatibility
 // Metro will automatically resolve to lib/expo-video.web.ts on web platform
 import { useVideoPlayer, VideoView } from '@/lib/expo-video';
-import * as WebBrowser from 'expo-web-browser';
 
 type MediaType = 'image' | 'video';
 interface MediaItem {
@@ -78,6 +72,7 @@ interface FormState {
   name: string;
   price: string;
   media: MediaItem[];
+  postVideoToTimeline: boolean;
   availabilityWindows: {
     dayOfWeek: number;
     startTime: string;
@@ -93,14 +88,10 @@ export default function CreateMealScreen() {
     name: '',
     price: '',
     media: [],
+    postVideoToTimeline: false,
     availabilityWindows: [],
   });
-  const { addMeal } = useMeals();
-  const createMeal = trpc.meals.create.useMutation();
-  const uploadMedia = trpc.media.upload.useMutation();
-  const [saving, setSaving] = useState<boolean>(false);
   const [countdown, setCountdown] = useState<number>(0);
-  const [foodSafetyAcknowledged, setFoodSafetyAcknowledged] = useState<boolean>(false);
 
   const { requestPlatemakerRole } = useAuth();
 
@@ -226,6 +217,26 @@ export default function CreateMealScreen() {
     }
   }, []);
 
+  const pickVideo = useCallback(async () => {
+    const hasPerm = await ensureLibraryPermission();
+    if (!hasPerm) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsEditing: false,
+      quality: 1,
+      videoMaxDuration: 8,
+    });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    const duration = typeof asset.duration === 'number' ? asset.duration : undefined;
+    const seconds = typeof duration === 'number' ? (duration >= 1000 ? duration / 1000 : duration) : 0;
+    if (seconds > 8) {
+      Alert.alert('Video too long', 'Please upload a video up to 8 seconds.');
+      return;
+    }
+    setForm(prev => ({ ...prev, media: [...prev.media, { uri: asset.uri, type: 'video', duration }] }));
+  }, [ensureLibraryPermission]);
+
   const pickMedia = useCallback(async () => {
     const hasPerm = await ensureLibraryPermission();
     if (!hasPerm) return;
@@ -344,79 +355,27 @@ export default function CreateMealScreen() {
     }
   }, [priceNumber]);
 
-  const photoCount = useMemo(
-    () => form.media.filter((item) => item.type === 'image').length,
-    [form.media],
-  );
+  useEffect(() => onPlatePublished(() => {
+    setForm({
+      name: '',
+      price: '',
+      media: [],
+      postVideoToTimeline: false,
+      availabilityWindows: [],
+    });
+  }), []);
 
-  const isValid = useMemo(
-    () => canPublishMeal({
+  const openPublish = useCallback(() => {
+    writePlateDraft({
       name: form.name,
-      price: priceNumber,
-      photoCount,
-      foodSafetyAcknowledged,
-    }),
-    [form.name, priceNumber, photoCount, foodSafetyAcknowledged],
-  );
+      price: form.price,
+      media: form.media,
+      postVideoToTimeline: form.postVideoToTimeline && form.media.some((item) => item.type === 'video'),
+    });
+    router.push('/publish-plate' as Href);
+  }, [form.name, form.price, form.media, form.postVideoToTimeline]);
 
-  // Set acknowledgment to true if user has already acknowledged in their profile
-  useEffect(() => {
-    if (user?.foodSafetyAcknowledged) {
-      setFoodSafetyAcknowledged(true);
-    }
-  }, [user?.foodSafetyAcknowledged]);
-
-  const saveMeal = useCallback(async () => {
-    if (!isValid) return;
-    try {
-      setSaving(true);
-      const created = await createMeal.mutateAsync({
-        name: form.name.trim(),
-        description: form.name.trim(),
-        price: Number(priceNumber),
-        images: [],
-        ingredients: [],
-        cuisine: '',
-        category: 'dinner', // meal-time column cannot be blank; cuisine stays empty until the later step
-        preparationTime: 30,
-      });
-      const media: { uri: string; type: MediaType }[] = [];
-      for (const item of form.media) {
-        const file = await readLocalMedia(item.uri, item.type);
-        const uploaded = await uploadMedia.mutateAsync({
-          mealId: created.id,
-          base64Data: file.base64,
-          mimeType: file.mimeType,
-          type: item.type,
-        });
-        media.push({ uri: uploaded.uri, type: uploaded.type === 'video' ? 'video' : 'image' });
-      }
-      await addMeal({
-        id: created.id,
-        ownerId: user?.id ?? 'unknown',
-        name: form.name.trim(),
-        category: '',
-        price: Number(priceNumber),
-        ingredients: [],
-        media,
-        freshness: { attachments: [] },
-      });
-      setForm({
-        name: '',
-        price: '',
-        media: [],
-        availabilityWindows: [],
-      });
-      router.replace({ pathname: '/meal-details', params: { id: created.id } } as Href);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to save meal. Please try again.';
-      Alert.alert('Error', message);
-    } finally {
-      setSaving(false);
-    }
-  }, [isValid, addMeal, createMeal, uploadMedia, user?.id, form, priceNumber]);
-
-  const serviceDisclosure = 'Fee Structure: Customer pays listed price + 10% (buyer fee). You receive listed price - 10% (seller fee). Platform total: 20%.';
+  const serviceDisclosure = 'Fee Structure: Customer pays listed price + 10% (buyer fee). You receive listed price - 10% (seller fee). Platform total: 20%. If you set a delivery fee, the customer pays that amount plus 5%, and you receive the amount you set.';
 
   // Show loading state
   if (authLoading) {
@@ -563,7 +522,7 @@ export default function CreateMealScreen() {
           <GradientButton
             title="Manage Promotions"
             onPress={() => router.push('/promotions')}
-            baseColor="green"
+            baseColor="red"
             testID="manage-promotions"
           />
         </View>
@@ -591,7 +550,7 @@ export default function CreateMealScreen() {
             style={styles.input}
             testID="meal-price"
           />
-          <Text style={styles.disclosureText} numberOfLines={2}>Fees Structure Disclosure: {serviceDisclosure}</Text>
+          <Text style={styles.disclosureText}>Fees Structure Disclosure: {serviceDisclosure}</Text>
           
           {feeBreakdown && (
             <View style={styles.feeBreakdownContainer} testID="fee-breakdown">
@@ -620,54 +579,9 @@ export default function CreateMealScreen() {
                 <Text style={styles.feeBreakdownValue}>${feeBreakdown.platformRevenue.toFixed(2)}</Text>
               </View>
               <Text style={styles.feeBreakdownNote}>
-                Includes 10% buyer fee + 10% seller fee
+                Includes 10% buyer fee + 10% seller fee. A delivery fee adds 5% for the customer. You receive the delivery amount you set.
               </Text>
             </View>
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>Photo</Text>
-          <Text style={styles.helper}>One photo publishes the plate. A short video is optional.</Text>
-          <View style={styles.dropZone} testID="drop-zone">
-            <View style={styles.dropZoneInner}>
-              <GlassPressable onPress={pickMedia} style={styles.uploadAction} testID="pick-media">
-                <Text style={styles.uploadActionText}>Choose a photo</Text>
-              </GlassPressable>
-              <GlassPressable onPress={captureMedia} style={[styles.uploadAction, styles.uploadActionSecondary]} testID="capture-media" accessibilityLabel="Record video with camera">
-                <Text style={[styles.uploadActionText, styles.uploadActionTextSecondary]}>Photo / Video</Text>
-              </GlassPressable>
-            </View>
-          </View>
-
-          {countdown > 0 && (
-            <View style={styles.countdownOverlay} pointerEvents="none" testID="record-countdown">
-              <View style={styles.countdownBox}>
-                <Text style={styles.countdownText}>{countdown}</Text>
-              </View>
-            </View>
-          )}
-
-          {form.media.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.previewRow}>
-              {form.media.map((item, idx) => (
-                <View key={`${item.uri}-${idx}`} style={styles.previewItem}>
-                  {item.type === 'image' ? (
-                    <Image source={{ uri: item.uri }} style={styles.previewImage} />
-                  ) : (
-                    Platform.OS === 'web' ? (
-                      // @ts-ignore web-only built-in element
-                      React.createElement('video', { style: styles.previewImage as any, controls: true, loop: true, src: item.uri, playsInline: true })
-                    ) : (
-                      <VideoPreview
-                        uri={item.uri}
-                        testID={`preview-video-${idx}`}
-                      />
-                    )
-                  )}
-                </View>
-              ))}
-            </ScrollView>
           )}
         </View>
 
@@ -732,78 +646,91 @@ export default function CreateMealScreen() {
           <GradientButton
             title="Add Time Window"
             onPress={addAvailabilityWindow}
-            baseColor="purple"
+            baseColor="red"
             testID="add-availability"
+          />
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.label}>Photo</Text>
+          <Text style={styles.helper}>One photo publishes the plate. A short video is optional.</Text>
+          <View style={styles.dropZone} testID="drop-zone">
+            <View style={styles.dropZoneInner}>
+              <GlassPressable onPress={pickMedia} style={styles.uploadAction} testID="pick-media">
+                <Text style={styles.uploadActionText}>Choose a photo</Text>
+              </GlassPressable>
+              <GlassPressable onPress={pickVideo} style={[styles.uploadAction, styles.uploadActionSecondary]} testID="pick-video" accessibilityLabel="Upload a video">
+                <Text style={[styles.uploadActionText, styles.uploadActionTextSecondary]}>Upload a video</Text>
+              </GlassPressable>
+              <GlassPressable onPress={captureMedia} style={[styles.uploadAction, styles.uploadActionSecondary]} testID="capture-media" accessibilityLabel="Record video with camera">
+                <Text style={[styles.uploadActionText, styles.uploadActionTextSecondary]}>Photo / Video</Text>
+              </GlassPressable>
+            </View>
+          </View>
+
+          {countdown > 0 && (
+            <View style={styles.countdownOverlay} pointerEvents="none" testID="record-countdown">
+              <View style={styles.countdownBox}>
+                <Text style={styles.countdownText}>{countdown}</Text>
+              </View>
+            </View>
+          )}
+
+          {form.media.some((item) => item.type === 'video') ? (
+            <GlassPressable
+              onPress={() => onChange('postVideoToTimeline', !form.postVideoToTimeline)}
+              style={styles.clipOption}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: form.postVideoToTimeline }}
+              accessibilityLabel="Also post this video on FoodReviewClips"
+              testID="post-video-to-clips"
+            >
+              <Ionicons
+                name={form.postVideoToTimeline ? 'checkbox' : 'square-outline'}
+                size={22}
+                color={Colors.gradient.green}
+              />
+              <View style={styles.clipOptionCopy}>
+                <Text style={styles.clipOptionTitle}>Also post this video on FoodReviewClips</Text>
+                <Text style={styles.clipOptionBody}>The video stays on this plate and is added to the clip timeline.</Text>
+              </View>
+            </GlassPressable>
+          ) : null}
+
+          {form.media.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.previewRow}>
+              {form.media.map((item, idx) => (
+                <View key={`${item.uri}-${idx}`} style={styles.previewItem}>
+                  {item.type === 'image' ? (
+                    <Image source={{ uri: item.uri }} style={styles.previewImage} />
+                  ) : (
+                    Platform.OS === 'web' ? (
+                      // @ts-ignore web-only built-in element
+                      React.createElement('video', { style: styles.previewImage as any, controls: true, loop: true, src: item.uri, playsInline: true })
+                    ) : (
+                      <VideoPreview
+                        uri={item.uri}
+                        testID={`preview-video-${idx}`}
+                      />
+                    )
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <GradientButton
+            title="Review and publish"
+            onPress={openPublish}
+            baseColor="red"
+            testID="open-publish-plate"
           />
         </View>
 
         <View style={styles.footerSpacer} />
       </ScrollView>
-
-      <View style={styles.footer}>
-        <View style={styles.warningBox} testID="publish-warning">
-          <ScrollView style={styles.warningScroll} showsVerticalScrollIndicator>
-            <Text style={styles.warningText}>⚠️ You waive any right to hold HomeCookedPlate app or any other AppsoleteAI affiliated business entity, investor or individual associated with HomeCookedPlate, liable for any items you publish as a PlateMaker and you affirm all local, county, state and federal food service laws are actively being adhered to by you, in every transaction via the HomeCookedPlate app.</Text>
-          </ScrollView>
-        </View>
-        <View style={styles.foodSafetyAcknowledgmentBox}>
-          <View style={styles.foodSafetyInfoRow}>
-            <Ionicons name="information-circle" size={18} color={Colors.gradient.yellow} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.foodSafetyInfoText}>
-                We recommend reviewing{' '}
-                <Text
-                  style={styles.foodSafetyLink}
-                  onPress={() => WebBrowser.openBrowserAsync('https://cottagefoodlaws.com')}
-                >
-                  cottagefoodlaws.com
-                </Text>
-                {' '}and doing your due diligence to meet all food safety requirements.
-              </Text>
-              <Text style={[styles.foodSafetyInfoText, { marginTop: 8, fontSize: 11, fontStyle: 'italic' }]}>
-                HomeCookedPlate is not affiliated or in partnership with cottagefoodlaws.com.
-              </Text>
-              <Text style={[styles.foodSafetyInfoText, { marginTop: 8 }]}>
-                Cottage food laws cover shelf-stable, non-TCS foods only. A cooked plate that needs refrigeration or hot-holding is not a cottage food. Produce, CSA shares, and cottage goods are listed in FarmGrownBasket, and that listing stays closed until you record your state rule, testing protocol, and permit fee.
-              </Text>
-              <Text style={styles.foodSafetyLink} onPress={() => router.push('/farm-grown-basket/cottage-law' as Href)}>
-                Open the cottage food checklist
-              </Text>
-              <Text style={[styles.foodSafetyLink, { marginTop: 8 }]} onPress={() => router.push('/food-truck-popup/permit' as Href)}>
-                Food trucks list in FoodTruckPopup and need a mobile-unit permit
-              </Text>
-              <Text style={[styles.foodSafetyLink, { marginTop: 8 }]} onPress={() => router.push('/sit-down-delicious/license' as Href)}>
-                Independent restaurants list in SitDownDelicious and need a retail food license
-              </Text>
-              <Text style={[styles.foodSafetyLink, { marginTop: 8 }]} onPress={() => router.push('/kitchen-rules' as Href)}>
-                Kitchen rules for cooked plates and commissary kitchens
-              </Text>
-              <FoodHandlingLink label="Food handling temperatures, gloves, and containers" />
-            </View>
-          </View>
-          <Pressable
-            style={styles.acknowledgmentCheckboxRow}
-            onPress={() => setFoodSafetyAcknowledged(!foodSafetyAcknowledged)}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: foodSafetyAcknowledged }}
-          >
-            <View style={[styles.acknowledgmentCheckbox, foodSafetyAcknowledged && styles.acknowledgmentCheckboxActive]}>
-              {foodSafetyAcknowledged && <Text style={styles.acknowledgmentCheckmark}>✓</Text>}
-            </View>
-            <Text style={styles.acknowledgmentText}>
-              I acknowledge that I have reviewed cottagefoodlaws.com and understand that I must comply with all local, county, state and federal food laws. I understand that HomeCookedPlate does not allow anyone to violate their local, county, state and/or federal food laws on the HomeCookedPlate App.
-            </Text>
-          </Pressable>
-        </View>
-          <GradientButton
-            title={saving ? 'Publishing…' : 'Publish'}
-            onPress={saveMeal}
-            disabled={!isValid || saving}
-            loading={saving}
-            baseColor="red"
-            testID="publish-meal"
-          />
-        </View>
       </View>
   );
 }
@@ -822,7 +749,7 @@ const styles = StyleSheet.create({
     ...glassSurface,
   },
   headerInner: { paddingVertical: 0 },
-  scrollContent: { paddingBottom: 120 },
+  scrollContent: { paddingBottom: 40 },
   header: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24 },
   title: { fontSize: inAppHeaderBand.titleSize, fontWeight: '700', color: Colors.white, marginBottom: 4 },
   subtitle: { fontSize: inAppHeaderBand.subtitleSize, color: Colors.white },
@@ -862,6 +789,7 @@ const styles = StyleSheet.create({
   },
   dropZoneInner: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
   },
   uploadAction: {
@@ -874,6 +802,26 @@ const styles = StyleSheet.create({
   uploadActionSecondary: { backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.gray[200] },
   uploadActionText: { fontSize: 14, fontWeight: '600', color: Colors.gray[900] },
   uploadActionTextSecondary: { color: Colors.gray[700] },
+  clipOption: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 12,
+    paddingVertical: 4,
+  },
+  clipOptionCopy: {
+    flex: 1,
+  },
+  clipOptionTitle: {
+    color: Colors.gray[900],
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  clipOptionBody: {
+    color: Colors.gray[600],
+    fontSize: 13,
+    marginTop: 2,
+  },
   previewRow: { gap: 12, paddingVertical: 8 },
   previewItem: { marginRight: 12 },
   previewImage: { width: 90, height: 90, borderRadius: 10 },
@@ -883,7 +831,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 12 },
   half: { flex: 1 },
   footerSpacer: { height: 24 },
-  footer: { padding: 16, borderTopWidth: 1, borderTopColor: Colors.gray[100], backgroundColor: Colors.white },
   disclosureText: { fontSize: 12, color: Colors.gray[600], marginTop: 8 },
   feeBreakdownContainer: {
     marginTop: 16,
@@ -933,73 +880,6 @@ const styles = StyleSheet.create({
     color: Colors.gray[500],
     fontStyle: 'italic',
     marginTop: 8,
-  },
-  warningBox: {
-    backgroundColor: '#FFFBEB',
-    borderWidth: 1,
-    borderColor: Colors.warning,
-    padding: 9,
-    borderRadius: 8,
-    marginBottom: 9,
-  },
-  warningScroll: {
-    height: 48,
-  },
-  warningText: { fontSize: 12, color: Colors.warning, lineHeight: 16 },
-  foodSafetyAcknowledgmentBox: {
-    backgroundColor: Colors.gray[50],
-    borderWidth: 1,
-    borderColor: Colors.gray[200],
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-  },
-  foodSafetyInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginBottom: 12,
-  },
-  foodSafetyInfoText: {
-    flex: 1,
-    fontSize: 12,
-    color: Colors.gray[700],
-    lineHeight: 18,
-  },
-  foodSafetyLink: {
-    color: Colors.gradient.green,
-    textDecorationLine: 'underline',
-    fontWeight: '600',
-  },
-  acknowledgmentCheckboxRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  acknowledgmentCheckbox: {
-    width: 20,
-    height: 20,
-    borderWidth: 2,
-    borderColor: Colors.gray[300],
-    borderRadius: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 2,
-  },
-  acknowledgmentCheckboxActive: {
-    backgroundColor: Colors.gradient.green,
-    borderColor: Colors.gradient.green,
-  },
-  acknowledgmentCheckmark: {
-    color: Colors.white,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  acknowledgmentText: {
-    flex: 1,
-    fontSize: 12,
-    color: Colors.gray[700],
-    lineHeight: 18,
   },
   countdownOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   countdownBox: { width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },

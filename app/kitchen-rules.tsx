@@ -1,9 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, router, type Href } from 'expo-router';
+import { Stack, router, usePathname, type Href } from 'expo-router';
+import { openFoodHandling } from '@/components/FoodHandlingLink';
 import * as WebBrowser from 'expo-web-browser';
-import { AuthBackButton, AuthBackground, AuthBrand } from '@/components/auth/AuthChrome';
+import { AuthBackground, AuthBrand } from '@/components/auth/AuthChrome';
+import { BackCircle } from '@/components/BackCircle';
+import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { SellerOnly } from '@/components/RoleGuard';
 import { AuthColors } from '@/constants/auth-palette';
 import { GlassPressable } from '@/components/glass-surface';
@@ -23,13 +26,17 @@ function openSource(url: string) {
 }
 
 export default function KitchenRulesScreen() {
+  const pathname = usePathname();
+  const leave = useLeaveScreen('/(tabs)/profile');
   return (
     <SellerOnly>
     <AuthBackground>
     <SafeAreaView style={styles.safe} testID="kitchen-rules">
       <Stack.Screen options={{ title: 'Kitchen Rules', headerShown: false }} />
+      <View style={styles.backRow}>
+        <BackCircle tone="honey" onPress={leave} testID="kitchen-rules-back" />
+      </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <AuthBackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/profile'))} />
         <AuthBrand toSignIn={false} />
         <Text style={styles.brand}>Kitchen Rules</Text>
         <Text style={styles.audience}>A resource for PlateMakers</Text>
@@ -52,7 +59,7 @@ export default function KitchenRulesScreen() {
           <Text style={styles.body}>
             You are responsible for the kitchen, the permit, the temperature, and the label. The temperatures, glove rules, and container notes are on Food handling. Publishing a meal on this app does not create a cottage exemption and does not replace a health permit. If your state does not allow that food from a residence, the lawful path is a commercially licensed retail kitchen or a permitted shared kitchen, with the agreement and receipts your inspector asks for.
           </Text>
-          <GlassPressable onPress={() => router.push('/food-handling' as Href)} testID="kitchen-rules-food-handling">
+          <GlassPressable onPress={() => openFoodHandling(pathname)} testID="kitchen-rules-food-handling">
             <Text style={styles.body}>Open food handling temperatures</Text>
           </GlassPressable>
         </Section>
@@ -241,6 +248,7 @@ function SourceCard({ source }: { source: ExternalSource }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
+  backRow: { paddingHorizontal: 20, paddingTop: 8 },
   content: { paddingHorizontal: 20, paddingBottom: 40 },
   brand: {
     color: AuthColors.ink,

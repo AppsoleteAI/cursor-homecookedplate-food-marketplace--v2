@@ -40,6 +40,9 @@ import { sendMessageProcedure } from "./routes/messages/send/route";
 import { listMessagesProcedure } from "./routes/messages/list/route";
 import { listConversationsProcedure } from "./routes/messages/conversations/route";
 import { subscribeProcedure } from "./routes/membership/subscribe/route";
+import { claimEarlyBirdProcedure, earlyBirdOfferProcedure } from "./routes/membership/claim-early-bird/route";
+import { locateMembershipProcedure } from "./routes/membership/locate/route";
+import { createCheckoutSessionProcedure } from "./routes/payments/create-checkout-session/route";
 import { confirmAppleProcedure } from "./routes/membership/confirm-apple/route";
 import { confirmGoogleProcedure } from "./routes/membership/confirm-google/route";
 import { checkTrialEligibilityProcedure } from "./routes/trials/check-eligibility/route";
@@ -137,6 +140,7 @@ export const appRouter = createTRPCRouter({
     setAreaStore: setAreaStoreProcedure,
     listShopOrders: listShopOrdersProcedure,
     confirmPayment: confirmPaymentProcedure,
+    createCheckoutSession: createCheckoutSessionProcedure,
     createConnectAccount: createConnectAccountProcedure,
     getConnectAccountStatus: getConnectAccountStatusProcedure,
     createSetupIntent: createSetupIntentProcedure,
@@ -151,6 +155,9 @@ export const appRouter = createTRPCRouter({
     subscribe: subscribeProcedure,
     confirmApple: confirmAppleProcedure,
     confirmGoogle: confirmGoogleProcedure,
+    earlyBirdOffer: earlyBirdOfferProcedure,
+    claimEarlyBird: claimEarlyBirdProcedure,
+    locate: locateMembershipProcedure,
   }),
   trials: createTRPCRouter({
     checkEligibility: checkTrialEligibilityProcedure,

@@ -6,33 +6,9 @@ import { useDebounce } from './useDebounce';
 import { getPasswordStrengthScore } from '@/components/PasswordStrengthMeter';
 import { useAuth } from './auth-context';
 import * as Location from 'expo-location';
-import { supabase } from '@/lib/supabase';
-import * as WebBrowser from 'expo-web-browser';
-
-const WEBSITE_MEMBERSHIP = 'https://homecookedplate.com/membership';
-
-async function paymentSetupMessage(error: unknown): Promise<string> {
-  const context = (error as { context?: { clone?: () => { json: () => Promise<unknown>; text: () => Promise<string> } } })?.context;
-  if (context?.clone) {
-    try {
-      const body = await context.clone().json() as { error?: unknown; message?: unknown };
-      if (typeof body?.error === 'string') return body.error;
-      if (typeof body?.message === 'string') return body.message;
-    } catch {
-      try {
-        const text = await context.clone().text();
-        if (text) return text.slice(0, 300);
-      } catch {
-        // The status line below is the fallback.
-      }
-    }
-  }
-  if (error instanceof Error && error.message) return error.message;
-  return 'Failed to create checkout session. Please try again or contact support.';
-}
 
 export interface UseSignupFormOptions {
-  onSuccess?: (result: { requiresLogin: boolean; requiresCheckout?: boolean; needsEmailConfirmation?: boolean }) => void;
+  onSuccess?: (result: { requiresLogin: boolean; requiresCheckout?: boolean; chooseMembership?: boolean; needsEmailConfirmation?: boolean }) => void;
   onError?: (error: Error) => void;
 }
 
@@ -52,6 +28,7 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
   const [loading, setLoading] = useState(false);
   const [isSigningUp, setIsSigningUp] = useState(false);
   const [signupUserRole, setSignupUserRole] = useState<'platetaker' | 'platemaker' | null>(null);
+  const [chooseMembership, setChooseMembership] = useState(false);
   const [isMembershipEnabled, setIsMembershipEnabled] = useState(false);
   const [isEligibleForTrial, setIsEligibleForTrial] = useState(false);
   const [trialMeta, setTrialMeta] = useState<{ metro: string; spotsRemaining: number } | null>(null);
@@ -333,56 +310,14 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
       }
       
       console.log("[Signup] Success!", result);
-      
-      // If Remote/Over-cap user requires checkout, redirect to Stripe checkout
-      if (result.requiresCheckout) {
-        try {
-          const { data: sessionData } = await supabase.auth.getSession();
-          const accessToken = sessionData.session?.access_token;
-          if (!accessToken) {
-            throw new Error('Sign-in did not finish, so payment could not start.');
-          }
-          const { data: checkoutResult, error: checkoutError } = await supabase.functions.invoke(
-            'create-checkout-session',
-            {
-              body: { returnUrl: WEBSITE_MEMBERSHIP },
-              headers: { Authorization: `Bearer ${accessToken}` },
-            }
-          );
 
-          if (checkoutError) {
-            throw checkoutError;
-          }
-
-          if (checkoutResult.checkoutUrl) {
-            if (Platform.OS === 'web') {
-              window.location.assign(checkoutResult.checkoutUrl);
-            } else {
-              await WebBrowser.openBrowserAsync(checkoutResult.checkoutUrl);
-              Alert.alert('Complete Payment', 'Please complete your payment to activate your premium membership. You\'ll be redirected back to the app after payment.', [{ text: 'OK' }]);
-            }
-            setLoading(false);
-            return;
-          }
-        } catch (checkoutError: unknown) {
-          const checkoutErrorMessage = await paymentSetupMessage(checkoutError);
-          console.error('[Signup] Checkout session error:', checkoutError);
-          if (Platform.OS === 'web') {
-            window.alert('Payment Setup Error: ' + checkoutErrorMessage);
-          } else {
-            Alert.alert('Payment Setup Error', checkoutErrorMessage);
-          }
-          setLoading(false);
-          return;
-        }
-      }
-      
       // Success - reset retry count and error
       setRetryCount(0);
       setError(null);
       
       // Set animation state - this will trigger the success UI
       setSignupUserRole(formData.role);
+      setChooseMembership(formData.role === 'platemaker' || result.chooseMembership === true);
       AsyncStorage.setItem('hcp_has_account', '1').catch(() => undefined);
       setIsSigningUp(true);
 
@@ -488,6 +423,7 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
     isLoading: loading,
     isSigningUp,
     signupUserRole,
+    chooseMembership,
     
     // Error recovery
     error,

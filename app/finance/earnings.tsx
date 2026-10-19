@@ -91,7 +91,7 @@ export default function PlatemakerEarningsScreen() {
             <Text style={styles.rowValue}>{formatMoney(netAfterStripe)}</Text>
           </View>
           <Text style={styles.cardHint}>
-            Note: &quot;Your Net Payout&quot; shows platform fees only. &quot;Estimated net (after Stripe)&quot; includes estimated Stripe processing fees (2.9% + $0.30).
+            Note: &quot;Your Net Payout&quot; shows platform fees only. &quot;Estimated net (after Stripe)&quot; includes estimated Stripe processing fees (2.9% + $0.30). Delivery is separate. You set that amount and receive it. The buyer pays it plus 5%.
           </Text>
         </View>
       </ScrollView>

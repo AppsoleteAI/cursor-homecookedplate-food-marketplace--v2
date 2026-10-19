@@ -1,13 +1,16 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useRef } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { Stack } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { AuthBackButton, AuthBackground, AuthBrand } from '@/components/auth/AuthChrome';
+import { AuthBackground, AuthBrand } from '@/components/auth/AuthChrome';
+import { BackCircle } from '@/components/BackCircle';
 import { AuthColors } from '@/constants/auth-palette';
 import { FOOD_HANDLING_NOTICE, FOOD_HANDLING_SECTIONS, FOOD_HANDLING_SOURCES } from '@/lib/food-handling';
 import { titleCase } from '@/lib/title-case';
-import { GlassPressable } from '@/components/glass-surface';
+import { GlassIconButton, GlassPressable } from '@/components/glass-surface';
+import { useLeaveScreen } from '@/hooks/use-leave-screen';
 
 function openSource(url: string) {
   WebBrowser.openBrowserAsync(url).catch((error) => {
@@ -16,12 +19,23 @@ function openSource(url: string) {
 }
 
 export default function FoodHandlingScreen() {
+  const leave = useLeaveScreen('/(tabs)/profile');
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollToTop = () => scrollRef.current?.scrollTo({ y: 0, animated: true });
+  const scrollToBottom = () => scrollRef.current?.scrollToEnd({ animated: true });
+
   return (
     <AuthBackground>
       <SafeAreaView style={styles.safe} testID="food-handling">
         <Stack.Screen options={{ title: 'Food Handling', headerShown: false }} />
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <AuthBackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/profile'))} />
+        <View style={styles.topBar}>
+          <BackCircle tone="honey" onPress={leave} testID="food-handling-back" />
+        </View>
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
           <AuthBrand toSignIn={false} />
           <Text style={styles.brand}>Food Handling</Text>
           <Text style={styles.audience}>Temperatures and hygiene for PlateMakers and PlateTakers</Text>
@@ -69,6 +83,24 @@ export default function FoodHandlingScreen() {
             ))}
           </View>
         </ScrollView>
+        <View style={styles.jumps} pointerEvents="box-none">
+          <GlassIconButton
+            onPress={scrollToTop}
+            testID="food-handling-scroll-top"
+            accessibilityLabel="Scroll to top"
+            tint="rgba(232, 176, 22, 0.72)"
+          >
+            <Ionicons name="chevron-up" size={22} color={AuthColors.ink} />
+          </GlassIconButton>
+          <GlassIconButton
+            onPress={scrollToBottom}
+            testID="food-handling-scroll-bottom"
+            accessibilityLabel="Scroll to bottom"
+            tint="rgba(232, 176, 22, 0.72)"
+          >
+            <Ionicons name="chevron-down" size={22} color={AuthColors.ink} />
+          </GlassIconButton>
+        </View>
       </SafeAreaView>
     </AuthBackground>
   );
@@ -76,7 +108,14 @@ export default function FoodHandlingScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
-  content: { paddingHorizontal: 20, paddingBottom: 40 },
+  topBar: { paddingHorizontal: 20, paddingTop: 8 },
+  content: { paddingHorizontal: 20, paddingBottom: 108 },
+  jumps: {
+    position: 'absolute',
+    right: 16,
+    bottom: 16,
+    gap: 10,
+  },
   brand: {
     color: AuthColors.ink,
     fontSize: 28,

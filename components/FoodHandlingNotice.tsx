@@ -1,7 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
-import { router, type Href } from 'expo-router';
+import { usePathname } from 'expo-router';
 import { Colors } from '@/constants/colors';
+import { openFoodHandling } from '@/components/FoodHandlingLink';
 
 export function FoodHandlingNotice({
   inset = false,
@@ -10,10 +11,11 @@ export function FoodHandlingNotice({
   inset?: boolean;
   testID?: string;
 }) {
+  const pathname = usePathname();
   return (
     <Pressable
       style={[styles.card, inset ? styles.inset : styles.page]}
-      onPress={() => router.push('/food-handling' as Href)}
+      onPress={() => openFoodHandling(pathname)}
       testID={testID}
     >
       <Text style={styles.kicker}>Food handling</Text>

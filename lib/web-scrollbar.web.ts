@@ -41,6 +41,7 @@ const HEADER_COLORS: [string, string][] = [
   ['/filter', monoGradients.orange[0]],
   ['/funnel', monoGradients.orange[0]],
   ['/create-meal', monoGradients.orange[0]],
+  ['/publish-plate', monoGradients.red[0]],
   ['/cart', monoGradients.green[0]],
   ['/dashboard', monoGradients.green[0]],
   ['/buyer-dashboard', monoGradients.red[0]],

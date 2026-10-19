@@ -1,5 +1,6 @@
 import React from 'react';
 import { Redirect } from 'expo-router';
+import { userNeedsMembership } from '@/backend/lib/trial-access';
 import { useAuth } from '@/hooks/auth-context';
 import { navLogger } from '@/lib/nav-logger';
 
@@ -42,13 +43,6 @@ export default function Index() {
     return <Redirect href={{ pathname: '/(auth)/welcome', params: { entry: 'gate' } }} />;
   }
 
-  // 3. Additional check: Ensure session is fully loaded before redirecting
-  // This prevents race conditions where isAuthenticated is true but session isn't ready
-  if (isAuthenticated && !session && !hasTimedOut) {
-    // Wait a bit for session to load
-    return null;
-  }
-
   // 4. Null check for user before accessing role
   if (!user) {
     navLogger.error('app/index.tsx:NULL_USER', 'User is null but isAuthenticated is true', undefined, {
@@ -66,6 +60,11 @@ export default function Index() {
     });
     // Default handling: redirect to home as fallback
     return <Redirect href="/(tabs)/(home)/home" />;
+  }
+
+  if (userNeedsMembership(user)) {
+    navLogger.authDecision('app/index.tsx:REDIRECT_CHECK', true, 'platemaker', '/membership');
+    return <Redirect href="/membership" />;
   }
 
   // 6. Default Authenticated Route

@@ -1,9 +1,10 @@
 import { z } from 'zod';
+import { membershipPriceCents, membershipProductName, type MembershipInterval, type MembershipRole } from '../../../../lib/fees';
 import { protectedProcedure } from '../../../create-context';
-import { getStripePriceId } from '../../../../lib/stripe-utils';
 
 const inputSchema = z.object({
   returnUrl: z.string().url().optional(),
+  interval: z.enum(['month', 'year']).default('month'),
 });
 
 export const createCheckoutSessionProcedure = protectedProcedure
@@ -18,7 +19,7 @@ export const createCheckoutSessionProcedure = protectedProcedure
     // Get user profile to determine Early Bird status and membership tier
     const { data: profile, error: profileError } = await ctx.supabase
       .from('profiles')
-      .select('id, email, username, membership_tier, metro_area, trial_ends_at, stripe_customer_id')
+      .select('id, email, username, role, membership_tier, metro_area, trial_ends_at, stripe_customer_id')
       .eq('id', ctx.userId)
       .single();
 
@@ -26,18 +27,10 @@ export const createCheckoutSessionProcedure = protectedProcedure
       throw new Error('Profile not found');
     }
 
-    // Determine if user is Early Bird (has trial_ends_at and metro_area is not Remote/Other)
-    const isEarlyBird = !!(
-      profile.trial_ends_at &&
-      profile.metro_area &&
-      profile.metro_area !== 'Remote/Other'
-    );
-
-    // Get the appropriate price ID
-    const priceId = getStripePriceId(
-      profile.membership_tier || 'free',
-      isEarlyBird
-    );
+    const role: MembershipRole = profile.role === 'platemaker' ? 'platemaker' : 'platetaker';
+    const interval: MembershipInterval = input.interval;
+    const unitAmount = membershipPriceCents(role, interval);
+    const productName = membershipProductName(role, interval);
 
     // Create or retrieve Stripe customer
     let customerId = profile.stripe_customer_id;
@@ -82,16 +75,18 @@ export const createCheckoutSessionProcedure = protectedProcedure
     const sessionParams = new URLSearchParams({
       customer: customerId,
       mode: 'subscription',
-      'line_items[0][price]': priceId,
       'line_items[0][quantity]': '1',
+      'line_items[0][price_data][currency]': 'usd',
+      'line_items[0][price_data][unit_amount]': String(unitAmount),
+      'line_items[0][price_data][recurring][interval]': interval,
+      'line_items[0][price_data][product_data][name]': productName,
       success_url: `${defaultSuccessUrl}?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: defaultCancelUrl,
-      metadata: JSON.stringify({
-        user_id: profile.id,
-        is_early_bird: String(isEarlyBird),
-        membership_tier: profile.membership_tier || 'free',
-        metro_area: profile.metro_area || null,
-      }),
+      'metadata[user_id]': profile.id,
+      'metadata[role]': role,
+      'metadata[interval]': interval,
+      'metadata[membership_tier]': profile.membership_tier || 'free',
+      'metadata[metro_area]': profile.metro_area || '',
     });
 
     // Create checkout session
@@ -113,13 +108,14 @@ export const createCheckoutSessionProcedure = protectedProcedure
     const session = await sessionResponse.json();
 
     console.log(
-      `[Stripe] Checkout session created: ${session.id} for user ${profile.id}, price: ${priceId}, early_bird: ${isEarlyBird}`
+      `[Stripe] Checkout session created: ${session.id} for user ${profile.id}, role: ${role}, interval: ${interval}, cents: ${unitAmount}`
     );
 
     return {
       checkoutUrl: session.url,
       sessionId: session.id,
-      priceId,
-      isEarlyBird,
+      role,
+      interval,
+      unitAmount,
     };
   });

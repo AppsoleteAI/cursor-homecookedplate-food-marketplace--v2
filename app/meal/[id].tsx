@@ -7,7 +7,6 @@ import {
   Image,
   Alert,
   Dimensions,
-  BackHandler,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -32,6 +31,8 @@ import { navLogger } from '@/lib/nav-logger';
 import { captureException } from '@/lib/sentry';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { SkeletonMealDetail } from '@/components/SkeletonMealDetail';
+import { BackCircle } from '@/components/BackCircle';
+import { useLeaveScreen } from '@/hooks/use-leave-screen';
 
 const { width } = Dimensions.get('window');
 
@@ -79,6 +80,7 @@ export default function MealDetailScreen() {
   const [selectedAllergies, setSelectedAllergies] = useState<string[]>([]);
   const [cookingTemp, setCookingTemp] = useState<string>('');
   const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
+  const leave = useLeaveScreen('/(tabs)/(home)/home');
 
   // Log modal mount for Issue #12 (Instrumentation)
   useEffect(() => {
@@ -97,23 +99,6 @@ export default function MealDetailScreen() {
     }
      
   }, [id, meal]);
-
-  useEffect(() => {
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      try {
-        if (router.canGoBack()) {
-          router.back();
-        } else {
-          router.replace('/(tabs)/(home)/home');
-        }
-        return true;
-      } catch (e) {
-        console.error('[MealDetail] Back handler error:', e);
-        return false;
-      }
-    });
-    return () => sub.remove();
-  }, []);
 
   // Enhanced error handling with logging
   useEffect(() => {
@@ -135,7 +120,10 @@ export default function MealDetailScreen() {
     return (
       <ErrorBoundary>
         <SafeAreaView style={styles.container} edges={Platform.OS === 'android' ? ['top', 'bottom'] : undefined}>
-          <Stack.Screen options={{ headerShown: true, title: 'Meal Details' }} />
+          <Stack.Screen options={{ headerShown: false, title: 'Meal Details' }} />
+          <View style={styles.backFloat}>
+            <BackCircle tone="light" onPress={leave} testID="meal-back" />
+          </View>
           <SkeletonMealDetail />
         </SafeAreaView>
       </ErrorBoundary>
@@ -146,13 +134,11 @@ export default function MealDetailScreen() {
     return (
       <ErrorBoundary>
         <SafeAreaView style={styles.container} edges={Platform.OS === 'android' ? ['top', 'bottom'] : undefined}>
-          <Stack.Screen options={{ headerShown: true, title: 'Meal Details' }} />
+          <Stack.Screen options={{ headerShown: false, title: 'Meal Details' }} />
           <View style={styles.errorContainer}>
+            <BackCircle tone="honey" onPress={leave} testID="meal-back" />
             <Text style={styles.errorText}>Meal not found</Text>
             <Text style={styles.errorSubtext}>ID: {id}</Text>
-            <GlassPressable onPress={() => router.back()} style={styles.errorButton}>
-              <Text style={styles.errorButtonText}>Go Back</Text>
-            </GlassPressable>
           </View>
         </SafeAreaView>
       </ErrorBoundary>
@@ -184,17 +170,9 @@ export default function MealDetailScreen() {
             to bind the context and prevent PreventRemoveContext errors (Issue #1) */}
         <Stack.Screen 
         options={{ 
-          headerShown: true, 
+          headerShown: false, 
           title: 'Meal Details',
           presentation: 'modal',
-          headerLeft: () => (
-            <GlassPressable 
-              onPress={() => router.back()}
-              style={{ marginLeft: 10 }}
-            >
-              <Text style={{ color: Colors.blue[600], fontSize: 16, fontWeight: '600' }}>Close</Text>
-            </GlassPressable>
-          ),
         }} 
       />
       <ScrollView 
@@ -207,6 +185,9 @@ export default function MealDetailScreen() {
         }}
       >
         <View style={styles.imageContainer}>
+          <View style={styles.backFloat}>
+            <BackCircle tone="light" onPress={leave} testID="meal-back" />
+          </View>
           <ScrollView
             horizontal
             pagingEnabled
@@ -491,6 +472,12 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     position: 'relative',
+  },
+  backFloat: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    zIndex: 2,
   },
   image: {
     width,

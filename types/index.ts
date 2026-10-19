@@ -10,7 +10,8 @@ export interface User {
   createdAt: Date;
   isPaused?: boolean;
   twoFactorEnabled?: boolean;
-  membershipTier?: 'free' | 'premium';
+  membershipTier?: 'free' | 'premium' | 'lifetime';
+  needsMembership?: boolean;
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
   metroArea?: string | null;

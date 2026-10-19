@@ -1,12 +1,13 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, router } from 'expo-router';
+import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useOrders } from '@/hooks/orders-context';
-import { GlassPressable } from '@/components/glass-surface';
+import { BackCircle } from '@/components/BackCircle';
+import { useLeaveScreen } from '@/hooks/use-leave-screen';
 
 interface SimpleNotification {
   id: string;
@@ -17,6 +18,7 @@ interface SimpleNotification {
 
 export default function NotificationsBellScreen() {
   const { getNotificationItems } = useOrders();
+  const leave = useLeaveScreen('/(tabs)/(home)/home');
 
   const notifications: SimpleNotification[] = useMemo(() => {
     const base = getNotificationItems();
@@ -32,9 +34,7 @@ export default function NotificationsBellScreen() {
             <Ionicons name="notifications" size={22} color={Colors.white} />
             <Text style={styles.headerTitle}>Notifications</Text>
           </View>
-          <GlassPressable onPress={() => router.back()} testID="close-notifications-bell">
-            <Text style={styles.closeText}>Close</Text>
-          </GlassPressable>
+          <BackCircle tone="light" onPress={leave} gapBelow={false} testID="close-notifications-bell" />
         </View>
         <Text style={styles.headerSubtitle}>Your recent alerts</Text>
       </LinearGradient>

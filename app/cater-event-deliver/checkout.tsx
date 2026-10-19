@@ -13,6 +13,7 @@ import { calculateOrderSplit, orderTotalWithDelivery } from '@/lib/fees';
 import { DeliveryLevyLines, useDeliveryQuote } from '@/components/DeliveryFeeCard';
 import { useShopCardPayment } from '@/hooks/use-shop-payment';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
+import { usePaidBack } from '@/hooks/use-leave-screen';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
 
 export default function CaterCheckoutScreen() {
@@ -24,6 +25,7 @@ export default function CaterCheckoutScreen() {
   const [organization, setOrganization] = useState('');
   const [address, setAddress] = useState('');
   const [orderId, setOrderId] = useState<string | null>(null);
+  usePaidBack('/cater-event-deliver/orders', orderId != null);
   const [block, setBlock] = useState<string | null>(null);
 
   const lines = useMemo(() => {
@@ -105,7 +107,7 @@ export default function CaterCheckoutScreen() {
 
   if (orderId) {
     return (
-      <CaterEventScreen title="Drop-off booked" subtitle={organization.trim() || 'Organization order'} showOrder={false} testID="cater-checkout-done">
+      <CaterEventScreen title="Drop-off booked" subtitle={organization.trim() || 'Organization order'} showOrder={false} showBack={false} testID="cater-checkout-done">
         <Text style={styles.lead}>{companyName} has order {orderId}. They drop off and set up during {dropoffWindow}. Nothing is sent to a courier from this app.</Text>
         <GlassPressable style={styles.button} onPress={() => router.push('/cater-event-deliver/orders' as Href)}>
           <Text style={styles.buttonText}>Catering Orders</Text>

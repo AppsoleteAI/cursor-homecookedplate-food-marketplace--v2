@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { trpc } from '@/lib/trpc';
 import { AuthColors } from '@/constants/auth-palette';
 import { AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { ResendConfirmation } from '@/components/auth/ResendConfirmation';
 import { GlassPressable } from '@/components/glass-surface';
+import { BackCircle } from '@/components/BackCircle';
+import { useReplaceBack } from '@/hooks/use-leave-screen';
 
 export default function VerifyEmailScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
@@ -13,21 +16,10 @@ export default function VerifyEmailScreen() {
   const [verificationStatus, setVerificationStatus] = useState<'idle' | 'verifying' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
 
+  const backToSignIn = useReplaceBack('/(auth)/login');
   const verifyEmail = trpc.auth.verifyEmail.useMutation({
-    onSuccess: (data) => {
+    onSuccess: () => {
       setVerificationStatus('success');
-      Alert.alert(
-        'Email Verified!',
-        data.message || 'Your email has been verified successfully. You can now log in.',
-        [
-          {
-            text: 'Go to Login',
-            onPress: () => {
-              router.replace('/(auth)/login');
-            },
-          },
-        ]
-      );
     },
     onError: (error) => {
       setVerificationStatus('error');
@@ -61,6 +53,8 @@ export default function VerifyEmailScreen() {
   return (
     <AuthBackground>
     <View style={styles.container}>
+      <BackCircle tone="honey" onPress={backToSignIn} testID="verify-email-back" />
+      <View style={styles.body}>
       <AuthBrand />
       <View style={styles.sheet}>
         <View style={styles.panel}>
@@ -75,7 +69,7 @@ export default function VerifyEmailScreen() {
           {verificationStatus === 'success' && (
             <>
               <Ionicons name="checkmark-circle" size={64} color={AuthColors.maroon} />
-              <Text style={styles.title}>Email Verified</Text>
+              <Text style={styles.title}>Email confirmed</Text>
               <Text style={styles.subtitle}>You can sign in with this address now.</Text>
               <AuthGoldButton title="Go to sign in" onPress={handleGoToLogin} />
             </>
@@ -86,7 +80,8 @@ export default function VerifyEmailScreen() {
               <Ionicons name="alert-circle" size={64} color={AuthColors.error} />
               <Text style={styles.title}>Verification Failed</Text>
               <Text style={styles.subtitle}>{errorMessage}</Text>
-              {token ? (
+              <ResendConfirmation showEmailField />
+              {token && !/expired|already been used|invalid verification/i.test(errorMessage) ? (
                 <AuthGoldButton
                   title={verifyEmail.isPending ? 'Trying again' : 'Try again'}
                   onPress={handleRetry}
@@ -100,6 +95,7 @@ export default function VerifyEmailScreen() {
           )}
         </View>
       </View>
+      </View>
     </View>
     </AuthBackground>
   );
@@ -109,8 +105,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: 'transparent',
-    justifyContent: 'center',
     padding: 16,
+  },
+  body: {
+    flex: 1,
+    justifyContent: 'center',
   },
   sheet: {
     backgroundColor: 'transparent',

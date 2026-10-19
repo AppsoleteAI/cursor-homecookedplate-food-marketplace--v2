@@ -133,7 +133,7 @@ export default function PayoutResponsibilityScreen() {
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>Stripe account</Text>
                 <Text style={styles.body}>
-                  HomeCookedPlate keeps both non-refundable 10% fees. Buyers pay 10% on top. Your payout is 10% less. Neither fee is returned on a refund.
+                  HomeCookedPlate keeps both non-refundable 10% fees. Buyers pay 10% on top. Your payout is 10% less. Neither fee is returned on a refund. If you set a delivery fee, the buyer pays that amount plus 5%. You receive the amount you set. HomeCookedPlate keeps the 5%.
                 </Text>
                 <Text style={styles.body}>
                   {connect.data?.payoutsEnabled

@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/auth-context';
 import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { BUYER_AFTER_NOTE } from '@/lib/buyer-safety';
 import { GlassPressable } from '@/components/glass-surface';
+import { ScreenBack } from '@/components/BackCircle';
 
 export default function OrderDetailsPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -48,6 +49,7 @@ export default function OrderDetailsPage() {
   if (!order) {
     return (
       <View style={[styles.center, { paddingTop: insets.top, paddingBottom: insets.bottom }]}> 
+        <ScreenBack fallback="/(tabs)/orders" testID="order-back" />
         <Text style={styles.error}>Order not found</Text>
       </View>
     );
@@ -55,7 +57,8 @@ export default function OrderDetailsPage() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <Stack.Screen options={{ title: `Order #${order.id}` }} />
+      <Stack.Screen options={{ title: `Order #${order.id}`, headerShown: false }} />
+      <ScreenBack fallback="/(tabs)/orders" testID="order-back" />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.mealHeader}>
           <Image source={{ uri: order.mealImage }} style={styles.mealImage} accessibilityLabel="meal-image" />

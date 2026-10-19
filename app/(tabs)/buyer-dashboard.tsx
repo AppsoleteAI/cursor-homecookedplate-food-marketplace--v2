@@ -9,11 +9,13 @@ import { Ionicons } from '@expo/vector-icons';
 import StarRating from '@/components/StarRating';
 import { useFavorites } from '@/hooks/favorites-context';
 import { useCart } from '@/hooks/cart-context';
-import { router , type Href } from 'expo-router';
+import { router, usePathname, type Href } from 'expo-router';
+import { openFoodHandling } from '@/components/FoodHandlingLink';
 import { trpc } from '@/lib/trpc';
 import HorizontalCarousel from '@/components/HorizontalCarousel';
 
 export default function BuyerDashboardScreen() {
+  const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const { favorites } = useFavorites();
   const { addToCart } = useCart();
@@ -200,7 +202,7 @@ export default function BuyerDashboardScreen() {
 
           <Pressable
             style={styles.handlingCard}
-            onPress={() => router.push('/food-handling' as Href)}
+            onPress={() => openFoodHandling(pathname)}
             testID="buyer-food-handling"
           >
             <Text style={styles.handlingTitle}>Food handling</Text>

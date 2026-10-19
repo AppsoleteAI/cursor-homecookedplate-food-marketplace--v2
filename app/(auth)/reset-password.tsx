@@ -15,7 +15,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/auth-context';
 import { AuthColors } from '@/constants/auth-palette';
-import { AuthBackground, AuthBackButton, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { BackCircle } from '@/components/BackCircle';
+import { useReplaceBack } from '@/hooks/use-leave-screen';
 import { GlassPressable } from '@/components/glass-surface';
 
 function validatePassword(password: string): { valid: boolean; message?: string } {
@@ -32,6 +34,7 @@ export default function ResetPasswordScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [hasValidSession, setHasValidSession] = useState(false);
+  const backToSignIn = useReplaceBack('/(auth)/login');
 
   useEffect(() => {
     if (params.access_token && params.type === 'recovery') {
@@ -125,7 +128,7 @@ export default function ResetPasswordScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <AuthBackButton onPress={() => router.replace('/(auth)/login')} />
+            <BackCircle tone="honey" onPress={backToSignIn} testID="reset-password-back" />
             <AuthBrand />
             <View style={styles.sheet}>
               <View style={styles.panel}>

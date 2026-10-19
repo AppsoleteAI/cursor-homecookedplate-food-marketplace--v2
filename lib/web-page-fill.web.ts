@@ -30,6 +30,7 @@ const PAGE_COLOR: [string, string][] = [
   ['/search', pagePastel.orange],
   ['/filter', pagePastel.orange],
   ['/create-meal', pagePastel.red],
+  ['/publish-plate', pagePastel.red],
   ['/cart', pagePastel.green],
   ['/dashboard', pagePastel.green],
   ['/buyer-dashboard', pagePastel.red],

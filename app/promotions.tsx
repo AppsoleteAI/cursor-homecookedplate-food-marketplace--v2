@@ -18,6 +18,7 @@ import { PromotionalOffer } from '@/types';
 import { useAuth } from '@/hooks/auth-context';
 import { useNotifications } from '@/hooks/notifications-context';
 import { GlassPressable } from '@/components/glass-surface';
+import { ScreenBack } from '@/components/BackCircle';
 
 export default function PromotionsScreen() {
   const { user } = useAuth();
@@ -199,6 +200,7 @@ export default function PromotionsScreen() {
       <SafeAreaView style={styles.container}>
         <Stack.Screen options={{ title: 'Promotions', headerShown: false }} />
         <View style={styles.errorContainer}>
+          <ScreenBack fallback="/(tabs)/profile" testID="promotions-back" />
           <Text style={styles.errorText}>Only Platemakers can manage promotions</Text>
         </View>
       </SafeAreaView>
@@ -211,6 +213,7 @@ export default function PromotionsScreen() {
       
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
+          <ScreenBack fallback="/(tabs)/profile" testID="promotions-back" />
           <View style={styles.header}>
             <Text style={styles.title}>Promotional Offers</Text>
             <Text style={styles.subtitle}>Create special deals to attract more customers</Text>

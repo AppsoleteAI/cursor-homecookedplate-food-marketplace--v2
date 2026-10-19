@@ -13,6 +13,7 @@ import { calculateOrderSplit, orderTotalWithDelivery } from '@/lib/fees';
 import { DeliveryLevyLines, useDeliveryQuote } from '@/components/DeliveryFeeCard';
 import { useShopCardPayment } from '@/hooks/use-shop-payment';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
+import { usePaidBack } from '@/hooks/use-leave-screen';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
 
 export default function MealPrepCheckoutScreen() {
@@ -24,6 +25,7 @@ export default function MealPrepCheckoutScreen() {
   const [windowLabel, setWindowLabel] = useState('');
   const [address, setAddress] = useState('');
   const [orderId, setOrderId] = useState<string | null>(null);
+  usePaidBack('/meal-prep-go/orders', orderId != null);
   const [block, setBlock] = useState<string | null>(null);
 
   const lines = useMemo(() => {
@@ -120,7 +122,7 @@ export default function MealPrepCheckoutScreen() {
 
   if (orderId) {
     return (
-      <MealPrepScreen title="Week placed" subtitle={mix} showWeek={false} testID="prep-checkout-done">
+      <MealPrepScreen title="Week placed" subtitle={mix} showWeek={false} showBack={false} testID="prep-checkout-done">
         <Text style={styles.lead}>Your card was charged for week {orderId}.</Text>
         <GlassPressable style={styles.button} onPress={() => router.push('/meal-prep-go/orders' as Href)}>
           <Text style={styles.buttonText}>View Prep Orders</Text>

@@ -1,10 +1,12 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, monoGradients, type BaseColor } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
+import { BackCircle } from '@/components/BackCircle';
+import { useReplaceBack } from '@/hooks/use-leave-screen';
 
 const BUYER_PLACES: { name: string; detail: string; color: BaseColor }[] = [
   { name: 'Home Kitchens', detail: 'Plates cooked near you, for pickup.', color: 'yellow' },
@@ -17,9 +19,10 @@ const BUYER_PLACES: { name: string; detail: string; color: BaseColor }[] = [
 
 const COOK_PATH: { name: string; detail: string; color: BaseColor }[] = [
   { name: 'Home', detail: 'Start with plates from your own kitchen.', color: 'yellow' },
+  { name: 'FarmGrownBasket', detail: 'Produce, eggs, honey, and homemade goods. Pickup is from the farm.', color: 'green' },
+  { name: 'MealPrepGo', detail: 'A weekly plan from your kitchen. Ready meals, cook-at-home kits, or a mix.', color: 'blue' },
   { name: 'Catering', detail: 'CaterEventDeliver is group drop-off for offices, clinics, and events.', color: 'purple' },
-  { name: 'Cart', detail: 'An independent food cart on FoodTruckPopup. Pickup is at the cart.', color: 'orange' },
-  { name: 'Truck', detail: 'An independent food truck on FoodTruckPopup. Pickup is at the service window.', color: 'orange' },
+  { name: 'FoodTruckPopup', detail: 'Independent food carts and food trucks. Customers order ahead and pick up at the cart or the service window.', color: 'orange' },
   { name: 'Restaurant', detail: 'SitDownDelicious is a licensed independent restaurant. Guests sit down or take out.', color: 'gold' },
 ];
 
@@ -27,15 +30,19 @@ export default function MembershipAccessScreen() {
   const { user } = useAuth();
   const isMaker = user?.role === 'platemaker';
   const places = isMaker ? COOK_PATH : BUYER_PLACES;
+  const leave = useReplaceBack('/membership');
 
   return (
     <SafeAreaView style={styles.container}>
-      <Stack.Screen options={{ title: isMaker ? 'Cook path' : 'Where to eat', headerShown: true }} />
+      <Stack.Screen options={{ title: isMaker ? 'Cook path' : 'Where to eat', headerShown: false }} />
+      <View style={styles.backRow}>
+        <BackCircle tone="honey" onPress={leave} testID="membership-access-back" />
+      </View>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>{isMaker ? 'Grow with the kitchen you have' : 'Plates from more than one place'}</Text>
         {isMaker ? (
           <Text style={styles.body}>
-            The places a PlateTaker can order from are also places a cook can grow into. Home, Catering, a Cart, a Truck, and a Restaurant each have their own license.
+            The places a PlateTaker can order from are also places a cook can grow into. Home, FarmGrownBasket, MealPrepGo, Catering, FoodTruckPopup, and a Restaurant.
           </Text>
         ) : (
           <>
@@ -44,7 +51,7 @@ export default function MembershipAccessScreen() {
               <Text key={section} style={styles.bullet}>{`• ${section}`}</Text>
             ))}
             <Text style={styles.body}>
-              Premium is $4.99 a month. It cuts the service fee on the receipt from 10% to 5% on orders of $20 or more.
+              Premium is $7.99 a month or $75.99 a year. It cuts the service fee on the receipt from 10% to 5% on orders of $20 or more.
             </Text>
           </>
         )}
@@ -70,8 +77,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.white,
   },
+  backRow: { paddingHorizontal: 16, paddingTop: 8 },
   content: {
-    padding: 24,
+    paddingHorizontal: 24,
+    paddingBottom: 24,
     gap: 16,
   },
   title: {

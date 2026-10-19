@@ -7,6 +7,7 @@ import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/hooks/auth-context';
 import { SkeletonMessagesList } from '@/components/SkeletonMessagesList';
 import { GlassPressable } from '@/components/glass-surface';
+import { ScreenBack } from '@/components/BackCircle';
 
 interface Conversation {
   orderId: string;
@@ -100,6 +101,7 @@ export default function MessagesPage() {
     return (
       <View style={styles.container}>
         <Stack.Screen options={{ title: 'Messages' }} />
+        <ScreenBack fallback="/(tabs)/profile" testID="messages-back" />
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>Please log in to view messages</Text>
         </View>
@@ -111,6 +113,7 @@ export default function MessagesPage() {
     return (
       <View style={styles.container}>
         <Stack.Screen options={{ title: 'Messages' }} />
+        <ScreenBack fallback="/(tabs)/profile" testID="messages-back" />
         <SkeletonMessagesList />
       </View>
     );
@@ -124,7 +127,7 @@ export default function MessagesPage() {
           headerStyle: { backgroundColor: Colors.white },
         }} 
       />
-      
+      <ScreenBack fallback="/(tabs)/profile" testID="messages-back" />
       {conversations.length === 0 ? (
         <View style={styles.emptyContainer}>
           <MessageCircle size={64} color={Colors.gray[400]} />

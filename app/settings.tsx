@@ -13,6 +13,7 @@ import { Stack } from 'expo-router';
 import { Globe, Volume2, MapPin, ChevronRight } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { GlassPressable } from '@/components/glass-surface';
+import { ScreenBack } from '@/components/BackCircle';
 
 export default function SettingsScreen() {
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -58,7 +59,7 @@ export default function SettingsScreen() {
       />
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-
+          <ScreenBack fallback="/(tabs)/profile" testID="settings-back" />
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Preferences</Text>

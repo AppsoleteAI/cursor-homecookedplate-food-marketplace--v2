@@ -14,12 +14,15 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AuthColors, preAppFont } from '@/constants/auth-palette';
-import { AuthBackButton, AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { BackCircle } from '@/components/BackCircle';
+import { useWizardBack } from '@/hooks/use-leave-screen';
 import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 import { useSignupForm } from '@/hooks/useSignupForm';
 import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { BUYER_AFTER_NOTE } from '@/lib/buyer-safety';
+import { SUBSCRIPTION_PRICES } from '@/backend/lib/fees';
 import { PLATEMAKER_LOST_DISPUTE_SIGNUP, PLATETAKER_LOST_DISPUTE_SIGNUP } from '@/backend/lib/payout-policy';
 import { trpc } from '@/lib/trpc';
 import { GlassPressable, GlassTop } from '@/components/glass-surface';
@@ -34,9 +37,10 @@ function isRole(value: string | undefined): value is Role {
 }
 
 export default function OnboardingScreen() {
-  const params = useLocalSearchParams<{ role?: string | string[] }>();
+  const params = useLocalSearchParams<{ role?: string | string[]; step?: string | string[] }>();
   const roleParam = typeof params.role === 'string' ? params.role : undefined;
-  const [step, setStep] = useState(0);
+  const requestedStep = params.step === '1' || params.step === '2' ? Number(params.step) : 0;
+  const [step, setStep] = useState(requestedStep);
   const [askRole, setAskRole] = useState(!isRole(roleParam));
   const [metroStatus, setMetroStatus] = useState<MetroStatus>('idle');
   const [metroName, setMetroName] = useState<string | null>(null);
@@ -58,6 +62,7 @@ export default function OnboardingScreen() {
     error,
     retryCount,
   } = useSignupForm();
+  const stepBack = useWizardBack(step, setStep, isSigningUp || isLoading);
 
   const checkEligibility = trpc.trials.checkEligibility.useMutation();
   const { username, email, password, confirmPassword, role, agreedToTerms, foodSafetyAcknowledged } = formData;
@@ -151,14 +156,28 @@ export default function OnboardingScreen() {
   };
 
   if (isSigningUp) {
+    const maker = role === 'platemaker';
+    const takerMonthly = SUBSCRIPTION_PRICES.PLATETAKER_MONTHLY.toFixed(2);
+    const takerYearly = SUBSCRIPTION_PRICES.PLATETAKER_ANNUAL.toFixed(2);
     return (
       <AuthBackground>
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.success}>
             <Ionicons name="checkmark-circle" size={72} color={AuthColors.maroon} />
             <Text style={styles.successTitle}>Account created</Text>
-            <Text style={styles.successText}>You can sign in with the email and password you just chose.</Text>
-            <AuthGoldButton title="Go to sign in" onPress={() => router.replace('/(auth)/login')} />
+            <Text style={styles.successText}>
+              {maker
+                ? 'Choose Early Bird or a membership before the kitchen opens. Early Bird does not charge a card.'
+                : `The app is free. Premium is optional: $${takerMonthly} a month or $${takerYearly} a year. It cuts the service fee from 10% to 5% on orders of $20 or more.`}
+            </Text>
+            <Pressable
+              onPress={() => router.push('/membership')}
+              testID={maker ? 'signup-choose-membership' : 'signup-see-membership'}
+              accessibilityRole="button"
+              style={styles.successButton}
+            >
+              <Text style={styles.successButtonText}>{maker ? 'Choose Membership' : 'See Membership'}</Text>
+            </Pressable>
           </View>
         </SafeAreaView>
       </AuthBackground>
@@ -180,16 +199,16 @@ export default function OnboardingScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <AuthBackButton
-              onPress={() => {
-                setPageError(null);
-                if (step === 0) {
-                  router.back();
-                  return;
-                }
-                setStep((current) => current - 1);
-              }}
-            />
+            {step > 0 && !isSigningUp && !isLoading ? (
+              <BackCircle
+                tone="honey"
+                onPress={() => {
+                  setPageError(null);
+                  stepBack();
+                }}
+                testID="onboarding-back"
+              />
+            ) : null}
 
             <AuthBrand />
             <View style={styles.steps}>
@@ -389,7 +408,7 @@ export default function OnboardingScreen() {
                       <Text style={[styles.checkText, { marginTop: 8 }]}>
                         {BUYER_AFTER_NOTE}
                       </Text>
-                      <FoodHandlingLink />
+                      <FoodHandlingLink returnTo={`/onboarding?step=2${role ? `&role=${role}` : ''}`} />
                     </View>
                     <CheckRow
                       checked={foodSafetyAcknowledged}
@@ -761,6 +780,28 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(70, 16, 0, 0.55)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 6,
+  },
+  successButton: {
+    minWidth: 220,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    backgroundColor: AuthColors.maroonDeep,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.36)',
+    shadowColor: '#461C06',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    elevation: 5,
+  },
+  successButtonText: {
+    ...preAppFont,
+    color: AuthColors.white,
+    fontSize: 17,
+    fontWeight: '700',
   },
   successText: {
     ...preAppFont,

@@ -11,7 +11,9 @@ import * as WebBrowser from 'expo-web-browser';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { AuthColors, goldButtonColors, preAppFont } from '@/constants/auth-palette';
 import { LinearGradient } from 'expo-linear-gradient';
-import { AuthBackButton, AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { BackCircle } from '@/components/BackCircle';
+import { useWizardBack } from '@/hooks/use-leave-screen';
 import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
 import { useAuth } from '@/hooks/auth-context';
 import { SUBSCRIPTION_PRICES } from '@/backend/lib/fees';
@@ -58,16 +60,16 @@ const MEMBERSHIP_PRICES: { id: string; caption: string; amount: number; label: s
     label: 'PlateMaker, 4.99 dollars a month',
   },
   {
-    id: 'platetaker-monthly',
-    caption: 'PlateTaker · Monthly',
-    amount: SUBSCRIPTION_PRICES.PLATETAKER_MONTHLY,
-    label: 'PlateTaker, 7.99 dollars a month',
-  },
-  {
     id: 'platemaker-yearly',
     caption: 'PlateMaker · Yearly',
     amount: SUBSCRIPTION_PRICES.PLATEMAKER_ANNUAL,
     label: 'PlateMaker, 39.99 dollars a year',
+  },
+  {
+    id: 'platetaker-monthly',
+    caption: 'PlateTaker · Monthly',
+    amount: SUBSCRIPTION_PRICES.PLATETAKER_MONTHLY,
+    label: 'PlateTaker, 7.99 dollars a month',
   },
   {
     id: 'platetaker-yearly',
@@ -88,18 +90,32 @@ function firstParam(value: string | string[] | undefined): string | undefined {
   return undefined;
 }
 
+function stepParam(value: string | string[] | undefined): number {
+  const step = Number(firstParam(value));
+  return step === 1 || step === 2 ? step : 0;
+}
+
+function welcomeReturn(role: Role | undefined, step: number) {
+  const query = new URLSearchParams();
+  if (role) query.set('role', role);
+  if (step > 0) query.set('step', String(step));
+  const text = query.toString();
+  return text ? `/welcome?${text}` : '/welcome';
+}
+
 function markWelcomeSeen() {
   AsyncStorage.setItem(WELCOME_SEEN_KEY, '1').catch(() => undefined);
 }
 
 export default function WelcomeScreen() {
   const { user } = useAuth();
-  const params = useLocalSearchParams<{ role?: string | string[]; entry?: string | string[] }>();
+  const params = useLocalSearchParams<{ role?: string | string[]; entry?: string | string[]; step?: string | string[] }>();
   const role = roleParam(params.role);
   const isGate = firstParam(params.entry) === 'gate';
   const isMaker = role === 'platemaker';
   const stepLabels = ['Benefits', 'Membership', isMaker ? 'Cottage food' : 'Safety'];
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(stepParam(params.step));
+  const stepBack = useWizardBack(step, setStep);
   const [gate, setGate] = useState<'checking' | 'show' | 'login'>(isGate ? 'checking' : 'show');
 
   useEffect(() => {
@@ -165,19 +181,7 @@ export default function WelcomeScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <AuthBackButton
-            onPress={() => {
-              if (step > 0) {
-                setStep((current) => current - 1);
-                return;
-              }
-              if (router.canGoBack()) {
-                router.back();
-                return;
-              }
-              goToSignIn();
-            }}
-          />
+          {step > 0 ? <BackCircle tone="honey" onPress={stepBack} testID="welcome-back" /> : null}
 
           <AuthBrand />
           <View style={styles.steps}>
@@ -241,7 +245,7 @@ export default function WelcomeScreen() {
                   <View style={styles.earlyBird}>
                     <Text style={styles.earlyTitle}>Early Bird</Text>
                     <Text style={styles.earlyBody}>
-                      PlateMakers get 90 days of Premium at no charge while their metro still has a spot. A valid credit card starts those 90 days. The $4.99 monthly or $39.99 yearly charge begins after they end. Cancel before then and you are not charged.
+                      PlateMakers get 90 days of Premium at no charge while their metro still has a spot. Choosing Early Bird does not open Stripe. The start date and the end date are saved, and Premium ends when those days run out. Monthly is $4.99 and yearly is $39.99 if they pay instead.
                     </Text>
                     <Text style={styles.earlyBody}>
                       PlateTakers get free access. Premium is the upgrade that cuts the service fee on the receipt from 10% to 5% on orders of $20 or more.
@@ -281,7 +285,7 @@ export default function WelcomeScreen() {
                     </View>
                   </View>
                   <Text style={styles.help}>{PLATETAKER_LOST_DISPUTE_SIGNUP}</Text>
-                  <FoodHandlingLink color="#3D7EBE" />
+                  <FoodHandlingLink color="#3D7EBE" returnTo={welcomeReturn(role, 2)} />
                 </>
               ) : null}
 
@@ -328,7 +332,7 @@ export default function WelcomeScreen() {
                     </Text>
                     <Text style={[styles.checkText, { marginTop: 8 }]}>{PLATEMAKER_LOST_DISPUTE_SIGNUP}</Text>
                   </View>
-                  <FoodHandlingLink color="#3D7EBE" label="Food handling temperatures for the kitchen" />
+                  <FoodHandlingLink color="#3D7EBE" label="Food handling temperatures for the kitchen" returnTo={welcomeReturn(role, 2)} />
                 </>
               ) : null}
 

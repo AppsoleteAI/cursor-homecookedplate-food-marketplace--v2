@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,12 +18,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
-import { router, type Href } from 'expo-router';
+import { Redirect, router, useFocusEffect, type Href } from 'expo-router';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
-import { isLoginLegalBoxChecked, readLegalAgreement, setLoginLegalBoxChecked, clearLoginLegalBox, toCompletedLegalAgreement } from '@/lib/legal-agreement';
+import { isLoginLegalBoxChecked, readLegalAgreement, setLoginLegalBoxChecked, toCompletedLegalAgreement } from '@/lib/legal-agreement';
 import { AuthColors, preAppFont } from '@/constants/auth-palette';
-import { AuthBackButton, AuthBackground, AuthBrand } from '@/components/auth/AuthChrome';
+import { AuthBackground, AuthBrand } from '@/components/auth/AuthChrome';
+import { BackCircle } from '@/components/BackCircle';
+import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 
@@ -35,32 +37,53 @@ const GOOGLE_LOGO = require('../../assets/logo-google.png');
 
 type SignupRole = 'platetaker' | 'platemaker';
 
+function readLoginError(error: unknown): string {
+  if (!error || typeof error !== 'object') return '';
+  const record = error as {
+    message?: unknown;
+    shape?: { message?: unknown };
+    data?: { message?: unknown };
+  };
+  const parts = [record.message, record.shape?.message, record.data?.message]
+    .filter((part): part is string => typeof part === 'string');
+  return [...new Set(parts)].join(' ');
+}
+
 export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [providerNotice, setProviderNotice] = useState<string | null>(null);
   const [legalChecked, setLegalChecked] = useState(isLoginLegalBoxChecked);
+  const [agreementOnFile, setAgreementOnFile] = useState(false);
   const [legalNotice, setLegalNotice] = useState<string | null>(null);
-  const { login, session } = useAuth();
+  const { login, user } = useAuth();
   const saveAgreement = trpc.auth.updateProfile.useMutation();
-  const sessionRef = useRef(session);
+  const leave = useLeaveScreen(null);
 
   useEffect(() => {
     WebBrowser.maybeCompleteAuthSession();
   }, []);
 
-  useEffect(() => {
-    if (sessionRef.current && !session) {
-      clearLoginLegalBox();
-      setLegalChecked(false);
-      setLegalNotice(null);
-    }
-    sessionRef.current = session;
-  }, [session]);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      readLegalAgreement().then((record) => {
+        if (!active || !toCompletedLegalAgreement(record)) return;
+        setAgreementOnFile(true);
+        setLegalChecked(true);
+        setLoginLegalBoxChecked(true);
+        setLegalNotice(null);
+      });
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
 
   const openSignup = (role?: SignupRole) => {
     const href = (
@@ -91,18 +114,12 @@ export default function LoginScreen() {
     }
 
     const agreement = toCompletedLegalAgreement(await readLegalAgreement());
-    const pageComplete = agreement !== null;
-    if (!legalChecked || !pageComplete) {
-      const message = !legalChecked && !pageComplete
-        ? 'Check the Legal & Safety box to enter the app. The Legal & Safety page must also be filled out on this device.'
-        : !legalChecked
-          ? 'Check the Legal & Safety box to enter the app.'
-          : 'The Legal & Safety page must be filled out on this device before you can enter.';
-      setLegalNotice(message);
-      Alert.alert('Legal & Safety', message);
-      return;
+    if (agreement) {
+      setAgreementOnFile(true);
+      setLegalChecked(true);
+      setLoginLegalBoxChecked(true);
+      setLegalNotice(null);
     }
-    setLegalNotice(null);
 
     if (retryCount >= 3 && !isRetry) {
       setError('Too many attempts. Wait a moment, then try again.');
@@ -113,6 +130,7 @@ export default function LoginScreen() {
 
     setLoading(true);
     setError(null);
+    setNeedsConfirmation(false);
     setProviderNotice(null);
 
     let timedOut = false;
@@ -135,29 +153,44 @@ export default function LoginScreen() {
       }
       setRetryCount(0);
       setError(null);
+      router.replace('/');
     } catch (loginError: any) {
       console.error('[Login Error]', loginError);
       if (timedOut) return;
 
-      if (!isRetry) {
+      const serverMessage = readLoginError(loginError);
+      const confirmationNeeded = /confirm your email|email not confirmed/i.test(serverMessage);
+      const legalNeeded = serverMessage.includes('Complete the Legal & Safety page');
+
+      const isValidationError = serverMessage.includes('invalid_format') ||
+        loginError.data?.zodError?.issues?.some((issue: any) => issue.path?.includes('email'));
+
+      const isNetworkError = serverMessage.includes('fetch') ||
+        serverMessage.includes('network') ||
+        serverMessage.includes('timeout') ||
+        serverMessage.includes('Failed to fetch');
+
+      if (!isRetry && !confirmationNeeded && !legalNeeded) {
         setRetryCount((prev) => prev + 1);
       }
 
-      const isValidationError = loginError.message?.includes('invalid_format') ||
-        loginError.shape?.message?.includes('email') ||
-        loginError.data?.zodError?.issues?.some((issue: any) => issue.path?.includes('email'));
-
-      const isNetworkError = loginError.message?.includes('fetch') ||
-        loginError.message?.includes('network') ||
-        loginError.message?.includes('timeout') ||
-        loginError.message?.includes('Failed to fetch');
-
-      if (isValidationError) {
+      if (legalNeeded) {
+        setNeedsConfirmation(false);
+        setError(null);
+        setLegalNotice('Check each section on the Legal & Safety page, then enter today\'s date.');
+        Alert.alert('Legal & Safety', 'Check each section on the Legal & Safety page, then enter today\'s date.');
+      } else if (isValidationError) {
+        setNeedsConfirmation(false);
         setError('Check the email address.');
       } else if (isNetworkError) {
+        setNeedsConfirmation(false);
         setError('Network error. Check your connection and try again.');
+      } else if (confirmationNeeded) {
+        setNeedsConfirmation(true);
+        setError(null);
       } else {
-        setError('That email or password does not match.');
+        setNeedsConfirmation(false);
+        setError(serverMessage || 'That email or password does not match.');
       }
     } finally {
       clearTimeout(timeoutId);
@@ -166,6 +199,10 @@ export default function LoginScreen() {
       }
     }
   };
+
+  if (user) {
+    return <Redirect href="/" />;
+  }
 
   return (
     <AuthBackground testID="login-screen">
@@ -180,7 +217,7 @@ export default function LoginScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {router.canGoBack() ? <AuthBackButton onPress={() => router.back()} /> : null}
+            {router.canGoBack() ? <BackCircle tone="honey" onPress={leave} testID="login-back" /> : null}
             <View style={styles.brandSlot}>
               <AuthBrand toSignIn={false} />
             </View>
@@ -262,6 +299,7 @@ export default function LoginScreen() {
                     onChangeText={(value) => {
                       setUsername(value);
                       if (error) setError(null);
+                      if (needsConfirmation) setNeedsConfirmation(false);
                     }}
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -312,7 +350,7 @@ export default function LoginScreen() {
                 {error ? (
                   <View style={styles.errorContainer}>
                     <Text style={styles.errorText}>{error}</Text>
-                    {retryCount > 0 && retryCount < 3 ? (
+                    {retryCount > 0 && retryCount < 3 && !needsConfirmation ? (
                       <GlassPressable
                         onPress={() => handleLogin(true)}
                         style={styles.retryButton}
@@ -322,6 +360,22 @@ export default function LoginScreen() {
                       </GlassPressable>
                     ) : null}
                   </View>
+                ) : null}
+
+                {needsConfirmation ? (
+                  <GlassPressable
+                    onPress={() => router.push({ pathname: '/(auth)/recover', params: { mode: 'confirm', email: username.trim() } } as Href)}
+                    style={styles.confirmNotice}
+                    accessibilityLabel="This email is not confirmed. Open the confirmation page."
+                    testID="login-confirm-notice"
+                  >
+                    <Ionicons name="mail-outline" size={18} color={AuthColors.maroon} />
+                    <View style={styles.confirmNoticeCopy}>
+                      <Text style={styles.confirmNoticeTitle}>This email is not confirmed.</Text>
+                      <Text style={styles.confirmNoticeBody}>Tap to email a new confirmation link.</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={AuthColors.ink} />
+                  </GlassPressable>
                 ) : null}
 
                 <GlassPressable
@@ -351,6 +405,7 @@ export default function LoginScreen() {
               <View style={styles.legalRow}>
                 <Pressable
                   onPress={() => {
+                    if (agreementOnFile) return;
                     setLegalChecked((current) => {
                       const next = !current;
                       setLoginLegalBoxChecked(next);
@@ -603,6 +658,39 @@ const styles = StyleSheet.create({
     color: AuthColors.maroon,
     fontSize: 14,
     fontWeight: '600',
+  },
+  confirmNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: AuthColors.field,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.36)',
+    shadowColor: '#461C06',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    elevation: 5,
+  },
+  confirmNoticeCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  confirmNoticeTitle: {
+    ...preAppFont,
+    color: AuthColors.ink,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  confirmNoticeBody: {
+    ...preAppFont,
+    color: AuthColors.muted,
+    fontSize: 13,
+    lineHeight: 18,
   },
   signInButton: {
     borderRadius: 24,

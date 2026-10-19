@@ -12,11 +12,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { Colors, monoGradients } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
 import { GlassPressable } from '@/components/glass-surface';
+import { BackCircle } from '@/components/BackCircle';
+import { useLeaveScreen } from '@/hooks/use-leave-screen';
 
 interface MetroCount {
   metro_name: string;
@@ -57,6 +59,7 @@ export default function AdminMetroCapsScreen() {
       }
     }, [refetch, user?.isAdmin])
   );
+  const leave = useLeaveScreen('/(tabs)/profile');
 
   // Verify admin access (after hooks)
   if (!user?.isAdmin) {
@@ -65,12 +68,7 @@ export default function AdminMetroCapsScreen() {
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Access Denied</Text>
           <Text style={styles.errorSubtext}>Admin privileges required</Text>
-          <GlassPressable
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Text style={styles.backButtonText}>Go Back</Text>
-          </GlassPressable>
+          <BackCircle tone="honey" onPress={leave} testID="metro-caps-denied-back" />
         </View>
       </View>
     );
@@ -132,12 +130,7 @@ export default function AdminMetroCapsScreen() {
           style={[styles.headerGradient, { paddingTop: insets.top }]}
         >
           <View style={styles.headerContent}>
-            <GlassPressable
-              style={styles.backButton}
-              onPress={() => router.back()}
-            >
-              <Ionicons name="arrow-back" size={24} color={Colors.white} />
-            </GlassPressable>
+            <BackCircle tone="light" onPress={leave} gapBelow={false} testID="metro-caps-back" />
             <Text style={styles.headerTitle}>Metro Cap Management</Text>
             <View style={styles.headerSpacer} />
           </View>

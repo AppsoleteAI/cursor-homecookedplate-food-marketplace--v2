@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router , type Href } from 'expo-router';
+import { router, usePathname, type Href } from 'expo-router';
+import { openFoodHandling } from '@/components/FoodHandlingLink';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { screenName } from '@/lib/title-case';
 import { useAuth } from '@/hooks/auth-context';
@@ -34,6 +35,7 @@ function tell(message: string) {
 }
 
 export default function ProfileScreen() {
+  const pathname = usePathname();
   const { user, logout, updateProfile } = useAuth();
   const [cameraOpen, setCameraOpen] = useState(false);
   const [savingPhoto, setSavingPhoto] = useState(false);
@@ -128,7 +130,7 @@ export default function ProfileScreen() {
       icon: 'thermometer-outline',
       title: 'Food Handling',
       subtitle: 'Clean, separate, cook, and chill',
-      onPress: () => router.push('/food-handling' as Href),
+      onPress: () => openFoodHandling(pathname),
     },
     ...(user?.role === 'platemaker'
       ? [{

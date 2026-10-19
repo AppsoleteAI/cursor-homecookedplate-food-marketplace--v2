@@ -1,7 +1,7 @@
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
-import { supabase } from "../../../../lib/supabase"; // NOT supabaseAdmin - uses anon key
+import { TRPCError } from "@trpc/server";
+import { createServerSupabaseClient } from "../../../../lib/supabase";
 import { assertEmailConfirmed } from "../../../../lib/email-confirmation";
 
 /**
@@ -11,7 +11,8 @@ import { assertEmailConfirmed } from "../../../../lib/email-confirmation";
  * - signInWithPassword() is a client-facing operation that should respect RLS
  * - Service role key is only for admin operations (signup, webhooks, recovery)
  * 
- * This route directly imports and uses the 'supabase' client which uses EXPO_PUBLIC_SUPABASE_ANON_KEY
+ * The Worker builds that client per request from its own bindings. The module
+ * singleton is empty there, so login must use ctx.supabase.
  */
 export const loginProcedure = publicProcedure
   .input(
@@ -20,45 +21,54 @@ export const loginProcedure = publicProcedure
       password: z.string(),
     })
   )
-  .mutation(async ({ input }) => {
-    // Use supabase client (anon key) for login - correct for user authentication
-    if (!supabase) {
-      throw new Error('Supabase client is not configured');
-    }
-
-    const { data, error } = await supabase.auth.signInWithPassword({
+  .mutation(async ({ input, ctx }) => {
+    const { data, error } = await ctx.supabase.auth.signInWithPassword({
       email: input.email,
       password: input.password,
     });
 
     if (error || !data.user || !data.session) {
-      throw new Error(error?.message || 'Invalid credentials');
+      const authError = error as { message?: string; code?: string } | null;
+      const authText = `${authError?.code ?? ''} ${authError?.message ?? ''}`.toLowerCase();
+      if (authText.includes('email_not_confirmed') || authText.includes('email not confirmed')) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Confirm your email before signing in. Check your inbox for the verification link.',
+        });
+      }
+      const { data: existingAccount, error: lookupError } = await ctx.supabaseAdmin
+        .from('profiles')
+        .select('id')
+        .ilike('email', input.email)
+        .maybeSingle();
+      if (!lookupError && !existingAccount) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'No account uses this email.',
+        });
+      }
+      throw new TRPCError({
+        code: 'UNAUTHORIZED',
+        message: 'That password does not match.',
+      });
     }
 
     try {
       assertEmailConfirmed(data.user.email_confirmed_at);
     } catch (confirmationError) {
-      await supabase.auth.signOut();
-      throw confirmationError;
+      await ctx.supabase.auth.signOut();
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: confirmationError instanceof Error
+          ? confirmationError.message
+          : 'Confirm your email before signing in. Check your inbox for the verification link.',
+      });
     }
 
-    // Create a new client instance with the session token for authenticated queries
-    // This avoids session conflicts with the singleton client
-    const authenticatedClient = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-        global: {
-          headers: {
-            Authorization: `Bearer ${data.session.access_token}`,
-          },
-        },
-      }
-    );
+    const authenticatedClient = createServerSupabaseClient(data.session.access_token, {
+      SUPABASE_URL: process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL,
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    });
 
     // Fetch profile using authenticated client (anon key with session token)
     const { data: profile, error: profileError } = await authenticatedClient
@@ -68,17 +78,26 @@ export const loginProcedure = publicProcedure
       .single();
 
     if (profileError || !profile) {
-      throw new Error('Profile not found');
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'Profile not found',
+      });
     }
 
     if (profile.is_paused) {
-      await supabase.auth.signOut();
-      throw new Error('This account is paused. Reactivate it to sign in.');
+      await ctx.supabase.auth.signOut();
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'This account is paused. Reactivate it to sign in.',
+      });
     }
 
     if (profile.ordering_removed) {
-      await supabase.auth.signOut();
-      throw new Error('This account is permanently banned after lost card disputes.');
+      await ctx.supabase.auth.signOut();
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'This account is permanently banned after lost card disputes.',
+      });
     }
 
     return {
@@ -96,5 +115,6 @@ export const loginProcedure = publicProcedure
         twoFactorEnabled: profile.two_factor_enabled,
       },
       session: data.session,
+      legalSafetyAgreement: profile.legal_safety_agreement ?? null,
     };
   });

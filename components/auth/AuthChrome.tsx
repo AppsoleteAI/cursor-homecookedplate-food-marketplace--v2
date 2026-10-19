@@ -46,10 +46,11 @@ export function AuthBackground({
   );
 }
 
-export function AuthBackButton({ onPress }: { onPress: () => void }) {
+export function AuthBackButton({ onPress, hitSlop }: { onPress: () => void; hitSlop?: number }) {
   return (
     <GlassPressable
       onPress={onPress}
+      hitSlop={hitSlop}
       style={styles.back}
       accessibilityRole="button"
       accessibilityLabel="Back"

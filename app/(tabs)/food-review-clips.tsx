@@ -10,23 +10,26 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { Stack, router, type Href } from 'expo-router';
+import { Stack, router, useSegments, type Href } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { requestRecordingPermissionsAsync } from 'expo-audio';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors, monoGradients } from '@/constants/colors';
+import { BackCircle } from '@/components/BackCircle';
+import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { useAuth } from '@/hooks/auth-context';
 import { FoodReviewPlayer } from '@/components/FoodReviewPlayer';
 import {
-  FOOD_REVIEW_CLIPS_KEY,
   FOOD_REVIEW_MAX_SECONDS,
   FOOD_REVIEW_REACTIONS,
+  FOOD_REVIEW_REACTION_EMOJI_SIZE,
   exceedsFoodReviewClipLimit,
   foodReviewDurationSeconds,
+  foodReviewReactionGap,
   foodReviewSurface,
   resolveFoodReviewTimelineLayout,
   seedFoodReviewClips,
@@ -34,15 +37,12 @@ import {
   type FoodReviewClip,
   type FoodReviewReaction,
 } from '@/lib/food-review-clips';
-
-function isStoredClip(value: unknown): value is FoodReviewClip {
-  if (!value || typeof value !== 'object') return false;
-  const clip = value as FoodReviewClip;
-  return typeof clip.id === 'string' && typeof clip.videoUri === 'string' && typeof clip.mealName === 'string';
-}
+import { readFoodReviewClips, writeFoodReviewClips } from '@/lib/food-review-clip-store';
 
 export default function FoodReviewClips() {
   const insets = useSafeAreaInsets();
+  const isTab = useSegments()[0] === '(tabs)';
+  const leave = useLeaveScreen('/(tabs)/profile', !isTab);
   const { width, height } = useWindowDimensions();
   const { user } = useAuth();
   const isPremium = user?.membershipTier === 'premium';
@@ -54,18 +54,24 @@ export default function FoodReviewClips() {
   const [clips, setClips] = useState<FoodReviewClip[]>(seedFoodReviewClips);
   const [loaded, setLoaded] = useState(false);
   const [mealName, setMealName] = useState('');
+  const [query, setQuery] = useState('');
   const [menuClipId, setMenuClipId] = useState<string | null>(null);
+  const [reactionRowWidth, setReactionRowWidth] = useState(0);
+  const [reactionChipWidth, setReactionChipWidth] = useState(0);
+  const reactionGap = foodReviewReactionGap(reactionRowWidth, reactionChipWidth);
+  const isPlatemaker = role === 'platemaker';
+  const needle = query.trim().toLowerCase();
+  const visibleClips = !isPlatemaker && needle
+    ? clips.filter((clip) => (
+      clip.mealName.toLowerCase().includes(needle) || clip.author.toLowerCase().includes(needle)
+    ))
+    : clips;
 
-  useEffect(() => {
+  const loadClips = useCallback(() => {
     let active = true;
-    AsyncStorage.getItem(FOOD_REVIEW_CLIPS_KEY)
-      .then((raw) => {
-        if (!active) return;
-        if (!raw) return;
-        const parsed: unknown = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.every(isStoredClip) && parsed.length > 0) {
-          setClips(parsed);
-        }
+    readFoodReviewClips()
+      .then((stored) => {
+        if (active && stored) setClips(stored);
       })
       .catch((error) => {
         console.error('[FoodReviewClips] Failed to load clips', error);
@@ -78,9 +84,11 @@ export default function FoodReviewClips() {
     };
   }, []);
 
+  useFocusEffect(useCallback(() => loadClips(), [loadClips]));
+
   useEffect(() => {
     if (!loaded) return;
-    AsyncStorage.setItem(FOOD_REVIEW_CLIPS_KEY, JSON.stringify(clips)).catch((error) => {
+    writeFoodReviewClips(clips).catch((error) => {
       console.error('[FoodReviewClips] Failed to save clips', error);
     });
   }, [clips, loaded]);
@@ -189,11 +197,6 @@ export default function FoodReviewClips() {
     addClip(asset.uri, asset.duration);
   }, [addClip, isPremium, pickOnWeb]);
 
-  const goBack = () => {
-    if (router.canGoBack()) router.back();
-    else router.replace('/(tabs)/profile' as Href);
-  };
-
   return (
     <View style={styles.container} testID="food-review-clips">
       <Stack.Screen options={{ headerShown: false, title: 'FoodReviewClips' }} />
@@ -203,9 +206,7 @@ export default function FoodReviewClips() {
         end={{ x: 1, y: 0 }}
         style={[styles.header, { paddingTop: insets.top + 8 }]}
       >
-        <GlassPressable onPress={goBack} testID="food-review-back" style={styles.backButton}>
-          <Ionicons name="chevron-back" size={22} color={Colors.white} />
-        </GlassPressable>
+        {isTab ? null : <BackCircle tone="light" onPress={leave} testID="food-review-back" />}
         <View style={styles.headerCopy}>
           <Text style={styles.title}>FoodReviewClips</Text>
           <Text style={styles.subtitle}>9:16 POV · {FOOD_REVIEW_MAX_SECONDS} second clips · premium</Text>
@@ -214,8 +215,22 @@ export default function FoodReviewClips() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={[styles.column, { width: layout.columnWidth }]}>
-          {clips.length === 0 ? <Text style={styles.empty}>No clips yet.</Text> : null}
-          {clips.map((clip) => {
+          {isPlatemaker ? null : (
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search clips"
+              placeholderTextColor={Colors.gray[400]}
+              style={styles.search}
+              testID="clip-search"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          )}
+          {visibleClips.length === 0 ? (
+            <Text style={styles.empty}>{needle ? 'No clips match that search.' : 'No clips yet.'}</Text>
+          ) : null}
+          {visibleClips.map((clip) => {
             const mine = new Set(clip.reactionsByUser[username] ?? []);
             return (
               <View key={clip.id} style={styles.post} testID={`clip-${clip.id}`}>
@@ -263,8 +278,12 @@ export default function FoodReviewClips() {
                     ) : null}
                   </View>
                 </View>
-                <View style={styles.actions} testID="food-review-reactions">
-                  {FOOD_REVIEW_REACTIONS.map((reaction) => {
+                <View
+                  style={[styles.actions, { gap: reactionGap }]}
+                  testID="food-review-reactions"
+                  onLayout={(event) => setReactionRowWidth(event.nativeEvent.layout.width)}
+                >
+                  {FOOD_REVIEW_REACTIONS.map((reaction, index) => {
                     const selected = mine.has(reaction.kind);
                     return (
                       <GlassPressable
@@ -275,6 +294,7 @@ export default function FoodReviewClips() {
                         accessibilityState={{ selected }}
                         onPress={() => react(clip.id, reaction.kind)}
                         style={[styles.actionChip, selected && styles.actionChipSelected]}
+                        onLayout={index === 0 ? (event) => setReactionChipWidth(event.nativeEvent.layout.width) : undefined}
                       >
                         <Text style={styles.reactionEmoji}>{reaction.emoji}</Text>
                         <Text
@@ -291,7 +311,7 @@ export default function FoodReviewClips() {
             );
           })}
 
-        <View style={styles.composer}>
+        {isPlatemaker ? <View style={styles.composer}>
           <Text style={styles.composerTitle}>
             {isPremium ? 'Post a 20 second clip' : 'Posting is for premium members'}
           </Text>
@@ -320,7 +340,7 @@ export default function FoodReviewClips() {
               <Text style={styles.actionSecondaryText}>{isPremium ? 'Choose Clip' : 'Premium'}</Text>
             </GlassPressable>
           </View>
-        </View>
+        </View> : null}
         </View>
       </ScrollView>
     </View>
@@ -333,8 +353,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingHorizontal: 16,
     paddingBottom: 16,
     borderBottomLeftRadius: 24,
@@ -456,9 +475,19 @@ const styles = StyleSheet.create({
     color: Colors.gray[900],
     fontWeight: '600',
   },
+  search: {
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: Colors.gray[900],
+    marginTop: 12,
+    marginBottom: 4,
+  },
   actions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 6,
   },
@@ -474,10 +503,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.gray[100],
   },
   reactionEmoji: {
-    fontSize: 13.5,
+    fontSize: FOOD_REVIEW_REACTION_EMOJI_SIZE,
+    lineHeight: FOOD_REVIEW_REACTION_EMOJI_SIZE + 6,
   },
   reactionCount: {
-    fontSize: 10.5,
+    fontSize: 16,
     fontWeight: '600',
     color: Colors.gray[600],
   },

@@ -20,6 +20,7 @@ import { calculateOrderSplit, orderTotalWithDelivery } from '@/lib/fees';
 import { DeliveryLevyLines, useDeliveryQuote } from '@/components/DeliveryFeeCard';
 import { useShopCardPayment } from '@/hooks/use-shop-payment';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
+import { usePaidBack } from '@/hooks/use-leave-screen';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
 
 export default function FarmCheckoutScreen() {
@@ -29,6 +30,7 @@ export default function FarmCheckoutScreen() {
   const { payInMainCart } = useCombinedBill();
   const [channel, setChannel] = useState<FarmChannel>('farm_pickup');
   const [orderId, setOrderId] = useState<string | null>(null);
+  usePaidBack('/farm-grown-basket/orders', orderId != null);
 
   const lines = useMemo(() => {
     return items.flatMap((item) => {
@@ -91,7 +93,7 @@ export default function FarmCheckoutScreen() {
 
   if (orderId) {
     return (
-      <FarmScreen title="Order placed" subtitle="Farm goods only" showBasket={false} testID="farm-checkout-done">
+      <FarmScreen title="Order placed" subtitle="Farm goods only" showBasket={false} showBack={false} testID="farm-checkout-done">
         <Text style={styles.lead}>Your card was charged for farm order {orderId}.</Text>
         <GlassPressable style={styles.button} onPress={() => router.push('/farm-grown-basket/orders' as Href)}>
           <Text style={styles.buttonText}>View Farm Orders</Text>

@@ -12,6 +12,7 @@ import { PICKUP_SLOTS, type PickupSlot } from '@/lib/food-truck-permit';
 import { calculateOrderSplit } from '@/lib/fees';
 import { useShopCardPayment } from '@/hooks/use-shop-payment';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
+import { usePaidBack } from '@/hooks/use-leave-screen';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
 
 export default function TruckCheckoutScreen() {
@@ -21,6 +22,7 @@ export default function TruckCheckoutScreen() {
   const { payInMainCart } = useCombinedBill();
   const [slot, setSlot] = useState<PickupSlot>('Next 15 minutes');
   const [orderId, setOrderId] = useState<string | null>(null);
+  usePaidBack('/food-truck-popup/orders', orderId != null);
 
   const lines = useMemo(() => {
     return items.flatMap((item) => {
@@ -73,7 +75,7 @@ export default function TruckCheckoutScreen() {
 
   if (orderId) {
     return (
-      <FoodTruckScreen title="Ticket in" subtitle="Pick it up at the window" showBasket={false} testID="truck-checkout-done">
+      <FoodTruckScreen title="Ticket in" subtitle="Pick it up at the window" showBasket={false} showBack={false} testID="truck-checkout-done">
         <Text style={styles.lead}>{truckName} has ticket {orderId}. Show it at the service window. Nothing is sent to a courier.</Text>
         <GlassPressable style={styles.button} onPress={() => router.push('/food-truck-popup/orders' as Href)}>
           <Text style={styles.buttonText}>Truck Orders</Text>

@@ -18,6 +18,8 @@ import { MealCard } from '@/components/MealCard';
 import { Ionicons } from '@expo/vector-icons';
 import HorizontalCarousel from '@/components/HorizontalCarousel';
 import { useAuth } from '@/hooks/auth-context';
+import { BackCircle } from '@/components/BackCircle';
+import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { useCart } from '@/hooks/cart-context';
 
 const categories: string[] = ['dinner', 'dessert', 'lunch', 'breakfast', 'brunch', 'vegan'];
@@ -43,6 +45,7 @@ const tags: string[] = [
 export default function FilterScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const leave = useLeaveScreen('/(tabs)/search');
   const { user } = useAuth();
   const { totalItems } = useCart();
   const isPlatemaker = user?.role === 'platemaker';
@@ -167,13 +170,7 @@ export default function FilterScreen() {
           <View style={styles.headerContent}>
             <Text style={styles.title}>Filter Search</Text>
             <View style={styles.headerButtons}>
-              <GlassPressable
-                style={styles.backButton}
-                onPress={() => router.back()}
-                testID="back-to-search"
-              >
-                <Text style={styles.headerButtonText}>Back To Search</Text>
-              </GlassPressable>
+              <BackCircle tone="light" onPress={leave} gapBelow={false} testID="back-to-search" />
               <GlassPressable
                 style={styles.clearButton}
                 onPress={clearAll}

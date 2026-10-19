@@ -12,94 +12,169 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useStripe } from '@/lib/stripe';
+import * as WebBrowser from 'expo-web-browser';
 import * as Location from 'expo-location';
+import { SUBSCRIPTION_PRICES } from '@/backend/lib/fees';
+import { userNeedsMembership } from '@/backend/lib/trial-access';
 import { Colors, monoGradients } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
 import { MembershipPromoBanner } from '@/components/MembershipPromoBanner';
-import { finishIAP, IAP_REQUIRED, MEMBERSHIP_MONTHLY_PRODUCT_ID, purchaseIAP, restoreIAPPurchases } from '@/lib/iap';
+import { finishIAP, IAP_REQUIRED, MEMBERSHIP_ANNUAL_PRODUCT_ID, MEMBERSHIP_MONTHLY_PRODUCT_ID, purchaseIAP, restoreIAPPurchases } from '@/lib/iap';
 import { useAuth } from '@/hooks/auth-context';
 import { supabase } from '@/lib/supabase';
 import { trpc } from '@/lib/trpc';
 import { GlassPressable } from '@/components/glass-surface';
+import { BackCircle } from '@/components/BackCircle';
+import { useLeaveScreen, usePaidBack, useStayBack } from '@/hooks/use-leave-screen';
 
 export default function MembershipScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  const stripe = useStripe();
-  const initPaymentSheet = stripe?.initPaymentSheet || null;
-  const presentPaymentSheet = stripe?.presentPaymentSheet || null;
-
   const [processing, setProcessing] = useState(false);
+  const [chargeLock, setChargeLock] = useState<'idle' | 'charging' | 'paid'>('idle');
+  const [locationVerdict, setLocationVerdict] = useState<'unchecked' | 'outside' | 'inside'>('unchecked');
+  const remoteOnFile = !user?.metroArea || user.metroArea === 'Remote/Other';
+  const holdForGps = user?.role === 'platemaker' && remoteOnFile && locationVerdict !== 'outside';
+  const gated = userNeedsMembership(user) || holdForGps;
+  const leave = useLeaveScreen('/(tabs)/profile', chargeLock === 'idle' && !gated);
+  useStayBack(chargeLock === 'charging' || (gated && chargeLock !== 'paid'));
+  usePaidBack(user?.role === 'platemaker' ? '/(tabs)/dashboard' : '/(tabs)/(home)/home', chargeLock === 'paid');
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [gpsCoordinates, setGpsCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [, setLocationPermissionGranted] = useState(false);
 
-  const subscribeMutation = trpc.membership.subscribe.useMutation();
+  const claimEarlyBird = trpc.membership.claimEarlyBird.useMutation();
+  const locateMembership = trpc.membership.locate.useMutation();
+  const createCheckout = trpc.payments.createCheckoutSession.useMutation();
+  const earlyBirdOffer = trpc.membership.earlyBirdOffer.useQuery(undefined, {
+    enabled: user?.role === 'platemaker',
+    retry: false,
+  });
   const confirmAppleMutation = trpc.membership.confirmApple.useMutation();
   const confirmGoogleMutation = trpc.membership.confirmGoogle.useMutation();
-  const createSetupIntentMutation = trpc.payments.createSetupIntent.useMutation();
-  const getPaymentMethodMutation = trpc.payments.getPaymentMethodFromSetup.useMutation();
   const { refetch: refetchMe } = trpc.auth.me.useQuery(undefined, {
     enabled: !!user,
+    retry: false,
   });
 
   const membershipTier = user?.membershipTier || 'free';
   // Use metroArea from profile (locked at signup via PostGIS)
   const userMetro = user?.metroArea || null;
+  const remoteMetro = !userMetro || userMetro === 'Remote/Other';
   // PlateTakers join free. Early Bird is 90 days for a PlateMaker in an active metro that still has a spot.
   const isPlateTaker = user?.role !== 'platemaker';
-  const earlyBird = membershipTier === 'free' && user?.role === 'platemaker' && !!userMetro && userMetro !== 'Remote/Other';
-  const isEligibleForTrial = earlyBird;
+  const offerDays = earlyBirdOffer.data?.eligible ? earlyBirdOffer.data.trialDays : 0;
+  const plans = isPlateTaker
+    ? [
+        { interval: 'month' as const, amount: SUBSCRIPTION_PRICES.PLATETAKER_MONTHLY, caption: 'Monthly' },
+        { interval: 'year' as const, amount: SUBSCRIPTION_PRICES.PLATETAKER_ANNUAL, caption: 'Yearly' },
+      ]
+    : [
+        { interval: 'month' as const, amount: SUBSCRIPTION_PRICES.PLATEMAKER_MONTHLY, caption: 'Monthly' },
+        { interval: 'year' as const, amount: SUBSCRIPTION_PRICES.PLATEMAKER_ANNUAL, caption: 'Yearly' },
+      ];
   const joinFree = useCallback(() => {
     router.replace(user?.role === 'platemaker' ? '/(tabs)/dashboard' : '/(tabs)/(home)/home');
   }, [router, user?.role]);
 
-  // Request GPS permission and get coordinates
+  const tell = useCallback((title: string, message: string) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}\n\n${message}`);
+      return;
+    }
+    Alert.alert(title, message);
+  }, []);
+
   const requestLocationAndGetCoordinates = useCallback(async (): Promise<{ lat: number; lng: number } | null> => {
     if (Platform.OS === 'web') {
-      return null;
+      if (typeof navigator === 'undefined' || !navigator.geolocation) {
+        tell('Location', 'This browser cannot read a location. The kitchen stays closed until Get GPS can check a metro.');
+        return null;
+      }
+      try {
+        const position = await new Promise<{ coords: { latitude: number; longitude: number } }>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 20000,
+            maximumAge: 0,
+          });
+        });
+        return { lat: position.coords.latitude, lng: position.coords.longitude };
+      } catch (error) {
+        console.error('[Membership] Web location error:', error);
+        const denied = typeof error === 'object' && error !== null && 'code' in error && (error as { code?: number }).code === 1;
+        tell(
+          'Location',
+          denied
+            ? 'Location is off for this browser. Allow it for this site, then tap Get GPS again. The kitchen stays closed until that check finishes.'
+            : 'This browser could not read a location. The kitchen stays closed until Get GPS can check a metro.',
+        );
+        return null;
+      }
     }
 
     try {
-      // Check current permission status
       const { status: existingStatus } = await Location.getForegroundPermissionsAsync();
-      
       if (existingStatus !== 'granted') {
-        // Request permission
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert(
-            'Location Permission Required',
-            'We need your location to check if you qualify for the free trial. You can still subscribe without the trial.'
+          tell(
+            'Location',
+            'Location is off for this app. Allow it, then tap Get GPS again. The kitchen stays closed until that check finishes.',
           );
           return null;
         }
       }
 
       setLocationPermissionGranted(true);
-
-      // Get current position
       const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
+        accuracy: Location.Accuracy.High,
       });
-
-      const coords = {
-        lat: location.coords.latitude,
-        lng: location.coords.longitude,
-      };
-
-      setGpsCoordinates(coords);
-      return coords;
+      return { lat: location.coords.latitude, lng: location.coords.longitude };
     } catch (error) {
       console.error('[Membership] Location error:', error);
-      Alert.alert(
-        'Location Error',
-        'Could not look up your location. A Mac or Windows computer has no GPS, so Location Services must be on and this browser allowed. On iPhone or Android, allow location for the app. An editor preview usually has no position. You can still subscribe without the trial.'
-      );
+      tell('Location', 'This device could not read a location. The kitchen stays closed until Get GPS can check a metro.');
       return null;
     }
-  }, []);
+  }, [tell]);
+
+  const handleGetGps = useCallback(async () => {
+    setDetectingLocation(true);
+    try {
+      const coords = await requestLocationAndGetCoordinates();
+      if (!coords) return;
+      setGpsCoordinates(coords);
+      const found = await locateMembership.mutateAsync(coords);
+      await refetchMe();
+      await earlyBirdOffer.refetch();
+      if (found.reason === 'eligible') {
+        setLocationVerdict('inside');
+        tell('Location', `You are in ${found.metroArea}. Early Bird is ${found.trialDays} days at no charge.`);
+        return;
+      }
+      if (found.reason === 'in_metro') {
+        setLocationVerdict('inside');
+        tell('Location', `You are in ${found.metroArea}. Early Bird is not available for this metro. Choose monthly or yearly before the kitchen opens.`);
+        return;
+      }
+      if (found.reason === 'paused') {
+        setLocationVerdict('outside');
+        tell('Location', 'That metro is paused. The kitchen stays open without a charge.');
+        return;
+      }
+      if (found.reason === 'lookup_failed') {
+        tell('Location', 'The metro check did not finish. Tap Get GPS again. The kitchen stays closed until it does.');
+        return;
+      }
+      setLocationVerdict('outside');
+      const point = `${found.lat.toFixed(4)}, ${found.lng.toFixed(4)}`;
+      tell('Location', `Checked ${point}. That point is outside the 50-mile radius of all 50 metros. The kitchen is open, and a paid plan is optional.`);
+    } catch (error: any) {
+      tell('Location', error?.message || 'Location could not be checked. The kitchen stays closed until Get GPS finishes.');
+    } finally {
+      setDetectingLocation(false);
+    }
+  }, [earlyBirdOffer, locateMembership, refetchMe, requestLocationAndGetCoordinates, tell]);
 
   const isPurchaseCancel = (error: unknown) => (
     typeof error === 'object'
@@ -118,9 +193,11 @@ export default function MembershipScreen() {
 
   const storeName = Platform.OS === 'android' ? 'Google Play' : 'the App Store';
 
-  const handleSubscribe = useCallback(async () => {
+  const handleSubscribe = useCallback(async (interval: 'month' | 'year' = 'month') => {
     if (Platform.OS === 'web') {
       setProcessing(true);
+      setChargeLock('charging');
+      let opened = false;
       try {
         const { data: sessionData } = await supabase.auth.getSession();
         const accessToken = sessionData.session?.access_token;
@@ -128,22 +205,19 @@ export default function MembershipScreen() {
           window.alert('Sign in before paying.');
           return;
         }
-        const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-          body: { returnUrl: 'https://homecookedplate.com/membership' },
-          headers: { Authorization: `Bearer ${accessToken}` },
+        const created = await createCheckout.mutateAsync({
+          returnUrl: 'https://homecookedplate.com/membership',
+          interval,
         });
-        if (error) {
-          window.alert(error instanceof Error ? error.message : 'Payment could not start.');
-          return;
-        }
-        const checkoutUrl = (data as { checkoutUrl?: string } | null)?.checkoutUrl;
-        if (checkoutUrl) {
-          window.location.assign(checkoutUrl);
+        if (created.checkoutUrl) {
+          opened = true;
+          window.location.assign(created.checkoutUrl);
           return;
         }
         window.alert('Payment could not start.');
       } finally {
         setProcessing(false);
+        if (!opened) setChargeLock('idle');
       }
       return;
     }
@@ -155,8 +229,11 @@ export default function MembershipScreen() {
 
     if (IAP_REQUIRED) {
       setProcessing(true);
+      setChargeLock('charging');
+      let paid = false;
       try {
-        const purchase = await purchaseIAP(MEMBERSHIP_MONTHLY_PRODUCT_ID, user.id);
+        const productId = interval === 'year' ? MEMBERSHIP_ANNUAL_PRODUCT_ID : MEMBERSHIP_MONTHLY_PRODUCT_ID;
+        const purchase = await purchaseIAP(productId, user.id);
         await confirmStorePurchase(purchase.receiptData);
         try {
           await finishIAP(purchase.transactionId);
@@ -164,6 +241,8 @@ export default function MembershipScreen() {
           console.error('[Membership] Purchase finish failed after verification:', finishError);
         }
         await refetchMe();
+        paid = true;
+        setChargeLock('paid');
         Alert.alert('Success!', 'Your subscription is now active.', [
           { text: 'OK', onPress: () => router.back() },
         ]);
@@ -172,127 +251,51 @@ export default function MembershipScreen() {
         Alert.alert('Error', error?.message || `The ${storeName} purchase could not be completed.`);
       } finally {
         setProcessing(false);
+        if (!paid) setChargeLock('idle');
       }
-      return;
-    }
-
-    if (!initPaymentSheet || !presentPaymentSheet) {
-      Alert.alert('Error', 'Payment system not available');
       return;
     }
 
     setProcessing(true);
-
+    setChargeLock('charging');
+    let opened = false;
     try {
-      // Request GPS permission and get coordinates if not already available
-      let coords = gpsCoordinates;
-      if (!coords && isEligibleForTrial) {
-        coords = await requestLocationAndGetCoordinates();
-      }
-
-      // Determine if we should use trial
-      const useTrial = isEligibleForTrial && (userMetro !== null || coords !== null);
-
-      // Create a Setup Intent for collecting payment method for subscription
-      const setupIntentResult = await createSetupIntentMutation.mutateAsync({
-        customerId: user?.stripeCustomerId || null,
+      const created = await createCheckout.mutateAsync({
+        returnUrl: 'https://homecookedplate.com/membership',
+        interval,
       });
-
-      if (!setupIntentResult.clientSecret) {
-        throw new Error('Failed to initialize payment. Please try again.');
-      }
-
-      // Initialize Payment Sheet with Setup Intent
-      if (!initPaymentSheet || !presentPaymentSheet) {
-        Alert.alert('Error', 'Payment system not available');
-        setProcessing(false);
+      if (!created.checkoutUrl) {
+        Alert.alert('Error', 'Payment could not start.');
         return;
       }
+      opened = true;
+      await WebBrowser.openBrowserAsync(created.checkoutUrl);
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Payment could not start.');
+    } finally {
+      setProcessing(false);
+      if (!opened) setChargeLock('idle');
+    }
+  }, [user, confirmStorePurchase, refetchMe, router, storeName, createCheckout]);
 
-      const { error: initError } = await initPaymentSheet({
-        setupIntentClientSecret: setupIntentResult.clientSecret,
-        merchantDisplayName: 'HomeCookedPlate',
-        returnURL: 'homecookedplate://membership',
-      });
-
-      if (initError) {
-        console.error('[Stripe] Init error:', initError);
-        Alert.alert('Error', initError.message);
-        setProcessing(false);
-        return;
-      }
-
-      // Present Payment Sheet
-      const { error: presentError } = await presentPaymentSheet();
-
-      if (presentError) {
-        if (presentError.code !== 'Canceled') {
-          console.error('[Stripe] Payment error:', presentError);
-          Alert.alert('Payment failed', presentError.message);
-        }
-        setProcessing(false);
-        return;
-      }
-
-      // After successful payment method collection, retrieve the payment method from the setup intent
-      const paymentMethodResult = await getPaymentMethodMutation.mutateAsync({
-        setupIntentId: setupIntentResult.setupIntentId,
-      });
-
-      if (!paymentMethodResult.paymentMethodId) {
-        throw new Error('Payment method not found');
-      }
-
-      // Call subscription mutation with payment method and GPS coordinates
-      const result = await subscribeMutation.mutateAsync({
-        paymentMethodId: paymentMethodResult.paymentMethodId,
-        useTrial,
-        lat: coords?.lat,
-        lng: coords?.lng,
-        locationText: userMetro || null,
-      });
-
-      // Handle success
+  const handleEarlyBird = useCallback(async () => {
+    setProcessing(true);
+    try {
+      const result = await claimEarlyBird.mutateAsync();
       await refetchMe();
-      
+      const started = result.trialStartedAt ? new Date(result.trialStartedAt).toLocaleDateString() : 'today';
+      const ends = result.trialEndsAt ? new Date(result.trialEndsAt).toLocaleDateString() : '';
       Alert.alert(
-        'Success!',
-        result.trialDays > 0
-          ? `Your ${result.trialDays}-day free trial has started! You'll be charged after the trial period.`
-          : 'Your subscription is now active!',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.back(),
-          },
-        ]
+        'Early Bird started',
+        `Started ${started}. Premium runs until ${ends}. No card was charged.`,
+        [{ text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }],
       );
     } catch (error: any) {
-      console.error('[Membership] Subscription error:', error);
-      
-      const errorMessage = error?.message || 'Failed to create subscription. Please try again.';
-      
-      // Handle specific error cases
-      if (errorMessage.includes('already have an active subscription')) {
-        Alert.alert('Already Subscribed', 'You already have an active subscription.');
-      } else if (errorMessage.includes('already associated with a membership')) {
-        Alert.alert(
-          'Account Already Linked',
-          'This email or username is already associated with a membership. Please contact support if this is an error.'
-        );
-      } else if (errorMessage.includes('Quota exceeded')) {
-        Alert.alert(
-          'Limited Availability',
-          'The free trial quota for your metro area has been reached. Please check back later or subscribe without the trial.'
-        );
-      } else {
-        Alert.alert('Error', errorMessage);
-      }
+      Alert.alert('Early Bird', error?.message || 'Early Bird could not be started.');
     } finally {
       setProcessing(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, initPaymentSheet, presentPaymentSheet, userMetro, isEligibleForTrial, confirmStorePurchase, refetchMe, router, storeName]);
+  }, [claimEarlyBird, refetchMe, router]);
 
   const handleRestore = useCallback(async () => {
     if (!user) {
@@ -300,6 +303,8 @@ export default function MembershipScreen() {
       return;
     }
     setProcessing(true);
+    setChargeLock('charging');
+    let paid = false;
     try {
       const purchases = await restoreIAPPurchases();
       const purchase = purchases[0];
@@ -314,6 +319,8 @@ export default function MembershipScreen() {
         console.error('[Membership] Purchase finish failed after restore:', finishError);
       }
       await refetchMe();
+      paid = true;
+      setChargeLock('paid');
       Alert.alert('Restored', 'Your membership is active.', [
         { text: 'OK', onPress: () => router.back() },
       ]);
@@ -321,6 +328,7 @@ export default function MembershipScreen() {
       Alert.alert('Restore failed', error?.message || 'Could not restore purchases.');
     } finally {
       setProcessing(false);
+      if (!paid) setChargeLock('idle');
     }
   }, [user, confirmStorePurchase, refetchMe, router, storeName]);
 
@@ -333,11 +341,14 @@ export default function MembershipScreen() {
       <Stack.Screen
         options={{
           title: 'Membership',
-          headerShown: true,
+          headerShown: false,
         }}
       />
       <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
         <View style={styles.content}>
+          {chargeLock === 'idle' && !gated ? (
+            <BackCircle tone="honey" onPress={leave} testID="membership-back" />
+          ) : null}
           {/* Status Header */}
           <View style={styles.statusSection}>
             <Text style={styles.sectionTitle}>Your Membership</Text>
@@ -364,13 +375,19 @@ export default function MembershipScreen() {
                 </Text>
               )}
               
-              {membershipTier === 'free' && earlyBird && (
+              {membershipTier === 'free' && !isPlateTaker && (
                 <Text style={styles.statusText}>
-                  Your metro still has an Early Bird spot. A card on the phone app starts 90 days of Premium.
+                  {offerDays > 0
+                    ? `Early Bird is ${offerDays} days of Premium at no charge. Or choose monthly or yearly.`
+                    : holdForGps
+                      ? 'Get GPS before the kitchen opens. Every saved metro covers a 50-mile radius. Early Bird is offered when this location is inside one.'
+                      : remoteMetro
+                        ? 'This location is outside every saved metro. The kitchen is open without a charge.'
+                        : 'Choose monthly or yearly before the kitchen opens. Early Bird is not available for this metro.'}
                 </Text>
               )}
 
-              {membershipTier === 'free' && !earlyBird && (
+              {membershipTier === 'free' && isPlateTaker && (
                 <Text style={styles.statusText}>
                   You have access to the app. Premium is only if you choose it.
                 </Text>
@@ -411,17 +428,8 @@ export default function MembershipScreen() {
                 </View>
                 {!gpsCoordinates && (
                   <GlassPressable
-                    onPress={async () => {
-                      setDetectingLocation(true);
-                      const coords = await requestLocationAndGetCoordinates();
-                      if (coords) {
-                        Alert.alert(
-                          'Location Detected',
-                          `Coordinates: ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}. This will be used to check trial eligibility.`,
-                          [{ text: 'OK' }]
-                        );
-                      }
-                      setDetectingLocation(false);
+                    onPress={() => {
+                      handleGetGps().catch(() => undefined);
                     }}
                     disabled={detectingLocation}
                     style={styles.detectButton}
@@ -439,8 +447,8 @@ export default function MembershipScreen() {
               </View>
               <Text style={styles.locationHint}>
                 {gpsCoordinates
-                  ? 'Your GPS coordinates will be used to verify trial eligibility. Your metro area was determined at signup.'
-                  : 'Your metro area was determined at signup. Get your current GPS location to verify trial eligibility.'}
+                  ? 'This location was checked against an active metro. Early Bird is offered only inside one.'
+                  : 'Get GPS checks this device against the saved metros. Each metro has a 50 mile radius. The kitchen stays closed until that check finishes.'}
               </Text>
             </View>
           )}
@@ -448,50 +456,59 @@ export default function MembershipScreen() {
           {/* Payment Setup Section */}
           {membershipTier === 'free' && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Subscribe</Text>
+              <Text style={styles.sectionTitle}>{isPlateTaker ? 'Premium' : remoteMetro && !holdForGps && offerDays === 0 ? 'Paid plans' : 'Choose one'}</Text>
               <View style={styles.pricingCard}>
-                <View style={styles.pricingHeader}>
-                  <Text style={styles.price}>$4.99</Text>
-                  <Text style={styles.pricePeriod}>/month</Text>
-                </View>
-                {isEligibleForTrial && (
-                  <View style={styles.trialInfo}>
-                    <Ionicons name="gift" size={20} color={Colors.gradient.green} />
+                {!isPlateTaker && (offerDays > 0 || holdForGps) ? (
+                  <>
+                    <View style={styles.trialInfo}>
+                      <Ionicons name="gift" size={20} color={Colors.gradient.green} />
+                      <Text style={styles.trialText}>
+                        {`Early Bird · ${offerDays > 0 ? offerDays : 90} days free`}
+                      </Text>
+                    </View>
                     <Text style={styles.trialText}>
-                      Start with {90} days FREE trial
+                      {offerDays > 0
+                        ? 'No card. The start date and the end date are saved on your account.'
+                        : 'No card. Get GPS first. Early Bird starts when this kitchen is inside an active metro.'}
                     </Text>
+                    {offerDays > 0 ? (
+                      <GradientButton
+                        title={`Start ${offerDays} days free`}
+                        onPress={handleEarlyBird}
+                        loading={processing}
+                        disabled={processing}
+                        style={styles.subscribeButton}
+                        baseColor="green"
+                      />
+                    ) : null}
+                  </>
+                ) : null}
+                {plans.map((plan) => (
+                  <View key={plan.interval}>
+                    <View style={styles.pricingHeader}>
+                      <Text style={styles.price}>{`$${plan.amount.toFixed(2)}`}</Text>
+                      <Text style={styles.pricePeriod}>{plan.interval === 'year' ? '/year' : '/month'}</Text>
+                    </View>
+                    <GradientButton
+                      title={plan.caption}
+                      onPress={() => handleSubscribe(plan.interval)}
+                      loading={processing}
+                      disabled={processing}
+                      style={styles.subscribeButton}
+                      baseColor={plan.interval === 'year' ? 'gold' : 'green'}
+                    />
                   </View>
-                )}
-                <View style={styles.features}>
-                  <View style={styles.feature}>
-                    <Ionicons name="checkmark-circle" size={20} color={Colors.gradient.green} />
-                    <Text style={styles.featureText}>Premium features access</Text>
-                  </View>
-                  <View style={styles.feature}>
-                    <Ionicons name="checkmark-circle" size={20} color={Colors.gradient.green} />
-                    <Text style={styles.featureText}>Priority support</Text>
-                  </View>
-                  <View style={styles.feature}>
-                    <Ionicons name="checkmark-circle" size={20} color={Colors.gradient.green} />
-                    <Text style={styles.featureText}>Cancel anytime</Text>
-                  </View>
-                </View>
-                <Text style={styles.trialText}>
-                  {isPlateTaker
-                    ? 'The green button opens payment. Use it only if you want Premium.'
-                    : 'The green button opens payment if you choose Premium.'}
-                </Text>
-                <GradientButton
-                  title={Platform.OS === 'web' ? 'Continue to payment' : (Platform.OS === 'android' ? 'Subscribe with Google Play' : (IAP_REQUIRED ? 'Subscribe with Apple' : 'Continue to payment'))}
-                  onPress={handleSubscribe}
-                  loading={processing}
-                  disabled={processing}
-                  style={styles.subscribeButton}
-                  baseColor="green"
-                />
-                <GlassPressable onPress={joinFree} style={styles.restoreButton}>
-                  <Text style={styles.restoreText}>Use the app</Text>
-                </GlassPressable>
+                ))}
+                {isPlateTaker ? (
+                  <GlassPressable onPress={joinFree} style={styles.restoreButton}>
+                    <Text style={styles.restoreText}>Use the app</Text>
+                  </GlassPressable>
+                ) : null}
+                {!isPlateTaker && locationVerdict === 'outside' && remoteMetro ? (
+                  <GlassPressable onPress={joinFree} style={styles.restoreButton} testID="membership-open-kitchen">
+                    <Text style={styles.restoreText}>Open the kitchen</Text>
+                  </GlassPressable>
+                ) : null}
                 {IAP_REQUIRED && (
                   <GlassPressable
                     onPress={handleRestore}
@@ -511,8 +528,12 @@ export default function MembershipScreen() {
             <View style={styles.termsCard}>
               <Text style={styles.termsText}>
                 {isPlateTaker
-                  ? '• You already have access to the app\n• Premium is optional and cuts the service fee from 10% to 5% on orders of $20 or more\n• The green button opens card payment. It is not required to look, order, or meet'
-                  : '• You already have access to the app\n• A card can start 90 days of Premium while an active metro still has a spot\n• Outside an active metro, those 90 days are not available\n• The green button opens payment only if you choose Premium'}
+                  ? '• You already have access to the app\n• Premium is optional: $7.99 a month or $75.99 a year\n• Premium cuts the service fee from 10% to 5% on orders of $20 or more'
+                  : holdForGps
+                    ? '• Get GPS runs before the kitchen opens\n• A saved metro is a 50-mile radius around downtown.\n• Early Bird is offered when this location is inside an active metro\n• Monthly is $4.99. Yearly is $39.99 if you choose a paid plan'
+                    : remoteMetro
+                    ? '• This location is outside every saved metro\n• The kitchen is open without a charge\n• Monthly is $4.99. Yearly is $39.99 if you choose a paid plan'
+                    : '• The kitchen stays closed until you choose Early Bird or a paid plan\n• Early Bird is free and records the start and end dates\n• Monthly is $4.99. Yearly is $39.99\n• Outside an active metro, or when the metro cap is full, Early Bird is not offered'}
               </Text>
             </View>
           </View>

@@ -13,6 +13,7 @@ import { Bell, ShoppingBag, MessageSquare, DollarSign, Star, Mail, Smartphone } 
 import { Colors } from '@/constants/colors';
 import { useNotifications } from '@/hooks/notifications-context';
 import { SkeletonNotificationsList } from '@/components/SkeletonNotificationsList';
+import { ScreenBack } from '@/components/BackCircle';
 
 export default function NotificationsScreen() {
   const { preferences, isLoading, hasPermission, updatePreference } = useNotifications();
@@ -78,6 +79,9 @@ export default function NotificationsScreen() {
             headerShown: false,
           }}
         />
+        <View style={styles.content}>
+          <ScreenBack fallback="/(tabs)/profile" testID="notifications-back" />
+        </View>
         <SkeletonNotificationsList />
       </SafeAreaView>
     );
@@ -93,6 +97,7 @@ export default function NotificationsScreen() {
       />
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
+          <ScreenBack fallback="/(tabs)/profile" testID="notifications-back" />
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Notification Types</Text>
             <Text style={styles.sectionDescription}>

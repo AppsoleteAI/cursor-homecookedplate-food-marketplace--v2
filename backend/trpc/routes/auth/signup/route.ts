@@ -9,33 +9,48 @@ import { sendEmailConfirmation } from "@/backend/lib/email";
 // Force module reload by adding version to export
 const SIGNUP_PROCEDURE_VERSION = `v4-insert-then-update-20250118-${Date.now()}`;
 
-type CheckoutSession = { access_token: string; refresh_token: string };
+console.log('[Signup Route] PROCEDURE_EXPORT - Version:', SIGNUP_PROCEDURE_VERSION);
 
-async function mintCheckoutSession(admin: any, email: string): Promise<CheckoutSession | null> {
-  const link = await admin.auth.admin.generateLink({ type: "magiclink", email });
-  const tokenHash = link.data?.properties?.hashed_token;
-  if (link.error || !tokenHash) {
-    console.error("[Signup] Checkout link failed:", link.error?.message || "missing token");
-    return null;
-  }
+type SignupSession = { access_token: string; refresh_token: string };
 
-  const verified = await admin.auth.verifyOtp({
-    token_hash: tokenHash,
-    type: "magiclink",
-  });
-  const session = verified.data?.session;
-  if (verified.error || !session?.access_token || !session?.refresh_token) {
-    console.error("[Signup] Checkout verify failed:", verified.error?.message || "missing session");
-    return null;
-  }
-
-  return {
-    access_token: session.access_token,
-    refresh_token: session.refresh_token,
-  };
+function sessionFrom(session: { access_token: string; refresh_token: string } | null | undefined): SignupSession | null {
+  if (!session?.access_token || !session.refresh_token) return null;
+  return { access_token: session.access_token, refresh_token: session.refresh_token };
 }
 
-console.log('[Signup Route] PROCEDURE_EXPORT - Version:', SIGNUP_PROCEDURE_VERSION);
+/** The account exists. Open a session so Membership can call the server. */
+async function openSignupSession(ctx: {
+  supabase: {
+    auth: {
+      signInWithPassword: (credentials: { email: string; password: string }) => Promise<{ data: { session: { access_token: string; refresh_token: string } | null }; error: { message?: string; code?: string } | null }>;
+      verifyOtp: (credentials: { type: 'magiclink'; token_hash: string }) => Promise<{ data: { session: { access_token: string; refresh_token: string } | null }; error: { message?: string } | null }>;
+    };
+  };
+  supabaseAdmin: {
+    auth: {
+      admin: {
+        generateLink: (params: { type: 'magiclink'; email: string }) => Promise<{ data: { properties?: { hashed_token?: string } | null } | null; error: { message?: string } | null }>;
+      };
+    };
+  };
+}, email: string, password: string): Promise<SignupSession> {
+  const signedIn = await ctx.supabase.auth.signInWithPassword({ email, password });
+  const direct = sessionFrom(signedIn.data.session);
+  if (direct) return direct;
+
+  const link = await ctx.supabaseAdmin.auth.admin.generateLink({ type: 'magiclink', email });
+  const tokenHash = link.data?.properties?.hashed_token;
+  if (!link.error && tokenHash) {
+    const verified = await ctx.supabase.auth.verifyOtp({ type: 'magiclink', token_hash: tokenHash });
+    const opened = sessionFrom(verified.data.session);
+    if (opened) return opened;
+  }
+
+  throw new TRPCError({
+    code: 'INTERNAL_SERVER_ERROR',
+    message: 'The account was created, but it could not be opened.',
+  });
+}
 
 // Strict password validation schema - matches frontend PasswordStrengthMeter requirements
 // Export for reuse in other routes (e.g., password reset, password change)
@@ -130,22 +145,10 @@ const createSignupProcedure = () => {
             });
           }
 
-          const session = passwordCheck.data?.session
-            ? {
-                access_token: passwordCheck.data.session.access_token,
-                refresh_token: passwordCheck.data.session.refresh_token,
-              }
-            : await mintCheckoutSession(ctx.supabaseAdmin, input.email);
-
-          if (!session) {
-            throw new TRPCError({
-              code: 'BAD_REQUEST',
-              message: 'An account with this email already exists. Please use login instead.',
-            });
-          }
+          const session = sessionFrom(passwordCheck.data?.session) ?? await openSignupSession(ctx, input.email, input.password);
 
           return {
-            status: (existingProfile.role === 'platetaker' ? 'SUCCESS' : 'REDIRECT_TO_PAYMENT') as 'SUCCESS' | 'REDIRECT_TO_PAYMENT',
+            status: (existingProfile.role === 'platetaker' ? 'SUCCESS' : 'CHOOSE_MEMBERSHIP') as 'SUCCESS' | 'CHOOSE_MEMBERSHIP',
             user: {
               id: existingProfile.id,
               username: existingProfile.username,
@@ -176,12 +179,14 @@ const createSignupProcedure = () => {
       console.log('[Signup] User created:', authData.user.id);
 
       // GEO-LOCK v4: Determine metro_area, trial_ends_at, and membership_tier
-      // Inside metros: Check is_active (from metro_geofences) and "First 100" rule - grant trial_days early_bird trial ONLY if active AND under cap
+      // Inside metros: Check is_active (from metro_geofences) and the Early Bird slot rule - one PlateMaker per 10,000 people, from 200 to 1,000
       // Outside metros (Remote): Assign 'Remote/Other', no trial, set membership_tier to 'free' (must pay $4.99 to activate premium)
       // Source of Truth: All city-level settings (trial length, active status) MUST be read from metro_geofences table
       let assignedMetro: string | null = null;
-      let trialEndDate: Date | null = null;
+      const trialEndsAt: string | null = null;
       let membershipTier: 'free' | 'premium' = 'free'; // Default to free
+      let earlyBirdEligible = false;
+      let offeredTrialDays = 0;
 
       if (input.lat && input.lng) {
         process.stdout.write(`[GEO_LOCK] Verifying location for user: ${input.username} at (${input.lat}, ${input.lng})\n`);
@@ -206,7 +211,7 @@ const createSignupProcedure = () => {
           }
           assignedMetro = 'Remote/Other';
           membershipTier = 'free';
-          process.stdout.write(`[GEO_LOCK] Remote User. Redirecting to $4.99 subscription. membership_tier: ${membershipTier}\n`);
+          process.stdout.write(`[GEO_LOCK] Remote User. Early Bird is not available. membership_tier: ${membershipTier}\n`);
         } else {
           // Metro found - Check is_active FIRST (Panic Button check)
           // Throw error immediately if inactive - do not proceed with signup
@@ -239,18 +244,18 @@ const createSignupProcedure = () => {
             });
           }
 
-          if (status === 'SUCCESS') {
-            // SUCCESS: Spot locked. Grant trial using trial_days from metro (source of truth)
-            // USE DYNAMIC TRIAL DAYS from DB - never override with hardcoded values
-            const trialDays = metro.trial_days ?? 90; // Null coalescing only for safety (shouldn't happen due to NOT NULL constraint)
-            trialEndDate = new Date();
-            trialEndDate.setDate(trialEndDate.getDate() + trialDays);
-            membershipTier = 'premium';
-            process.stdout.write(`[GEO_LOCK] Metro Match: ${assignedMetro}. SUCCESS. Granting ${trialDays}-day trial (from metro_geofences.trial_days). membership_tier: ${membershipTier}\n`);
-          } else {
-            // CAP_REACHED: Metro full - user will be redirected to paid Stripe checkout
+          if (status === 'SUCCESS' && (input.role || 'platetaker') === 'platemaker') {
+            // The spot is held. Early Bird starts only when the PlateMaker chooses it. No card.
+            offeredTrialDays = metro.trial_days ?? 90;
+            earlyBirdEligible = true;
             membershipTier = 'free';
-            process.stdout.write(`[GEO_LOCK] Metro Match: ${assignedMetro}. CAP_REACHED. Redirecting to paid checkout. membership_tier: ${membershipTier}\n`);
+            process.stdout.write(`[GEO_LOCK] Metro Match: ${assignedMetro}. Early Bird is open for ${offeredTrialDays} days. It is not started until the PlateMaker chooses it.\n`);
+          } else if (status === 'SUCCESS') {
+            membershipTier = 'free';
+            process.stdout.write(`[GEO_LOCK] Metro Match: ${assignedMetro}. PlateTaker signup. Premium stays optional.\n`);
+          } else {
+            membershipTier = 'free';
+            process.stdout.write(`[GEO_LOCK] Metro Match: ${assignedMetro}. CAP_REACHED. PlateMaker chooses a paid plan. Early Bird is not available.\n`);
           }
         }
       } else {
@@ -258,7 +263,7 @@ const createSignupProcedure = () => {
         process.stdout.write(`[GEO_LOCK] No coordinates provided. Assigning Remote/Other\n`);
         assignedMetro = 'Remote/Other';
         membershipTier = 'free';
-        process.stdout.write(`[GEO_LOCK] Remote User. Redirecting to $4.99 subscription. membership_tier: ${membershipTier}\n`);
+        process.stdout.write(`[GEO_LOCK] Remote User. Early Bird is not available. membership_tier: ${membershipTier}\n`);
       }
 
       // V4 PATTERN: INSERT-then-UPDATE (Catch 23505)
@@ -272,12 +277,12 @@ const createSignupProcedure = () => {
         email: input.email,
         role: input.role as 'platemaker' | 'platetaker',
         metro_area: assignedMetro, // Always set: matched metro or 'Remote/Other'
-        trial_ends_at: trialEndDate?.toISOString() || null, // Only set for active metros with available slots (trial_days from metro_geofences), null otherwise
+        trial_ends_at: trialEndsAt, // Early Bird writes this later, when the PlateMaker claims it.
         membership_tier: membershipTier, // 'premium' for metro with available trial slot, 'free' otherwise
         food_safety_acknowledged: input.role === 'platemaker' ? (input.foodSafetyAcknowledged || false) : false, // Only set for platemakers
       };
 
-      process.stdout.write(`[SIGNUP_V4] Attempting INSERT with metro_area=${assignedMetro}, trial_ends_at=${trialEndDate?.toISOString() || 'null'}, membership_tier=${membershipTier}\n`);
+      process.stdout.write(`[SIGNUP_V4] Attempting INSERT with metro_area=${assignedMetro}, trial_ends_at=${trialEndsAt || 'null'}, membership_tier=${membershipTier}\n`);
 
       // Try insert first
       // Use ctx.supabaseAdmin (service role) for profile creation during signup (system operation)
@@ -386,44 +391,28 @@ const createSignupProcedure = () => {
         trialEndsAt: profile.trial_ends_at ? new Date(profile.trial_ends_at) : null,
       };
 
-      const checkoutSession = membershipTier === 'premium' && trialEndDate
-        ? null
-        : await mintCheckoutSession(ctx.supabaseAdmin, input.email);
-      if (checkoutSession) {
-        authData.session = checkoutSession;
-      }
-
-      // Determine status and return appropriate structure
-      // Case 1: SUCCESS - Metro active and under cap (trial granted)
-      if (membershipTier === 'premium' && trialEndDate) {
-        return {
-          status: 'SUCCESS' as const,
-          user,
-          session: authData.session,
-          metro: assignedMetro || 'Remote/Other',
-          trialEndsAt: trialEndDate.toISOString(),
-          needsEmailConfirmation: true, // Always true when using custom email flow
-        };
-      }
+      const session = await openSignupSession(ctx, input.email, input.password);
 
       // PlateTakers use the app free. Premium is optional.
       if ((input.role || 'platetaker') === 'platetaker') {
         return {
           status: 'SUCCESS' as const,
           user,
-          session: authData.session,
+          session,
           metro: assignedMetro || 'Remote/Other',
           needsEmailConfirmation: true,
         };
       }
 
-      // Case 2: REDIRECT_TO_PAYMENT - PlateMaker outside an active metro, or the metro cap is full
+      // PlateMakers choose Early Bird or a paid plan before the kitchen opens.
       return {
-        status: 'REDIRECT_TO_PAYMENT' as const,
+        status: 'CHOOSE_MEMBERSHIP' as const,
         user,
-        session: authData.session,
+        session,
         metro: assignedMetro || 'Remote/Other',
-        needsEmailConfirmation: true, // Always true when using custom email flow
+        earlyBirdEligible,
+        trialDays: offeredTrialDays,
+        needsEmailConfirmation: true,
       };
     });
 };
