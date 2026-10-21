@@ -38,6 +38,8 @@ import {
   type FoodReviewReaction,
 } from '@/lib/food-review-clips';
 import { readFoodReviewClips, writeFoodReviewClips } from '@/lib/food-review-clip-store';
+import { readLocalMedia } from '@/lib/read-local-media';
+import { trpc } from '@/lib/trpc';
 
 export default function FoodReviewClips() {
   const insets = useSafeAreaInsets();
@@ -45,12 +47,19 @@ export default function FoodReviewClips() {
   const leave = useLeaveScreen('/(tabs)/profile', !isTab);
   const { width, height } = useWindowDimensions();
   const { user } = useAuth();
-  const isPremium = user?.membershipTier === 'premium';
   const username = user?.username || 'Guest';
   const role: 'platemaker' | 'platetaker' = user?.role === 'platemaker' ? 'platemaker' : 'platetaker';
+  const canPostClip = role === 'platemaker'
+    ? user?.membershipTier === 'premium' || user?.membershipTier === 'lifetime' || Boolean(user?.stripeSubscriptionId)
+    : user?.membershipTier === 'premium';
   const surface = foodReviewSurface(Platform.OS, width, height);
   const layout = resolveFoodReviewTimelineLayout(width, height, surface);
 
+  const sharedClips = trpc.clips.list.useQuery(
+    { metroArea: user?.metroArea || undefined },
+    { retry: false, refetchOnWindowFocus: false },
+  );
+  const publishClip = trpc.clips.publish.useMutation();
   const [clips, setClips] = useState<FoodReviewClip[]>(seedFoodReviewClips);
   const [loaded, setLoaded] = useState(false);
   const [mealName, setMealName] = useState('');
@@ -93,32 +102,44 @@ export default function FoodReviewClips() {
     });
   }, [clips, loaded]);
 
+  useEffect(() => {
+    if (!sharedClips.data?.length) return;
+    setClips((prev) => {
+      const ids = new Set(prev.map((clip) => clip.id));
+      const incoming = sharedClips.data.filter((clip) => !ids.has(clip.id));
+      return incoming.length > 0 ? [...incoming, ...prev] : prev;
+    });
+  }, [sharedClips.data]);
+
   const react = useCallback((clipId: string, kind: FoodReviewReaction) => {
     setClips((prev) => prev.map((item) => (
       item.id === clipId ? toggleFoodReviewReaction(item, username, kind) : item
     )));
   }, [username]);
 
-  const addClip = useCallback((videoUri: string, duration: number | null | undefined, posterUri?: string) => {
+  const addClip = useCallback(async (videoUri: string, duration: number | null | undefined) => {
     if (exceedsFoodReviewClipLimit(duration)) {
       Alert.alert('Clip too long', `FoodReviewClips are ${FOOD_REVIEW_MAX_SECONDS} seconds.`);
       return;
     }
-    const next: FoodReviewClip = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      mealName: mealName.trim() || 'Food review',
-      author: username,
-      role,
-      videoUri,
-      posterUri: posterUri || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800',
-      durationSeconds: foodReviewDurationSeconds(duration),
-      createdAt: new Date().toISOString(),
-      counts: { smile: 0, heart: 0, star: 0 },
-      reactionsByUser: {},
-    };
-    setClips((prev) => [next, ...prev]);
-    setMealName('');
-  }, [mealName, role, username]);
+    try {
+      const file = await readLocalMedia(videoUri, 'video');
+      const saved = await publishClip.mutateAsync({
+        mealName: mealName.trim() || 'Food review',
+        base64Data: file.base64,
+        mimeType: file.mimeType,
+        durationSeconds: foodReviewDurationSeconds(duration),
+      });
+      const clip: FoodReviewClip = {
+        ...saved,
+        role: saved.role === 'platetaker' ? 'platetaker' : 'platemaker',
+      };
+      setClips((prev) => [clip, ...prev.filter((item) => item.id !== clip.id)]);
+      setMealName('');
+    } catch (error) {
+      Alert.alert('Clip', error instanceof Error ? error.message : 'The clip could not be posted.');
+    }
+  }, [mealName, publishClip]);
 
   const pickOnWeb = useCallback(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
@@ -149,7 +170,7 @@ export default function FoodReviewClips() {
   }, [addClip]);
 
   const recordClip = useCallback(async () => {
-    if (!isPremium) {
+    if (!canPostClip) {
       router.push('/membership' as Href);
       return;
     }
@@ -171,10 +192,10 @@ export default function FoodReviewClips() {
     if (result.canceled) return;
     const asset = result.assets[0];
     addClip(asset.uri, asset.duration);
-  }, [addClip, isPremium, pickOnWeb]);
+  }, [addClip, canPostClip, pickOnWeb]);
 
   const chooseClip = useCallback(async () => {
-    if (!isPremium) {
+    if (!canPostClip) {
       router.push('/membership' as Href);
       return;
     }
@@ -195,7 +216,7 @@ export default function FoodReviewClips() {
     if (result.canceled) return;
     const asset = result.assets[0];
     addClip(asset.uri, asset.duration);
-  }, [addClip, isPremium, pickOnWeb]);
+  }, [addClip, canPostClip, pickOnWeb]);
 
   return (
     <View style={styles.container} testID="food-review-clips">
@@ -204,7 +225,7 @@ export default function FoodReviewClips() {
         colors={monoGradients.green}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
-        style={[styles.header, { paddingTop: insets.top + 8 }]}
+        style={[styles.header, { paddingTop: insets.top + 16 }]}
       >
         {isTab ? null : <BackCircle tone="light" onPress={leave} testID="food-review-back" />}
         <View style={styles.headerCopy}>
@@ -313,7 +334,7 @@ export default function FoodReviewClips() {
 
         {isPlatemaker ? <View style={styles.composer}>
           <Text style={styles.composerTitle}>
-            {isPremium ? 'Post a 20 second clip' : 'Posting is for premium members'}
+            {canPostClip ? 'Post a 20 second clip' : 'Posting is for premium members'}
           </Text>
           <TextInput
             value={mealName}
@@ -322,22 +343,22 @@ export default function FoodReviewClips() {
             placeholderTextColor={Colors.gray[400]}
             style={styles.input}
             testID="clip-meal-name"
-            editable={isPremium}
+            editable={canPostClip}
           />
           <View style={styles.composerActions}>
             <GlassPressable
               onPress={recordClip}
               testID="record-clip"
-              style={[styles.action, !isPremium && styles.actionLocked]}
+              style={[styles.action, !canPostClip && styles.actionLocked]}
             >
-              <Text style={styles.actionText}>{isPremium ? 'Record' : 'See Membership'}</Text>
+              <Text style={styles.actionText}>{canPostClip ? 'Record' : 'See Membership'}</Text>
             </GlassPressable>
             <GlassPressable
               onPress={chooseClip}
               testID="choose-clip"
-              style={[styles.actionSecondary, !isPremium && styles.actionLocked]}
+              style={[styles.actionSecondary, !canPostClip && styles.actionLocked]}
             >
-              <Text style={styles.actionSecondaryText}>{isPremium ? 'Choose Clip' : 'Premium'}</Text>
+              <Text style={styles.actionSecondaryText}>{canPostClip ? 'Choose Clip' : 'Premium'}</Text>
             </GlassPressable>
           </View>
         </View> : null}

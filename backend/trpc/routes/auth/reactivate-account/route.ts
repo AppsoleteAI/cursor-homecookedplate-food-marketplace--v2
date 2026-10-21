@@ -1,59 +1,56 @@
+import { TRPCError } from "@trpc/server";
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
+import { reactivateTurnsAccountOn } from "../../../../lib/account-security";
 
 export const reactivateAccountProcedure = publicProcedure
   .input(
     z.object({
       email: z.string().email(),
+      password: z.string().min(1),
     })
   )
   .mutation(async ({ input, ctx }) => {
-    // Find the profile by email
-    const email = input.email.trim();
-    let lookup = await ctx.supabaseAdmin
+    const { data, error } = await ctx.supabase.auth.signInWithPassword({
+      email: input.email.trim(),
+      password: input.password,
+    });
+    if (error || !data.user) {
+      throw new TRPCError({
+        code: 'UNAUTHORIZED',
+        message: 'That email or password does not match.',
+      });
+    }
+
+    const lookup = await ctx.supabaseAdmin
       .from('profiles')
-      .select('id, is_paused, email')
-      .eq('email', email)
+      .select('id, is_paused')
+      .eq('id', data.user.id)
       .maybeSingle();
-    if (!lookup.data && !lookup.error && email !== email.toLowerCase()) {
-      lookup = await ctx.supabaseAdmin
-        .from('profiles')
-        .select('id, is_paused, email')
-        .eq('email', email.toLowerCase())
-        .maybeSingle();
+    if (lookup.error || !lookup.data) {
+      await ctx.supabase.auth.signOut();
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Profile not found' });
     }
-    const profile = lookup.data;
-    const profileError = lookup.error;
-
-    if (profileError || !profile) {
-      // Don't reveal if account exists for security
-      return { 
-        success: false, 
-        message: 'If an account exists with this email and is paused, it has been reactivated.' 
-      };
+    if (!reactivateTurnsAccountOn(true, lookup.data.is_paused === true)) {
+      await ctx.supabase.auth.signOut();
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'This account is not paused. Sign in normally.',
+      });
     }
 
-    // Check if account is paused
-    if (!profile.is_paused) {
-      return { 
-        success: false, 
-        message: 'This account is not paused. You can log in normally.' 
-      };
-    }
-
-    // Reactivate the account
     const { error: updateError } = await ctx.supabaseAdmin
       .from('profiles')
       .update({ is_paused: false })
-      .eq('id', profile.id);
-
+      .eq('id', lookup.data.id);
+    await ctx.supabase.auth.signOut();
     if (updateError) {
       console.error('[Reactivate Account] Error:', updateError);
-      throw new Error('Failed to reactivate account. Please try again.');
+      throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'The account could not be turned back on.' });
     }
 
-    return { 
-      success: true, 
-      message: 'Your account has been reactivated. You can now log in normally.' 
+    return {
+      success: true,
+      message: 'Your account is back on. Sign in with your email and password.',
     };
   });

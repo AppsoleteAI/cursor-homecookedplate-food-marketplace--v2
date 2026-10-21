@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { calculateOrderSplit, LOST_DISPUTE_FEE_CENTS, LOST_DISPUTE_FEE_HALF_CENTS, sellerRefundAmount } from './fees';
+import { calculateOrderSplit, LOST_DISPUTE_FEE_CENTS, LOST_DISPUTE_FEE_HALF_CENTS, saleRefundCents } from './fees';
 import { sendExpoPushNotification } from './expo-push-notifications';
 import { sendNoticeEmail } from './email';
 import {
@@ -376,8 +376,8 @@ export async function refundCookSale(
   },
 ): Promise<{ refundId: string; refundAmount: number; platformFeeKept: number }> {
   const split = calculateOrderSplit(input.baseAmount);
-  const refundAmount = sellerRefundAmount(input.baseAmount);
-  const refundCents = Math.round(refundAmount * 100);
+  const refundCents = saleRefundCents(input.baseAmount);
+  const refundAmount = refundCents / 100;
 
   const transactionQuery = supabaseAdmin
     .from('transactions')

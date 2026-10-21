@@ -1,4 +1,4 @@
-import { adminProcedure } from "../../../create-context";
+import { mainAdminProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { processMediaCleanup } from "../../../../lib/media-cleanup";
@@ -13,7 +13,7 @@ import { processMediaCleanup } from "../../../../lib/media-cleanup";
  * Corresponds to SQL Section 6 in security_enhancements.sql
  * Uses the processMediaCleanup utility from backend/lib/media-cleanup.ts
  */
-export const processMediaCleanupProcedure = adminProcedure
+export const processMediaCleanupProcedure = mainAdminProcedure
   .input(
     z.object({
       batchSize: z.number().min(1).max(100).optional().default(10),

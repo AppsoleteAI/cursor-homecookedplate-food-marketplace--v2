@@ -61,6 +61,17 @@
             "BROWSABLE",
             "DEFAULT"
           ]
+        },
+        {
+          "action": "VIEW",
+          "data": {
+            "scheme": "homecookedplate",
+            "pathPrefix": "/verify-email"
+          },
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },

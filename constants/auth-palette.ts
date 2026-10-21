@@ -77,3 +77,6 @@ export const authGradientDarkLocations = [0, 0.32, 0.55, 0.75, 1] as const;
 
 /** Light top edge into a deeper gold, matching the pre-app action buttons. */
 export const goldButtonColors = ['#F6CC3E', '#E8B016', '#D39A08'] as const;
+
+/** Same three stops as the gold buttons, in maroon. */
+export const maroonButtonColors = ['#7A3146', '#3A0D18', '#21060C'] as const;

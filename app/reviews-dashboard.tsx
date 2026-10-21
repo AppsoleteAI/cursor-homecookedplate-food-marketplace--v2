@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
 import StarRating from '@/components/StarRating';
 import { router, type Href } from 'expo-router';
+import { ReviewCommentActions } from '@/components/ReviewCommentActions';
 
 export default function ReviewsDashboardScreen() {
   const insets = useSafeAreaInsets();
@@ -28,36 +29,39 @@ export default function ReviewsDashboardScreen() {
   }, [myMeals.data]);
 
   const relevantMealIds = useMemo(() => new Set(mealsById.keys()), [mealsById]);
+  const isAdmin = user?.isAdmin === true;
 
   const reviews = useMemo(() => {
     return (reviewQuery.data || [])
-      .filter((review) => user?.role !== 'platemaker' || relevantMealIds.has(review.mealId))
+      .filter((review) => isAdmin || user?.role !== 'platemaker' || relevantMealIds.has(review.mealId))
       .map((review) => ({
         id: review.id,
         mealId: review.mealId,
+        authorId: review.authorId,
         user: review.authorName,
         rating: review.rating,
+        mealName: review.mealName || '',
         comment: review.comment || '',
         date: review.createdAt,
       }));
-  }, [reviewQuery.data, relevantMealIds, user?.role]);
+  }, [isAdmin, reviewQuery.data, relevantMealIds, user?.role]);
 
   const filtered = useMemo(() => {
     const base = reviews
-      .filter(r => relevantMealIds.has(r.mealId))
+      .filter(r => isAdmin || relevantMealIds.has(r.mealId))
       .sort((a,b) => (a.date < b.date ? 1 : -1));
     const byStar = starFilter ? base.filter(r => Math.round(r.rating) === starFilter) : base;
-    return byStar.slice(0, 5);
-  }, [reviews, relevantMealIds, starFilter]);
+    return byStar.slice(0, isAdmin ? 50 : 5);
+  }, [isAdmin, reviews, relevantMealIds, starFilter]);
 
   const counts = useMemo(() => {
     const c: Record<number, number> = { 1:0,2:0,3:0,4:0,5:0 };
-    reviews.filter(r => relevantMealIds.has(r.mealId)).forEach(r => {
+    reviews.filter(r => isAdmin || relevantMealIds.has(r.mealId)).forEach(r => {
       const k = Math.round(r.rating) as 1|2|3|4|5;
       c[k] = (c[k] ?? 0) + 1;
     });
     return c;
-  }, [reviews, relevantMealIds]);
+  }, [isAdmin, reviews, relevantMealIds]);
 
   return (
     <View style={styles.container}>
@@ -76,7 +80,7 @@ export default function ReviewsDashboardScreen() {
         >
           <View style={styles.header}>
             <Text style={styles.title}>Reviews</Text>
-            <Text style={styles.subtitle}>Most recent 5 • Filter by stars</Text>
+            <Text style={styles.subtitle}>{isAdmin ? 'All plates • most recent 50' : 'Your plates • most recent 5'}</Text>
           </View>
         </LinearGradient>
       </View>
@@ -138,10 +142,17 @@ export default function ReviewsDashboardScreen() {
                   {meal?.image ? <Image source={{ uri: meal.image }} style={styles.mealImage} /> : null}
                   <View style={{ flex: 1 }}>
                     <View style={styles.rowBetween}>
-                      <Text style={styles.user}>{r.user}</Text>
+                      <Text style={styles.user}>{r.mealName || meal?.name || 'Plate'}</Text>
                       <StarRating value={r.rating} size={14} baseColor="yellow" disabled />
                     </View>
-                    <Text numberOfLines={3} style={styles.comment}>{r.comment}</Text>
+                    <Text style={styles.date}>{r.user}</Text>
+                    <Text style={styles.comment}>{r.comment}</Text>
+                    <ReviewCommentActions
+                      reviewId={r.id}
+                      authorId={r.authorId}
+                      comment={r.comment}
+                      onChanged={() => reviewQuery.refetch()}
+                    />
                     <Text style={styles.date}>{new Date(r.date).toLocaleDateString()}</Text>
                   </View>
                 </View>

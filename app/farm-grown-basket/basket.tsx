@@ -10,10 +10,12 @@ import { useCombinedBill } from '@/hooks/use-combined-bill';
 import { Colors } from '@/constants/colors';
 import { getCatalogProduct } from '@/constants/farm-grown-basket';
 import { useFarmBasket } from '@/hooks/farm-basket-store';
-import { calculateOrderSplit } from '@/lib/fees';
+import { buyerFoodCharge } from '@/backend/lib/fees';
+import { useAuth } from '@/hooks/auth-context';
 
 export default function FarmBasketScreen() {
   const { items, listings, setQuantity } = useFarmBasket();
+  const { user } = useAuth();
   const { payInMainCart } = useCombinedBill();
 
   const lines = useMemo(() => {
@@ -28,7 +30,7 @@ export default function FarmBasketScreen() {
   }, [items, listings]);
 
   const baseAmount = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
-  const split = calculateOrderSplit(baseAmount);
+  const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 
   return (
     <FarmScreen title="Farm basket" subtitle="These goods never mix with cooked plates." showBasket={false} testID="farm-basket">

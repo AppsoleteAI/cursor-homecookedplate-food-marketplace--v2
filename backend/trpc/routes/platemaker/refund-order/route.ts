@@ -2,6 +2,8 @@ import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { refundCookSale } from "../../../../lib/stripe-marketplace";
+import { notifyParty } from "../../../../lib/account-notice";
+import { orderBuyerId } from "../../../../lib/order-row";
 
 /**
  * Refund Order Procedure
@@ -127,13 +129,24 @@ export const refundOrderProcedure = protectedProcedure
 
     if (updateError || !updatedOrder) {
       console.error('[RefundOrder] Error updating order:', updateError);
-      // Refund was processed, but order update failed - log error but don't fail
-      // The refund has already been processed, so we return success
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'The refund was sent to the card, but this order is still open.',
+      });
+    }
+
+    try {
+      await notifyParty(ctx.supabaseAdmin, orderBuyerId(updatedOrder), 'orderUpdates', {
+        title: 'Order update',
+        body: 'This order was refunded.',
+      });
+    } catch (noticeError) {
+      console.error('[RefundOrder] Notice was not sent:', noticeError);
     }
 
     return {
-      id: updatedOrder?.id || input.orderId,
-      status: updatedOrder?.status || 'cancelled',
+      id: updatedOrder.id,
+      status: updatedOrder.status,
       refundAmount: refundResult.refundAmount,
       refundId: refundResult.refundId,
       platformFeeKept: refundResult.platformFeeKept,

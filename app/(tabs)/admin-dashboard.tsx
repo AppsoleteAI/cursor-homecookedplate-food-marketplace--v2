@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useRef } from 'react';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { AdminOnly } from '@/components/RoleGuard';
 import {
@@ -17,12 +17,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { ProgressBar } from '@/components/ProgressBar';
-import { router, type Href } from 'expo-router';
+import { Redirect, router, type Href } from 'expo-router';
+import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
 import { UserTrialControl } from '@/components/Admin/UserTrialControl';
 import { CityMaxAlerts } from '@/components/Admin/CityMaxAlerts';
 import { PreLaunchChecklist } from '@/components/Admin/PreLaunchChecklist';
 import BarChart, { BarDatum } from '@/components/BarChart';
+import { ScrollJumps } from '@/components/ScrollJumps';
 import {
   DEFAULT_FORECAST_ASSUMPTIONS,
   ForecastTimeUnit,
@@ -393,35 +395,34 @@ const AuditLogsView = () => {
 
 const AdminPromotionView = () => {
   const [targetUserId, setTargetUserId] = useState('');
+  const [role, setRole] = useState<'main' | 'monitor' | 'none'>('monitor');
   const utils = trpc.useUtils();
   
   const promoteMutation = trpc.admin.promoteToAdmin.useMutation({
     onSuccess: (data) => {
-      Alert.alert("Success", data.message || "User has been promoted to Admin and logged.");
+      Alert.alert('Saved', data.message || 'The admin row was updated.');
       setTargetUserId('');
-      // Invalidate relevant queries
       utils.admin.getAuditLogs.invalidate();
     },
     onError: (err) => {
-      Alert.alert("Promotion Failed", err.message || "Failed to promote user to admin");
+      Alert.alert('Admin update failed', err.message || 'That admin row was not changed.');
     },
   });
 
   const handlePromote = () => {
     if (!targetUserId.trim()) {
-      Alert.alert("Error", "Please enter a User UUID");
+      Alert.alert('Account', 'Enter the account id.');
       return;
     }
-    
+    const label = role === 'main' ? 'Main admin' : role === 'monitor' ? 'Monitor admin' : 'remove admin access';
     Alert.alert(
-      "Confirm Promotion",
-      "Warning: This grants full access to system logs and price overrides. Are you sure?",
+      'Confirm admin access',
+      `Set this account to ${label}? Main admin sees money and personal account details. Monitor admin sees images, screen names, and plate text.`,
       [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Grant Admin", 
-          style: "destructive",
-          onPress: () => promoteMutation.mutate({ userId: targetUserId.trim() })
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Save',
+          onPress: () => promoteMutation.mutate({ userId: targetUserId.trim(), role }),
         },
       ]
     );
@@ -429,13 +430,13 @@ const AdminPromotionView = () => {
 
   return (
     <View style={styles.promotionContainer}>
-      <Text style={styles.metroHeader}>Promote User to Admin</Text>
+      <Text style={styles.metroHeader}>Main admin and monitor admin</Text>
       <Text style={styles.promotionWarning}>
-        Warning: This grants full access to system logs and price overrides.
+        Check Main admin or Monitor admin on that person’s row in the Supabase profiles table, or set it here. A monitor admin cannot see money, payouts, or personal account details.
       </Text>
       
       <TextInput
-        placeholder="Enter User UUID"
+        placeholder="Account id"
         value={targetUserId}
         onChangeText={setTargetUserId}
         style={styles.promotionInput}
@@ -443,6 +444,17 @@ const AdminPromotionView = () => {
         autoCapitalize="none"
         autoCorrect={false}
       />
+      <View style={styles.roleChoices}>
+        {([
+          ['monitor', 'Monitor admin'],
+          ['main', 'Main admin'],
+          ['none', 'Remove'],
+        ] as const).map(([value, label]) => (
+          <GlassPressable key={value} onPress={() => setRole(value)} style={styles.roleChoice}>
+            <Text style={styles.promotionButtonText}>{role === value ? `✓ ${label}` : label}</Text>
+          </GlassPressable>
+        ))}
+      </View>
 
       <GlassPressable 
         onPress={handlePromote}
@@ -455,7 +467,7 @@ const AdminPromotionView = () => {
         {promoteMutation.isPending ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.promotionButtonText}>Grant Admin Privileges</Text>
+          <Text style={styles.promotionButtonText}>Save admin access</Text>
         )}
       </GlassPressable>
     </View>
@@ -463,16 +475,21 @@ const AdminPromotionView = () => {
 };
 
 export default function AdminDashboardScreen() {
+  const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
   const [headerHeight, setHeaderHeight] = useState<number>(0);
-
+  const scrollRef = useRef<ScrollView>(null);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     // The query will automatically refetch when we invalidate it
     // For now, just wait a bit to show the refresh indicator
     setTimeout(() => setRefreshing(false), 500);
   }, []);
+
+  if (user?.adminRole === 'monitor') {
+    return <Redirect href="/admin-monitor" />;
+  }
 
   return (
     <AdminOnly>
@@ -491,13 +508,14 @@ export default function AdminDashboardScreen() {
             }}
           >
             <View style={styles.header}>
-              <Text style={styles.title}>Admin Dashboard</Text>
-              <Text style={styles.subtitle}>Monitor metro area caps and system metrics</Text>
+              <Text style={styles.title}>Main admin</Text>
+              <Text style={styles.subtitle}>Money, payouts, and account details</Text>
             </View>
           </LinearGradient>
         </View>
 
         <ScrollView
+          ref={scrollRef}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.scrollContent, { paddingTop: headerHeight + 12 }]}
           refreshControl={
@@ -522,6 +540,7 @@ export default function AdminDashboardScreen() {
           <AdminPromotionView />
           <AuditLogsView />
         </ScrollView>
+        <ScrollJumps scrollRef={scrollRef} testID="admin-dashboard" />
       </View>
     </AdminOnly>
   );
@@ -554,7 +573,7 @@ const styles = StyleSheet.create({
     ...glassSurface,
   },
   scrollContent: {
-    paddingBottom: 100,
+    paddingBottom: 140,
   },
   header: {
     paddingTop: 16,
@@ -836,6 +855,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.gray[900],
     backgroundColor: Colors.white,
+  },
+  roleChoices: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  roleChoice: {
+    backgroundColor: Colors.gray[800],
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
   },
   promotionButton: {
     backgroundColor: Colors.gradient.purple,

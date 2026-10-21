@@ -30,6 +30,51 @@ describe('shop orders saved after card payment', () => {
     expect(saved?.fulfillment).toMatchObject({ truckName: 'Lane' });
   });
 
+  it('shows a combined checkout on that shop order screen', () => {
+    const farm = presentSavedShopOrder({
+      id: 'combined-farm',
+      shop: 'farm',
+      lines: {
+        items: lines,
+        fulfillment: { area: 'farm', sellerId: 'cook-1', sellerName: 'Ada', combined: true },
+        sellerId: 'cook-1',
+        status: 'pending',
+      },
+      base_amount: 56,
+      total_charge: 61.6,
+      created_at: '2026-10-10T18:00:00.000Z',
+      paid: true,
+    });
+    expect(farm?.shop).toBe('farm');
+    expect(farm?.sellerId).toBe('cook-1');
+    expect(farm?.orderStatus).toBe('pending');
+    expect(farm?.fulfillment).toMatchObject({ combined: true, sellerName: 'Ada' });
+
+    const cart = presentSavedShopOrder({
+      id: 'combined-cart',
+      shop: 'food_truck',
+      lines: { items: lines, fulfillment: { area: 'food_cart', sellerId: 'cook-2' }, status: 'accepted' },
+      base_amount: 10,
+      total_charge: 11,
+      created_at: '2026-10-10T18:00:00.000Z',
+      paid: true,
+    });
+    expect(cart?.shop).toBe('food_truck');
+    expect(cart?.sellerId).toBe('cook-2');
+
+    const ghost = presentSavedShopOrder({
+      id: 'combined-ghost',
+      shop: 'sit_down',
+      lines: { items: lines, fulfillment: { area: 'ghost_kitchen', sellerId: 'cook-3', sellerName: 'Night kitchen' } },
+      base_amount: 10,
+      total_charge: 11,
+      created_at: '2026-10-10T18:00:00.000Z',
+      paid: true,
+    });
+    expect(ghost?.shop).toBe('sit_down');
+    expect(ghost?.fulfillment).toMatchObject({ sellerName: 'Night kitchen', area: 'ghost_kitchen' });
+  });
+
   it('ignores a phone-only row that has no handoff', () => {
     expect(presentSavedShopOrder({
       id: 'local',

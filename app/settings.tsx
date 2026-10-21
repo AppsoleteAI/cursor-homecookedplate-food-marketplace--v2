@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Image } from 'expo-image';
 import {
   View,
   Text,
@@ -15,38 +17,70 @@ import { Colors } from '@/constants/colors';
 import { GlassPressable } from '@/components/glass-surface';
 import { ScreenBack } from '@/components/BackCircle';
 
+const SOUND_KEY = 'settings_sound_enabled';
+const LOCATION_KEY = 'settings_location_enabled';
+
 export default function SettingsScreen() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(true);
+  const [ready, setReady] = useState(false);
 
-  const handleLanguageChange = () => {
-    if (Platform.OS === 'web') {
-      window.alert('Language selection coming soon');
-    } else {
-      Alert.alert('Language', 'Language selection coming soon');
-    }
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      AsyncStorage.getItem(SOUND_KEY),
+      AsyncStorage.getItem(LOCATION_KEY),
+    ]).then(([sound, location]) => {
+      if (!active) return;
+      if (sound === '0' || sound === '1') setSoundEnabled(sound === '1');
+      if (location === '0' || location === '1') setLocationEnabled(location === '1');
+      setReady(true);
+    }).catch(() => {
+      if (active) setReady(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const setSound = (value: boolean) => {
+    setSoundEnabled(value);
+    AsyncStorage.setItem(SOUND_KEY, value ? '1' : '0').catch(() => undefined);
+  };
+
+  const setLocation = (value: boolean) => {
+    setLocationEnabled(value);
+    AsyncStorage.setItem(LOCATION_KEY, value ? '1' : '0').catch(() => undefined);
+  };
+
+  const clearStoredCache = async () => {
+    await Image.clearMemoryCache();
+    await Image.clearDiskCache();
   };
 
   const handleClearCache = () => {
-    if (Platform.OS === 'web') {
-      const confirmed = window.confirm('Are you sure you want to clear the cache?');
-      if (confirmed) {
-        window.alert('Cache cleared successfully');
+    const finish = async () => {
+      try {
+        await clearStoredCache();
+        if (Platform.OS === 'web') window.alert('Cached pictures were cleared.');
+        else Alert.alert('Cache', 'Cached pictures were cleared.');
+      } catch {
+        if (Platform.OS === 'web') window.alert('The picture cache could not be cleared.');
+        else Alert.alert('Cache', 'The picture cache could not be cleared.');
       }
-    } else {
-      Alert.alert(
-        'Clear Cache',
-        'Are you sure you want to clear the cache?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Clear',
-            style: 'destructive',
-            onPress: () => Alert.alert('Success', 'Cache cleared successfully'),
-          },
-        ]
-      );
+    };
+    if (Platform.OS === 'web') {
+      if (window.confirm('Clear cached pictures on this device?')) void finish();
+      return;
     }
+    Alert.alert(
+      'Clear Cache',
+      'Clear cached pictures on this device?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Clear', style: 'destructive', onPress: () => void finish() },
+      ]
+    );
   };
 
   return (
@@ -64,18 +98,17 @@ export default function SettingsScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Preferences</Text>
             
-            <GlassPressable style={styles.actionItem} onPress={handleLanguageChange}>
+            <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
                 <View style={styles.iconContainer}>
                   <Globe size={20} color={Colors.gradient.green} />
                 </View>
                 <View style={styles.settingText}>
                   <Text style={styles.settingTitle}>Language</Text>
-                  <Text style={styles.settingDescription}>English</Text>
+                  <Text style={styles.settingDescription}>English is the language in the app.</Text>
                 </View>
               </View>
-              <ChevronRight size={20} color={Colors.gray[400]} />
-            </GlassPressable>
+            </View>
 
             <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
@@ -89,7 +122,8 @@ export default function SettingsScreen() {
               </View>
               <Switch
                 value={soundEnabled}
-                onValueChange={setSoundEnabled}
+                onValueChange={setSound}
+                disabled={!ready}
                 trackColor={{ false: Colors.gray[300], true: Colors.gradient.green }}
                 thumbColor={Colors.white}
               />
@@ -107,7 +141,8 @@ export default function SettingsScreen() {
               </View>
               <Switch
                 value={locationEnabled}
-                onValueChange={setLocationEnabled}
+                onValueChange={setLocation}
+                disabled={!ready}
                 trackColor={{ false: Colors.gray[300], true: Colors.gradient.green }}
                 thumbColor={Colors.white}
               />
@@ -121,7 +156,7 @@ export default function SettingsScreen() {
               <View style={styles.settingLeft}>
                 <View style={styles.settingText}>
                   <Text style={styles.settingTitle}>Clear Cache</Text>
-                  <Text style={styles.settingDescription}>Free up storage space</Text>
+                  <Text style={styles.settingDescription}>Clear cached pictures on this device</Text>
                 </View>
               </View>
               <ChevronRight size={20} color={Colors.gray[400]} />

@@ -9,6 +9,7 @@ import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useSitDown } from '@/hooks/sit-down-store';
 import { SERVICE_LABEL } from '@/lib/sit-down-license';
+import { ShopOrderActions } from '@/components/ShopOrderActions';
 
 export default function SitOrdersScreen() {
   const { user } = useAuth();
@@ -23,15 +24,15 @@ export default function SitOrdersScreen() {
         <View key={order.id} style={styles.card}>
           <Text style={styles.name}>{order.placeName}</Text>
           <Text style={styles.meta}>
-            {SERVICE_LABEL[order.service]}
-            {order.service === 'sit_down' ? ` · party of ${order.partySize}` : ''}
+            {order.handoffNote ?? `${SERVICE_LABEL[order.service]}${order.service === 'sit_down' ? ` · party of ${order.partySize}` : ''}`}
             {' · '}
             {new Date(order.createdAt).toLocaleString()}
           </Text>
           {order.lines.map((line) => (
             <Text key={line.itemId} style={styles.line}>{line.quantity} × {titleCase(line.name)}</Text>
           ))}
-          <Text style={styles.pay}>Paid ${order.buyerPays.toFixed(2)} · served at the restaurant</Text>
+          <Text style={styles.pay}>Paid ${order.buyerPays.toFixed(2)}{order.handoffNote ? '' : ' · served at the restaurant'}</Text>
+          <ShopOrderActions orderId={order.id} shop="sit_down" orderStatus={order.orderStatus} sellerId={order.sellerId} paid={order.paid} />
         </View>
       ))}
       <GlassPressable style={styles.button} onPress={() => router.push(dashboardHref)} testID="sit-orders-dashboard">

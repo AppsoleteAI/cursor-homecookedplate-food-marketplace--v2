@@ -19,6 +19,13 @@ export async function assertBuyerCanOrder(
     });
   }
 
+  if (sellerId && sellerId === buyerId) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'Order from another cook. This account cannot buy its own plate.',
+    });
+  }
+
   if (!sellerId) return;
 
   const { data: block } = await admin

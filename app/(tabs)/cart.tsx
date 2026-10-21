@@ -18,14 +18,16 @@ import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
 import { CHECKOUT_AREA_LABEL } from '@/backend/lib/combined-checkout';
 import { useCart } from '@/hooks/cart-context';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
-import { calculateOrderSplit } from '@/lib/fees';
+import { buyerFoodCharge } from '@/backend/lib/fees';
+import { useAuth } from '@/hooks/auth-context';
 
 export default function CartScreen() {
   const { items, totalPrice, updateQuantity, removeFromCart } = useCart();
+  const { user } = useAuth();
   const { payInMainCart, preview, gathered } = useCombinedBill();
   const insets = useSafeAreaInsets();
 
-  const split = calculateOrderSplit(totalPrice);
+  const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount: totalPrice });
   const serviceFee = split.totalCaptured - totalPrice;
   const finalTotal = split.totalCaptured;
 
@@ -132,7 +134,7 @@ export default function CartScreen() {
         {payInMainCart ? (
           <View style={styles.summaryContainer} testID="combined-bill">
             <Text style={styles.summaryTitle}>One bill</Text>
-            <Text style={styles.summaryNote}>Each section keeps its own service fee. One card pays all of them.</Text>
+            <Text style={styles.summaryNote}>One card pays every section. The service fee uses that combined food total.</Text>
             {preview.checkouts.map((checkout) => (
               <View key={checkout.id} style={styles.sectionBill}>
                 <Text style={styles.itemName}>{CHECKOUT_AREA_LABEL[checkout.area]} · {checkout.sellerName}</Text>
@@ -162,7 +164,7 @@ export default function CartScreen() {
           </View>
           
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Service fee (10%)</Text>
+            <Text style={styles.summaryLabel}>Service fee ({split.buyerPercent}%)</Text>
             <Text style={styles.summaryValue}>${serviceFee.toFixed(2)}</Text>
           </View>
 

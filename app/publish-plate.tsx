@@ -21,13 +21,14 @@ import { useAuth } from '@/hooks/auth-context';
 import { useMeals } from '@/hooks/meals-context';
 import { trpc } from '@/lib/trpc';
 import { readLocalMedia } from '@/lib/read-local-media';
-import { canPublishMeal } from '@/lib/meal-publish';
+import { canPublishMeal, pickupTags } from '@/lib/meal-publish';
+import { deviceTimeZone } from '@/lib/pickup-time';
 import { markPlatePublished, readPlateDraft, type PlateDraft } from '@/lib/plate-draft';
 import { appendFoodReviewClip } from '@/lib/food-review-clip-store';
 import { foodReviewDurationSeconds } from '@/lib/food-review-clips';
 import { Colors, pagePastel } from '@/constants/colors';
 
-const EMPTY: PlateDraft = { name: '', price: '', media: [], postVideoToTimeline: false };
+const EMPTY: PlateDraft = { name: '', price: '', preparationMinutes: '', media: [], availabilityWindows: [], portions: '1', postVideoToTimeline: false };
 
 export default function PublishPlateScreen() {
   const leave = useLeaveScreen('/(tabs)/create-meal');
@@ -57,14 +58,20 @@ export default function PublishPlateScreen() {
     [draft.media],
   );
 
+  const preparationMinutes = useMemo(() => {
+    const value = Number(draft.preparationMinutes);
+    return Number.isFinite(value) ? value : 0;
+  }, [draft.preparationMinutes]);
+
   const isValid = useMemo(
     () => canPublishMeal({
       name: draft.name,
       price: priceNumber,
       photoCount,
+      preparationMinutes,
       foodSafetyAcknowledged,
     }),
-    [draft.name, priceNumber, photoCount, foodSafetyAcknowledged],
+    [draft.name, priceNumber, photoCount, preparationMinutes, foodSafetyAcknowledged],
   );
 
   const missing = useMemo(() => {
@@ -72,9 +79,12 @@ export default function PublishPlateScreen() {
     if (draft.name.trim().length === 0) items.push('Meal name, on Create Meal');
     if (!(priceNumber > 0)) items.push('A price above zero, on Create Meal');
     if (photoCount < 1) items.push('One photo, on Create Meal');
+    if (!Number.isInteger(preparationMinutes) || preparationMinutes < 1 || preparationMinutes > 600) {
+      items.push('Prep time in whole minutes, from 1 to 600, on Create Meal');
+    }
     if (!foodSafetyAcknowledged) items.push('The food-safety acknowledgment on this page');
     return items;
-  }, [draft.name, priceNumber, photoCount, foodSafetyAcknowledged]);
+  }, [draft.name, priceNumber, photoCount, preparationMinutes, foodSafetyAcknowledged]);
 
   const saveMeal = useCallback(async () => {
     if (!isValid || saving) return;
@@ -88,7 +98,10 @@ export default function PublishPlateScreen() {
         ingredients: [],
         cuisine: '',
         category: 'dinner',
-        preparationTime: 30,
+        preparationTime: preparationMinutes,
+        tags: pickupTags(draft.availabilityWindows ?? []),
+        portions: Math.min(100, Math.max(1, Math.round(Number(draft.portions) || 1))),
+        cookTimeZone: deviceTimeZone(),
       });
       const media: { uri: string; type: 'image' | 'video' }[] = [];
       for (const item of draft.media) {
@@ -139,7 +152,7 @@ export default function PublishPlateScreen() {
     } finally {
       setSaving(false);
     }
-  }, [isValid, saving, createMeal, draft, priceNumber, uploadMedia, addMeal, user?.id, user?.username]);
+  }, [isValid, saving, createMeal, draft, priceNumber, preparationMinutes, uploadMedia, addMeal, user?.id, user?.username]);
 
   return (
     <SellerOnly>
@@ -238,7 +251,7 @@ export default function PublishPlateScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: pagePastel.red },
-  content: { paddingHorizontal: 20, paddingBottom: 40 },
+  content: { paddingTop: 20, paddingHorizontal: 20, paddingBottom: 40 },
   title: { fontSize: 28, fontWeight: '700', color: Colors.gray[900], marginBottom: 6 },
   subtitle: { fontSize: 16, color: Colors.gray[700], marginBottom: 16, lineHeight: 22 },
   warningBox: {

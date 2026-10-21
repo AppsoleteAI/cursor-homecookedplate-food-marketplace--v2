@@ -4,15 +4,27 @@ import { getMenuItem, getTruck } from '@/constants/food-truck-popup';
 import { getPrepCook } from '@/constants/meal-prep-go';
 import { getPlace } from '@/constants/sit-down-delicious';
 import { checkoutKey, type CheckoutArea } from '@/backend/lib/combined-checkout';
+import type { ShopFulfillment } from '@/backend/lib/shop-fulfillment';
+import { deviceTimeZone } from '@/lib/pickup-time';
 import type { CartItem } from '@/types';
 
 const SELLER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export type CombinedLine = {
+  productId: string;
+  quantity: number;
+  pickupTime?: string;
+  pickupTimeZone?: string;
+  specialInstructions?: string;
+  cookingTemperature?: string;
+  allergies?: string[];
+};
 
 export type CombinedCheckoutDraft = {
   area: CheckoutArea;
   sellerId: string;
   sellerName: string;
-  lines: { productId: string; quantity: number }[];
+  lines: CombinedLine[];
 };
 
 type Bucket = CombinedCheckoutDraft;
@@ -21,24 +33,52 @@ function sellerOrCatalog(sellerId?: string): string {
   return sellerId && SELLER_ID.test(sellerId) ? sellerId : '';
 }
 
-export function payableCheckouts(checkouts: CombinedCheckoutDraft[]) {
-  return checkouts.map((checkout) => ({
-    area: checkout.area,
-    lines: checkout.lines,
-    ...(SELLER_ID.test(checkout.sellerId) ? { sellerId: checkout.sellerId } : {}),
-  }));
+/** Matches the server receipt id. A catalog seller with no profile id is keyed by the area. */
+export function combinedChargeKey(area: CheckoutArea, sellerId: string): string {
+  return checkoutKey(area, SELLER_ID.test(sellerId) ? sellerId : area);
 }
 
-function addLine(buckets: Map<string, Bucket>, draft: Omit<Bucket, 'lines'>, productId: string, quantity: number) {
+export function payableCheckouts(
+  checkouts: CombinedCheckoutDraft[],
+  handoffs: Record<string, ShopFulfillment | null | undefined> = {},
+  homeDelivery: Record<string, string | undefined> = {},
+) {
+  return checkouts.map((checkout) => {
+    const handoff = handoffs[combinedChargeKey(checkout.area, checkout.sellerId)] ?? undefined;
+    const address = checkout.area === 'home' ? (homeDelivery[checkout.sellerId] || '').trim() : '';
+    return {
+      area: checkout.area,
+      lines: checkout.lines.map((line) => ({
+        productId: line.productId,
+        quantity: line.quantity,
+        ...(line.pickupTime ? { pickupTime: line.pickupTime } : {}),
+        ...(line.pickupTimeZone ? { pickupTimeZone: line.pickupTimeZone } : {}),
+        ...(line.specialInstructions ? { specialInstructions: line.specialInstructions } : {}),
+        ...(line.cookingTemperature ? { cookingTemperature: line.cookingTemperature } : {}),
+        ...(line.allergies && line.allergies.length > 0 ? { allergies: line.allergies } : {}),
+      })),
+      ...(SELLER_ID.test(checkout.sellerId) ? { sellerId: checkout.sellerId } : {}),
+      ...(handoff ? { handoff } : {}),
+      ...(address.length >= 8 ? { deliveryAddress: address } : {}),
+    };
+  });
+}
+
+function addLine(buckets: Map<string, Bucket>, draft: Omit<Bucket, 'lines'>, line: CombinedLine) {
   const key = checkoutKey(draft.area, draft.sellerId);
   const existing = buckets.get(key);
   if (!existing) {
-    buckets.set(key, { ...draft, lines: [{ productId, quantity }] });
+    buckets.set(key, { ...draft, lines: [{ ...line }] });
     return;
   }
-  const line = existing.lines.find((item) => item.productId === productId);
-  if (line) line.quantity += quantity;
-  else existing.lines.push({ productId, quantity });
+  const found = existing.lines.find((item) => item.productId === line.productId);
+  if (found) {
+    found.quantity += line.quantity;
+    if (!found.pickupTime && line.pickupTime) found.pickupTime = line.pickupTime;
+    if (!found.pickupTimeZone && line.pickupTimeZone) found.pickupTimeZone = line.pickupTimeZone;
+  } else {
+    existing.lines.push({ ...line });
+  }
 }
 
 export function gatherCombinedCheckouts(input: {
@@ -61,7 +101,14 @@ export function gatherCombinedCheckouts(input: {
       area: 'home',
       sellerId: item.meal.plateMakerId,
       sellerName: item.meal.plateMakerName || 'Cook',
-    }, item.meal.id, item.quantity);
+    }, {
+      productId: item.meal.id,
+      quantity: item.quantity,
+      ...(item.pickupTime ? { pickupTime: item.pickupTime.toISOString(), pickupTimeZone: deviceTimeZone() } : {}),
+      ...(item.specialInstructions ? { specialInstructions: item.specialInstructions } : {}),
+      ...(item.cookingTemperature ? { cookingTemperature: item.cookingTemperature } : {}),
+      ...(item.allergies && item.allergies.length > 0 ? { allergies: item.allergies } : {}),
+    });
   }
 
   for (const item of input.farm) {
@@ -71,7 +118,7 @@ export function gatherCombinedCheckouts(input: {
       blocked.push(`${product?.name || 'A farm good'} is not on the menu, so it cannot be charged.`);
       continue;
     }
-    addLine(buckets, { area: 'farm', sellerId: sellerOrCatalog(farm.sellerId), sellerName: farm.name }, item.productId, item.quantity);
+    addLine(buckets, { area: 'farm', sellerId: sellerOrCatalog(farm.sellerId), sellerName: farm.name }, { productId: item.productId, quantity: item.quantity });
   }
 
   for (const item of input.prep) {
@@ -80,7 +127,7 @@ export function gatherCombinedCheckouts(input: {
       blocked.push('A weekly item is not on the menu, so it cannot be charged.');
       continue;
     }
-    addLine(buckets, { area: 'meal_prep', sellerId: sellerOrCatalog(cook.sellerId), sellerName: cook.name }, item.itemId, item.quantity);
+    addLine(buckets, { area: 'meal_prep', sellerId: sellerOrCatalog(cook.sellerId), sellerName: cook.name }, { productId: item.itemId, quantity: item.quantity });
   }
 
   for (const item of input.truck) {
@@ -94,7 +141,7 @@ export function gatherCombinedCheckouts(input: {
       area: truck.unit === 'cart' ? 'food_cart' : 'food_truck',
       sellerId: sellerOrCatalog(truck.sellerId),
       sellerName: truck.name,
-    }, item.itemId, item.quantity);
+    }, { productId: item.itemId, quantity: item.quantity });
   }
 
   for (const item of input.cater) {
@@ -103,7 +150,7 @@ export function gatherCombinedCheckouts(input: {
       blocked.push('A catering package is not on the menu, so it cannot be charged.');
       continue;
     }
-    addLine(buckets, { area: 'catering', sellerId: sellerOrCatalog(company.sellerId), sellerName: company.name }, item.packageId, item.headcount);
+    addLine(buckets, { area: 'catering', sellerId: sellerOrCatalog(company.sellerId), sellerName: company.name }, { productId: item.packageId, quantity: item.headcount });
   }
 
   for (const item of input.sit) {
@@ -116,7 +163,7 @@ export function gatherCombinedCheckouts(input: {
       area: place.kind === 'ghost_kitchen' ? 'ghost_kitchen' : 'sit_down',
       sellerId: sellerOrCatalog(place.sellerId),
       sellerName: place.name,
-    }, item.itemId, item.quantity);
+    }, { productId: item.itemId, quantity: item.quantity });
   }
 
   return { checkouts: [...buckets.values()], blocked };

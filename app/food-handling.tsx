@@ -108,7 +108,7 @@ export default function FoodHandlingScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
-  topBar: { paddingHorizontal: 20, paddingTop: 8 },
+  topBar: { paddingHorizontal: 20, paddingTop: 20 },
   content: { paddingHorizontal: 20, paddingBottom: 108 },
   jumps: {
     position: 'absolute',

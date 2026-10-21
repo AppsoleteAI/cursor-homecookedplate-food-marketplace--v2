@@ -1,8 +1,8 @@
-import { adminProcedure } from "../../../create-context";
+import { mainAdminProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 
-export const getAuditLogsProcedure = adminProcedure
+export const getAuditLogsProcedure = mainAdminProcedure
   .input(
     z.object({ 
       limit: z.number().min(1).max(100).default(20),

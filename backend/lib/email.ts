@@ -54,10 +54,14 @@ export async function sendEmailConfirmation(
   try {
     // Determine confirmation URL based on platform
     // For web: use web URL, for mobile: use deep link
-    const isWebUrl = webUrl.startsWith('http');
-    const confirmationUrl = isWebUrl
-      ? `${webUrl}/verify-email?token=${confirmationToken}`
-      : `${webUrl}verify-email?token=${confirmationToken}`;
+    const site = webUrl.replace(/\/$/, '');
+    const webConfirmationUrl = site.startsWith('http')
+      ? `${site}/verify-email?token=${confirmationToken}`
+      : `https://homecookedplate.com/verify-email?token=${confirmationToken}`;
+    const appConfirmationUrl = `homecookedplate:///verify-email?token=${confirmationToken}`;
+    const safeName = username.replace(/[&<>"']/g, (character) => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character] || character
+    ));
 
     const result = await resend.emails.send({
       from: officialEmailFrom,
@@ -75,13 +79,15 @@ export async function sendEmailConfirmation(
               <h1 style="color: white; margin: 0; font-size: 28px;">Welcome to HomeCookedPlate!</h1>
             </div>
             <div style="background: #ffffff; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
-              <p style="font-size: 16px; margin-bottom: 20px;">Hi ${username},</p>
+              <p style="font-size: 16px; margin-bottom: 20px;">Hi ${safeName},</p>
               <p style="font-size: 16px; margin-bottom: 20px;">Thanks for joining HomeCookedPlate! Please verify your email address to complete your account setup.</p>
               <div style="text-align: center; margin: 30px 0;">
-                <a href="${confirmationUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Verify Email Address</a>
+                <a href="${webConfirmationUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Verify Email Address</a>
               </div>
-              <p style="font-size: 14px; color: #666; margin-top: 30px;">Or copy and paste this link into your browser:</p>
-              <p style="font-size: 12px; color: #999; word-break: break-all; background: #f5f5f5; padding: 10px; border-radius: 4px;">${confirmationUrl}</p>
+              <p style="font-size: 14px; color: #666; margin-top: 30px;">On the web, open this link:</p>
+              <p style="font-size: 12px; color: #999; word-break: break-all; background: #f5f5f5; padding: 10px; border-radius: 4px;">${webConfirmationUrl}</p>
+              <p style="font-size: 14px; color: #666; margin-top: 20px;">In the HomeCookedPlate app, open this link:</p>
+              <p style="font-size: 12px; color: #999; word-break: break-all; background: #f5f5f5; padding: 10px; border-radius: 4px;"><a href="${appConfirmationUrl}">${appConfirmationUrl}</a></p>
               <p style="font-size: 14px; color: #666; margin-top: 30px;">This link will expire in 24 hours.</p>
               <p style="font-size: 14px; color: #666; margin-top: 20px;">If you didn't create an account, you can safely ignore this email.</p>
             </div>
@@ -94,9 +100,13 @@ export async function sendEmailConfirmation(
       text: `
 Welcome to HomeCookedPlate, ${username}!
 
-Thanks for joining! Please verify your email address by clicking the link below:
+Thanks for joining! Please verify your email address by opening one of these links.
 
-${confirmationUrl}
+Web:
+${webConfirmationUrl}
+
+App:
+${appConfirmationUrl}
 
 This link will expire in 24 hours.
 
@@ -265,16 +275,32 @@ export async function sendPasswordResetEmail(
   }
 }
 
-export async function sendNoticeEmail(email: string, subject: string, body: string): Promise<void> {
-  if (!resend || !email) return;
+export async function sendSignInCode(email: string, code: string): Promise<void> {
+  if (!resend) {
+    throw new Error('The sign-in code could not be emailed.');
+  }
+  await resend.emails.send({
+    from: officialEmailFrom,
+    to: email,
+    subject: 'Your HomeCookedPlate sign-in code',
+    text: `Your sign-in code is ${code}. It expires in 10 minutes. Five wrong tries close it.`,
+  });
+}
+
+export async function sendNoticeEmail(email: string, subject: string, body: string): Promise<boolean> {
+  const key = process.env.RESEND_API_KEY || process.env.EXPO_PUBLIC_RESEND_API_KEY;
+  const client = key ? new Resend(key) : resend;
+  if (!client || !email) return false;
   try {
-    await resend.emails.send({
+    await client.emails.send({
       from: officialEmailFrom,
       to: email,
       subject,
       text: body,
     });
+    return true;
   } catch (error) {
     console.error('[Email Service] Notice email failed:', error);
+    return false;
   }
 }

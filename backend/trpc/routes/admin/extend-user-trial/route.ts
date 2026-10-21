@@ -1,7 +1,7 @@
-import { adminProcedure } from "../../../create-context";
+import { mainAdminProcedure } from "../../../create-context";
 import { z } from "zod";
 
-export const extendUserTrialProcedure = adminProcedure
+export const extendUserTrialProcedure = mainAdminProcedure
   .input(
     z.object({
       userId: z.string().uuid("Invalid user ID format"),

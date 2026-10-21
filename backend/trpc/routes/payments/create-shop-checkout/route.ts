@@ -2,14 +2,19 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { protectedProcedure } from '../../../create-context';
-import { calculateDeliveryLevy, calculateFees, orderTotalWithDelivery } from '../../../../lib/fees';
+import { buyerServiceFeePercent, calculateDeliveryLevy, calculateFees, orderTotalWithDelivery, sellerRefundAmount } from '../../../../lib/fees';
+import { nextShopStatus, shopCloseoutNotice, shopRefundIsFull } from '../../../../lib/shop-order-status';
+import { payoutReleaseAt } from '../../../../lib/payout-policy';
 import { fulfillmentIsDelivery, savedDeliveryFee } from '../../../../lib/delivery-fee';
 import { assertBuyerCanOrder } from '../../../../lib/buyer-order-access';
 import { salesVolumeBlock } from '../../../../lib/stripe-marketplace';
 import { quoteShopOrder, SHOP_NAMES } from '../../../../lib/shop-catalog';
+import { browserOrigin, openStripeCheckout } from '../../../../lib/stripe-checkout';
+import { notifyCookOfPayment, notifyParty } from '../../../../lib/account-notice';
 import {
   packShopLines,
   presentSavedShopOrder,
+  unpackShopLines,
   shopFulfillmentSchema,
   type ShopFulfillment,
 } from '../../../../lib/shop-fulfillment';
@@ -24,6 +29,8 @@ const checkoutInput = z.object({
   lines: z.array(lineSchema).min(1).max(20),
   sellerId: z.string().uuid().optional(),
   deliver: z.boolean().optional(),
+  webOrigin: z.string().url().optional(),
+  returnPath: z.string().max(180).optional(),
 });
 
 type ShopRecord = {
@@ -216,6 +223,7 @@ async function markPaid(
       .eq('id', record.id)
       .eq('buyer_id', record.buyerId);
     if (error) throw new Error('Failed to record the shop payment');
+    await notifyCookOfPayment(admin, unpackShopLines(existing.data.lines).sellerId, record.totalCharge);
     return;
   }
   const existing = await admin
@@ -238,6 +246,8 @@ async function markPaid(
     .eq('id', record.id)
     .eq('user_id', record.buyerId);
   if (error) throw new Error('Failed to record the shop payment');
+  const sellerId = unpackShopLines(current.lines).sellerId || (typeof current.seller_id === 'string' ? current.seller_id : null);
+  await notifyCookOfPayment(admin, sellerId, record.totalCharge);
 }
 
 export const createShopCheckoutProcedure = protectedProcedure
@@ -265,7 +275,17 @@ export const createShopCheckoutProcedure = protectedProcedure
       if (volumeBlock) throw new TRPCError({ code: 'FORBIDDEN', message: volumeBlock });
     }
 
-    const fees = calculateFees(quote.baseAmount, 10, 10);
+    const { data: buyerProfile } = await ctx.supabaseAdmin
+      .from('profiles')
+      .select('role, membership_tier')
+      .eq('id', ctx.userId)
+      .maybeSingle();
+    const buyerPercent = buyerServiceFeePercent({
+      role: buyerProfile?.role,
+      membershipTier: buyerProfile?.membership_tier,
+      baseAmount: quote.baseAmount,
+    });
+    const fees = calculateFees(quote.baseAmount, buyerPercent, 10);
     const levy = input.deliver && input.sellerId
       ? calculateDeliveryLevy(await savedDeliveryFee(ctx.supabaseAdmin, input.sellerId))
       : calculateDeliveryLevy(0);
@@ -274,10 +294,42 @@ export const createShopCheckoutProcedure = protectedProcedure
       ctx.supabaseAdmin,
       ctx.userId,
       input.shop,
-      quote.lines,
+      { items: quote.lines, sellerId: input.sellerId ?? null, status: 'pending' },
       quote.baseAmount,
       totalCharge,
     );
+
+    if (input.webOrigin) {
+      const origin = browserOrigin(input.webOrigin);
+      const path = input.returnPath && input.returnPath.startsWith('/') && !input.returnPath.startsWith('//') && !input.returnPath.includes('..')
+        ? input.returnPath
+        : '/checkout';
+      const checkout = await openStripeCheckout({
+        secretKey: stripeSecretKey,
+        amountCents: Math.round(totalCharge * 100),
+        productName: 'HomeCookedPlate shop order',
+        successUrl: `${origin}${path}?webpay=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: `${origin}${path}?webpay=cancel`,
+        metadata: {
+          shop: input.shop,
+          shop_order_id: record.id,
+          buyer_id: ctx.userId,
+          delivery_fee: levy.deliveryFee.toFixed(2),
+          delivery_platform_fee: levy.platformFee.toFixed(2),
+          delivery_buyer_pays: levy.buyerPays.toFixed(2),
+          ...(input.sellerId ? { seller_id: input.sellerId } : {}),
+        },
+      });
+      await attachPayment(ctx.supabaseAdmin, record, checkout.paymentIntentId);
+      return {
+        orderId: record.id,
+        clientSecret: '',
+        checkoutUrl: checkout.url,
+        paymentIntentId: checkout.paymentIntentId,
+        baseAmount: quote.baseAmount,
+        totalCharge,
+      };
+    }
 
     const params = new URLSearchParams({
       amount: Math.round(totalCharge * 100).toString(),
@@ -312,6 +364,7 @@ export const createShopCheckoutProcedure = protectedProcedure
     return {
       orderId: record.id,
       clientSecret: paymentIntent.client_secret,
+      checkoutUrl: null,
       paymentIntentId: paymentIntent.id,
       baseAmount: quote.baseAmount,
       totalCharge,
@@ -374,7 +427,7 @@ export const confirmShopPaymentProcedure = protectedProcedure
 export const listShopOrdersProcedure = protectedProcedure
   .input(z.object({ shop: z.enum(SHOP_NAMES) }))
   .query(async ({ input, ctx }) => {
-    const { data, error } = await ctx.supabase
+    const buyer = await ctx.supabase
       .from('shop_orders')
       .select('id, shop, lines, base_amount, total_charge, paid, created_at')
       .eq('buyer_id', ctx.userId)
@@ -382,14 +435,205 @@ export const listShopOrdersProcedure = protectedProcedure
       .eq('paid', true)
       .order('created_at', { ascending: false });
 
-    if (error) {
-      if (missingTable(error)) return [];
-      console.error('[ShopOrders] List error:', error);
+    if (buyer.error) {
+      if (missingTable(buyer.error)) return [];
+      console.error('[ShopOrders] List error:', buyer.error);
       throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Could not load shop orders' });
     }
 
-    return (data ?? []).flatMap((row) => {
+    const sellerSelect = () => ctx.supabaseAdmin
+      .from('shop_orders')
+      .select('id, shop, lines, base_amount, total_charge, paid, created_at')
+      .eq('shop', input.shop)
+      .eq('paid', true)
+      .order('created_at', { ascending: false });
+    const seller = await sellerSelect().filter('lines->>sellerId', 'eq', ctx.userId);
+    const sellerOnFulfillment = await sellerSelect().filter('lines->fulfillment->>sellerId', 'eq', ctx.userId);
+
+    const rows = [...(buyer.data ?? [])];
+    const seen = new Set(rows.map((row) => row.id));
+    for (const result of [seller, sellerOnFulfillment]) {
+      if (result.error) {
+        console.error('[ShopOrders] Seller list error:', result.error);
+        continue;
+      }
+      for (const row of result.data ?? []) {
+        if (!seen.has(row.id)) {
+          seen.add(row.id);
+          rows.push(row);
+        }
+      }
+    }
+
+    const auditSelect = () => ctx.supabaseAdmin
+      .from('audit_logs')
+      .select('id, user_id, created_at, new_data')
+      .eq('action', 'SHOP_ORDER')
+      .order('created_at', { ascending: false })
+      .limit(100);
+    const buyerAudits = await auditSelect().eq('user_id', ctx.userId);
+    const sellerAudits = await auditSelect().filter('new_data->>seller_id', 'eq', ctx.userId);
+    const audits = {
+      error: buyerAudits.error && sellerAudits.error ? buyerAudits.error : null,
+      data: [...(buyerAudits.data ?? []), ...(sellerAudits.data ?? [])],
+    };
+    if (!audits.error) {
+      for (const row of audits.data ?? []) {
+        if (seen.has(row.id)) continue;
+        const data = asRecord(row.new_data);
+        if (data.paid !== true || data.shop !== input.shop) continue;
+        seen.add(row.id);
+        rows.push({
+          id: row.id as string,
+          shop: input.shop,
+          lines: data.lines,
+          base_amount: Number(data.base_amount),
+          total_charge: Number(data.total_charge),
+          paid: true,
+          created_at: typeof row.created_at === 'string' ? row.created_at : new Date().toISOString(),
+        });
+      }
+    }
+
+    return rows.flatMap((row) => {
       const saved = presentSavedShopOrder(row);
       return saved ? [saved] : [];
     });
+  });
+
+async function refundShopCard(
+  secretKey: string,
+  paymentIntentId: string,
+  amountCents: number,
+): Promise<void> {
+  const response = await fetch('https://api.stripe.com/v1/refunds', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${secretKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      payment_intent: paymentIntentId,
+      amount: String(amountCents),
+    }).toString(),
+  });
+  if (!response.ok) {
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'The card refund did not go through. This order is still open.',
+    });
+  }
+}
+
+export const updateShopOrderProcedure = protectedProcedure
+  .input(z.object({
+    orderId: z.string().uuid(),
+    action: z.enum(['accept', 'refund', 'complete']),
+  }))
+  .mutation(async ({ input, ctx }) => {
+    const { data, error } = await ctx.supabaseAdmin
+      .from('shop_orders')
+      .select('id, buyer_id, shop, lines, base_amount, total_charge, paid, payment_intent_id')
+      .eq('id', input.orderId)
+      .maybeSingle();
+    if (error || !data) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Shop order not found' });
+    }
+    const packed = unpackShopLines(data.lines);
+    if (packed.sellerId !== ctx.userId) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Only the cook on this order can update it.' });
+    }
+    if (data.paid !== true) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'This order is not paid.' });
+    }
+    const next = nextShopStatus(packed.status, input.action);
+    if (!next) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: `This order is ${packed.status}. That step is not available.` });
+    }
+
+    if (input.action === 'refund') {
+      const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+      if (!stripeSecretKey || !data.payment_intent_id) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'The card refund could not be started. This order is still open.',
+        });
+      }
+      const cents = shopRefundIsFull(packed.status)
+        ? Math.round(Number(data.total_charge) * 100)
+        : Math.round(sellerRefundAmount(Number(data.base_amount)) * 100);
+      if (!Number.isFinite(cents) || cents <= 0) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'This order has no amount to refund.' });
+      }
+      await refundShopCard(stripeSecretKey, data.payment_intent_id, cents);
+    }
+
+    const lines = {
+      items: packed.items,
+      fulfillment: packed.fulfillment,
+      sellerId: packed.sellerId,
+      status: next,
+    };
+    const { error: updateError } = await ctx.supabaseAdmin
+      .from('shop_orders')
+      .update({ lines, paid: next !== 'cancelled' })
+      .eq('id', data.id);
+    if (updateError) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: input.action === 'refund'
+          ? 'The refund was sent to the card, but this order is still open.'
+          : 'Could not update this shop order.',
+      });
+    }
+
+    if (data.buyer_id) {
+      try {
+        await notifyParty(ctx.supabaseAdmin, data.buyer_id, 'orderUpdates', shopCloseoutNotice(input.action));
+      } catch (noticeError) {
+        console.error('[ShopOrder] Notice was not sent:', noticeError);
+      }
+    }
+
+    if (next === 'completed' && data.payment_intent_id) {
+      await ctx.supabaseAdmin
+        .from('transactions')
+        .update({ payout_release_at: payoutReleaseAt() })
+        .eq('payment_intent_id', data.payment_intent_id)
+        .eq('seller_id', ctx.userId)
+        .is('order_id', null)
+        .eq('status', 'held')
+        .is('payout_release_at', null);
+    }
+
+    return { id: data.id as string, status: next };
+  });
+
+export const abandonShopOrderProcedure = protectedProcedure
+  .input(z.object({
+    orderId: z.string().uuid().optional(),
+    paymentIntentId: z.string().min(3).optional(),
+  }))
+  .mutation(async ({ input, ctx }) => {
+    if (!input.orderId && !input.paymentIntentId) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'This checkout has no order to close.' });
+    }
+    const lookup = ctx.supabaseAdmin.from('shop_orders').select('id, buyer_id, lines, paid');
+    const { data, error } = input.orderId
+      ? await lookup.eq('id', input.orderId).maybeSingle()
+      : await lookup.eq('payment_intent_id', input.paymentIntentId ?? '').maybeSingle();
+    if (error || !data) return { cancelled: 0 };
+    if (data.buyer_id !== ctx.userId || data.paid === true) return { cancelled: 0 };
+    const packed = unpackShopLines(data.lines);
+    const { error: updateError } = await ctx.supabaseAdmin
+      .from('shop_orders')
+      .update({
+        lines: { items: packed.items, fulfillment: packed.fulfillment, sellerId: packed.sellerId, status: 'cancelled' },
+        paid: false,
+      })
+      .eq('id', data.id);
+    if (updateError) {
+      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Could not close the unpaid shop order.' });
+    }
+    return { cancelled: 1 };
   });

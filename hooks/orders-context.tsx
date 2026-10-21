@@ -1,5 +1,6 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import { Order, OrderMessage, CartItem } from '@/types';
 import { useAuth } from '@/hooks/auth-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -15,7 +16,7 @@ interface OrdersState {
   weekEarnings: number;
   totalReviews: number;
   getOrder: (id: string) => Order | undefined;
-  setOrderStatus: (id: string, status: Order['status']) => void;
+  setOrderStatus: (id: string, status: Order['status']) => Promise<{ id: string; status: string; waiting: boolean }>;
   addMessage: (orderId: string, message: Omit<OrderMessage, 'id' | 'createdAt'> & { text: string }) => Promise<void>;
   getMessages: (orderId: string) => OrderMessage[];
   syncMessages: (orderId: string) => Promise<void>;
@@ -44,6 +45,7 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const mountedRef = useRef<boolean>(true);
   const messagesRef = useRef<Record<string, OrderMessage[]>>({});
+  const [messageTick, setMessageTick] = useState(0);
   const MSG_KEY_PREFIX = 'order_messages_';
   const BELL_SEEN_PREFIX = 'bell_last_seen_';
   const [bellLastSeen, setBellLastSeen] = useState<Date | null>(null);
@@ -140,6 +142,13 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
     }
   }, [user?.id, user?.role]);
 
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next === 'active') refresh().catch(() => undefined);
+    });
+    return () => subscription.remove();
+  }, [refresh]);
+
   const activeOrdersCount = useMemo(() => orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').length, [orders]);
 
   const role = user?.role;
@@ -230,9 +239,15 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
 
   const getOrder = useCallback((id: string) => orders.find(o => o.id === id), [orders]);
 
-  const setOrderStatus = useCallback((id: string, status: Order['status']) => {
-    setOrders(prev => prev.map(o => (o.id === id ? { ...o, status } : o)));
-  }, []);
+  const updateStatusMutation = trpc.orders.updateStatus.useMutation();
+  const setOrderStatus = useCallback(async (id: string, status: Order['status']) => {
+    const result = await updateStatusMutation.mutateAsync({ orderId: id, status });
+    if (!result.waiting) {
+      setOrders(prev => prev.map(o => (o.id === id ? { ...o, status: result.status as Order['status'] } : o)));
+    }
+    await refresh();
+    return result;
+  }, [refresh, updateStatusMutation]);
 
   const sendMessageMutation = trpc.messages.send.useMutation();
 
@@ -255,6 +270,7 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
         createdAt: new Date(m.createdAt),
       }));
       messagesRef.current[orderId] = messages;
+      setMessageTick((tick) => tick + 1);
       const persist = messages.map((m: OrderMessage) => ({ ...m, createdAt: m.createdAt.toISOString() }));
       await AsyncStorage.setItem(MSG_KEY_PREFIX + orderId, JSON.stringify(persist));
     } catch (err) {
@@ -281,6 +297,7 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
       const bucket = messagesRef.current[orderId] ?? [];
       const next = [...bucket, msg].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
       messagesRef.current[orderId] = next;
+      setMessageTick((tick) => tick + 1);
       
       const persist = next.map(m => ({ ...m, createdAt: m.createdAt.toISOString() }));
       await AsyncStorage.setItem(MSG_KEY_PREFIX + orderId, JSON.stringify(persist));
@@ -291,9 +308,10 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
   }, [sendMessageMutation]);
 
   const getMessages = useCallback((orderId: string) => {
+    void messageTick;
     const list = messagesRef.current[orderId] ?? [];
     return [...list].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-  }, []);
+  }, [messageTick]);
 
   const createPaidOrdersFromCart = useCallback((items: CartItem[], plateTaker: { id: string; username?: string }) => {
     const now = new Date();

@@ -1,7 +1,7 @@
-import { adminProcedure } from "../../../create-context";
+import { mainAdminProcedure } from "../../../create-context";
 import { z } from "zod";
 
-export const toggleGlobalMaintenanceProcedure = adminProcedure
+export const toggleGlobalMaintenanceProcedure = mainAdminProcedure
   .input(
     z.object({
       shouldActivate: z.boolean(),

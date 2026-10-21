@@ -1,5 +1,6 @@
 import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
+import { lifetimeShouldSaveDevice } from "../../../../lib/lifetime-device";
 
 /**
  * Hardware Audit Procedure
@@ -9,7 +10,7 @@ import { z } from "zod";
  * - Non-lifetime users: always allowed
  * - Lifetime users with no device_id: allowed (first-time setup)
  * - Lifetime users with matching device_id: allowed
- * - Lifetime users with mismatched device_id: blocked and logged
+ * - Lifetime users with a different device_id: this signed-in device is saved and allowed
  */
 export const hardwareAuditProcedure = protectedProcedure
   .input(
@@ -43,33 +44,30 @@ export const hardwareAuditProcedure = protectedProcedure
       return { allowed: true };
     }
 
-    // Lifetime users with matching device_id: allowed
-    if (profile.device_id === deviceId) {
+    if (!lifetimeShouldSaveDevice(profile.device_id, deviceId)) {
       return { allowed: true };
     }
 
-    // Lifetime users with mismatched device_id: blocked and logged
-    // Use admin client to insert audit log (bypasses RLS)
+    const saved = await ctx.supabaseAdmin
+      .from('profiles')
+      .update({ device_id: deviceId })
+      .eq('id', userId);
+    if (saved.error) {
+      console.error('[HardwareAudit] Could not save this device:', saved.error.message);
+    }
     try {
       await ctx.supabaseAdmin
         .from('audit_logs')
         .insert({
           user_id: userId,
-          action: 'HARDWARE_MISMATCH',
+          action: 'HARDWARE_DEVICE_SAVED',
           table_name: 'profiles',
           record_id: userId,
-          new_data: {
-            attempted_device: deviceId,
-            original_device: profile.device_id,
-          },
+          new_data: { deviceId },
         });
     } catch (error) {
-      // Log error but don't fail the audit check
       console.error('[HardwareAudit] Failed to insert audit log:', error);
     }
 
-    return {
-      allowed: false,
-      reason: 'LIFETIME_DEVICE_MISMATCH',
-    };
+    return { allowed: true };
   });

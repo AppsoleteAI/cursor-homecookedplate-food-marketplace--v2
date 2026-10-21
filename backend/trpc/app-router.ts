@@ -23,14 +23,22 @@ import { myMealsProcedure } from "./routes/meals/my-meals/route";
 import { createOrderProcedure } from "./routes/orders/create/route";
 import { listOrdersProcedure } from "./routes/orders/list/route";
 import { updateOrderStatusProcedure } from "./routes/orders/update-status/route";
+import { abandonUnpaidOrdersProcedure } from "./routes/orders/abandon-unpaid/route";
+import { blockCookProcedure } from "./routes/orders/block-cook/route";
 import { updatePaymentIntentProcedure } from "./routes/orders/update-payment-intent/route";
 import { createReviewProcedure } from "./routes/reviews/create/route";
 import { listReviewsProcedure } from "./routes/reviews/list/route";
+import { deleteReviewCommentProcedure } from "./routes/reviews/delete-comment/route";
+import { reportReviewCommentProcedure } from "./routes/reviews/report/route";
 import { uploadMediaProcedure } from "./routes/media/upload/route";
 import { uploadProfileImageProcedure } from "./routes/media/upload-profile/route";
 import { createPaymentIntentProcedure } from "./routes/payments/create-payment-intent/route";
-import { confirmShopPaymentProcedure, createShopCheckoutProcedure, listShopOrdersProcedure } from "./routes/payments/create-shop-checkout/route";
-import { confirmCombinedCheckoutProcedure, createCombinedCheckoutProcedure, refundCombinedCheckoutProcedure, setAreaStoreProcedure } from "./routes/payments/combined-checkout/route";
+import { abandonShopOrderProcedure, confirmShopPaymentProcedure, createShopCheckoutProcedure, listShopOrdersProcedure, updateShopOrderProcedure } from "./routes/payments/create-shop-checkout/route";
+import { confirmCombinedCheckoutProcedure, createCombinedCheckoutProcedure, getAreaStoresProcedure, refundCombinedCheckoutProcedure, setAreaStoreProcedure } from "./routes/payments/combined-checkout/route";
+import { confirmWebCheckoutProcedure } from "./routes/payments/confirm-web-checkout/route";
+import { deletePromotionProcedure, listMyPromotionsProcedure, savePromotionProcedure } from "./routes/promotions/route";
+import { listLaneListingsProcedure, saveLaneListingProcedure } from "./routes/lanes/route";
+import { listClipsProcedure, publishClipProcedure } from "./routes/clips/route";
 import { confirmPaymentProcedure } from "./routes/payments/confirm-payment/route";
 import { createConnectAccountProcedure } from "./routes/payments/create-connect-account/route";
 import { getConnectAccountStatusProcedure } from "./routes/payments/get-connect-account-status/route";
@@ -62,6 +70,9 @@ import { getMetroAvailabilityProcedure } from "./routes/metro/get-availability/r
 import { hardwareAuditProcedure } from "./routes/auth/hardware-audit/route";
 import { deleteAccountProcedure } from "./routes/auth/delete-account/route";
 import { setAccountSecurityProcedure } from "./routes/auth/set-account-security/route";
+import { exportMyDataProcedure } from "./routes/auth/export-data/route";
+import { setNotificationPrefsProcedure } from "./routes/auth/set-notification-prefs/route";
+import { unpublishMealProcedure } from "./routes/meals/unpublish/route";
 import { markAsReadyProcedure } from "./routes/platemaker/mark-as-ready/route";
 import { toggleAvailabilityProcedure } from "./routes/platemaker/toggle-availability/route";
 import { getAvailabilityProcedure } from "./routes/platemaker/get-availability/route";
@@ -78,6 +89,8 @@ import { getPayoutReviewProcedure } from "./routes/admin/get-payout-review/route
 import { recordResponsibilityProcedure } from "./routes/admin/record-responsibility/route";
 import { replyPayoutMessageProcedure } from "./routes/admin/reply-payout-message/route";
 import { restorePlatemakerSellingProcedure } from "./routes/admin/restore-platemaker-selling/route";
+import { listMonitorPlatesProcedure, listScreenNamesProcedure, updateMonitorPlateProcedure, updateScreenNameProcedure } from "./routes/admin/monitor/route";
+import { listNotificationsProcedure } from "./routes/notifications/list/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -106,6 +119,8 @@ export const appRouter = createTRPCRouter({
     hardwareAudit: hardwareAuditProcedure,
     deleteAccount: deleteAccountProcedure,
     setAccountSecurity: setAccountSecurityProcedure,
+    exportMyData: exportMyDataProcedure,
+    setNotificationPrefs: setNotificationPrefsProcedure,
     verifyEmail: verifyEmailProcedure,
     resendVerificationEmail: resendVerificationEmailProcedure,
   }),
@@ -115,16 +130,21 @@ export const appRouter = createTRPCRouter({
     list: listMealsProcedure,
     get: getMealProcedure,
     myMeals: myMealsProcedure,
+    unpublish: unpublishMealProcedure,
   }),
   orders: createTRPCRouter({
     create: createOrderProcedure,
     list: listOrdersProcedure,
     updateStatus: updateOrderStatusProcedure,
+    abandonUnpaid: abandonUnpaidOrdersProcedure,
+    blockCook: blockCookProcedure,
     updatePaymentIntent: updatePaymentIntentProcedure,
   }),
   reviews: createTRPCRouter({
     create: createReviewProcedure,
     list: listReviewsProcedure,
+    report: reportReviewCommentProcedure,
+    deleteComment: deleteReviewCommentProcedure,
   }),
   media: createTRPCRouter({
     upload: uploadMediaProcedure,
@@ -138,7 +158,11 @@ export const appRouter = createTRPCRouter({
     confirmCombinedCheckout: confirmCombinedCheckoutProcedure,
     refundCombinedCheckout: refundCombinedCheckoutProcedure,
     setAreaStore: setAreaStoreProcedure,
+    getAreaStores: getAreaStoresProcedure,
+    confirmWebCheckout: confirmWebCheckoutProcedure,
     listShopOrders: listShopOrdersProcedure,
+    updateShopOrder: updateShopOrderProcedure,
+    abandonShopOrder: abandonShopOrderProcedure,
     confirmPayment: confirmPaymentProcedure,
     createCheckoutSession: createCheckoutSessionProcedure,
     createConnectAccount: createConnectAccountProcedure,
@@ -179,9 +203,29 @@ export const appRouter = createTRPCRouter({
     recordResponsibility: recordResponsibilityProcedure,
     replyPayoutMessage: replyPayoutMessageProcedure,
     restorePlatemakerSelling: restorePlatemakerSellingProcedure,
+    listMonitorPlates: listMonitorPlatesProcedure,
+    updateMonitorPlate: updateMonitorPlateProcedure,
+    listScreenNames: listScreenNamesProcedure,
+    updateScreenName: updateScreenNameProcedure,
   }),
   metro: createTRPCRouter({
     getAvailability: getMetroAvailabilityProcedure,
+  }),
+  promotions: createTRPCRouter({
+    listMine: listMyPromotionsProcedure,
+    save: savePromotionProcedure,
+    delete: deletePromotionProcedure,
+  }),
+  lanes: createTRPCRouter({
+    list: listLaneListingsProcedure,
+    save: saveLaneListingProcedure,
+  }),
+  clips: createTRPCRouter({
+    list: listClipsProcedure,
+    publish: publishClipProcedure,
+  }),
+  notifications: createTRPCRouter({
+    list: listNotificationsProcedure,
   }),
   platemaker: createTRPCRouter({
     markAsReady: markAsReadyProcedure,

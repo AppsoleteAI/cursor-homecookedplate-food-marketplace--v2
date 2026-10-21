@@ -29,19 +29,21 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/hooks/auth-context';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
-import { trpc } from '@/lib/trpc';
+import { trpc, trpcProxyClient } from '@/lib/trpc';
 import { useCart } from '@/hooks/cart-context';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
-import { buyerCardCharge, calculateOrderSplit, orderTotalWithDelivery } from '@/lib/fees';
+import { buyerCardCharge, orderTotalWithDelivery, promotionalBase } from '@/lib/fees';
+import { buyerServiceFeePercent, calculateFees } from '@/backend/lib/fees';
+import { deviceTimeZone } from '@/lib/pickup-time';
+import { plateCheckoutBlock } from '@/lib/plate-checkout-block';
 import { DeliveryLevyLines, useDeliveryQuote } from '@/components/DeliveryFeeCard';
-import { isSampleMealId } from '@/lib/sample-meals';
 import { CartItem } from '@/types';
 
 import { ScheduleTimePicker } from '@/components/ScheduleTimePicker';
 
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter , type Href } from 'expo-router';
+import { useLocalSearchParams, useRouter , type Href } from 'expo-router';
 
 import { useStripe } from '@/lib/stripe';
 import { useLeaveScreen, usePaidBack, useStayBack } from '@/hooks/use-leave-screen';
@@ -268,15 +270,22 @@ function CongratsFlash({ visible, footerOffset, onEnd }: CongratsFlashProps) {
 }
 
 export default function CheckoutScreen() {
-  const { items, clearCart, totalPrice, updatePickupTime, updateSpecialInstructions, updateAllergies, updateCookingTemperature } = useCart();
+  const params = useLocalSearchParams<{ webpay?: string; session_id?: string }>();
+  const { items, clearCart, removeFromCart, totalPrice, updatePickupTime, updateSpecialInstructions, updateAllergies, updateCookingTemperature } = useCart();
   const { payInMainCart } = useCombinedBill();
   const [deliver, setDeliver] = useState(false);
-  const checkoutSplit = calculateOrderSplit(totalPrice || 0);
+  const [deliveryAddress, setDeliveryAddress] = useState('');
   const sellerId = items[0]?.meal.plateMakerId;
   const delivery = useDeliveryQuote(sellerId, deliver);
-  const withDelivery = orderTotalWithDelivery(checkoutSplit.totalCaptured, checkoutSplit.sellerPayout, delivery.deliveryFee);
-  const cardCharge = buyerCardCharge(withDelivery.buyerPays);
   const { user } = useAuth();
+  const buyerPercent = buyerServiceFeePercent({
+    role: user?.role,
+    membershipTier: user?.membershipTier,
+    baseAmount: totalPrice || 0,
+  });
+  const checkoutSplit = calculateFees(totalPrice || 0, buyerPercent, 10);
+  const withDelivery = orderTotalWithDelivery(checkoutSplit.totalCharge, checkoutSplit.sellerPayout, delivery.deliveryFee);
+  const cardCharge = buyerCardCharge(withDelivery.buyerPays);
   const [accepted, setAccepted] = useState<boolean>(false);
   const [feesAcknowledged, setFeesAcknowledged] = useState<boolean>(false);
   const [showThankYou, setShowThankYou] = useState<boolean>(false);
@@ -287,7 +296,7 @@ export default function CheckoutScreen() {
   const [processing, setProcessing] = useState<boolean>(false);
   const leave = useLeaveScreen('/(tabs)/cart', !showThankYou && !processing);
   useStayBack(processing && !showThankYou);
-  const paidLeave = usePaidBack('/(tabs)/orders', showThankYou);
+  const paidLeave = usePaidBack('/(tabs)/buyer-dashboard', showThankYou);
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -297,22 +306,53 @@ export default function CheckoutScreen() {
   
   const createPaymentIntent = trpc.payments.createPaymentIntent.useMutation();
   const createOrder = trpc.orders.create.useMutation();
+  const abandonUnpaid = trpc.orders.abandonUnpaid.useMutation();
+  const confirmPayment = trpc.payments.confirmPayment.useMutation();
   const updatePaymentIntent = trpc.orders.updatePaymentIntent.useMutation();
+  const webSessionId = typeof params.session_id === 'string' ? params.session_id : '';
+  const webReturn = trpc.payments.confirmWebCheckout.useQuery(
+    { sessionId: webSessionId },
+    { enabled: Platform.OS === 'web' && params.webpay === 'success' && webSessionId.length > 0, retry: false }
+  );
 
   const confettiKey = useRef<number>(0);
+  const thanked = useRef(false);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || params.webpay !== 'cancel' || typeof window === 'undefined') return;
+    const raw = window.sessionStorage.getItem('hcp-plate-order-ids');
+    window.sessionStorage.removeItem('hcp-plate-order-ids');
+    if (!raw) return;
+    try {
+      const orderIds = JSON.parse(raw) as string[];
+      if (orderIds.length > 0) abandonUnpaid.mutate({ orderIds });
+    } catch {
+      return;
+    }
+  }, [abandonUnpaid, params.webpay]);
+
+  useEffect(() => {
+    if (thanked.current || webReturn.data?.status !== 'succeeded' || !webReturn.data.paymentIntentId) return;
+    thanked.current = true;
+    confirmPayment.mutateAsync({ paymentIntentId: webReturn.data.paymentIntentId }).then(() => {
+      clearCart();
+      setShowThankYou(true);
+      setPlayConfetti(true);
+      setShowCongrats(true);
+    }).catch(() => {
+      thanked.current = false;
+      Alert.alert('Payment', 'The card went through. The order is not marked paid yet. Open this page again.');
+    });
+  }, [clearCart, confirmPayment, webReturn.data?.paymentIntentId, webReturn.data?.status]);
 
   const handlePayment = async () => {
+    const createdOrderIds: string[] = [];
     try {
       if (payInMainCart || delivery.loading) return;
       if (!feesAcknowledged) {
-        Alert.alert('Non-refundable fees', 'Acknowledge both non-refundable 10% fees before entering payment details.');
+        Alert.alert('Non-refundable fees', `Acknowledge the non-refundable ${buyerPercent}% fee and the cook's 10% fee before entering payment details.`);
         return;
       }
-      if (Platform.OS === 'web') {
-        Alert.alert('Not Available', 'Payment is only available on mobile devices. Please use the mobile app.');
-        return;
-      }
-
       if (!user) {
         Alert.alert('Not signed in', 'Please login first.');
         return;
@@ -342,12 +382,56 @@ export default function CheckoutScreen() {
 
       const firstSellerId = sellerIds[0];
       const sellerItems = itemsBySeller[firstSellerId];
-      const sellerTotal = sellerItems.reduce((sum, item) => sum + item.meal.price * item.quantity, 0);
+      const sellerTotal = sellerItems.reduce((sum, item) => (
+        sum + promotionalBase(item.meal.price, Math.max(1, Math.round(item.quantity)), item.meal.promotionalOffer)
+      ), 0);
 
-      if (sellerItems.some((item) => item.meal.isSample || isSampleMealId(item.meal.id))) {
-        Alert.alert('Sample plate', 'Sample plates are not for sale.');
+      const plateBlock = sellerItems
+        .map((item) => plateCheckoutBlock({
+          mealId: item.meal.id,
+          isSample: item.meal.isSample,
+          tags: item.meal.tags,
+          quantity: item.quantity,
+          pickupTime: item.pickupTime,
+        }))
+        .find((block) => block != null);
+      if (plateBlock) {
+        Alert.alert(plateBlock.title, plateBlock.message);
         setProcessing(false);
         return;
+      }
+      if (deliver && delivery.loading) {
+        Alert.alert('Delivery', 'The delivery fee is still loading.');
+        setProcessing(false);
+        return;
+      }
+      if (deliver && delivery.deliveryFee <= 0) {
+        Alert.alert('Delivery', 'This cook has not set a delivery fee, so delivery cannot be selected.');
+        setProcessing(false);
+        return;
+      }
+      if (deliver && deliveryAddress.trim().length < 8) {
+        Alert.alert('Delivery', 'Enter the delivery address.');
+        setProcessing(false);
+        return;
+      }
+
+      for (const item of sellerItems) {
+        try {
+          const plate = await trpcProxyClient.meals.get.query({ id: item.meal.id, metroArea: user.metroArea || undefined });
+          if (plate.acceptingOrders === false) {
+            removeFromCart(item.meal.id);
+            Alert.alert('Orders', 'This cook is not taking orders.');
+            setProcessing(false);
+            return;
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'This plate is outside your saved metro.';
+          if (/not on the menu|Meal not found/i.test(message)) removeFromCart(item.meal.id);
+          Alert.alert('Metro', message);
+          setProcessing(false);
+          return;
+        }
       }
 
       if (sellerIds.length > 1) {
@@ -360,9 +444,19 @@ export default function CheckoutScreen() {
         return;
       }
 
-      const createdOrderIds: string[] = [];
+      const closeUnpaid = () => {
+        if (createdOrderIds.length === 0) return Promise.resolve();
+        return abandonUnpaid.mutateAsync({ orderIds: createdOrderIds }).catch(() => undefined);
+      };
 
       for (const item of sellerItems) {
+        const pickupTime = item.pickupTime?.toISOString();
+        if (!pickupTime) {
+          Alert.alert('Checkout', 'Choose a pickup time for each plate.');
+          setProcessing(false);
+          await closeUnpaid();
+          return;
+        }
         const orderResult = await createOrder.mutateAsync({
           mealId: item.meal.id,
           sellerId: firstSellerId,
@@ -371,7 +465,9 @@ export default function CheckoutScreen() {
           specialInstructions: item.specialInstructions,
           cookingTemperature: item.cookingTemperature,
           allergies: item.allergies,
-          pickupTime: item.pickupTime?.toISOString(),
+          pickupTime,
+          pickupTimeZone: deviceTimeZone(),
+          deliveryAddress: deliver ? deliveryAddress.trim() : undefined,
         });
         createdOrderIds.push(orderResult.id);
       }
@@ -383,11 +479,13 @@ export default function CheckoutScreen() {
         platformFeePercent: 10,
         orderIds: createdOrderIds,
         deliver,
+        ...(Platform.OS === 'web' && typeof window !== 'undefined' ? { webOrigin: window.location.origin } : {}),
       });
 
       // Link orders to payment intent ID before proceeding to payment sheet
       // This ensures orders cannot be bypassed and must be paid
       if (!paymentIntentResult.paymentIntentId) {
+        await closeUnpaid();
         Alert.alert('Error', 'Failed to create payment intent. Please try again.');
         setProcessing(false);
         return;
@@ -401,6 +499,7 @@ export default function CheckoutScreen() {
         console.log('[Checkout] Orders linked to payment intent:', paymentIntentResult.paymentIntentId);
       } catch (linkError: any) {
         console.error('[Checkout] Error linking orders to payment intent:', linkError);
+        await closeUnpaid();
         Alert.alert(
           'Error',
           'Failed to link orders to payment. Please try again or contact support.'
@@ -409,7 +508,14 @@ export default function CheckoutScreen() {
         return;
       }
 
+      if (Platform.OS === 'web' && paymentIntentResult.checkoutUrl && typeof window !== 'undefined') {
+        window.sessionStorage.setItem('hcp-plate-order-ids', JSON.stringify(createdOrderIds));
+        window.location.assign(paymentIntentResult.checkoutUrl);
+        return;
+      }
+
       if (!initPaymentSheet || !presentPaymentSheet) {
+        await closeUnpaid();
         Alert.alert('Error', 'Payment system not available');
         setProcessing(false);
         return;
@@ -423,6 +529,7 @@ export default function CheckoutScreen() {
 
       if (initError) {
         console.error('[Stripe] Init error:', initError);
+        await closeUnpaid();
         Alert.alert('Error', initError.message);
         setProcessing(false);
         return;
@@ -431,6 +538,7 @@ export default function CheckoutScreen() {
       const { error: presentError } = await presentPaymentSheet();
 
       if (presentError) {
+        await closeUnpaid();
         if (presentError.code !== 'Canceled') {
           console.error('[Stripe] Payment error:', presentError);
           Alert.alert('Payment failed', presentError.message);
@@ -439,6 +547,7 @@ export default function CheckoutScreen() {
         return;
       }
 
+      await confirmPayment.mutateAsync({ paymentIntentId: paymentIntentResult.paymentIntentId });
       clearCart();
       setShowThankYou(true);
       setPlayConfetti(true);
@@ -447,6 +556,7 @@ export default function CheckoutScreen() {
       confettiKey.current += 1;
     } catch (e) {
       console.error('[Checkout] payment error', e);
+      if (createdOrderIds.length > 0) abandonUnpaid.mutate({ orderIds: createdOrderIds });
       Alert.alert('Error', 'Failed to process payment.');
       setProcessing(false);
     }
@@ -501,7 +611,7 @@ export default function CheckoutScreen() {
                 <Text style={styles.paymentInfo}>${totalPrice.toFixed(2)}</Text>
               </View>
               <View style={styles.paymentRow}>
-                <Text style={styles.paymentLabel}>Your 10% fee, non-refundable</Text>
+                <Text style={styles.paymentLabel}>Your {buyerPercent}% fee, non-refundable</Text>
                 <Text style={styles.paymentInfo}>${checkoutSplit.buyerFee.toFixed(2)}</Text>
               </View>
               <View style={styles.paymentRow}>
@@ -529,7 +639,7 @@ export default function CheckoutScreen() {
                   <Text style={styles.paymentAmount}>${cardCharge.cardCharge.toFixed(2)}</Text>
                 </LinearGradient>
               </View>
-              <Text style={styles.paymentInfo}>HomeCookedPlate keeps both non-refundable 10% fees. A refund returns the cook&apos;s share only. These fees are not returned. On delivery, you also pay 5% on the delivery amount the cook set. The cook receives that amount. HomeCookedPlate keeps the 5%.</Text>
+              <Text style={styles.paymentInfo}>HomeCookedPlate keeps the non-refundable {buyerPercent}% fee and the cook&apos;s 10% fee. A refund returns the cook&apos;s share only. These fees are not returned. On delivery, you also pay 5% on the delivery amount the cook set. The cook receives that amount. HomeCookedPlate keeps the 5%.</Text>
               <Pressable
                 onPress={() => setFeesAcknowledged((prev) => !prev)}
                 style={[styles.checkboxRow, feesAcknowledged ? styles.checkboxRowActive : undefined]}
@@ -538,7 +648,7 @@ export default function CheckoutScreen() {
                 accessibilityState={{ checked: feesAcknowledged }}
               >
                 <View style={[styles.checkbox, feesAcknowledged ? styles.checkboxChecked : undefined]} />
-                <Text style={styles.checkboxLabel}>I understand HomeCookedPlate keeps both non-refundable 10% fees</Text>
+                <Text style={styles.checkboxLabel}>I understand HomeCookedPlate keeps the non-refundable {buyerPercent}% fee and the cook&apos;s 10% fee</Text>
               </Pressable>
               <Text style={styles.paymentInfo}>Pickup from your cook. You pay the card fee, and sales tax when it applies. Stripe charges the total above after this acknowledgement.</Text>
               <Text style={styles.paymentInfo}>Meet in a public place during daylight. Do not exchange phone numbers in the app. If a prepaid delivery is agreed upon, we suggest the cook brings someone else along, for safety.</Text>
@@ -628,6 +738,16 @@ export default function CheckoutScreen() {
               </GlassPressable>
             </View>
             <DeliveryLevyLines deliveryFee={delivery.deliveryFee} active={deliver} />
+            {deliver ? (
+              <TextInput
+                value={deliveryAddress}
+                onChangeText={setDeliveryAddress}
+                placeholder="Delivery address"
+                placeholderTextColor="#9CA3AF"
+                style={styles.paymentInfo}
+                testID="checkout-delivery-address"
+              />
+            ) : null}
             {deliver && delivery.deliveryFee <= 0 && !delivery.loading ? (
               <Text style={styles.paymentInfo}>This cook has not set a delivery fee, so delivery is not charged.</Text>
             ) : null}

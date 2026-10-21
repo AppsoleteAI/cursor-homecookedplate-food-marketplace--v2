@@ -48,6 +48,7 @@ const HEADER_COLORS: [string, string][] = [
   ['/orders', monoGradients.gold[0]],
   ['/active-orders', monoGradients.green[0]],
   ['/admin-dashboard', monoGradients.purple[0]],
+  ['/admin-monitor', monoGradients.purple[0]],
   ['/admin-payout-review', monoGradients.purple[0]],
   ['/admin/alerts', monoGradients.blue[0]],
   ['/admin-metro-caps', monoGradients.blue[0]],

@@ -47,7 +47,7 @@ export default function SearchScreen() {
     metroArea: user?.metroArea || undefined,
   });
   const meals: Meal[] = useMemo(() => {
-    return (mealsData || []).map((meal) => ({
+    return (mealsData || []).filter((meal) => meal.plateMakerId !== user?.id).map((meal) => ({
       id: meal.id,
       plateMakerId: meal.plateMakerId,
       plateMakerName: meal.plateMakerName,
@@ -67,7 +67,7 @@ export default function SearchScreen() {
       tags: meal.tags || [],
       isSample: meal.isSample === true,
     }));
-  }, [mealsData]);
+  }, [mealsData, user?.id]);
 
   const filteredMeals = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();

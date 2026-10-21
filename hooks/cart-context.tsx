@@ -1,13 +1,19 @@
 import createContextHook from '@nkzw/create-context-hook';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 import { CartItem, Meal } from '@/types';
 import { isSampleMealId } from '@/lib/sample-meals';
+import { promotionalBase } from '@/lib/fees';
+import { portionsFromTags } from '@/lib/meal-publish';
+import { storedCartLineIsClosed } from '@/lib/cart-line';
+import { trpcProxyClient } from '@/lib/trpc';
+import { useAuth } from '@/hooks/auth-context';
 
 interface CartState {
   items: CartItem[];
   totalItems: number;
   totalPrice: number;
-  addToCart: (meal: Meal, quantity: number, options?: Partial<CartItem>) => void;
+  addToCart: (meal: Meal, quantity: number, options?: Partial<CartItem>) => boolean;
   removeFromCart: (mealId: string) => void;
   updateQuantity: (mealId: string, quantity: number) => void;
   updatePickupTime: (mealId: string, pickupTime: Date) => void;
@@ -18,21 +24,70 @@ interface CartState {
 }
 
 export const [CartProvider, useCart] = createContextHook<CartState>(() => {
+  const { user } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
+  const previousUserId = useRef<string | null>(user?.id ?? null);
+
+  useEffect(() => {
+    const nextId = user?.id ?? null;
+    if (previousUserId.current && previousUserId.current !== nextId) {
+      setItems([]);
+    }
+    previousUserId.current = nextId;
+  }, [user?.id]);
+
+  const cartIds = items.map((item) => item.meal.id).join(',');
+  useEffect(() => {
+    if (!cartIds) return;
+    let cancelled = false;
+    const ids = cartIds.split(',');
+    const dropClosed = async () => {
+      const closed: string[] = [];
+      for (const id of ids) {
+        try {
+          const plate = await trpcProxyClient.meals.get.query({
+            id,
+            metroArea: user?.metroArea || undefined,
+          });
+          if (storedCartLineIsClosed(plate.acceptingOrders, false)) closed.push(id);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '';
+          if (storedCartLineIsClosed(undefined, /not on the menu|Meal not found/i.test(message))) {
+            closed.push(id);
+          }
+        }
+      }
+      if (cancelled || closed.length === 0) return;
+      setItems((prev) => prev.filter((item) => !closed.includes(item.meal.id)));
+    };
+    void dropClosed();
+    const timer = setInterval(() => { void dropClosed(); }, 30_000);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void dropClosed();
+    });
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      sub.remove();
+    };
+  }, [cartIds, user?.metroArea]);
 
   const addToCart = useCallback((meal: Meal, quantity: number, options?: Partial<CartItem>) => {
-    if (meal.isSample || isSampleMealId(meal.id)) return;
+    if (meal.isSample || isSampleMealId(meal.id) || meal.acceptingOrders === false) return false;
+    const cap = portionsFromTags(meal.tags);
+    const adding = Math.min(cap, Math.max(1, Math.round(quantity)));
     setItems(prev => {
       const existing = prev.find(item => item.meal.id === meal.id);
       if (existing) {
         return prev.map(item =>
           item.meal.id === meal.id
-            ? { ...item, quantity: item.quantity + quantity }
+            ? { ...item, quantity: Math.min(cap, item.quantity + adding) }
             : item
         );
       }
-      return [...prev, { meal, quantity, ...options }];
+      return [...prev, { meal, quantity: adding, ...options }];
     });
+    return true;
   }, []);
 
   const removeFromCart = useCallback((mealId: string) => {
@@ -46,7 +101,9 @@ export const [CartProvider, useCart] = createContextHook<CartState>(() => {
     }
     setItems(prev =>
       prev.map(item =>
-        item.meal.id === mealId ? { ...item, quantity } : item
+        item.meal.id === mealId
+          ? { ...item, quantity: Math.min(portionsFromTags(item.meal.tags), Math.round(quantity)) }
+          : item
       )
     );
   }, []);
@@ -88,7 +145,9 @@ export const [CartProvider, useCart] = createContextHook<CartState>(() => {
   }, []);
 
   const totalItems = useMemo(() => items.reduce((sum, item) => sum + item.quantity, 0), [items]);
-  const totalPrice = useMemo(() => items.reduce((sum, item) => sum + item.meal.price * item.quantity, 0), [items]);
+  const totalPrice = useMemo(() => items.reduce((sum, item) => (
+    sum + promotionalBase(item.meal.price, Math.max(1, Math.round(item.quantity)), item.meal.promotionalOffer)
+  ), 0), [items]);
 
   return useMemo(() => ({
     items,

@@ -65,7 +65,7 @@ export default function FoodTruckPopupHome() {
         <View style={styles.models}>
           <Text style={styles.model}>Order ahead, then skip the line at the window</Text>
           <Text style={styles.model}>Active means the window is open right now</Text>
-          <Text style={styles.model}>Same 10% service fee. No courier commission.</Text>
+          <Text style={styles.model}>The service fee is 10%. A Premium PlateTaker pays 5% on an order of $20 or more. No courier commission.</Text>
         </View>
 
         {links.map((link) => (

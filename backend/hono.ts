@@ -8,8 +8,7 @@ import { createContext } from "./trpc/create-context";
 import { createSupabaseAdmin } from "./lib/supabase";
 import { logAdminAlert } from "./lib/alerts";
 import { sendExpoPushNotification } from "./lib/expo-push-notifications";
-import { appRevenueWithDelivery, calculateFees, orderTotalWithDelivery } from "./lib/fees";
-import { payoutReleaseAt } from "./lib/payout-policy";
+import { recordPlatePayment } from "./lib/record-paid-order";
 import { handleChargeDispute, handleLostDispute, releaseDuePayouts } from "./lib/stripe-marketplace";
 import type { MediaFrameBinding } from "./lib/image-security";
 
@@ -266,90 +265,24 @@ app.post("/webhook/stripe", async (c) => {
 
     // Use centralized admin client (supabaseAdmin) which uses Service Role Key
     // Perform a single atomic update for all orders with this payment_intent_id
-    const { data: updatedOrders, error: updateError } = await supabaseAdmin
-      .from('orders')
-      .update({ 
-        paid: true, 
-        status: 'accepted',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('payment_intent_id', paymentIntentId)
-      .select();
-
-    if (updateError) {
+    try {
+      const updated = await recordPlatePayment(supabaseAdmin, {
+        paymentIntentId,
+        chargeId: paymentIntent.latest_charge || paymentIntent.charges?.data?.[0]?.id || null,
+        transferId: paymentIntent.charges?.data?.[0]?.transfer || null,
+        applicationFeeId: paymentIntent.charges?.data?.[0]?.application_fee?.id || null,
+        currency: paymentIntent.currency || 'usd',
+        deliveryFee: Number(paymentIntent.metadata?.delivery_fee ?? 0),
+        stripeSecretKey: c.env?.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY,
+      });
+      if (updated === 0) {
+        console.warn('[Stripe Webhook] No orders found for payment intent:', paymentIntentId);
+      } else {
+        console.log('[Stripe Webhook] Marked', updated, 'order(s) paid. The cook still accepts.');
+      }
+    } catch (updateError) {
       console.error('[Stripe Webhook] Error updating orders:', updateError);
       return c.json({ error: 'Database error' }, 500);
-    }
-
-    if (!updatedOrders || updatedOrders.length === 0) {
-      console.warn('[Stripe Webhook] No orders found for payment intent:', paymentIntentId);
-    } else {
-      console.log('[Stripe Webhook] Updated', updatedOrders.length, 'order(s) successfully');
-    }
-
-    // Financial Architecture: Every successful Stripe webhook MUST create transaction records
-    // Calculate fee breakdowns for 20% take rate (double-sided 10% fee)
-    if (updatedOrders && updatedOrders.length > 0) {
-      // Get Stripe charge and transfer details
-      const chargeId = paymentIntent.latest_charge || paymentIntent.charges?.data?.[0]?.id;
-      const transferId = paymentIntent.charges?.data?.[0]?.transfer;
-      const applicationFeeId = paymentIntent.charges?.data?.[0]?.application_fee?.id;
-      const currency = paymentIntent.currency || 'usd';
-
-      // Create transaction record for each order with fee breakdowns
-      // Use order.total_price as base price (each order calculates fees independently)
-      let deliveryApplied = false;
-      for (const order of updatedOrders) {
-        const { data: existingTx } = await supabaseAdmin
-          .from('transactions')
-          .select('id')
-          .eq('order_id', order.id)
-          .limit(1);
-        if (existingTx && existingTx.length > 0) {
-          continue;
-        }
-
-        // Base price from order (meal.price * quantity)
-        const basePrice = parseFloat(order.total_price);
-        
-        // Calculate fees using standard utility (20% take rate: buyer +10%, seller -10%)
-        const fees = calculateFees(basePrice, 10, 10);
-        const rawDelivery = !deliveryApplied ? Number(paymentIntent.metadata?.delivery_fee ?? 0) : 0;
-        const deliveryFee = Number.isFinite(rawDelivery) && rawDelivery > 0 ? rawDelivery : 0;
-        const withDelivery = orderTotalWithDelivery(fees.totalCharge, fees.sellerPayout, deliveryFee);
-        if (withDelivery.levy.buyerPays > 0) deliveryApplied = true;
-
-        const { error: transactionError } = await supabaseAdmin
-          .from('transactions')
-          .insert({
-            payment_intent_id: paymentIntentId,
-            order_id: order.id,
-            buyer_id: order.buyer_id,
-            seller_id: order.seller_id,
-            meal_id: order.meal_id,
-            base_price: parseFloat(basePrice.toFixed(2)),
-            buyer_payment: withDelivery.buyerPays,
-            seller_payout: withDelivery.sellerReceives,
-            app_revenue: appRevenueWithDelivery(fees.appTotalRevenue, deliveryFee),
-            buyer_fee: parseFloat(fees.buyerFee.toFixed(2)),
-            seller_fee: parseFloat(fees.sellerFee.toFixed(2)),
-            total_fee: appRevenueWithDelivery(fees.appTotalRevenue, deliveryFee),
-            stripe_charge_id: chargeId,
-            stripe_transfer_id: transferId,
-            stripe_application_fee_id: applicationFeeId,
-            currency,
-            quantity: order.quantity,
-            status: 'held',
-            payout_release_at: payoutReleaseAt(),
-          });
-
-        if (transactionError) {
-          console.error('[Stripe Webhook] Error creating transaction record:', transactionError);
-          // Continue processing - transaction logging is important but not critical for order fulfillment
-        } else {
-          console.log(`[Stripe Webhook] Held payout for order ${order.id}: Base=$${basePrice.toFixed(2)}, Seller=$${fees.sellerPayout.toFixed(2)}`);
-        }
-      }
     }
   }
 
@@ -633,7 +566,11 @@ app.use(
         AI: c.env?.AI,
         MEDIA: c.env?.MEDIA,
         GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: c.env?.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON,
+        STRIPE_SECRET_KEY: c.env?.STRIPE_SECRET_KEY ?? process.env.STRIPE_SECRET_KEY,
+        RESEND_API_KEY: c.env?.RESEND_API_KEY ?? process.env.RESEND_API_KEY,
       };
+      if (env.STRIPE_SECRET_KEY) process.env.STRIPE_SECRET_KEY = env.STRIPE_SECRET_KEY;
+      if (env.RESEND_API_KEY) process.env.RESEND_API_KEY = env.RESEND_API_KEY;
       return await createContext(opts, env);
     },
     onError: ({ path, error }) => {

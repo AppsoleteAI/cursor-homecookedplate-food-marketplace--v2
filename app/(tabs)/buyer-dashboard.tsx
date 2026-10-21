@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BuyerOnly } from '@/components/RoleGuard';
-import { View, Text, StyleSheet, ScrollView, Image, Alert, ActivityIndicator, Pressable } from 'react-native';
+import { AppState, View, Text, StyleSheet, ScrollView, Image, Alert, ActivityIndicator, Pressable } from 'react-native';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,59 +9,119 @@ import { Ionicons } from '@expo/vector-icons';
 import StarRating from '@/components/StarRating';
 import { useFavorites } from '@/hooks/favorites-context';
 import { useCart } from '@/hooks/cart-context';
-import { router, usePathname, type Href } from 'expo-router';
+import { useOrders } from '@/hooks/orders-context';
+import { router, useFocusEffect, usePathname, type Href } from 'expo-router';
 import { openFoodHandling } from '@/components/FoodHandlingLink';
-import { trpc } from '@/lib/trpc';
+import { trpc, trpcProxyClient } from '@/lib/trpc';
+import { reorderPickup } from '@/lib/pickup-time';
+import { savedFavoriteStaysOnDashboard } from '@/lib/cart-line';
 import HorizontalCarousel from '@/components/HorizontalCarousel';
 
 export default function BuyerDashboardScreen() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const { favorites } = useFavorites();
+  const favoriteIds = favorites.map((meal) => meal.id).join(',');
+  const [openFavoriteIds, setOpenFavoriteIds] = useState<string[]>([]);
+  const [favoritesChecked, setFavoritesChecked] = useState(false);
   const { addToCart } = useCart();
+  const { refresh: refreshOrders } = useOrders();
   const [reorderingMealId, setReorderingMealId] = useState<string | null>(null);
 
-  const { data: orders } = trpc.orders.list.useQuery(
-    { role: 'buyer' },
-    {
-      refetchOnWindowFocus: false,
-      refetchOnMount: false,
-    }
-  );
+  const orderList = trpc.orders.list.useQuery({ role: 'buyer' });
+  const orders = orderList.data;
+  const cancelOrder = trpc.orders.updateStatus.useMutation({
+    onSuccess: () => {
+      orderList.refetch();
+      refreshOrders();
+    },
+    onError: (error) => Alert.alert('Order', error.message),
+  });
 
-  const purchases = useMemo(() => {
-    const seen = new Set<string>();
-    return (orders || []).filter((order) => {
-      if (seen.has(order.mealId)) return false;
-      seen.add(order.mealId);
-      return true;
-    }).slice(0, 3);
-  }, [orders]);
+  const refetchOrders = orderList.refetch;
+  useFocusEffect(useCallback(() => {
+    refetchOrders();
+  }, [refetchOrders]));
+
+  useEffect(() => {
+    if (!favoriteIds) {
+      setOpenFavoriteIds([]);
+      setFavoritesChecked(true);
+      return;
+    }
+    let cancelled = false;
+    const ids = favoriteIds.split(',');
+    const check = async () => {
+      const open: string[] = [];
+      for (const id of ids) {
+        try {
+          const plate = await trpcProxyClient.meals.get.query({ id });
+          if (savedFavoriteStaysOnDashboard(plate.acceptingOrders, false)) open.push(id);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '';
+          if (!savedFavoriteStaysOnDashboard(undefined, /not on the menu|Meal not found/i.test(message))) {
+            open.push(id);
+          }
+        }
+      }
+      if (!cancelled) {
+        setOpenFavoriteIds(open);
+        setFavoritesChecked(true);
+      }
+    };
+    setFavoritesChecked(false);
+    void check();
+    const timer = setInterval(() => { void check(); }, 30_000);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void check();
+    });
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      sub.remove();
+    };
+  }, [favoriteIds]);
+
+  const shownFavorites = favorites.filter((meal) => openFavoriteIds.includes(meal.id));
 
   const handleReorderFromFavorite = async (meal: typeof favorites[0]) => {
     if (!meal) return;
     
     try {
       setReorderingMealId(meal.id);
+      const fresh = await trpcProxyClient.meals.get.query({ id: meal.id });
+      const plate = { ...meal, acceptingOrders: fresh.acceptingOrders === true, available: fresh.available };
+      if (plate.available === false || plate.acceptingOrders === false) {
+        Alert.alert('Orders', 'This cook is not taking orders.');
+        return;
+      }
       
       // Check for previous order to get preferences
       const previousOrder = orders?.find(o => o.mealId === meal.id);
       
       if (previousOrder) {
         // Use previous preferences
-        addToCart(meal, previousOrder.quantity, {
+        const added = addToCart(plate, previousOrder.quantity, {
           specialInstructions: previousOrder.specialInstructions,
           allergies: previousOrder.allergies,
           cookingTemperature: previousOrder.cookingTemperature,
-          pickupTime: previousOrder.pickupTime,
+          pickupTime: reorderPickup(previousOrder.pickupTime),
         });
+        if (!added) {
+          Alert.alert('Orders', 'This cook is not taking orders.');
+          return;
+        }
         Alert.alert('Success', 'Meal added to cart with your previous preferences!', [
           { text: 'Continue Shopping', style: 'cancel' },
           { text: 'View Cart', onPress: () => router.push('/(tabs)/cart') },
         ]);
       } else {
         // Use defaults
-        addToCart(meal, 1);
+        const added = addToCart(plate, 1);
+        if (!added) {
+          Alert.alert('Orders', 'This cook is not taking orders.');
+          return;
+        }
         Alert.alert('Success', 'Meal added to cart!', [
           { text: 'Continue Shopping', style: 'cancel' },
           { text: 'View Cart', onPress: () => router.push('/(tabs)/cart') },
@@ -69,7 +129,8 @@ export default function BuyerDashboardScreen() {
       }
     } catch (error) {
       console.error('[Re-order from Favorite] Error:', error);
-      Alert.alert('Error', 'Failed to add to cart. Please try again.');
+      const message = error instanceof Error ? error.message : 'This cook is not taking orders.';
+      Alert.alert('Orders', message);
     } finally {
       setReorderingMealId(null);
     }
@@ -101,34 +162,59 @@ export default function BuyerDashboardScreen() {
 
           <View style={[styles.section, styles.firstSection]}>
             <Text testID="recent-purchases-title" style={styles.sectionTitle}>Recent Purchases</Text>
-            {purchases.length === 0 ? (
+            {(orders || []).length === 0 ? (
               <Text style={[styles.emptySubtext, { paddingHorizontal: 24 }]}>Your orders will show up here.</Text>
             ) : (
             <HorizontalCarousel contentContainerStyle={styles.horizontal}>
-              {purchases.map(order => (
-                <GlassPressable 
-                  key={`p-${order.id}`} 
-                  style={styles.card}
-                  onPress={() => {
-                    try {
-                      router.push(`/order/${order.id}` as const);
-                    } catch (error) {
-                      console.error('[buyer-dashboard] Error navigating to order:', error);
-                    }
-                  }}
-                >
-                  {order.mealImage ? (
-                    <Image source={{ uri: order.mealImage }} style={styles.cardImage} />
-                  ) : (
-                    <View style={styles.cardImage} />
-                  )}
-                  <View style={styles.cardContent}>
-                    <Text style={styles.cardTitle} numberOfLines={1}>{order.mealName}</Text>
-                    <View style={styles.row}>
-                      <Text style={styles.meta}>{order.status}</Text>
+              {(orders || []).map(order => (
+                <View key={`p-${order.id}`} style={styles.card}>
+                  <GlassPressable
+                    onPress={() => {
+                      try {
+                        router.push(`/order/${order.id}` as const);
+                      } catch (error) {
+                        console.error('[buyer-dashboard] Error navigating to order:', error);
+                      }
+                    }}
+                  >
+                    {order.mealImage ? (
+                      <Image source={{ uri: order.mealImage }} style={styles.cardImage} />
+                    ) : (
+                      <View style={styles.cardImage} />
+                    )}
+                    <View style={styles.cardContent}>
+                      <Text style={styles.cardTitle} numberOfLines={1}>{order.mealName}</Text>
+                      <View style={styles.row}>
+                        <Text style={styles.meta}>{order.status}</Text>
+                      </View>
                     </View>
-                  </View>
-                </GlassPressable>
+                  </GlassPressable>
+                  {order.status === 'completed' ? (
+                    <GlassPressable
+                      onPress={() => router.push({ pathname: '/reviews/[mealId]', params: { mealId: order.mealId, next: `/order/${order.id}` } })}
+                      testID={`review-purchase-${order.id}`}
+                    >
+                      <Text style={styles.meta}>Review</Text>
+                    </GlassPressable>
+                  ) : null}
+                  {order.status === 'pending' ? (
+                    <GlassPressable
+                      onPress={() => {
+                        Alert.alert('Cancel this order?', 'A paid order is refunded. An unpaid order is closed.', [
+                          { text: 'Keep it', style: 'cancel' },
+                          {
+                            text: 'Cancel order',
+                            style: 'destructive',
+                            onPress: () => cancelOrder.mutate({ orderId: order.id, status: 'cancelled' }),
+                          },
+                        ]);
+                      }}
+                      testID={`cancel-order-${order.id}`}
+                    >
+                      <Text style={styles.meta}>Cancel order</Text>
+                    </GlassPressable>
+                  ) : null}
+                </View>
               ))}
             </HorizontalCarousel>
             )}
@@ -142,9 +228,13 @@ export default function BuyerDashboardScreen() {
               <Text style={styles.emptyText}>No favorite meals yet</Text>
               <Text style={styles.emptySubtext}>Tap the heart icon on any meal to add it here</Text>
             </View>
+          ) : shownFavorites.length === 0 ? (
+            favoritesChecked ? (
+              <Text style={[styles.emptySubtext, { paddingHorizontal: 24 }]}>These cooks are not taking orders.</Text>
+            ) : null
           ) : (
             <HorizontalCarousel contentContainerStyle={styles.horizontal}>
-              {favorites.map(m => (
+              {shownFavorites.map(m => (
                 <View key={`f-${m.id}`} style={styles.card}>
                   <GlassPressable 
                     onPress={() => {

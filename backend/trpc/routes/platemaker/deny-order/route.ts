@@ -1,6 +1,8 @@
 import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { notifyParty } from "../../../../lib/account-notice";
+import { orderBuyerId } from "../../../../lib/order-row";
 
 /**
  * Deny Order Procedure
@@ -72,82 +74,64 @@ export const denyOrderProcedure = protectedProcedure
       });
     }
 
-    // CRITICAL: Payment Handling - Cancel/refund if order is paid
     let refundStatus: 'none' | 'cancelled' | 'refunded' = 'none';
     if (order.payment_intent_id && order.paid) {
       const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
       if (!stripeSecretKey) {
-        console.error('[DenyOrder] Stripe secret key not configured');
-        // Continue with order cancellation even if Stripe refund fails
-      } else {
-        try {
-          // First, check payment intent status
-          const paymentIntentResponse = await fetch(
-            `https://api.stripe.com/v1/payment_intents/${order.payment_intent_id}`,
-            {
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${stripeSecretKey}`,
-              },
-            }
-          );
-
-          if (paymentIntentResponse.ok) {
-            const paymentIntent = await paymentIntentResponse.json();
-
-            // If payment intent is not yet captured, cancel it
-            if (paymentIntent.status === 'requires_capture' || paymentIntent.status === 'requires_payment_method') {
-              const cancelResponse = await fetch(
-                `https://api.stripe.com/v1/payment_intents/${order.payment_intent_id}/cancel`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Authorization': `Bearer ${stripeSecretKey}`,
-                  },
-                }
-              );
-
-              if (cancelResponse.ok) {
-                refundStatus = 'cancelled';
-                console.log('[DenyOrder] Payment intent cancelled successfully');
-              } else {
-                const cancelError = await cancelResponse.text();
-                console.error('[DenyOrder] Failed to cancel payment intent:', cancelError);
-              }
-            } 
-            // If payment intent is captured (succeeded), create a full refund
-            else if (paymentIntent.status === 'succeeded') {
-              const refundResponse = await fetch(
-                'https://api.stripe.com/v1/refunds',
-                {
-                  method: 'POST',
-                  headers: {
-                    'Authorization': `Bearer ${stripeSecretKey}`,
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                  },
-                  body: new URLSearchParams({
-                    payment_intent: order.payment_intent_id,
-                    amount: paymentIntent.amount.toString(), // Full refund
-                  }).toString(),
-                }
-              );
-
-              if (refundResponse.ok) {
-                refundStatus = 'refunded';
-                console.log('[DenyOrder] Payment refunded successfully');
-              } else {
-                const refundError = await refundResponse.text();
-                console.error('[DenyOrder] Failed to refund payment:', refundError);
-              }
-            }
-          } else {
-            const error = await paymentIntentResponse.text();
-            console.error('[DenyOrder] Failed to retrieve payment intent:', error);
-          }
-        } catch (stripeError) {
-          console.error('[DenyOrder] Stripe API error:', stripeError);
-          // Continue with order cancellation even if Stripe refund fails
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'The card refund could not be started. This order is still open.',
+        });
+      }
+      const paymentIntentResponse = await fetch(
+        `https://api.stripe.com/v1/payment_intents/${order.payment_intent_id}`,
+        { headers: { Authorization: `Bearer ${stripeSecretKey}` } },
+      );
+      if (!paymentIntentResponse.ok) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'The card refund could not be checked. This order is still open.',
+        });
+      }
+      const paymentIntent = await paymentIntentResponse.json() as { status?: string; amount?: number };
+      if (paymentIntent.status === 'requires_capture' || paymentIntent.status === 'requires_payment_method') {
+        const cancelResponse = await fetch(
+          `https://api.stripe.com/v1/payment_intents/${order.payment_intent_id}/cancel`,
+          { method: 'POST', headers: { Authorization: `Bearer ${stripeSecretKey}` } },
+        );
+        if (!cancelResponse.ok) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'The card could not be cancelled. This order is still open.',
+          });
         }
+        refundStatus = 'cancelled';
+      } else if (paymentIntent.status === 'succeeded') {
+        const refundResponse = await fetch('https://api.stripe.com/v1/refunds', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${stripeSecretKey}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            payment_intent: order.payment_intent_id,
+            amount: String(paymentIntent.amount),
+          }).toString(),
+        });
+        if (!refundResponse.ok) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'The card refund did not go through. This order is still open.',
+          });
+        }
+        refundStatus = 'refunded';
+      } else if (paymentIntent.status === 'canceled') {
+        refundStatus = 'cancelled';
+      } else {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'The card is not ready to refund. This order is still open.',
+        });
       }
     }
 
@@ -169,6 +153,15 @@ export const denyOrderProcedure = protectedProcedure
         code: 'INTERNAL_SERVER_ERROR',
         message: updateError?.message || 'Failed to deny order',
       });
+    }
+
+    try {
+      await notifyParty(ctx.supabaseAdmin, orderBuyerId(updatedOrder), 'orderUpdates', {
+        title: 'Order update',
+        body: 'This order was denied.',
+      });
+    } catch (noticeError) {
+      console.error('[DenyOrder] Notice was not sent:', noticeError);
     }
 
     return {

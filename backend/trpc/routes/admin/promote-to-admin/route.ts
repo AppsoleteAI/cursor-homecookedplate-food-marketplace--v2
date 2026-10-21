@@ -1,60 +1,66 @@
-import { adminProcedure } from "../../../create-context";
+import { mainAdminProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { adminPromoteUser } from "../../../../lib/security";
 
-export const promoteToAdminProcedure = adminProcedure
-  .input(z.object({ userId: z.string().uuid() }))
+const roleInput = z.enum(['main', 'monitor', 'none']);
+
+export const promoteToAdminProcedure = mainAdminProcedure
+  .input(z.object({
+    userId: z.string().uuid(),
+    role: roleInput,
+  }))
   .mutation(async ({ ctx, input }) => {
-    // Verify the target user exists
+    if (input.userId === ctx.userId) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'The main admin row is changed in Supabase, not from this screen.',
+      });
+    }
+
     const { data: profile, error: profileError } = await ctx.supabaseAdmin
       .from('profiles')
-      .select('id, username, email, is_admin')
+      .select('id, username')
       .eq('id', input.userId)
       .single();
 
     if (profileError || !profile) {
       throw new TRPCError({
         code: 'NOT_FOUND',
-        message: `User with ID ${input.userId} not found`,
+        message: 'That account was not found.',
       });
     }
 
-    if (profile.is_admin) {
-      throw new TRPCError({
-        code: 'BAD_REQUEST',
-        message: 'User is already an admin',
-      });
-    }
+    const next = {
+      main_admin: input.role === 'main',
+      monitor_admin: input.role === 'monitor',
+      is_admin: input.role !== 'none',
+    };
 
-    // Use the security helper which calls the RPC function defined in SQL Section 9
-    // This requires service_role key (ctx.supabaseAdmin)
-    try {
-      await adminPromoteUser(ctx.supabaseAdmin, input.userId);
-      
-      // Log the promotion action (the RPC function also logs, but we log here for tRPC context)
-      await ctx.supabaseAdmin
-        .from('audit_logs')
-        .insert({
-          user_id: ctx.userId,
-          action: 'PROMOTE_TO_ADMIN',
-          table_name: 'profiles',
-          record_id: input.userId,
-          new_data: {
-            promoted_by: ctx.userId,
-            target_username: profile.username,
-            target_email: profile.email,
-          },
-        });
+    const { error } = await ctx.supabaseAdmin
+      .from('profiles')
+      .update(next)
+      .eq('id', input.userId);
 
-      return { 
-        success: true,
-        message: `User ${profile.username} (${profile.email}) has been promoted to admin`,
-      };
-    } catch (error) {
+    if (error) {
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to promote user to admin',
+        message: 'The admin checkboxes are not on profiles yet. Run the admin role SQL in Supabase first.',
       });
     }
+
+    await ctx.supabaseAdmin.from('audit_logs').insert({
+      user_id: ctx.userId,
+      action: input.role === 'none' ? 'ADMIN_REMOVED' : 'ADMIN_ROLE_SET',
+      table_name: 'profiles',
+      record_id: input.userId,
+      new_data: { role: input.role, username: profile.username },
+    });
+
+    const label = input.role === 'main'
+      ? 'Main admin'
+      : input.role === 'monitor'
+        ? 'Monitor admin'
+        : 'Not an admin';
+
+    return { message: `${profile.username} is now ${label}.` };
   });

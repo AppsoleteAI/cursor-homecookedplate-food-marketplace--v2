@@ -25,12 +25,14 @@ import { useSignupForm } from '@/hooks/useSignupForm';
 import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { BUYER_AFTER_NOTE } from '@/lib/buyer-safety';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
+import { ResendConfirmation } from '@/components/auth/ResendConfirmation';
 
 export default function SignupScreen() {
   const params = useLocalSearchParams<{ role?: string | string[] }>();
   const roleParam = typeof params.role === 'string' ? params.role : undefined;
   // Local UI state (not part of form logic)
   const [showSuccessModal] = useState(false);
+  const [confirmationSent, setConfirmationSent] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -54,7 +56,7 @@ export default function SignupScreen() {
     retryCount,
   } = useSignupForm({
     onSuccess: (result) => {
-      // Sign-in stays closed until the verification link is confirmed.
+      setConfirmationSent(result.confirmationEmailSent !== false);
       console.log('[Signup] Success callback:', result);
     },
     onError: (error) => {
@@ -88,7 +90,12 @@ export default function SignupScreen() {
             <AuthBrand />
             <Ionicons name="checkmark-circle" size={80} color={AuthColors.maroon} />
             <Text style={styles.successTitle}>Account Created!</Text>
-            <Text style={styles.successText}>Check your email and confirm the link before you sign in.</Text>
+            <Text style={styles.successText}>
+              {confirmationSent
+                ? `A confirmation email was sent to ${email}. Open the link within 24 hours. It returns you to HomeCookedPlate on the web or in the app. Confirm it before you sign in.`
+                : `The account was created for ${email}. The confirmation email was not sent. Send the link below. It lasts 24 hours. Open it before you sign in.`}
+            </Text>
+            <ResendConfirmation email={email} />
             <GlassPressable
               style={styles.loginButton}
               onPress={() => router.push('/(auth)/login')}
@@ -335,7 +342,7 @@ export default function SignupScreen() {
                     <Text style={[styles.foodSafetyInfoText, { marginTop: 8 }]}>
                       {BUYER_AFTER_NOTE}
                     </Text>
-                    <FoodHandlingLink />
+                    <FoodHandlingLink returnTo="/signup" />
                   </View>
                 </View>
                 <Pressable

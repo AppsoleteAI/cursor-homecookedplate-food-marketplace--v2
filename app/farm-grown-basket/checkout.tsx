@@ -7,7 +7,7 @@ import { FarmScreen } from '@/components/farm/FarmScreen';
 import { Colors } from '@/constants/colors';
 import { getCatalogProduct, getFarm } from '@/constants/farm-grown-basket';
 import { useAuth } from '@/hooks/auth-context';
-import { useFarmBasket, type FarmOrderLine } from '@/hooks/farm-basket-store';
+import { forgetPaidFarmItems, useFarmBasket, type FarmOrderLine } from '@/hooks/farm-basket-store';
 import {
   FARM_CHANNELS,
   buyerChannelBlock,
@@ -16,9 +16,10 @@ import {
   type FarmChannel,
   type RegulatoryTrack,
 } from '@/lib/cottage-food';
-import { calculateOrderSplit, orderTotalWithDelivery } from '@/lib/fees';
+import { buyerFoodCharge } from '@/backend/lib/fees';
+import { orderTotalWithDelivery } from '@/lib/fees';
 import { DeliveryLevyLines, useDeliveryQuote } from '@/components/DeliveryFeeCard';
-import { useShopCardPayment } from '@/hooks/use-shop-payment';
+import { useShopCardPayment, useWebShopReturn } from '@/hooks/use-shop-payment';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
 import { usePaidBack } from '@/hooks/use-leave-screen';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
@@ -30,6 +31,10 @@ export default function FarmCheckoutScreen() {
   const { payInMainCart } = useCombinedBill();
   const [channel, setChannel] = useState<FarmChannel>('farm_pickup');
   const [orderId, setOrderId] = useState<string | null>(null);
+  useWebShopReturn('farm', async (paidOrderId) => {
+    await forgetPaidFarmItems();
+    setOrderId(paidOrderId);
+  });
   usePaidBack('/farm-grown-basket/orders', orderId != null);
 
   const lines = useMemo(() => {
@@ -53,7 +58,7 @@ export default function FarmCheckoutScreen() {
 
   const tracks = lines.map((line) => line.track);
   const baseAmount = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
-  const split = calculateOrderSplit(baseAmount);
+  const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
   const farmSellerId = getFarm(getCatalogProduct(items[0]?.productId ?? '')?.farmId ?? '')?.sellerId;
   const delivering = channel === 'hand_delivery' || channel === 'hub_delivery';
   const delivery = useDeliveryQuote(farmSellerId, delivering);

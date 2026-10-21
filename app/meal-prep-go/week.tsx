@@ -11,9 +11,12 @@ import { Colors } from '@/constants/colors';
 import { getPrepCook, getPrepItem, type PrepLane } from '@/constants/meal-prep-go';
 import { useMealPrep } from '@/hooks/meal-prep-store';
 import { WEEK_SIZES, laneLabel, weekMix } from '@/lib/meal-prep-go';
+import { buyerFoodCharge } from '@/backend/lib/fees';
+import { useAuth } from '@/hooks/auth-context';
 
 export default function MealPrepWeekScreen() {
   const { items, listings, kitchen, setQuantity, clearWeek } = useMealPrep();
+  const { user } = useAuth();
   const { payInMainCart } = useCombinedBill();
 
   const lines = useMemo(() => {
@@ -36,6 +39,7 @@ export default function MealPrepWeekScreen() {
   const cookId = items[0]?.cookId;
   const cookName = (cookId && getPrepCook(cookId)?.name) || (cookId === 'owner-kitchen' ? kitchen?.cookName : '') || 'One cook';
   const baseAmount = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
+  const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 
   return (
     <MealPrepScreen title="Your week" subtitle={lines.length === 0 ? 'Nothing added yet' : cookName} testID="prep-week">
@@ -68,7 +72,7 @@ export default function MealPrepWeekScreen() {
               </View>
             </View>
           ))}
-          <Text style={styles.total}>Week ${baseAmount.toFixed(2)} before the service fee</Text>
+          <Text style={styles.total}>Food ${baseAmount.toFixed(2)}. You pay ${split.totalCaptured.toFixed(2)}.</Text>
           <CombinedCartLock />
           <GlassPressable style={[styles.button, payInMainCart && styles.buttonOff]} disabled={payInMainCart} onPress={() => router.push('/meal-prep-go/checkout' as Href)} testID="prep-week-checkout">
             <Text style={styles.buttonText}>Checkout</Text>

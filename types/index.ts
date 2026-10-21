@@ -3,7 +3,12 @@ export interface User {
   username: string;
   email: string;
   role: 'platemaker' | 'platetaker';
+  /** The role stored on the account. Stays platemaker while ordering is turned on. */
+  accountRole?: 'platemaker' | 'platetaker';
+  /** A PlateMaker is using PlateTaker ordering until this is turned off. */
+  orderingAsBuyer?: boolean;
   isAdmin?: boolean;
+  adminRole?: 'main' | 'monitor' | null;
   profileImage?: string;
   phone?: string;
   bio?: string;
@@ -15,6 +20,12 @@ export interface User {
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
   metroArea?: string | null;
+  /** The city named on the Early Bird claim. Empty when this cook has no claim. */
+  earlyBirdClaimMetro?: string | null;
+  /** This device finished Get GPS outside every saved metro, so the kitchen may open. */
+  kitchenOpened?: boolean;
+  /** A paid order still needs pickup, so an ended trial does not send this cook to Membership. */
+  closeoutKeepsKitchen?: boolean;
   trialEndsAt?: Date | null;
   trialExpired?: boolean;
   trialCountdownDays?: number | null;
@@ -46,6 +57,8 @@ export interface Meal {
   dietaryOptions: string[];
   preparationTime: number;
   available: boolean;
+  /** The cook is not paused and Available For Orders is on. */
+  acceptingOrders?: boolean;
   rating: number;
   reviewCount: number;
   featured?: boolean;
@@ -79,6 +92,11 @@ export interface Order {
   allergies?: string[];
   orderDate: Date;
   pickupTime?: Date;
+  pickupTimeZone?: string;
+  /** Who has already confirmed pickup on a ready order. */
+  pickupConfirmedBy?: ('buyer' | 'seller')[];
+  /** This buyer has blocked new orders from this cook. */
+  cookBlocked?: boolean;
   deliveryAddress?: string;
 }
 
@@ -94,6 +112,7 @@ export interface CartItem {
 
 export interface PromotionalOffer {
   id: string;
+  mealId?: string;
   type: 'percentage' | 'buy-x-get-y' | 'fixed-amount' | 'free-item';
   title: string;
   description: string;

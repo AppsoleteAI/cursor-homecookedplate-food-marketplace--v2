@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { adminProcedure } from '../../../create-context';
+import { mainAdminProcedure } from '../../../create-context';
 import { sanitizeTextField } from '../../../../lib/text-security';
 
-export const replyPayoutMessageProcedure = adminProcedure
+export const replyPayoutMessageProcedure = mainAdminProcedure
   .input(
     z.object({
       platemakerId: z.string().uuid(),

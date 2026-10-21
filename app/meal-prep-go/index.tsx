@@ -65,7 +65,7 @@ export default function MealPrepGoHome() {
           <Text style={styles.model}>Ready meals are finished. Reheat them in about 15 minutes.</Text>
           <Text style={styles.model}>Cook kits are portioned ingredients and a recipe, about 30 to 40 minutes.</Text>
           <Text style={styles.model}>Add-ons ride with the week. They are not a separate order.</Text>
-          <Text style={styles.model}>Same 10% service fee. No extra marketplace commission.</Text>
+          <Text style={styles.model}>The service fee is 10%. A Premium PlateTaker pays 5% on an order of $20 or more. No extra marketplace commission.</Text>
         </View>
 
         {links.map((link) => (

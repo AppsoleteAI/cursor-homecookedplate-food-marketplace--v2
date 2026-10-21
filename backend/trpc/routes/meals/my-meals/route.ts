@@ -27,5 +27,6 @@ export const myMealsProcedure = protectedProcedure
         attachments: [],
       },
       createdAt: new Date(meal.created_at),
+      published: meal.published === true,
     }));
   });

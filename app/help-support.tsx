@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/colors';
 import { GlassPressable } from '@/components/glass-surface';
 import { ScreenBack } from '@/components/BackCircle';
+import { ScrollJumps } from '@/components/ScrollJumps';
 
 interface FAQ {
   question: string;
@@ -28,6 +29,7 @@ interface GuideSection {
 }
 
 export default function HelpSupportScreen() {
+  const scrollRef = useRef<ScrollView>(null);
   const [showFAQModal, setShowFAQModal] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [expandedFAQ, setExpandedFAQ] = useState<number | null>(null);
@@ -186,7 +188,7 @@ export default function HelpSupportScreen() {
           headerShown: false,
         }}
       />
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           <ScreenBack fallback="/(tabs)/profile" testID="help-back" />
           <View style={styles.headerCard}>
@@ -284,6 +286,7 @@ export default function HelpSupportScreen() {
           </View>
         </View>
       </ScrollView>
+      <ScrollJumps scrollRef={scrollRef} testID="help" />
 
       <Modal
         visible={showFAQModal}
@@ -371,6 +374,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 24,
+    paddingBottom: 108,
   },
   headerCard: {
     backgroundColor: Colors.gradient.green + '10',

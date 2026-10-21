@@ -19,7 +19,8 @@ import { GradientButton } from '@/components/GradientButton';
 import { Colors, pagePastel } from '@/constants/colors';
 import { cuisineTypes } from '@/mocks/data';
 import { trpc } from '@/lib/trpc';
-import { parseIngredientList } from '@/lib/meal-publish';
+import { parseIngredientList, portionsFromTags } from '@/lib/meal-publish';
+import { deviceTimeZone } from '@/lib/pickup-time';
 import { useMeals } from '@/hooks/meals-context';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -43,6 +44,7 @@ export default function MealDetailsScreen() {
   const [expiry, setExpiry] = useState('');
   const [receipt, setReceipt] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
+  const [portions, setPortions] = useState('1');
   const [filled, setFilled] = useState(false);
   const [errorText, setErrorText] = useState('');
 
@@ -53,6 +55,7 @@ export default function MealDetailsScreen() {
     setIngredients((data.ingredients || []).join(', '));
     setExpiry(dateInput(data.expiryDate));
     setReceipt(dateInput(data.receiptDate));
+    setPortions(String(portionsFromTags(data.tags)));
     setFilled(true);
   }, [mealQuery.data, filled]);
 
@@ -74,6 +77,11 @@ export default function MealDetailsScreen() {
   };
 
   const save = async () => {
+    const portionCount = Math.round(Number(portions));
+    if (!Number.isInteger(portionCount) || portionCount < 1 || portionCount > 100) {
+      setErrorText('Portions are a whole number from 1 to 100.');
+      return;
+    }
     const list = parseIngredientList(ingredients);
     const expiryDate = expiry.trim();
     const receiptDate = receipt.trim();
@@ -93,6 +101,8 @@ export default function MealDetailsScreen() {
         ingredients: list,
         expiryDate: expiryDate || undefined,
         receiptDate: receiptDate || undefined,
+        portions: portionCount,
+        cookTimeZone: deviceTimeZone(),
       });
       await updateMealDetails(mealId, {
         category: cuisine.trim(),
@@ -117,7 +127,7 @@ export default function MealDetailsScreen() {
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <BackCircle tone="honey" onPress={leave} testID="meal-details-back" />
           <Text style={styles.title}>Category, ingredients, and freshness</Text>
-          <Text style={styles.subtitle}>The plate is already published. Add these when you can.</Text>
+          <Text style={styles.subtitle}>Save a category, the ingredients, and a date. The plate stays off the menu until this is saved.</Text>
 
           {mealQuery.isLoading ? <ActivityIndicator color={Colors.gradient.green} /> : null}
           {mealQuery.error ? <Text style={styles.error}>This plate could not be opened.</Text> : null}
@@ -146,6 +156,18 @@ export default function MealDetailsScreen() {
             multiline
             testID="detail-ingredients"
           />
+
+          <Text style={styles.label}>Portions</Text>
+          <TextInput
+            value={portions}
+            onChangeText={setPortions}
+            placeholder="1"
+            placeholderTextColor={Colors.gray[400]}
+            keyboardType="number-pad"
+            style={styles.input}
+            testID="detail-portions"
+          />
+          <Text style={styles.helper}>Open paid orders keep the portions they already hold.</Text>
 
           <Text style={styles.label}>Expiration date</Text>
           <TextInput

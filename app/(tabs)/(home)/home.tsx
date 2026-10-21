@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { screenName, titleCase } from '@/lib/title-case';
 import { GlassBadge, GlassPressable, glassSurface } from '@/components/glass-surface';
 import {
@@ -20,7 +20,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { router , type Href } from 'expo-router';
+import { router, useFocusEffect, type Href } from 'expo-router';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { MealCard } from '@/components/MealCard';
 import { cuisineTypes, dietaryOptions } from '@/mocks/data';
@@ -34,7 +34,10 @@ import { SkeletonMealList } from '@/components/SkeletonMealList';
 export default function HomeScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
-  const { bellCount, markBellSeen } = useOrders();
+  const { bellCount, markBellSeen, refresh } = useOrders();
+  useFocusEffect(useCallback(() => {
+    refresh().catch(() => undefined);
+  }, [refresh]));
   const [selectedCuisine, setSelectedCuisine] = useState<string | null>(null);
   const [selectedDietary, setSelectedDietary] = useState<string | null>(null);
   const cuisineBrowse: string[] = useMemo(() => cuisineTypes, []);
@@ -49,7 +52,7 @@ export default function HomeScreen() {
   // Map tRPC response to Meal interface
   const meals: Meal[] = useMemo(() => {
     if (!mealsData) return [];
-    return mealsData.map((meal) => ({
+    return mealsData.filter((meal) => meal.plateMakerId !== user?.id).map((meal) => ({
       id: meal.id,
       plateMakerId: meal.plateMakerId,
       plateMakerName: meal.plateMakerName,
@@ -69,18 +72,19 @@ export default function HomeScreen() {
       tags: meal.tags || [],
       isSample: meal.isSample === true,
     }));
-  }, [mealsData]);
+  }, [mealsData, user?.id]);
 
   const recentOrders = trpc.orders.list.useQuery(
     { role: 'buyer' },
     { enabled: user?.role === 'platetaker' }
   );
 
+  const openMealIds = useMemo(() => new Set(meals.map((meal) => meal.id)), [meals]);
   const reorderShelf = useMemo(() => {
     const seen = new Set<string>();
     const shelf: { mealId: string; mealName: string; mealImage: string; status: string }[] = [];
     for (const order of recentOrders.data || []) {
-      if (seen.has(order.mealId)) continue;
+      if (seen.has(order.mealId) || !openMealIds.has(order.mealId)) continue;
       seen.add(order.mealId);
       shelf.push({
         mealId: order.mealId,
@@ -91,7 +95,7 @@ export default function HomeScreen() {
       if (shelf.length === 3) break;
     }
     return shelf;
-  }, [recentOrders.data]);
+  }, [openMealIds, recentOrders.data]);
 
   const featuredMeals = useMemo(() => meals.filter(meal => meal.featured), [meals]);
   const lovedMeals = useMemo(() => {

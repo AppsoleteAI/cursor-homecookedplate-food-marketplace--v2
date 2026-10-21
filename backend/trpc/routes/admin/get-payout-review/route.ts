@@ -1,8 +1,8 @@
-import { adminProcedure } from '../../../create-context';
+import { mainAdminProcedure } from '../../../create-context';
 import { releaseDuePayouts } from '../../../../lib/stripe-marketplace';
 import { responsibilityWindowStart } from '../../../../lib/payout-policy';
 
-export const getPayoutReviewProcedure = adminProcedure.query(async ({ ctx }) => {
+export const getPayoutReviewProcedure = mainAdminProcedure.query(async ({ ctx }) => {
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
   if (stripeSecretKey) {
     await releaseDuePayouts(ctx.supabaseAdmin, stripeSecretKey);

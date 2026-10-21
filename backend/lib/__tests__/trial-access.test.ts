@@ -1,4 +1,4 @@
-import { platemakerMayEnter, platemakerTrialCountdownDays, unpaidPlatemakerTrialEnded, userNeedsMembership } from '../trial-access';
+import { platemakerMayEnter, platemakerTrialCountdownDays, trialCloseoutKeepsKitchen, unpaidPlatemakerTrialEnded, userNeedsMembership } from '../trial-access';
 
 const now = new Date('2026-10-16T12:00:00.000Z');
 
@@ -62,6 +62,15 @@ describe('PlateMaker app access', () => {
     expect(platemakerMayEnter(open, now)).toBe(true);
   });
 
+  it('does not use Early Bird after the cook has left that metro', () => {
+    expect(platemakerMayEnter(open, now, false)).toBe(false);
+    expect(platemakerMayEnter({
+      ...open,
+      trial_ends_at: null,
+      stripe_subscription_id: 'sub_123',
+    }, now, false)).toBe(true);
+  });
+
   it('sends a PlateMaker back to membership after the end date', () => {
     expect(platemakerMayEnter({ ...open, trial_ends_at: '2026-10-01T12:00:00.000Z' }, now)).toBe(false);
   });
@@ -86,18 +95,58 @@ describe('PlateMaker app access', () => {
     expect(userNeedsMembership({ role: 'platemaker', needsMembership: true, membershipTier: 'premium' })).toBe(true);
   });
 
-  it('does not force a charge when the metro is Remote/Other', () => {
+  it('sends a Remote PlateMaker to Membership until Get GPS opens the kitchen', () => {
     expect(userNeedsMembership({
       role: 'platemaker',
       membershipTier: 'free',
       needsMembership: true,
       metroArea: 'Remote/Other',
-    })).toBe(false);
+    })).toBe(true);
     expect(userNeedsMembership({
       role: 'platemaker',
       membershipTier: 'free',
       metroArea: null,
+    })).toBe(true);
+    expect(userNeedsMembership({
+      role: 'platemaker',
+      membershipTier: 'free',
+      metroArea: 'Remote/Other',
+      kitchenOpened: true,
     })).toBe(false);
+    expect(userNeedsMembership({
+      role: 'platemaker',
+      membershipTier: 'premium',
+      metroArea: 'Remote/Other',
+    })).toBe(false);
+    expect(userNeedsMembership({
+      role: 'platemaker',
+      membershipTier: 'free',
+      needsMembership: true,
+      metroArea: 'Remote/Other',
+      closeoutKeepsKitchen: true,
+    })).toBe(false);
+    expect(userNeedsMembership({
+      role: 'platemaker',
+      membershipTier: 'premium',
+      needsMembership: true,
+      metroArea: 'Remote/Other',
+      kitchenOpened: true,
+      earlyBirdClaimMetro: 'Pittsburgh',
+    })).toBe(true);
+    expect(userNeedsMembership({
+      role: 'platemaker',
+      membershipTier: 'premium',
+      needsMembership: false,
+      metroArea: 'Remote/Other',
+      kitchenOpened: true,
+      earlyBirdClaimMetro: 'Pittsburgh',
+    })).toBe(false);
+  });
+
+  it('keeps the kitchen open only when the trial has ended and a paid order is still open', () => {
+    expect(trialCloseoutKeepsKitchen(true, true)).toBe(true);
+    expect(trialCloseoutKeepsKitchen(true, false)).toBe(false);
+    expect(trialCloseoutKeepsKitchen(false, true)).toBe(false);
   });
 });
 

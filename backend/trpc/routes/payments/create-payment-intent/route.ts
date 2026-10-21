@@ -1,10 +1,12 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../../create-context';
-import { buyerCardCharge, calculateDeliveryLevy, calculateFees, orderTotalWithDelivery } from '../../../../lib/fees';
+import { buyerCardCharge, buyerServiceFeePercent, calculateDeliveryLevy, calculateFees, orderTotalWithDelivery } from '../../../../lib/fees';
 import { savedDeliveryFee } from '../../../../lib/delivery-fee';
 import { PAYOUT_HOLD_DAYS } from '../../../../lib/payout-policy';
 import { salesVolumeBlock } from '../../../../lib/stripe-marketplace';
+import { browserOrigin, openStripeCheckout } from '../../../../lib/stripe-checkout';
+import { orderBuyerId, orderTotal } from '../../../../lib/order-row';
 
 const inputSchema = z.object({
   amount: z.number().min(0),
@@ -13,6 +15,7 @@ const inputSchema = z.object({
   sellerId: z.string(),
   platformFeePercent: z.number().min(0).max(100).default(10),
   deliver: z.boolean().optional(),
+  webOrigin: z.string().url().optional(),
 });
 
 export const createPaymentIntentProcedure = protectedProcedure
@@ -31,10 +34,12 @@ export const createPaymentIntentProcedure = protectedProcedure
       });
     }
 
-    const { data: orders, error: ordersError } = await ctx.supabaseAdmin
+    const ordersResult = await ctx.supabaseAdmin
       .from('orders')
-      .select('id, buyer_id, seller_id, total_price, paid')
+      .select('*')
       .in('id', input.orderIds);
+    const orders = ordersResult.data;
+    const ordersError = ordersResult.error;
 
     if (ordersError || !orders || orders.length !== input.orderIds.length) {
       throw new TRPCError({
@@ -44,7 +49,7 @@ export const createPaymentIntentProcedure = protectedProcedure
     }
 
     for (const order of orders) {
-      if (order.buyer_id !== ctx.userId) {
+      if (orderBuyerId(order) !== ctx.userId) {
         throw new TRPCError({
           code: 'FORBIDDEN',
           message: 'You can only pay for your own orders',
@@ -65,7 +70,7 @@ export const createPaymentIntentProcedure = protectedProcedure
     }
 
     const serverBaseAmount = Math.round(
-      orders.reduce((sum, order) => sum + parseFloat(order.total_price), 0) * 100
+      orders.reduce((sum, order) => sum + orderTotal(order), 0) * 100
     ) / 100;
 
     if (!Number.isFinite(serverBaseAmount) || serverBaseAmount <= 0) {
@@ -108,21 +113,67 @@ export const createPaymentIntentProcedure = protectedProcedure
       throw new Error('Seller has not completed Stripe onboarding');
     }
 
-    // Calculate fees using dual fee structure:
-    // - Buyer pays: base + 10% fee
-    // - Platform gets: 10% buyer fee + 10% seller fee = 20% total
-    // - Seller gets: base - 10% fee (handled by Stripe Connect)
-    // Client amount and fee percent are ignored. total_price is the base plate price.
-    const fees = calculateFees(serverBaseAmount, 10, 10);
-    const levy = input.deliver
-      ? calculateDeliveryLevy(await savedDeliveryFee(ctx.supabaseAdmin, input.sellerId))
-      : calculateDeliveryLevy(0);
+    const { data: buyerProfile } = await ctx.supabaseAdmin
+      .from('profiles')
+      .select('role, membership_tier')
+      .eq('id', ctx.userId)
+      .maybeSingle();
+    const buyerPercent = buyerServiceFeePercent({
+      role: buyerProfile?.role,
+      membershipTier: buyerProfile?.membership_tier,
+      baseAmount: serverBaseAmount,
+    });
+    const fees = calculateFees(serverBaseAmount, buyerPercent, 10);
+    const savedFee = input.deliver ? await savedDeliveryFee(ctx.supabaseAdmin, input.sellerId) : 0;
+    if (input.deliver && !(savedFee > 0)) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'This cook has not set a delivery fee, so delivery cannot be selected.',
+      });
+    }
+    const levy = calculateDeliveryLevy(savedFee);
     const withDelivery = orderTotalWithDelivery(fees.totalCharge, fees.sellerPayout, levy.deliveryFee);
     const card = buyerCardCharge(withDelivery.buyerPays);
     const totalChargeInCents = Math.round(card.cardCharge * 100);
 
     // Charge stays on the platform for PAYOUT_HOLD_DAYS. A later Transfer
     // pays the cook's connected account their seller share directly.
+    if (input.webOrigin) {
+      const origin = browserOrigin(input.webOrigin);
+      const checkout = await openStripeCheckout({
+        secretKey: stripeSecretKey,
+        amountCents: totalChargeInCents,
+        productName: 'HomeCookedPlate order',
+        successUrl: `${origin}/checkout?webpay=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: `${origin}/checkout?webpay=cancel`,
+        metadata: {
+          order_ids: input.orderIds.join(','),
+          buyer_id: ctx.userId,
+          seller_id: input.sellerId,
+          payout_hold_days: String(PAYOUT_HOLD_DAYS),
+          delivery_fee: levy.deliveryFee.toFixed(2),
+          delivery_platform_fee: levy.platformFee.toFixed(2),
+          delivery_buyer_pays: levy.buyerPays.toFixed(2),
+        },
+      });
+      return {
+        clientSecret: '',
+        checkoutUrl: checkout.url,
+        paymentIntentId: checkout.paymentIntentId,
+        platformFee: fees.appTotalRevenue,
+        buyerFee: fees.buyerFee,
+        sellerFee: fees.sellerFee,
+        marketplaceTotal: fees.totalCharge,
+        stripeFee: card.stripeFee,
+        taxAmount: card.taxAmount,
+        totalCharge: card.cardCharge,
+        sellerPayout: withDelivery.sellerReceives,
+        deliveryFee: levy.deliveryFee,
+        deliveryPlatformFee: levy.platformFee,
+        deliveryBuyerPays: levy.buyerPays,
+      };
+    }
+
     const params = new URLSearchParams({
       amount: totalChargeInCents.toString(),
       currency: input.currency,
@@ -160,6 +211,7 @@ export const createPaymentIntentProcedure = protectedProcedure
 
     return {
       clientSecret: paymentIntent.client_secret,
+      checkoutUrl: null,
       paymentIntentId: paymentIntent.id,
       platformFee: fees.appTotalRevenue,
       buyerFee: fees.buyerFee,

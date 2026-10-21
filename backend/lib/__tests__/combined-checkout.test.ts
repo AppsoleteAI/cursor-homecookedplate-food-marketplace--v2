@@ -1,4 +1,4 @@
-import { quoteCheckout, quoteCombined } from '../combined-checkout';
+import { quoteCard, quoteCheckout, quoteCombined } from '../combined-checkout';
 
 describe('combined checkout receipt', () => {
   it('keeps each checkout fee split and adds one card total', () => {
@@ -54,5 +54,42 @@ describe('combined checkout receipt', () => {
     expect(truck.sellerPayout).toBe(10.8);
     expect(afterTruckRefund).toBe(24.4);
     expect(truck.platformKeeps).toBe(2.4);
+  });
+
+  it('uses the combined food total for a premium buyer fee', () => {
+    const receipt = quoteCard([
+      {
+        area: 'farm',
+        sellerId: 'farm-1',
+        sellerName: 'Hearth',
+        buyerRole: 'platetaker',
+        buyerMembershipTier: 'premium',
+        lines: [{ name: 'Eggs', quantity: 1, unitPrice: 15 }],
+      },
+      {
+        area: 'food_truck',
+        sellerId: 'truck-1',
+        sellerName: 'Lantern',
+        buyerRole: 'platetaker',
+        buyerMembershipTier: 'premium',
+        lines: [{ name: 'Taco', quantity: 1, unitPrice: 15 }],
+      },
+    ]);
+    expect(receipt.combinedBase).toBe(30);
+    expect(receipt.checkouts[0].buyerFee).toBe(0.75);
+    expect(receipt.checkouts[1].buyerFee).toBe(0.75);
+    expect(receipt.combinedBuyerPays).toBe(31.5);
+    expect(receipt.checkouts[0].sellerPayout).toBe(13.5);
+  });
+
+  it('keeps an offer line total that is not a round unit price', () => {
+    const plate = quoteCheckout({
+      area: 'home',
+      sellerId: 'cook-1',
+      sellerName: 'Ada',
+      lines: [{ name: 'Rice', quantity: 3, unitPrice: 16 / 3, lineTotal: 16 }],
+    });
+    expect(plate.baseAmount).toBe(16);
+    expect(plate.buyerPays).toBe(17.6);
   });
 });

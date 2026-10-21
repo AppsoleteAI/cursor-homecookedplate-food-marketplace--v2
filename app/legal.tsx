@@ -21,6 +21,7 @@ import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
 import { GlassTop } from '@/components/glass-surface';
+import { ScrollJumps } from '@/components/ScrollJumps';
 import {
   agreementFromUnknown,
   allSectionsAgreed,
@@ -51,6 +52,7 @@ export default function LegalScreen() {
   const [recordedOn, setRecordedOn] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
   const accountAgreement = trpc.auth.me.useQuery(undefined, {
     enabled: Boolean(session),
     retry: false,
@@ -145,7 +147,7 @@ export default function LegalScreen() {
           headerShown: false,
         }}
       />
-      <ScrollView showsVerticalScrollIndicator={false} testID="legal-scroll" keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} testID="legal-scroll" keyboardShouldPersistTaps="handled">
         <View style={styles.content} testID="legal-content">
           <BackCircle tone="honey" onPress={leave} testID="legal-back" />
           <AuthBrand toSignIn={false} />
@@ -228,7 +230,7 @@ export default function LegalScreen() {
             <View style={styles.noticeBox}>
             <View style={styles.feeItem}>
               <Text style={styles.feeLabel}>Service Fee (PlateTaker):</Text>
-              <Text style={styles.feeValue}>+10% on top of meal price</Text>
+              <Text style={styles.feeValue}>+10% on top of the meal price. A Premium PlateTaker pays 5% on an order of $20 or more.</Text>
             </View>
             <View style={styles.feeItem}>
               <Text style={styles.feeLabel}>Platform Rake (PlateMaker):</Text>
@@ -255,7 +257,7 @@ export default function LegalScreen() {
               <Text style={styles.feeValue}>+{DELIVERY_PERCENT}% on the delivery amount</Text>
             </View>
             <Text style={styles.feeNote}>
-              Example: $20 meal → PlateTaker pays ${MEAL_EXAMPLE.totalCaptured.toFixed(2)} (+ 10%); PlateMaker receives ${MEAL_EXAMPLE.sellerPayout.toFixed(2)} (– 10%). Platform retains ${MEAL_EXAMPLE.appRevenue.toFixed(2)} (~20%).{'\n'}
+              Example: $20 meal → PlateTaker pays ${MEAL_EXAMPLE.totalCaptured.toFixed(2)} (+ 10%). A Premium PlateTaker pays $21.00 on that $20 meal. PlateMaker receives ${MEAL_EXAMPLE.sellerPayout.toFixed(2)} (– 10%). Platform retains ${MEAL_EXAMPLE.appRevenue.toFixed(2)} (~20%).{'\n'}
               A $10 delivery → PlateTaker pays ${DELIVERY_EXAMPLE.buyerPays.toFixed(2)} (+ {DELIVERY_PERCENT}%); PlateMaker receives ${DELIVERY_EXAMPLE.sellerReceives.toFixed(2)}. Platform keeps ${DELIVERY_EXAMPLE.platformFee.toFixed(2)}.{'\n'}
               *Before applicable taxes. **The PlateMaker sets the delivery amount and receives it. Or a delivery service.
             </Text>
@@ -311,6 +313,7 @@ export default function LegalScreen() {
           </View>
         </View>
       </ScrollView>
+      <ScrollJumps scrollRef={scrollRef} testID="legal" />
     </SafeAreaView>
     </AuthBackground>
   );
@@ -353,8 +356,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   content: {
+    paddingTop: 16,
     paddingHorizontal: 16,
-    paddingBottom: 32,
+    paddingBottom: 108,
   },
   brand: {
     color: AuthColors.ink,

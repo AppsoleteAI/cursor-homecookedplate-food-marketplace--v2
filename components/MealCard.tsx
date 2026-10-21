@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { titleCase } from '@/lib/title-case';
 import {
   View,
@@ -13,8 +13,6 @@ import { Meal } from '@/types';
 import { Colors, monoGradients } from '@/constants/colors';
 import { router } from 'expo-router';
 import type { Href } from 'expo-router';
-import { useReviewsContext } from '@/hooks/reviews-context';
-
 interface MealCardProps {
   meal: Meal;
   onPress?: () => void;
@@ -30,8 +28,7 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, onPress, sizeVariant =
     }
   };
 
-  const { getAggregates } = useReviewsContext();
-  const aggregates = useMemo(() => getAggregates(meal.id), [getAggregates, meal.id]);
+  const shownRating = Number.isFinite(Number(meal.rating)) ? Number(meal.rating) : 0;
 
   const getPromoIcon = () => {
     if (!meal.promotionalOffer) return null;
@@ -142,8 +139,8 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, onPress, sizeVariant =
             testID={`open-reviews-${meal.id}`}
           >
             <Star size={14} color={Colors.gradient.yellow} fill={Colors.gradient.yellow} />
-            <Text style={styles.ratingText}>{aggregates.average || meal.rating}</Text>
-            <Text style={styles.reviewCount}>({aggregates.count || meal.reviewCount})</Text>
+            <Text style={styles.ratingText}>{shownRating.toFixed(1)}</Text>
+            <Text style={styles.reviewCount}>({meal.reviewCount ?? 0})</Text>
           </GlassPressable>
         </View>
         <View style={styles.priceRow}>

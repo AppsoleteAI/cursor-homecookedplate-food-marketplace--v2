@@ -7,10 +7,10 @@ import { FoodTruckScreen } from '@/components/food-truck/FoodTruckScreen';
 import { Colors } from '@/constants/colors';
 import { getMenuItem, getTruck } from '@/constants/food-truck-popup';
 import { useAuth } from '@/hooks/auth-context';
-import { useFoodTruck, type TruckOrderLine } from '@/hooks/food-truck-store';
+import { forgetPaidTruckItems, useFoodTruck, type TruckOrderLine } from '@/hooks/food-truck-store';
 import { PICKUP_SLOTS, type PickupSlot } from '@/lib/food-truck-permit';
-import { calculateOrderSplit } from '@/lib/fees';
-import { useShopCardPayment } from '@/hooks/use-shop-payment';
+import { buyerFoodCharge } from '@/backend/lib/fees';
+import { useShopCardPayment, useWebShopReturn } from '@/hooks/use-shop-payment';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
 import { usePaidBack } from '@/hooks/use-leave-screen';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
@@ -22,6 +22,10 @@ export default function TruckCheckoutScreen() {
   const { payInMainCart } = useCombinedBill();
   const [slot, setSlot] = useState<PickupSlot>('Next 15 minutes');
   const [orderId, setOrderId] = useState<string | null>(null);
+  useWebShopReturn('food_truck', async (paidOrderId) => {
+    await forgetPaidTruckItems();
+    setOrderId(paidOrderId);
+  });
   usePaidBack('/food-truck-popup/orders', orderId != null);
 
   const lines = useMemo(() => {
@@ -41,7 +45,7 @@ export default function TruckCheckoutScreen() {
   const truckName = truckId === 'owner-truck' ? permit?.truckName ?? 'Your truck' : catalogTruck?.name ?? 'Truck';
   const windowOpen = truckId === 'owner-truck' ? ownerActive : Boolean(catalogTruck?.active);
   const baseAmount = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
-  const split = calculateOrderSplit(baseAmount);
+  const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;

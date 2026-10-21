@@ -18,14 +18,14 @@ import { titleCase } from '@/lib/title-case';
 import { GradientButton } from '@/components/GradientButton';
 import { allergyOptions, cookingTemperatures } from '@/mocks/data';
 import { isSampleMealId } from '@/lib/sample-meals';
+import { portionsFromTags } from '@/lib/meal-publish';
 import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { trpc } from '@/lib/trpc';
-import { calculateOrderSplit } from '@/lib/fees';
+import { buyerFoodCharge } from '@/backend/lib/fees';
 import type { Meal } from '@/types';
 import { useCart } from '@/hooks/cart-context';
 import { useFavorites } from '@/hooks/favorites-context';
 import StarRating from '@/components/StarRating';
-import { useReviewsContext } from '@/hooks/reviews-context';
 import { useAuth } from '@/hooks/auth-context';
 import { navLogger } from '@/lib/nav-logger';
 import { captureException } from '@/lib/sentry';
@@ -64,17 +64,19 @@ export default function MealDetailScreen() {
       preparationTime: data.preparationTime,
       available: data.available,
       rating: data.rating,
+      acceptingOrders: data.acceptingOrders !== false,
       reviewCount: data.reviewCount,
       featured: data.featured || false,
       tags: data.tags || [],
       isSample: data.isSample === true,
     };
   }, [mealQuery.data]);
-  const { getAggregates } = useReviewsContext();
-  const aggregates = meal ? getAggregates(meal.id) : { average: 0, count: 0 };
+  const shownRating = Number.isFinite(Number(meal?.rating)) ? Number(meal?.rating) : 0;
+  const shownReviewCount = meal?.reviewCount ?? 0;
 
   const role: 'platemaker' | 'platetaker' | undefined = user?.role as any;
   const isPlatemaker = role === 'platemaker';
+  const isOwnPlate = !!user?.id && user.id === meal?.plateMakerId;
   
   const [quantity, setQuantity] = useState<number>(1);
   const [selectedAllergies, setSelectedAllergies] = useState<string[]>([]);
@@ -149,11 +151,19 @@ export default function MealDetailScreen() {
 
   const handleAddToCart = () => {
     if (isSample) return;
-    addToCart(meal, quantity, {
+    if (meal.acceptingOrders === false) {
+      Alert.alert('Orders', 'This cook is not taking orders.');
+      return;
+    }
+    const added = addToCart(meal, quantity, {
       allergies: selectedAllergies,
       cookingTemperature: cookingTemp,
       specialInstructions: '',
     });
+    if (!added) {
+      Alert.alert('Orders', 'This cook is not taking orders.');
+      return;
+    }
     Alert.alert('Success', 'Added to cart!');
     router.back();
   };
@@ -283,13 +293,13 @@ export default function MealDetailScreen() {
             <GlassPressable style={styles.rating} onPress={openReviews} testID="open-reviews-detail">
               {isPlatemaker ? (
                 <View style={styles.filledStarsOnly}>
-                  {Array.from({ length: Math.max(0, Math.round(aggregates.average)) }).map((_, idx) => (
+                  {Array.from({ length: Math.max(0, Math.round(shownRating)) }).map((_, idx) => (
                     <Star key={idx} size={20} color={Colors.gradient.yellow} fill={Colors.gradient.yellow} />
                   ))}
                 </View>
               ) : (
                 <StarRating
-                  value={Math.round(aggregates.average)}
+                  value={Math.round(shownRating)}
                   baseColor="yellow"
                   size={20}
                   onChange={(val) => {
@@ -298,8 +308,8 @@ export default function MealDetailScreen() {
                   }}
                 />
               )}
-              <Text style={styles.ratingText}>{aggregates.average.toFixed(1)}</Text>
-              <Text style={styles.reviewCount}>({aggregates.count} reviews)</Text>
+              <Text style={styles.ratingText}>{shownRating.toFixed(1)}</Text>
+              <Text style={styles.reviewCount}>({shownReviewCount} reviews)</Text>
             </GlassPressable>
             <View style={styles.time}>
               <Clock size={16} color={Colors.gray[500]} />
@@ -419,7 +429,7 @@ export default function MealDetailScreen() {
             </View>
           </View>
 
-          {!isPlatemaker && !isSample && (
+          {!isPlatemaker && !isOwnPlate && !isSample && (
             <View style={styles.quantitySection}>
               <Text style={styles.sectionTitle}>Quantity</Text>
               <View style={styles.quantityControls}>
@@ -432,7 +442,7 @@ export default function MealDetailScreen() {
                 <Text style={styles.quantityText}>{quantity}</Text>
                 <GlassPressable
                   style={styles.quantityButton}
-                  onPress={() => setQuantity(quantity + 1)}
+                  onPress={() => setQuantity(Math.min(portionsFromTags(meal.tags), quantity + 1))}
                 >
                   <Text style={styles.quantityButtonText}>+</Text>
                 </GlassPressable>
@@ -447,11 +457,16 @@ export default function MealDetailScreen() {
           <Text style={styles.sampleNote}>Sample plate. This one is not for sale. A cook lists a real plate with their own photo or video.</Text>
         </View>
       )}
-      {!isPlatemaker && !isSample && (
+      {isOwnPlate && !isSample ? (
+        <View style={styles.footer}>
+          <Text style={styles.sampleNote}>This is your plate. Order from another cook.</Text>
+        </View>
+      ) : null}
+      {!isPlatemaker && !isOwnPlate && !isSample && (
         <View style={styles.footer}>
           <View style={styles.totalSection}>
             <Text style={styles.totalLabel}>Plate ${ (meal.price * quantity).toFixed(2) }</Text>
-            <Text style={styles.totalPrice}>${calculateOrderSplit(meal.price * quantity).totalCaptured.toFixed(2)}</Text>
+            <Text style={styles.totalPrice}>${buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount: meal.price * quantity }).totalCaptured.toFixed(2)}</Text>
           </View>
           <GradientButton
             title="Add to Plate"

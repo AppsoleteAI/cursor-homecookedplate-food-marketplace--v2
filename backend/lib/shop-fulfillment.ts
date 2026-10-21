@@ -58,6 +58,31 @@ export const shopFulfillmentSchema = z.discriminatedUnion('shop', [
 
 export type ShopFulfillment = z.infer<typeof shopFulfillmentSchema>;
 
+export const COMBINED_HANDOFF = 'Paid on a combined checkout';
+
+/** An older combined charge saved before a handoff was collected. The order still belongs on that lane's screen. */
+export type CombinedShopFulfillment = {
+  shop: ShopName;
+  combined: true;
+  sellerId: string;
+  sellerName: string;
+  area: string;
+};
+
+export function checkoutAreaShop(area: string): ShopName | null {
+  if (area === 'home') return null;
+  if (area === 'food_cart') return 'food_truck';
+  if (area === 'ghost_kitchen') return 'sit_down';
+  if ((SHOP_NAMES as readonly string[]).includes(area)) return area as ShopName;
+  return null;
+}
+
+export function isCombinedShopFulfillment(
+  value: ShopFulfillment | CombinedShopFulfillment,
+): value is CombinedShopFulfillment {
+  return 'combined' in value && value.combined === true;
+}
+
 export type ShopLineItem = {
   productId: string;
   name: string;
@@ -73,7 +98,10 @@ export type SavedShopOrder = {
   buyerPays: number;
   sellerPayout: number;
   items: ShopLineItem[];
-  fulfillment: ShopFulfillment;
+  fulfillment: ShopFulfillment | CombinedShopFulfillment;
+  paid: boolean;
+  sellerId: string | null;
+  orderStatus: string;
 };
 
 function isLine(value: unknown): value is ShopLineItem {
@@ -85,23 +113,33 @@ function isLine(value: unknown): value is ShopLineItem {
     && typeof line.unitPrice === 'number';
 }
 
-export function unpackShopLines(existing: unknown): { items: ShopLineItem[]; fulfillment?: unknown } {
+export function unpackShopLines(existing: unknown): {
+  items: ShopLineItem[];
+  fulfillment?: unknown;
+  sellerId: string | null;
+  status: string;
+} {
   if (Array.isArray(existing)) {
-    return { items: existing.filter(isLine) };
+    return { items: existing.filter(isLine), sellerId: null, status: 'pending' };
   }
-  if (!existing || typeof existing !== 'object') return { items: [] };
-  const record = existing as { items?: unknown; fulfillment?: unknown };
+  if (!existing || typeof existing !== 'object') return { items: [], sellerId: null, status: 'pending' };
+  const record = existing as { items?: unknown; fulfillment?: unknown; sellerId?: unknown; status?: unknown };
   return {
     items: Array.isArray(record.items) ? record.items.filter(isLine) : [],
     fulfillment: record.fulfillment,
+    sellerId: typeof record.sellerId === 'string' ? record.sellerId : null,
+    status: typeof record.status === 'string' ? record.status : 'pending',
   };
 }
 
 /** Keeps the server-priced lines and attaches the handoff the buyer chose. */
 export function packShopLines(existing: unknown, fulfillment: ShopFulfillment) {
+  const unpacked = unpackShopLines(existing);
   return {
-    items: unpackShopLines(existing).items,
+    items: unpacked.items,
     fulfillment,
+    sellerId: unpacked.sellerId,
+    status: unpacked.status,
   };
 }
 
@@ -116,22 +154,66 @@ export function presentSavedShopOrder(row: {
   base_amount: number | string;
   total_charge: number | string;
   created_at: string;
+  paid?: boolean | null;
 }): SavedShopOrder | null {
   if (!SHOP_NAMES.includes(row.shop as ShopName)) return null;
   const packed = unpackShopLines(row.lines);
-  const parsed = shopFulfillmentSchema.safeParse(packed.fulfillment);
-  if (!parsed.success || parsed.data.shop !== row.shop) return null;
   const baseAmount = Number(row.base_amount);
   const buyerPays = Number(row.total_charge);
   if (!Number.isFinite(baseAmount) || !Number.isFinite(buyerPays)) return null;
+  const parsed = shopFulfillmentSchema.safeParse(packed.fulfillment);
+  if (parsed.success && parsed.data.shop === row.shop) {
+    return {
+      id: row.id,
+      shop: parsed.data.shop,
+      createdAt: row.created_at,
+      baseAmount,
+      buyerPays,
+      sellerPayout: money(calculateFees(baseAmount).sellerPayout),
+      items: packed.items,
+      fulfillment: parsed.data,
+      paid: row.paid === true,
+      sellerId: packed.sellerId,
+      orderStatus: packed.status,
+    };
+  }
+  const combined = combinedFulfillment(packed, row.shop);
+  if (!combined) return null;
   return {
     id: row.id,
-    shop: parsed.data.shop,
+    shop: combined.shop,
     createdAt: row.created_at,
     baseAmount,
     buyerPays,
     sellerPayout: money(calculateFees(baseAmount).sellerPayout),
     items: packed.items,
-    fulfillment: parsed.data,
+    fulfillment: combined,
+    paid: row.paid === true,
+    sellerId: combined.sellerId,
+    orderStatus: packed.status,
+  };
+}
+
+function combinedFulfillment(
+  packed: ReturnType<typeof unpackShopLines>,
+  rowShop: string,
+): CombinedShopFulfillment | null {
+  if (!SHOP_NAMES.includes(rowShop as ShopName)) return null;
+  const record = packed.fulfillment && typeof packed.fulfillment === 'object'
+    ? packed.fulfillment as { area?: unknown; shop?: unknown; sellerId?: unknown; sellerName?: unknown }
+    : null;
+  if (!record) return null;
+  const area = typeof record.area === 'string' ? record.area : typeof record.shop === 'string' ? record.shop : '';
+  const shop = checkoutAreaShop(area);
+  if (!shop || shop !== rowShop) return null;
+  const sellerId = packed.sellerId || (typeof record.sellerId === 'string' ? record.sellerId : '');
+  if (!sellerId) return null;
+  const named = typeof record.sellerName === 'string' ? record.sellerName.trim() : '';
+  return {
+    shop,
+    combined: true,
+    sellerId,
+    sellerName: named || 'Combined checkout',
+    area,
   };
 }

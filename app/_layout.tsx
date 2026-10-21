@@ -35,6 +35,7 @@ import { CartProvider } from "@/hooks/cart-context";
 import { FavoritesProvider } from "@/hooks/favorites-context";
 import { NotificationsProvider } from "@/hooks/notifications-context";
 import { ReviewsProvider } from "@/hooks/reviews-context";
+import { MetroStayWatch } from "@/components/MetroStayWatch";
 import { OrdersProvider } from "@/hooks/orders-context";
 import { MealsProvider } from "@/hooks/meals-context";
 import { AdminsProvider } from "@/hooks/admin-context";
@@ -91,6 +92,7 @@ function AppProviders({ children }: { children: React.ReactNode }) {
             <MealsProvider>
               <AdminsProvider>
                 <ReviewsProvider>
+                  <MetroStayWatch />
                   {children}
                 </ReviewsProvider>
               </AdminsProvider>

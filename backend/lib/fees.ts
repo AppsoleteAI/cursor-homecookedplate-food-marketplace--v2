@@ -68,6 +68,23 @@ export function calculateFees(
   return result;
 }
 
+/** PlateTaker Premium pays 5% on an order base of $20 or more. The cook's 10% stays. */
+export function buyerServiceFeePercent(input: {
+  role: string | null | undefined;
+  membershipTier: string | null | undefined;
+  baseAmount: number;
+}): number {
+  if (
+    input.role === 'platetaker'
+    && input.membershipTier === 'premium'
+    && Number.isFinite(input.baseAmount)
+    && input.baseAmount >= 20
+  ) {
+    return 5;
+  }
+  return 10;
+}
+
 /**
  * Calculates the "Double 10" split for Rork orders.
  * Buyer pays +10%, Seller pays -10%. Platform keeps 20%.
@@ -152,6 +169,15 @@ export function orderTotalWithDelivery(
  * and the Stripe card fee of 2.9% + $0.30. The card fee is grossed up so it
  * is not taken out of the platform's 20% share.
  */
+/** This order's share of a card charge that also paid other open orders. */
+export function sharedChargeRefundCents(thisBase: number, openBases: number[], paymentIntentCents: number): number {
+  const bases = openBases.filter((base) => Number.isFinite(base) && base > 0);
+  const sum = bases.reduce((total, base) => total + base, 0);
+  if (!(thisBase > 0) || !(sum > 0) || !(paymentIntentCents > 0)) return 0;
+  const cents = Math.round((thisBase / sum) * paymentIntentCents);
+  return Math.min(paymentIntentCents, Math.max(0, cents));
+}
+
 export function buyerCardCharge(marketplaceTotal: number, taxAmount = 0) {
   if (!Number.isFinite(marketplaceTotal) || marketplaceTotal < 0) {
     throw new Error(`Invalid marketplaceTotal: ${marketplaceTotal}. Must be a finite, non-negative number.`);
@@ -192,6 +218,66 @@ export function buyerCardCharge(marketplaceTotal: number, taxAmount = 0) {
  */
 export function sellerRefundAmount(baseAmount: number): number {
   return calculateOrderSplit(baseAmount).sellerPayout;
+}
+
+/** Cents returned to the buyer. The platform keeps both service fees. */
+export function saleRefundCents(baseAmount: number): number {
+  return Math.max(0, Math.round(sellerRefundAmount(baseAmount) * 100));
+}
+
+/** Buyer total for one charge. The cook's 10% stays inside calculateFees. */
+export function buyerFoodCharge(input: {
+  role: string | null | undefined;
+  membershipTier: string | null | undefined;
+  baseAmount: number;
+}) {
+  const buyerPercent = buyerServiceFeePercent(input);
+  const fees = calculateFees(input.baseAmount, buyerPercent, 10);
+  return {
+    buyerPercent,
+    buyerFee: fees.buyerFee,
+    sellerPayout: fees.sellerPayout,
+    totalCaptured: fees.totalCharge,
+  };
+}
+
+export type PromotionPrice = {
+  type: 'percentage' | 'buy-x-get-y' | 'fixed-amount' | 'free-item';
+  discountPercentage?: number | null;
+  discountAmount?: number | null;
+  buyQuantity?: number | null;
+  getQuantity?: number | null;
+};
+
+/** Menu line total after one active offer. A free item does not change this plate's price. */
+export function promotionalBase(unitPrice: number, quantity: number, offer: PromotionPrice | null | undefined): number {
+  if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+    throw new Error(`Invalid unit price: ${unitPrice}. Must be a finite, non-negative number.`);
+  }
+  if (!Number.isInteger(quantity) || quantity < 1) {
+    throw new Error(`Invalid quantity: ${quantity}. Must be a whole number of at least 1.`);
+  }
+  const menu = roundMoney(unitPrice * quantity);
+  if (!offer) return menu;
+  if (offer.type === 'percentage') {
+    const percent = Number(offer.discountPercentage);
+    if (!Number.isFinite(percent) || percent <= 0 || percent > 100) return menu;
+    return roundMoney(menu * (1 - percent / 100));
+  }
+  if (offer.type === 'fixed-amount') {
+    const amount = Number(offer.discountAmount);
+    if (!Number.isFinite(amount) || amount <= 0) return menu;
+    return roundMoney(Math.max(0, menu - amount));
+  }
+  if (offer.type === 'buy-x-get-y') {
+    const buy = Number(offer.buyQuantity);
+    const free = Number(offer.getQuantity);
+    if (!Number.isInteger(buy) || !Number.isInteger(free) || buy < 1 || free < 1) return menu;
+    const bundle = buy + free;
+    const freeUnits = Math.floor(quantity / bundle) * free;
+    return roundMoney(unitPrice * Math.max(0, quantity - freeUnits));
+  }
+  return menu;
 }
 
 /**

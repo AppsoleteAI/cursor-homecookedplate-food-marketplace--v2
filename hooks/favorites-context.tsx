@@ -2,8 +2,11 @@ import createContextHook from '@nkzw/create-context-hook';
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Meal } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '@/hooks/auth-context';
 
-const FAVORITES_KEY = '@favorites';
+function favoritesKey(userId: string) {
+  return `@favorites:${userId}`;
+}
 
 interface FavoritesState {
   favorites: Meal[];
@@ -12,37 +15,48 @@ interface FavoritesState {
 }
 
 export const [FavoritesProvider, useFavorites] = createContextHook<FavoritesState>(() => {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const [favorites, setFavorites] = useState<Meal[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    setIsLoaded(false);
+    setFavorites([]);
+    if (!userId) {
+      setIsLoaded(true);
+      return;
+    }
     const loadFavorites = async () => {
       try {
-        const stored = await AsyncStorage.getItem(FAVORITES_KEY);
-        if (stored) {
+        const stored = await AsyncStorage.getItem(favoritesKey(userId));
+        if (!cancelled && stored) {
           setFavorites(JSON.parse(stored));
         }
       } catch (error) {
         console.error('Failed to load favorites:', error);
       } finally {
-        setIsLoaded(true);
+        if (!cancelled) setIsLoaded(true);
       }
     };
-    setTimeout(() => loadFavorites(), 0);
-  }, []);
+    loadFavorites();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   useEffect(() => {
-    if (isLoaded) {
-      const saveFavorites = async () => {
-        try {
-          await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
-        } catch (error) {
-          console.error('Failed to save favorites:', error);
-        }
-      };
-      saveFavorites();
-    }
-  }, [favorites, isLoaded]);
+    if (!isLoaded || !userId) return;
+    const saveFavorites = async () => {
+      try {
+        await AsyncStorage.setItem(favoritesKey(userId), JSON.stringify(favorites));
+      } catch (error) {
+        console.error('Failed to save favorites:', error);
+      }
+    };
+    saveFavorites();
+  }, [favorites, isLoaded, userId]);
 
   const isFavorite = useCallback((mealId: string) => {
     return favorites.some(meal => meal.id === mealId);

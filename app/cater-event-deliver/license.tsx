@@ -81,7 +81,7 @@ export default function CaterLicenseScreen() {
       </View>
       <View style={styles.card}>
         <Text style={styles.cardTitle}>3. Drop-off is yours</Text>
-        <Text style={styles.body}>You drop off and set up, or you hire that service yourself. This app does not book a driver and does not add a 15% to 25% marketplace commission. The buyer pays the same 10% service fee as every other order.</Text>
+        <Text style={styles.body}>You drop off and set up, or you hire that service yourself. This app does not book a driver and does not add a 15% to 25% marketplace commission. The service fee is 10%. A Premium PlateTaker pays 5% on an order of $20 or more.</Text>
       </View>
       <View style={styles.card}>
         <Text style={styles.cardTitle}>4. The fee</Text>

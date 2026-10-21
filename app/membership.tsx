@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -25,10 +25,12 @@ import { supabase } from '@/lib/supabase';
 import { trpc } from '@/lib/trpc';
 import { GlassPressable } from '@/components/glass-surface';
 import { BackCircle } from '@/components/BackCircle';
+import { ScrollJumps } from '@/components/ScrollJumps';
 import { useLeaveScreen, usePaidBack, useStayBack } from '@/hooks/use-leave-screen';
 
 export default function MembershipScreen() {
-  const { user } = useAuth();
+  const scrollRef = useRef<ScrollView>(null);
+  const { user, openKitchen } = useAuth();
   const router = useRouter();
   const [processing, setProcessing] = useState(false);
   const [chargeLock, setChargeLock] = useState<'idle' | 'charging' | 'paid'>('idle');
@@ -76,6 +78,11 @@ export default function MembershipScreen() {
   const joinFree = useCallback(() => {
     router.replace(user?.role === 'platemaker' ? '/(tabs)/dashboard' : '/(tabs)/(home)/home');
   }, [router, user?.role]);
+
+  const openTheKitchen = useCallback(async () => {
+    await openKitchen();
+    router.replace('/(tabs)/dashboard');
+  }, [openKitchen, router]);
 
   const tell = useCallback((title: string, message: string) => {
     if (Platform.OS === 'web') {
@@ -169,8 +176,15 @@ export default function MembershipScreen() {
       setLocationVerdict('outside');
       const point = `${found.lat.toFixed(4)}, ${found.lng.toFixed(4)}`;
       tell('Location', `Checked ${point}. That point is outside the 50-mile radius of all 50 metros. The kitchen is open, and a paid plan is optional.`);
-    } catch (error: any) {
-      tell('Location', error?.message || 'Location could not be checked. The kitchen stays closed until Get GPS finishes.');
+    } catch (error: unknown) {
+      const raw = error instanceof Error ? error.message : '';
+      const signedOut = /no id card|unauthorized|not signed in|please log in/i.test(raw);
+      tell(
+        'Location',
+        signedOut
+          ? 'Sign in again, then tap Get GPS. The kitchen stays closed until that check finishes.'
+          : 'The metro check did not finish. Tap Get GPS again. The kitchen stays closed until it does.',
+      );
     } finally {
       setDetectingLocation(false);
     }
@@ -344,7 +358,7 @@ export default function MembershipScreen() {
           headerShown: false,
         }}
       />
-      <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} style={styles.scrollView}>
         <View style={styles.content}>
           {chargeLock === 'idle' && !gated ? (
             <BackCircle tone="honey" onPress={leave} testID="membership-back" />
@@ -377,13 +391,17 @@ export default function MembershipScreen() {
               
               {membershipTier === 'free' && !isPlateTaker && (
                 <Text style={styles.statusText}>
-                  {offerDays > 0
-                    ? `Early Bird is ${offerDays} days of Premium at no charge. Or choose monthly or yearly.`
-                    : holdForGps
-                      ? 'Get GPS before the kitchen opens. Every saved metro covers a 50-mile radius. Early Bird is offered when this location is inside one.'
-                      : remoteMetro
-                        ? 'This location is outside every saved metro. The kitchen is open without a charge.'
-                        : 'Choose monthly or yearly before the kitchen opens. Early Bird is not available for this metro.'}
+                  {earlyBirdOffer.isError
+                    ? 'Early Bird could not be checked. Tap Get GPS again once you are signed in.'
+                    : earlyBirdOffer.isLoading
+                      ? 'Checking Early Bird for this kitchen.'
+                      : offerDays > 0
+                        ? `Early Bird is ${offerDays} days of Premium at no charge. Or choose monthly or yearly.`
+                        : holdForGps
+                          ? 'Get GPS before the kitchen opens. Every saved metro covers a 50-mile radius. Early Bird is offered when this location is inside one.'
+                          : remoteMetro
+                            ? 'This location is outside every saved metro. The kitchen is open without a charge.'
+                            : 'Choose monthly or yearly before the kitchen opens. Early Bird is not available for this metro.'}
                 </Text>
               )}
 
@@ -402,7 +420,7 @@ export default function MembershipScreen() {
                 userLocation={userMetro}
                 membershipTier={membershipTier}
                 audience={isPlateTaker ? 'platetaker' : 'platemaker'}
-                onPress={() => router.push('/membership-access')}
+                onPress={() => router.replace('/membership-access')}
               />
             </View>
           )}
@@ -458,18 +476,24 @@ export default function MembershipScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>{isPlateTaker ? 'Premium' : remoteMetro && !holdForGps && offerDays === 0 ? 'Paid plans' : 'Choose one'}</Text>
               <View style={styles.pricingCard}>
-                {!isPlateTaker && (offerDays > 0 || holdForGps) ? (
+                {!isPlateTaker && (offerDays > 0 || holdForGps || earlyBirdOffer.isLoading || earlyBirdOffer.isError) ? (
                   <>
                     <View style={styles.trialInfo}>
                       <Ionicons name="gift" size={20} color={Colors.gradient.green} />
                       <Text style={styles.trialText}>
-                        {`Early Bird · ${offerDays > 0 ? offerDays : 90} days free`}
+                        {earlyBirdOffer.isLoading
+                          ? 'Checking Early Bird'
+                          : earlyBirdOffer.isError
+                            ? 'Early Bird could not be checked'
+                            : `Early Bird · ${offerDays > 0 ? offerDays : 90} days free`}
                       </Text>
                     </View>
                     <Text style={styles.trialText}>
                       {offerDays > 0
                         ? 'No card. The start date and the end date are saved on your account.'
-                        : 'No card. Get GPS first. Early Bird starts when this kitchen is inside an active metro.'}
+                        : earlyBirdOffer.isError
+                          ? 'Sign in, then tap Get GPS. Early Bird starts when this kitchen is inside an active metro.'
+                          : 'No card. Get GPS first. Early Bird starts when this kitchen is inside an active metro.'}
                     </Text>
                     {offerDays > 0 ? (
                       <GradientButton
@@ -477,6 +501,15 @@ export default function MembershipScreen() {
                         onPress={handleEarlyBird}
                         loading={processing}
                         disabled={processing}
+                        style={styles.subscribeButton}
+                        baseColor="green"
+                      />
+                    ) : earlyBirdOffer.isError ? (
+                      <GradientButton
+                        title="Check Early Bird again"
+                        onPress={() => { earlyBirdOffer.refetch().catch(() => undefined); }}
+                        loading={earlyBirdOffer.isRefetching}
+                        disabled={earlyBirdOffer.isRefetching}
                         style={styles.subscribeButton}
                         baseColor="green"
                       />
@@ -505,7 +538,7 @@ export default function MembershipScreen() {
                   </GlassPressable>
                 ) : null}
                 {!isPlateTaker && locationVerdict === 'outside' && remoteMetro ? (
-                  <GlassPressable onPress={joinFree} style={styles.restoreButton} testID="membership-open-kitchen">
+                  <GlassPressable onPress={openTheKitchen} style={styles.restoreButton} testID="membership-open-kitchen">
                     <Text style={styles.restoreText}>Open the kitchen</Text>
                   </GlassPressable>
                 ) : null}
@@ -539,6 +572,7 @@ export default function MembershipScreen() {
           </View>
         </View>
       </ScrollView>
+      <ScrollJumps scrollRef={scrollRef} testID="membership" />
     </SafeAreaView>
   );
 }
@@ -553,6 +587,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 24,
+    paddingBottom: 108,
   },
   statusSection: {
     marginBottom: 24,

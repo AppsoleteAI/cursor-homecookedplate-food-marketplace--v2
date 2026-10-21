@@ -1,7 +1,11 @@
+import { TRPCError } from "@trpc/server";
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
 import { displayName, loadPublicProfiles } from "../../../../lib/public-profiles";
 import { countAreaMealsWithMedia, isSampleMealId, visibleSampleMeals } from "@/lib/sample-meals";
+import { loadActiveOffers } from "../../../../lib/active-offer";
+import { mealVisibleInMetro } from "../../../../lib/metro-menu";
+import { buyerPlateLinkOpens } from "@/lib/cart-line";
 
 export const getMealProcedure = publicProcedure
   .input(z.object({ id: z.string(), metroArea: z.string().optional() }))
@@ -11,6 +15,10 @@ export const getMealProcedure = publicProcedure
       .select('*')
       .eq('id', input.id)
       .maybeSingle();
+
+    if (data && data.published === false && data.user_id !== ctx.userId) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'That plate is not on the menu.' });
+    }
 
     if (!data) {
       if (!isSampleMealId(input.id)) {
@@ -43,7 +51,31 @@ export const getMealProcedure = publicProcedure
       };
     }
 
+    const cook = await ctx.supabaseAdmin.from('profiles').select('metro_area, is_paused, available_for_orders').eq('id', data.user_id).maybeSingle();
+    if (data.user_id !== ctx.userId) {
+      if (!ctx.userId) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'That plate is not on the menu.' });
+      }
+      const buyer = await ctx.supabaseAdmin.from('profiles').select('metro_area').eq('id', ctx.userId).maybeSingle();
+      if (buyer.error) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'That plate is not on the menu.' });
+      }
+      const buyerMetro = typeof buyer.data?.metro_area === 'string' ? buyer.data.metro_area.trim() : '';
+      if (!buyerMetro) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'That plate is not on the menu.' });
+      }
+      if (
+        cook.error
+        || !buyerPlateLinkOpens(cook.data?.is_paused, cook.data?.available_for_orders, false)
+        || !mealVisibleInMetro(cook.data?.metro_area, buyerMetro)
+      ) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'That plate is not on the menu.' });
+      }
+    }
+    const acceptingOrders = !cook.error && cook.data?.is_paused !== true && cook.data?.available_for_orders === true;
+
     const cooks = await loadPublicProfiles(ctx.supabaseAdmin, [data.user_id]);
+    const offers = await loadActiveOffers(ctx.supabaseAdmin, [data.id]);
 
     return {
       id: data.id,
@@ -59,11 +91,13 @@ export const getMealProcedure = publicProcedure
       dietaryOptions: data.dietary_options,
       preparationTime: data.preparation_time,
       available: data.available,
+      acceptingOrders,
       rating: parseFloat(data.rating || '0'),
       reviewCount: data.review_count,
       featured: data.featured,
       tags: data.tags,
       isSample: false,
+      promotionalOffer: offers.get(data.id) ?? undefined,
       expiryDate: data.expiry_date ?? null,
       receiptDate: data.receipt_date ?? null,
     };

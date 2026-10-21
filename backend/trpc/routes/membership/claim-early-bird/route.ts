@@ -1,6 +1,13 @@
 import { TRPCError } from '@trpc/server';
+import { saveEarlyBirdClaim } from '../../../../lib/early-bird-claim';
 import { addDays, readEarlyBirdOffer } from '../../../../lib/early-bird';
 import { protectedProcedure } from '../../../create-context';
+
+async function pinClaimMetro(admin: { from: (table: string) => any }, userId: string) {
+  const { data } = await admin.from('profiles').select('metro_area, trial_ends_at').eq('id', userId).maybeSingle();
+  if (!data?.trial_ends_at || typeof data.metro_area !== 'string') return;
+  await saveEarlyBirdClaim(admin, userId, data.metro_area);
+}
 
 function missingStartColumn(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
@@ -15,6 +22,7 @@ export const claimEarlyBirdProcedure = protectedProcedure.mutation(async ({ ctx 
   const offer = await readEarlyBirdOffer(ctx.supabaseAdmin, ctx.userId);
   if (!offer.eligible) {
     if (offer.trialEndsAt && Date.parse(offer.trialEndsAt) > Date.now()) {
+      await pinClaimMetro(ctx.supabaseAdmin, ctx.userId);
       return {
         trialStartedAt: offer.trialStartedAt,
         trialEndsAt: offer.trialEndsAt,
@@ -75,6 +83,7 @@ export const claimEarlyBirdProcedure = protectedProcedure.mutation(async ({ ctx 
   if (!saved) {
     const current = await readEarlyBirdOffer(ctx.supabaseAdmin, ctx.userId);
     if (current.trialEndsAt && Date.parse(current.trialEndsAt) > Date.now()) {
+      await pinClaimMetro(ctx.supabaseAdmin, ctx.userId);
       return {
         trialStartedAt: current.trialStartedAt,
         trialEndsAt: current.trialEndsAt,
@@ -91,6 +100,7 @@ export const claimEarlyBirdProcedure = protectedProcedure.mutation(async ({ ctx 
   console.log(
     `[EarlyBird] PlateMaker ${ctx.userId} started ${startedAt} ends ${endsAt} days ${offer.trialDays}`,
   );
+  await pinClaimMetro(ctx.supabaseAdmin, ctx.userId);
 
   return {
     trialStartedAt: startedAt,

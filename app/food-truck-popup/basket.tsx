@@ -10,10 +10,12 @@ import { useCombinedBill } from '@/hooks/use-combined-bill';
 import { Colors } from '@/constants/colors';
 import { getMenuItem, getTruck } from '@/constants/food-truck-popup';
 import { useFoodTruck } from '@/hooks/food-truck-store';
-import { calculateOrderSplit } from '@/lib/fees';
+import { buyerFoodCharge } from '@/backend/lib/fees';
+import { useAuth } from '@/hooks/auth-context';
 
 export default function TruckBasketScreen() {
   const { items, listings, permit, setQuantity, clearItems } = useFoodTruck();
+  const { user } = useAuth();
   const { payInMainCart } = useCombinedBill();
   const lines = useMemo(() => {
     return items.flatMap((item) => {
@@ -29,7 +31,7 @@ export default function TruckBasketScreen() {
   const truckId = lines[0]?.truckId;
   const truckName = truckId === 'owner-truck' ? permit?.truckName ?? 'Your truck' : getTruck(truckId ?? '')?.name ?? 'Truck';
   const baseAmount = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
-  const split = calculateOrderSplit(baseAmount);
+  const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 
   return (
     <FoodTruckScreen title="Window order" subtitle="One truck. Pickup at the window." showBasket={false} testID="truck-basket">

@@ -20,12 +20,11 @@ import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import { Redirect, router, useFocusEffect, type Href } from 'expo-router';
 import { useAuth } from '@/hooks/auth-context';
+import { openSignInCanEmailNewCode } from '@/backend/lib/sign-in-code';
 import { trpc } from '@/lib/trpc';
 import { isLoginLegalBoxChecked, readLegalAgreement, setLoginLegalBoxChecked, toCompletedLegalAgreement } from '@/lib/legal-agreement';
 import { AuthColors, preAppFont } from '@/constants/auth-palette';
-import { AuthBackground, AuthBrand } from '@/components/auth/AuthChrome';
-import { BackCircle } from '@/components/BackCircle';
-import { useLeaveScreen } from '@/hooks/use-leave-screen';
+import { AuthBackground, AuthBrand, MaroonButtonFill } from '@/components/auth/AuthChrome';
 import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 
@@ -52,10 +51,13 @@ function readLoginError(error: unknown): string {
 export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [signInCode, setSignInCode] = useState('');
+  const [needsCode, setNeedsCode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const [confirmationExpired, setConfirmationExpired] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [providerNotice, setProviderNotice] = useState<string | null>(null);
   const [legalChecked, setLegalChecked] = useState(isLoginLegalBoxChecked);
@@ -63,7 +65,6 @@ export default function LoginScreen() {
   const [legalNotice, setLegalNotice] = useState<string | null>(null);
   const { login, user } = useAuth();
   const saveAgreement = trpc.auth.updateProfile.useMutation();
-  const leave = useLeaveScreen(null);
 
   useEffect(() => {
     WebBrowser.maybeCompleteAuthSession();
@@ -131,6 +132,7 @@ export default function LoginScreen() {
     setLoading(true);
     setError(null);
     setNeedsConfirmation(false);
+    setConfirmationExpired(false);
     setProviderNotice(null);
 
     let timedOut = false;
@@ -141,7 +143,22 @@ export default function LoginScreen() {
     }, 10000);
 
     try {
-      await login(cleanEmail, password);
+      if (needsCode && signInCode.length !== 6) {
+        setError('Enter the 6-digit code from your email.');
+        setLoading(false);
+        clearTimeout(timeoutId);
+        return;
+      }
+      const signedIn = await login(cleanEmail, password, needsCode ? signInCode : undefined);
+      if (signedIn?.needsTwoFactor) {
+        setNeedsCode(true);
+        setError(signedIn.codeReused
+          ? 'Enter the sign-in code already emailed. A new sign-in does not replace it.'
+          : 'A sign-in code was emailed. Enter it here.');
+        setLoading(false);
+        clearTimeout(timeoutId);
+        return;
+      }
       AsyncStorage.setItem('hcp_has_account', '1').catch(() => undefined);
       if (timedOut) return;
       if (agreement) {
@@ -159,7 +176,8 @@ export default function LoginScreen() {
       if (timedOut) return;
 
       const serverMessage = readLoginError(loginError);
-      const confirmationNeeded = /confirm your email|email not confirmed/i.test(serverMessage);
+      const confirmationExpiredNow = /expired after 24 hours/i.test(serverMessage);
+      const confirmationNeeded = confirmationExpiredNow || /confirm your email|email not confirmed/i.test(serverMessage);
       const legalNeeded = serverMessage.includes('Complete the Legal & Safety page');
 
       const isValidationError = serverMessage.includes('invalid_format') ||
@@ -174,22 +192,33 @@ export default function LoginScreen() {
         setRetryCount((prev) => prev + 1);
       }
 
-      if (legalNeeded) {
+      if (openSignInCanEmailNewCode(serverMessage)) {
+        setNeedsCode(false);
+        setSignInCode('');
         setNeedsConfirmation(false);
+        setConfirmationExpired(false);
+        setError(serverMessage);
+      } else if (legalNeeded) {
+        setNeedsConfirmation(false);
+        setConfirmationExpired(false);
         setError(null);
         setLegalNotice('Check each section on the Legal & Safety page, then enter today\'s date.');
         Alert.alert('Legal & Safety', 'Check each section on the Legal & Safety page, then enter today\'s date.');
       } else if (isValidationError) {
         setNeedsConfirmation(false);
+        setConfirmationExpired(false);
         setError('Check the email address.');
       } else if (isNetworkError) {
         setNeedsConfirmation(false);
+        setConfirmationExpired(false);
         setError('Network error. Check your connection and try again.');
       } else if (confirmationNeeded) {
         setNeedsConfirmation(true);
+        setConfirmationExpired(confirmationExpiredNow);
         setError(null);
       } else {
         setNeedsConfirmation(false);
+        setConfirmationExpired(false);
         setError(serverMessage || 'That email or password does not match.');
       }
     } finally {
@@ -217,7 +246,6 @@ export default function LoginScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {router.canGoBack() ? <BackCircle tone="honey" onPress={leave} testID="login-back" /> : null}
             <View style={styles.brandSlot}>
               <AuthBrand toSignIn={false} />
             </View>
@@ -268,6 +296,7 @@ export default function LoginScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Sign in with Apple"
               >
+                <MaroonButtonFill />
                 <Image source={APPLE_LOGO} style={styles.providerLogo} resizeMode="contain" accessibilityIgnoresInvertColors />
                 <Text style={styles.appleText}>Sign in with Apple</Text>
               </GlassPressable>
@@ -278,6 +307,7 @@ export default function LoginScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Sign in with Google"
               >
+                <MaroonButtonFill />
                 <Image source={GOOGLE_LOGO} style={styles.providerLogo} resizeMode="contain" accessibilityIgnoresInvertColors />
                 <Text style={styles.googleText}>Sign in with Google</Text>
               </GlassPressable>
@@ -339,6 +369,25 @@ export default function LoginScreen() {
                   </GlassPressable>
                 </View>
 
+                {needsCode ? (
+                  <View style={styles.inputContainer}>
+                    <Ionicons name="key-outline" size={18} color={AuthColors.maroon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="6-digit sign-in code"
+                      placeholderTextColor={AuthColors.placeholder}
+                      value={signInCode}
+                      onChangeText={(value) => {
+                        setSignInCode(value.replace(/\D/g, '').slice(0, 6));
+                        if (error) setError(null);
+                      }}
+                      keyboardType="number-pad"
+                      autoComplete="one-time-code"
+                      testID="login-code"
+                    />
+                  </View>
+                ) : null}
+
                 <GlassPressable
                   onPress={() => router.push('/(auth)/recover')}
                   style={styles.forgotPasswordButton}
@@ -362,20 +411,29 @@ export default function LoginScreen() {
                   </View>
                 ) : null}
 
-                {needsConfirmation ? (
+                {needsConfirmation && confirmationExpired ? (
                   <GlassPressable
                     onPress={() => router.push({ pathname: '/(auth)/recover', params: { mode: 'confirm', email: username.trim() } } as Href)}
                     style={styles.confirmNotice}
-                    accessibilityLabel="This email is not confirmed. Open the confirmation page."
+                    accessibilityLabel="This confirmation link expired after 24 hours. Open Confirm email."
                     testID="login-confirm-notice"
                   >
                     <Ionicons name="mail-outline" size={18} color={AuthColors.maroon} />
                     <View style={styles.confirmNoticeCopy}>
-                      <Text style={styles.confirmNoticeTitle}>This email is not confirmed.</Text>
-                      <Text style={styles.confirmNoticeBody}>Tap to email a new confirmation link.</Text>
+                      <Text style={styles.confirmNoticeTitle}>This confirmation link expired after 24 hours.</Text>
+                      <Text style={styles.confirmNoticeBody}>Tap to open Confirm email and send a new one.</Text>
                     </View>
                     <Ionicons name="chevron-forward" size={18} color={AuthColors.ink} />
                   </GlassPressable>
+                ) : null}
+                {needsConfirmation && !confirmationExpired ? (
+                  <View style={styles.confirmNotice} testID="login-confirm-waiting">
+                    <Ionicons name="mail-outline" size={18} color={AuthColors.maroon} />
+                    <View style={styles.confirmNoticeCopy}>
+                      <Text style={styles.confirmNoticeTitle}>This email is not confirmed.</Text>
+                      <Text style={styles.confirmNoticeBody}>Open the link already sent. It lasts 24 hours.</Text>
+                    </View>
+                  </View>
                 ) : null}
 
                 <GlassPressable
@@ -386,6 +444,7 @@ export default function LoginScreen() {
                   testID="login-submit"
                 >
                   <View style={styles.signInFill}>
+                    <MaroonButtonFill />
                     {loading ? (
                       <ActivityIndicator color={AuthColors.white} />
                     ) : (
@@ -522,7 +581,8 @@ const styles = StyleSheet.create({
   appleButton: {
     height: 48,
     borderRadius: 24,
-    backgroundColor: AuthColors.maroonDeep,
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.28)',
     shadowColor: '#461C06',
@@ -548,7 +608,8 @@ const styles = StyleSheet.create({
   googleButton: {
     height: 48,
     borderRadius: 24,
-    backgroundColor: AuthColors.maroonDeep,
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.28)',
     shadowColor: '#461C06',
@@ -694,7 +755,7 @@ const styles = StyleSheet.create({
   },
   signInButton: {
     borderRadius: 24,
-    backgroundColor: AuthColors.maroonDeep,
+    backgroundColor: 'transparent',
     overflow: 'hidden',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.36)',
@@ -710,7 +771,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: AuthColors.maroonDeep,
+    backgroundColor: 'transparent',
   },
   signInText: {
     ...preAppFont,

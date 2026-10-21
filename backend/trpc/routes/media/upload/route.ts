@@ -156,7 +156,7 @@ export const uploadMediaProcedure = protectedProcedure
     const currentImages = Array.isArray(mealRow?.images) ? mealRow.images : [];
     const { error: imageUpdateError } = await ctx.supabase
       .from('meals')
-      .update({ images: [...currentImages, publicUrlData.publicUrl], published: true })
+      .update({ images: [...currentImages, publicUrlData.publicUrl] })
       .eq('id', input.mealId);
     if (imageUpdateError) {
       throw new Error(imageUpdateError.message || 'Failed to attach media to the plate');

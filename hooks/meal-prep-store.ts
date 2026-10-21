@@ -5,6 +5,7 @@ import { useSavedShopOrders } from '@/hooks/use-saved-shop-orders';
 import { mergeById, prepOrdersFromSaved, sameOrders } from '@/lib/saved-shop-order';
 import type { PrepDiet, PrepLane } from '@/constants/meal-prep-go';
 import { evaluatePrepItem, type PrepKitchenRecord } from '@/lib/meal-prep-go';
+import { shareLaneListing, useSharedLaneListings } from '@/lib/lane-sync';
 
 const STORAGE_KEY = 'meal_prep_go_v1';
 
@@ -36,6 +37,10 @@ export type PrepOrder = {
   baseAmount: number;
   buyerPays: number;
   sellerPayout: number;
+  paid?: boolean;
+  sellerId?: string | null;
+  orderStatus?: string;
+  handoffNote?: string;
 };
 
 export type PrepListing = {
@@ -71,6 +76,7 @@ let state: PrepState = {
 
 const listeners = new Set<() => void>();
 let hydrateStarted = false;
+let storeGeneration = 0;
 
 function emit() {
   listeners.forEach((listener) => listener());
@@ -89,9 +95,10 @@ function getSnapshot() {
 export function hydrateMealPrep() {
   if (hydrateStarted) return;
   hydrateStarted = true;
+  const generation = storeGeneration;
   AsyncStorage.getItem(STORAGE_KEY)
     .then((raw) => {
-      if (!raw) return;
+      if (generation !== storeGeneration || !raw) return;
       const parsed = JSON.parse(raw) as Partial<PrepState>;
       state = {
         items: parsed.items ?? [],
@@ -129,6 +136,30 @@ export function setPrepQuantity(
 
 export function clearPrepWeek() {
   state = { ...state, items: [] };
+  emit();
+}
+
+/** Drop a paid week and keep the saved kitchen and menu. */
+export async function forgetPaidPrepItems() {
+  storeGeneration += 1;
+  hydrateStarted = true;
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<PrepState>;
+      state = {
+        items: [],
+        orders: mergeById(parsed.orders ?? [], state.orders),
+        kitchen: parsed.kitchen ?? state.kitchen,
+        listings: parsed.listings ?? state.listings,
+        accepting: parsed.accepting ?? state.accepting,
+      };
+    } else {
+      state = { ...state, items: [] };
+    }
+  } catch {
+    state = { ...state, items: [] };
+  }
   emit();
 }
 
@@ -173,7 +204,13 @@ export function publishPrepItem(input: {
   };
   state = { ...state, listings: [listing, ...state.listings] };
   emit();
+  shareLaneListing('meal_prep', listing);
   return { ok: true };
+}
+
+function applySharedPrepListings(listings: PrepListing[]) {
+  state = { ...state, listings };
+  emit();
 }
 
 export function placePrepOrder(input: {
@@ -210,6 +247,7 @@ export function applyServerPrepOrders(rows: SavedShopOrder[]) {
 export function useMealPrep() {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   useSavedShopOrders('meal_prep', applyServerPrepOrders);
+  useSharedLaneListings('meal_prep', snapshot.listings, applySharedPrepListings);
   const portionCount = snapshot.items.reduce((sum, item) => sum + item.quantity, 0);
   return {
     ...snapshot,

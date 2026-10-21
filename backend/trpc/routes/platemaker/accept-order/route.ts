@@ -1,6 +1,8 @@
 import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { orderBuyerId } from "../../../../lib/order-row";
+import { notifyParty } from "../../../../lib/account-notice";
 
 /**
  * Accept Order Procedure
@@ -72,6 +74,13 @@ export const acceptOrderProcedure = protectedProcedure
       });
     }
 
+    if (order.paid !== true) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'This order is not paid. It cannot be accepted.',
+      });
+    }
+
     // Validate estimated completion time if provided
     let estimatedCompletionTime: string | null = null;
     if (input.estimatedCompletionTime) {
@@ -114,6 +123,11 @@ export const acceptOrderProcedure = protectedProcedure
         message: updateError?.message || 'Failed to accept order',
       });
     }
+
+    await notifyParty(ctx.supabaseAdmin, orderBuyerId(updatedOrder), 'orderUpdates', {
+      title: 'Order accepted',
+      body: 'The cook accepted your order.',
+    });
 
     return {
       id: updatedOrder.id,

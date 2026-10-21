@@ -58,7 +58,7 @@ export default function FarmMarketScreen() {
 
       {listings.length > 0 && (filter === 'all' || listings.some((listing) => listing.track === filter)) ? (
         <View>
-          <Text style={styles.section}>Your stand</Text>
+          <Text style={styles.section}>Farm goods</Text>
           {listings
             .filter((listing) => filter === 'all' || listing.track === filter)
             .map((listing) => (

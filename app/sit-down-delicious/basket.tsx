@@ -10,10 +10,12 @@ import { useCombinedBill } from '@/hooks/use-combined-bill';
 import { Colors } from '@/constants/colors';
 import { getPlace, getSitItem } from '@/constants/sit-down-delicious';
 import { useSitDown } from '@/hooks/sit-down-store';
-import { calculateOrderSplit } from '@/lib/fees';
+import { buyerFoodCharge } from '@/backend/lib/fees';
+import { useAuth } from '@/hooks/auth-context';
 
 export default function SitBasketScreen() {
   const { items, listings, license, setQuantity, clearItems } = useSitDown();
+  const { user } = useAuth();
   const { payInMainCart } = useCombinedBill();
   const lines = useMemo(() => {
     return items.flatMap((item) => {
@@ -29,7 +31,7 @@ export default function SitBasketScreen() {
   const placeId = lines[0]?.placeId;
   const placeName = placeId === 'owner-place' ? license?.placeName ?? 'Your restaurant' : getPlace(placeId ?? '')?.name ?? 'Restaurant';
   const baseAmount = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
-  const split = calculateOrderSplit(baseAmount);
+  const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 
   return (
     <SitDownScreen title="Restaurant order" subtitle="One shop. A table or counter takeout." showBasket={false} testID="sit-basket">

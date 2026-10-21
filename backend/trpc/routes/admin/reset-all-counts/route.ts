@@ -1,6 +1,6 @@
-import { adminProcedure } from "../../../create-context";
+import { mainAdminProcedure } from "../../../create-context";
 
-export const resetAllCountsProcedure = adminProcedure
+export const resetAllCountsProcedure = mainAdminProcedure
   .mutation(async ({ ctx }) => {
     // Reset all counts in metro_area_counts table
     // Use correct column names: platemaker_count and platetaker_count

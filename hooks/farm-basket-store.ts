@@ -5,6 +5,7 @@ import { useSavedShopOrders } from '@/hooks/use-saved-shop-orders';
 import type { ComplianceRecord, FarmChannel, RegulatoryTrack } from '@/lib/cottage-food';
 import { evaluateListing } from '@/lib/cottage-food';
 import { farmOrdersFromSaved, mergeById, sameOrders } from '@/lib/saved-shop-order';
+import { shareLaneListing, useSharedLaneListings } from '@/lib/lane-sync';
 
 const STORAGE_KEY = 'farm_grown_basket_v1';
 
@@ -29,6 +30,10 @@ export type FarmOrder = {
   baseAmount: number;
   buyerPays: number;
   sellerPayout: number;
+  paid?: boolean;
+  sellerId?: string | null;
+  orderStatus?: string;
+  handoffNote?: string;
 };
 
 export type FarmListing = {
@@ -64,6 +69,7 @@ let state: FarmState = {
 
 const listeners = new Set<() => void>();
 let hydrateStarted = false;
+let storeGeneration = 0;
 
 function emit() {
   listeners.forEach((listener) => listener());
@@ -82,9 +88,10 @@ function getSnapshot() {
 export function hydrateFarmBasket() {
   if (hydrateStarted) return;
   hydrateStarted = true;
+  const generation = storeGeneration;
   AsyncStorage.getItem(STORAGE_KEY)
     .then((raw) => {
-      if (!raw) return;
+      if (generation !== storeGeneration || !raw) return;
       const parsed = JSON.parse(raw) as Partial<FarmState>;
       state = {
         items: parsed.items ?? [],
@@ -121,6 +128,30 @@ export function setFarmQuantity(productId: string, quantity: number) {
 
 export function clearFarmItems() {
   state = { ...state, items: [] };
+  emit();
+}
+
+/** Drop the paid lines and keep the saved listings. Safe before the lane screen has loaded. */
+export async function forgetPaidFarmItems() {
+  storeGeneration += 1;
+  hydrateStarted = true;
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<FarmState>;
+      state = {
+        items: [],
+        follows: parsed.follows ?? state.follows,
+        orders: mergeById(parsed.orders ?? [], state.orders),
+        compliance: parsed.compliance ?? state.compliance,
+        listings: parsed.listings ?? state.listings,
+      };
+    } else {
+      state = { ...state, items: [] };
+    }
+  } catch {
+    state = { ...state, items: [] };
+  }
   emit();
 }
 
@@ -163,7 +194,13 @@ export function publishFarmListing(input: {
   };
   state = { ...state, listings: [listing, ...state.listings] };
   emit();
+  shareLaneListing('farm', listing);
   return { ok: true };
+}
+
+function applySharedFarmListings(listings: FarmListing[]) {
+  state = { ...state, listings };
+  emit();
 }
 
 export function placeFarmOrder(input: {
@@ -198,6 +235,7 @@ export function applyServerFarmOrders(rows: SavedShopOrder[]) {
 export function useFarmBasket() {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   useSavedShopOrders('farm', applyServerFarmOrders);
+  useSharedLaneListings('farm', snapshot.listings, applySharedFarmListings);
   const itemCount = snapshot.items.reduce((sum, item) => sum + item.quantity, 0);
   return {
     ...snapshot,

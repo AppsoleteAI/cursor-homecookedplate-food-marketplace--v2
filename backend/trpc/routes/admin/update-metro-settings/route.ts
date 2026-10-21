@@ -1,7 +1,7 @@
-import { adminProcedure } from "../../../create-context";
+import { mainAdminProcedure } from "../../../create-context";
 import { z } from "zod";
 
-export const updateMetroSettingsProcedure = adminProcedure
+export const updateMetroSettingsProcedure = mainAdminProcedure
   .input(
     z.object({
       name: z.string().min(1),

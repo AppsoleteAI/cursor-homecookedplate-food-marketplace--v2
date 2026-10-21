@@ -20,8 +20,8 @@ interface AuthState {
   session: Session | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (username: string, password: string) => Promise<void>;
-  signup: (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }, foodSafetyAcknowledged?: boolean) => Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean; chooseMembership?: boolean; needsEmailConfirmation?: boolean }>;
+  login: (username: string, password: string, code?: string) => Promise<{ needsTwoFactor: true; codeReused: boolean } | { needsTwoFactor: false }>;
+  signup: (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }, foodSafetyAcknowledged?: boolean) => Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean; chooseMembership?: boolean; needsEmailConfirmation?: boolean; confirmationEmailSent?: boolean }>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<Pick<User, 'username' | 'email' | 'phone' | 'bio' | 'profileImage'>>) => Promise<void>;
   requestPlatemakerRole: () => Promise<void>;
@@ -32,16 +32,20 @@ interface AuthState {
   changePassword: (current: string, next: string) => Promise<boolean>;
   requestDataExport: () => Promise<{ filename: string; content: string; mimeType: string }>;
   resetPassword: (email: string) => Promise<void>;
-  reactivateAccount: (email: string) => Promise<void>;
+  reactivateAccount: (email: string, password: string) => Promise<void>;
+  openKitchen: () => Promise<void>;
+  setOrderingAsBuyer: (on: boolean) => Promise<void>;
 }
 
 const STORAGE_KEY = 'auth_user_v2';
+const orderingKey = (userId: string) => `ordering_as_buyer:${userId}`;
 // CRITICAL: Session stored in SecureStore (encrypted Keychain/Keystore) for production-grade security
 // This prevents session tokens from being accessible in device backups or by other apps
 const SESSION_KEY = 'rork_secure_session';
 
 export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [user, setUser] = useState<User | null>(null);
+  const [orderingAsBuyer, setOrderingAsBuyerState] = useState(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [session, setSession] = useState<Session | null>(null);
   const mountedRef = useRef<boolean>(true);
@@ -56,6 +60,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const reactivateAccountMutation = trpc.auth.reactivateAccount.useMutation();
   const deleteAccountMutation = trpc.auth.deleteAccount.useMutation();
   const setAccountSecurityMutation = trpc.auth.setAccountSecurity.useMutation();
+  const exportMyDataMutation = trpc.auth.exportMyData.useMutation();
   const { data: meData, error: meError, refetch: refetchMe } = trpc.auth.me.useQuery(undefined, {
     enabled: !!session,
     retry: false,
@@ -124,7 +129,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         AsyncStorage.getItem(STORAGE_KEY), // User data can stay in AsyncStorage (less sensitive)
       ]);
 
-      // 2. Restore session if found
+      // 2. Restore session if found. A profile without a token is not signed in.
+      let sessionOk = false;
       if (sessionStr) {
         try {
           const sessionData = JSON.parse(sessionStr) as Session;
@@ -147,6 +153,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
             if (mountedRef.current) {
               setSession(data.session);
             }
+            sessionOk = true;
             await persistSession(data.session);
             navLogger.stateChange('hooks/auth-context.tsx:LOAD_USER', 'session_restored', undefined, {
               userId: data.session.user?.id,
@@ -164,8 +171,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         }
       }
 
-      // 3. Restore user if found
-      if (userStr) {
+      // 3. Restore the profile only when the token restored. Otherwise Sign In is the next screen.
+      if (sessionOk && userStr) {
         try {
           const parsed = JSON.parse(userStr) as Omit<User, 'createdAt'> & { createdAt?: string };
           // Hydrate Dates (AsyncStorage stores them as strings)
@@ -187,6 +194,9 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
             error: parseError instanceof Error ? parseError.message : String(parseError),
           });
         }
+      } else if (userStr) {
+        await AsyncStorage.removeItem(STORAGE_KEY);
+        navLogger.stateChange('hooks/auth-context.tsx:LOAD_USER', 'profile_without_token_cleared', undefined, {});
       }
     } catch (error) {
       // Critical error during hydration - log and clean up
@@ -320,6 +330,23 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, [persistSession, persistUser, refetchMe]);
 
   useEffect(() => {
+    const id = user?.id;
+    if (!id || user.role !== 'platemaker') {
+      setOrderingAsBuyerState(false);
+      return;
+    }
+    let alive = true;
+    AsyncStorage.getItem(orderingKey(id)).then((value) => {
+      if (alive) setOrderingAsBuyerState(value === '1');
+    }).catch((error) => {
+      captureException(error as Error, { context: 'loadOrderingAsBuyer' });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [user?.id, user?.role]);
+
+  useEffect(() => {
     if (!meError) return;
     console.error('[auth.me] Failed:', meError);
     captureException(
@@ -338,8 +365,14 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       return;
     }
     if (meData && mountedRef.current) {
-      setUser(meData);
-      persistUser(meData).catch(err => captureException(err as Error, { context: 'persist meData' }));
+      setUser((current) => {
+        const remote = !meData.metroArea || meData.metroArea === 'Remote/Other';
+        const next = current && current.id === meData.id && current.kitchenOpened === true && remote
+          ? { ...meData, kitchenOpened: true as const }
+          : meData;
+        persistUser(next).catch(err => captureException(err as Error, { context: 'persist meData' }));
+        return next;
+      });
       if (meData.trialExpired && !trialPromptedRef.current) {
         trialPromptedRef.current = true;
         Alert.alert(
@@ -384,7 +417,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     };
   }, [user, session]);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string, code?: string) => {
     try {
       // Add timeout for stuck network requests (10 seconds)
       const timeoutPromise = new Promise<never>((_, reject) => {
@@ -393,8 +426,11 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         }, 10000);
       });
 
-      const loginPromise = loginMutation.mutateAsync({ email, password });
+      const loginPromise = loginMutation.mutateAsync({ email, password, code });
       const result = await Promise.race([loginPromise, timeoutPromise]);
+      if (result.needsTwoFactor) {
+        return { needsTwoFactor: true as const, codeReused: result.codeReused === true };
+      }
       const localAgreement = toCompletedLegalAgreement(await readLegalAgreement());
       const accountAgreement = agreementFromUnknown(result.legalSafetyAgreement);
       if (!localAgreement && !accountAgreement) {
@@ -421,6 +457,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       });
       setSentryUser(result.user);
       addBreadcrumb('User logged in', 'auth', { userId: result.user.id, role: result.user.role });
+      return { needsTwoFactor: false as const };
     } catch (error) {
       if (error instanceof Error && error.message.includes('Complete the Legal & Safety page')) {
         throw error;
@@ -434,7 +471,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     }
   }, [loginMutation, persistUser, persistSession]);
 
-  const signup = useCallback(async (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }, foodSafetyAcknowledged?: boolean): Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean; chooseMembership?: boolean; needsEmailConfirmation?: boolean }> => {
+  const signup = useCallback(async (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }, foodSafetyAcknowledged?: boolean): Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean; chooseMembership?: boolean; needsEmailConfirmation?: boolean; confirmationEmailSent?: boolean }> => {
     try {
       // Add timeout for stuck network requests (15 seconds for signup)
       const timeoutPromise = new Promise<never>((_, reject) => {
@@ -455,10 +492,11 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
       const result = await Promise.race([signupPromise, timeoutPromise]);
       
-      // Signup returns a session so Membership can call the server with this account.
+      // A new signup has no session. The confirmation link is what allows sign-in.
       const chooseMembership = result.status === 'CHOOSE_MEMBERSHIP';
       const requiresCheckout = false;
       const needsEmailConfirmation = result.needsEmailConfirmation ?? false;
+      const confirmationEmailSent = result.confirmationEmailSent !== false;
       const remoteMetro = !result.user.metroArea || result.user.metroArea === 'Remote/Other';
       const signedUpUser = chooseMembership && !remoteMetro ? { ...result.user, needsMembership: true as const } : result.user;
       
@@ -478,15 +516,10 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         await persistSession(opened.data.session);
         setSentryUser(result.user);
         addBreadcrumb('User signed up', 'auth', { userId: result.user.id, role: result.user.role, status: result.status, metro: result.metro });
-        return { success: true, requiresLogin: false, requiresCheckout, chooseMembership, needsEmailConfirmation };
+        return { success: true, requiresLogin: false, requiresCheckout, chooseMembership, needsEmailConfirmation, confirmationEmailSent };
       } else {
-        // No session - user created but needs to login separately
-        // Just set user info for the success animation, don't persist session
-        if (mountedRef.current) {
-          setUser(signedUpUser);
-        }
         addBreadcrumb('User signed up (no session - needs login)', 'auth', { userId: result.user.id, role: result.user.role, status: result.status, metro: result.metro });
-        return { success: true, requiresLogin: true, requiresCheckout, chooseMembership, needsEmailConfirmation };
+        return { success: true, requiresLogin: true, requiresCheckout, chooseMembership, needsEmailConfirmation, confirmationEmailSent };
       }
     } catch (error) {
       captureException(error as Error, { context: 'signup', role });
@@ -572,10 +605,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     if (!user) throw new Error('Sign in to pause your account.');
     const result = await setAccountSecurityMutation.mutateAsync({ isPaused: true });
     if (!result.isPaused) throw new Error('Pause was not saved on the server.');
-    const pausedUser = { ...user, isPaused: result.isPaused, twoFactorEnabled: result.twoFactorEnabled };
-    if (mountedRef.current) setUser(pausedUser);
-    await persistUser(pausedUser);
-  }, [user, persistUser, setAccountSecurityMutation]);
+    await logout();
+  }, [user, logout, setAccountSecurityMutation]);
 
   const unpauseAccount = useCallback(async () => {
     if (!user) throw new Error('Sign in to unpause your account.');
@@ -587,24 +618,15 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, [user, persistUser, setAccountSecurityMutation]);
 
   const deleteAccount = useCallback(async () => {
-    try {
-      // Server-side: cancel Stripe, delete media, anonymize messages,
-      // delete meals/reviews, then delete the Supabase Auth user.
-      // Required by Apple Guideline 5.1.1(v) and applicable privacy law.
-      await deleteAccountMutation.mutateAsync(undefined);
-    } catch (err) {
-      console.error('[deleteAccount] Server-side deletion failed:', err);
-      // Surface the error to the caller so the UI can inform the user
-      throw err;
-    } finally {
-      // Always clear local state regardless of server outcome
-      if (mountedRef.current) {
-        setUser(null);
-      }
-      await persistUser(null);
-      await SecureStore.deleteItemAsync('lifetime_binding_token').catch(() => {});
+    await deleteAccountMutation.mutateAsync(undefined);
+    if (mountedRef.current) {
+      setUser(null);
+      setSession(null);
     }
-  }, [deleteAccountMutation, persistUser]);
+    await persistUser(null);
+    await persistSession(null);
+    await SecureStore.deleteItemAsync('lifetime_binding_token').catch(() => {});
+  }, [deleteAccountMutation, persistSession, persistUser]);
 
   const setTwoFactorEnabled = useCallback(async (enabled: boolean) => {
     if (!user) throw new Error('Sign in to update two-factor.');
@@ -616,8 +638,10 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, [user, persistUser, setAccountSecurityMutation]);
 
   const changePassword = useCallback(async (current: string, newPassword: string) => {
-    if (!user || !session) return false;
+    if (!user || !session || !user.email) return false;
     try {
+      const check = await supabase.auth.signInWithPassword({ email: user.email, password: current });
+      if (check.error || !check.data.session) return false;
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) {
         captureException(new Error(error.message), { context: 'changePassword' });
@@ -632,9 +656,10 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   const requestDataExport = useCallback(async () => {
     const u = user;
+    const records = await exportMyDataMutation.mutateAsync();
     const payload = {
       type: 'user_data_export',
-      generatedAt: new Date().toISOString(),
+      generatedAt: records.generatedAt,
       user: u ? {
         id: u.id,
         username: u.username,
@@ -647,10 +672,13 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         bio: u.bio ?? null,
         profileImage: u.profileImage ?? null,
       } : null,
+      orders: records.orders,
+      messages: records.messages,
+      payments: records.payments,
     };
     const content = JSON.stringify(payload, null, 2);
     return { filename: `my-data-${u?.username ?? 'user'}.json`, content, mimeType: 'application/json' };
-  }, [user]);
+  }, [exportMyDataMutation, user]);
 
   const resetPassword = useCallback(async (email: string) => {
     try {
@@ -665,11 +693,39 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     }
   }, [resetPasswordMutation]);
 
-  const reactivateAccount = useCallback(async (email: string) => {
+  const setOrderingAsBuyer = useCallback(async (on: boolean) => {
+    if (!user || user.role !== 'platemaker') return;
+    setOrderingAsBuyerState(on);
     try {
-      await reactivateAccountMutation.mutateAsync({ email });
+      await AsyncStorage.setItem(orderingKey(user.id), on ? '1' : '0');
+    } catch (error) {
+      captureException(error as Error, { context: 'setOrderingAsBuyer' });
+    }
+  }, [user]);
+
+  const visibleUser = useMemo(() => {
+    if (!user) return null;
+    const accountRole = user.role;
+    const ordering = accountRole === 'platemaker' && orderingAsBuyer;
+    return {
+      ...user,
+      accountRole,
+      orderingAsBuyer: ordering,
+      role: ordering ? 'platetaker' as const : accountRole,
+    };
+  }, [orderingAsBuyer, user]);
+
+  const openKitchen = useCallback(async () => {
+    if (!user || user.role !== 'platemaker') return;
+    const next = { ...user, kitchenOpened: true as const };
+    if (mountedRef.current) setUser(next);
+    await persistUser(next);
+  }, [persistUser, user]);
+
+  const reactivateAccount = useCallback(async (email: string, password: string) => {
+    try {
+      await reactivateAccountMutation.mutateAsync({ email, password });
       addBreadcrumb('Account reactivation requested', 'auth');
-      // The mutation returns success/error message
       return;
     } catch (error) {
       captureException(error as Error, { context: 'reactivateAccount' });
@@ -678,10 +734,10 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, [reactivateAccountMutation]);
 
   const authState = useMemo(() => ({
-    user,
+    user: visibleUser,
     session,
     isLoading,
-    isAuthenticated: !!user,
+    isAuthenticated: !!visibleUser && !!session,
     login,
     signup,
     logout,
@@ -695,7 +751,9 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     requestDataExport,
     resetPassword,
     reactivateAccount,
-  }), [user, session, isLoading, login, signup, logout, updateProfile, requestPlatemakerRole, pauseAccount, unpauseAccount, deleteAccount, setTwoFactorEnabled, changePassword, requestDataExport, resetPassword, reactivateAccount]);
+    openKitchen,
+    setOrderingAsBuyer,
+  }), [visibleUser, session, isLoading, login, signup, logout, updateProfile, requestPlatemakerRole, pauseAccount, unpauseAccount, deleteAccount, setTwoFactorEnabled, changePassword, requestDataExport, resetPassword, reactivateAccount, openKitchen, setOrderingAsBuyer]);
 
 
   return authState;

@@ -7,10 +7,10 @@ import { SitDownScreen } from '@/components/sit-down/SitDownScreen';
 import { Colors } from '@/constants/colors';
 import { getPlace, getSitItem } from '@/constants/sit-down-delicious';
 import { useAuth } from '@/hooks/auth-context';
-import { useSitDown, type SitOrderLine } from '@/hooks/sit-down-store';
+import { forgetPaidSitItems, useSitDown, type SitOrderLine } from '@/hooks/sit-down-store';
 import { SERVICE_LABEL, type DiningService } from '@/lib/sit-down-license';
-import { calculateOrderSplit } from '@/lib/fees';
-import { useShopCardPayment } from '@/hooks/use-shop-payment';
+import { buyerFoodCharge } from '@/backend/lib/fees';
+import { useShopCardPayment, useWebShopReturn } from '@/hooks/use-shop-payment';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
 import { usePaidBack } from '@/hooks/use-leave-screen';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
@@ -25,6 +25,10 @@ export default function SitCheckoutScreen() {
   const [service, setService] = useState<DiningService>('sit_down');
   const [partySize, setPartySize] = useState(2);
   const [orderId, setOrderId] = useState<string | null>(null);
+  useWebShopReturn('sit_down', async (paidOrderId) => {
+    await forgetPaidSitItems();
+    setOrderId(paidOrderId);
+  });
   usePaidBack('/sit-down-delicious/orders', orderId != null);
 
   const lines = useMemo(() => {
@@ -51,7 +55,7 @@ export default function SitCheckoutScreen() {
     : catalogPlace?.services ?? [];
   const chosen = services.includes(service) ? service : services[0] ?? 'takeout';
   const baseAmount = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
-  const split = calculateOrderSplit(baseAmount);
+  const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;

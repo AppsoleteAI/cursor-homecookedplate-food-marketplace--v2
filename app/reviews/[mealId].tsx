@@ -11,6 +11,8 @@ import { GlassPressable } from '@/components/glass-surface';
 import { BackCircle } from '@/components/BackCircle';
 import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { trpc } from '@/lib/trpc';
+import { ReviewCommentActions } from '@/components/ReviewCommentActions';
+import { chosenReviewOrder, ordersLeftToReview } from '@/lib/review-order';
 
 export default function ReviewsScreen() {
   const params = useLocalSearchParams<{ mealId: string; next?: string; initialRating?: string }>();
@@ -29,18 +31,26 @@ export default function ReviewsScreen() {
     { role: 'buyer' },
     { enabled: !!mealId && user?.role === 'platetaker' }
   );
+  const utils = trpc.useUtils();
   const createReview = trpc.reviews.create.useMutation({
     onSuccess: () => {
       reviewQuery.refetch();
+      utils.meals.get.invalidate();
+      utils.meals.list.invalidate();
     },
   });
   const [rating, setRating] = useState<number>(0);
   const [comment, setComment] = useState<string>('');
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const role: 'platemaker' | 'platetaker' | undefined = (user?.role as any);
   const isPlatemaker = role === 'platemaker';
   const scrollRef = useRef<ScrollView | null>(null);
   const [justSubmitted, setJustSubmitted] = useState<boolean>(false);
-  const leave = useLeaveScreen('/(tabs)/(home)/home');
+  const leave = useLeaveScreen(mealId ? (`/meal/${mealId}` as const) : null);
+  const reviewedOrderIds = (reviewQuery.data || [])
+    .filter((review) => review.authorId === user?.id && typeof review.orderId === 'string')
+    .map((review) => review.orderId as string);
+  const reviewChoices = ordersLeftToReview(buyerOrders.data || [], mealId || '', reviewedOrderIds);
 
   useEffect(() => {
     const initial = Number(params.initialRating ?? 0);
@@ -55,11 +65,15 @@ export default function ReviewsScreen() {
       Alert.alert('Select rating', 'Please select a star rating to continue.');
       return;
     }
-    const completedOrder = (buyerOrders.data || []).find(
-      (order) => order.mealId === mealId && order.status === 'completed'
-    );
+    const choices = ordersLeftToReview(buyerOrders.data || [], mealId, reviewedOrderIds);
+    const completedOrder = chosenReviewOrder(choices, selectedOrderId);
     if (!completedOrder) {
-      Alert.alert('Order required', 'You can review a plate after that order is completed.');
+      Alert.alert(
+        'Order required',
+        choices.length > 1
+          ? 'Choose which completed order this review is for.'
+          : 'You can review a plate after that order is completed.',
+      );
       return;
     }
     createReview.mutate(
@@ -117,6 +131,12 @@ export default function ReviewsScreen() {
                   <StarRating value={r.rating} baseColor="yellow" size={14} disabled />
                 </View>
                 <Text style={styles.comment}>{r.comment}</Text>
+                <ReviewCommentActions
+                  reviewId={r.id}
+                  authorId={r.authorId}
+                  comment={r.comment || ''}
+                  onChanged={() => reviewQuery.refetch()}
+                />
                 <Text style={styles.date}>{new Date(r.createdAt).toLocaleDateString()}</Text>
               </View>
             </View>
@@ -127,6 +147,30 @@ export default function ReviewsScreen() {
           <>
             <Text style={styles.sectionTitle}>Add your review</Text>
             <View style={styles.inputCard}>
+              {reviewChoices.length > 1 ? (
+                <View style={styles.orderChoices}>
+                  <Text style={styles.orderChoiceLabel}>Choose the completed order</Text>
+                  {reviewChoices.map((order) => {
+                    const selected = order.id === selectedOrderId;
+                    const when = order.orderDate ? new Date(order.orderDate) : null;
+                    const label = when && !Number.isNaN(when.getTime())
+                      ? when.toLocaleDateString()
+                      : 'Completed order';
+                    return (
+                      <GlassPressable
+                        key={order.id}
+                        style={[styles.orderChoice, selected && styles.orderChoiceOn]}
+                        onPress={() => setSelectedOrderId(order.id)}
+                        testID={`review-order-${order.id}`}
+                      >
+                        <Text style={[styles.orderChoiceText, selected && styles.orderChoiceTextOn]}>
+                          {label}{order.quantity && order.quantity > 1 ? ` · ${order.quantity} plates` : ''}
+                        </Text>
+                      </GlassPressable>
+                    );
+                  })}
+                </View>
+              ) : null}
               <StarRating value={rating} onChange={setRating} baseColor="yellow" />
               <TextInput
                 value={comment}
@@ -136,6 +180,7 @@ export default function ReviewsScreen() {
                 style={styles.input}
                 multiline
                 numberOfLines={4}
+                maxLength={200}
                 testID="review-input"
               />
               <GlassPressable style={styles.submitButton} onPress={submit} testID="submit-review">
@@ -159,8 +204,8 @@ export default function ReviewsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.white },
   headerGradient: { position: 'absolute', top: 0, left: 0, right: 0, height: 120 },
-  scrollContent: { paddingBottom: 80, paddingTop: 24 },
-  header: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 16 },
+  scrollContent: { paddingBottom: 80 },
+  header: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 16 },
   title: { fontSize: 28, fontWeight: '700', color: Colors.white },
   subtitle: { fontSize: 16, color: Colors.white, marginTop: 4 },
   mealCard: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 24, backgroundColor: Colors.white, borderRadius: 12, padding: 12, elevation: 1 },
@@ -178,6 +223,12 @@ const styles = StyleSheet.create({
   comment: { fontSize: 14, color: Colors.gray[700], lineHeight: 20 },
   date: { fontSize: 12, color: Colors.gray[500], marginTop: 6 },
   inputCard: { marginHorizontal: 24, marginTop: 8, backgroundColor: Colors.gray[50], borderRadius: 12, padding: 12 },
+  orderChoices: { gap: 8, marginBottom: 12 },
+  orderChoiceLabel: { fontSize: 13, fontWeight: '600', color: Colors.gray[700] },
+  orderChoice: { backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.gray[200], borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
+  orderChoiceOn: { borderColor: monoGradients.yellow[0], backgroundColor: '#FFF8E8' },
+  orderChoiceText: { fontSize: 14, color: Colors.gray[800] },
+  orderChoiceTextOn: { fontWeight: '700', color: Colors.gray[900] },
   input: { marginTop: 8, backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.gray[200], borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, color: Colors.gray[900] },
   submitButton: { marginTop: 12, backgroundColor: monoGradients.yellow[0], paddingVertical: 14, borderRadius: 10, alignItems: 'center' },
   submitText: { color: Colors.white, fontWeight: '700' },

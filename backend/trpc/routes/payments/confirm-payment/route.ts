@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../../create-context';
+import { orderBuyerId } from '../../../../lib/order-row';
+import { recordPlatePayment } from '../../../../lib/record-paid-order';
 
 const inputSchema = z.object({
   paymentIntentId: z.string(),
@@ -8,7 +10,7 @@ const inputSchema = z.object({
 
 export const confirmPaymentProcedure = protectedProcedure
   .input(inputSchema)
-  .query(async ({ input, ctx }) => {
+  .mutation(async ({ input, ctx }) => {
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
     if (!stripeSecretKey) {
@@ -17,7 +19,7 @@ export const confirmPaymentProcedure = protectedProcedure
 
     const { data: ownedOrders, error: ownedError } = await ctx.supabaseAdmin
       .from('orders')
-      .select('id, buyer_id, seller_id')
+      .select('*')
       .eq('payment_intent_id', input.paymentIntentId);
 
     if (ownedError || !ownedOrders || ownedOrders.length === 0) {
@@ -28,7 +30,7 @@ export const confirmPaymentProcedure = protectedProcedure
     }
 
     const isParty = ownedOrders.some(
-      (order) => order.buyer_id === ctx.userId || order.seller_id === ctx.userId
+      (order) => orderBuyerId(order) === ctx.userId || order.seller_id === ctx.userId
     );
     if (!isParty) {
       throw new TRPCError({
@@ -56,6 +58,16 @@ export const confirmPaymentProcedure = protectedProcedure
     const paymentIntent = await response.json();
 
     console.log('[Stripe] Payment status:', paymentIntent.status);
+
+    if (paymentIntent.status === 'succeeded') {
+      await recordPlatePayment(ctx.supabaseAdmin, {
+        paymentIntentId: input.paymentIntentId,
+        chargeId: paymentIntent.latest_charge || null,
+        currency: paymentIntent.currency,
+        deliveryFee: Number(paymentIntent.metadata?.delivery_fee ?? 0),
+        stripeSecretKey,
+      });
+    }
 
     return {
       status: paymentIntent.status,

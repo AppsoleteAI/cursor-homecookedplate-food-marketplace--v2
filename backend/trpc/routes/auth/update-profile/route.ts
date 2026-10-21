@@ -47,7 +47,19 @@ export const updateProfileProcedure = protectedProcedure
       updateData.username = r.value;
     }
 
-    if (input.email) updateData.email = input.email;
+    if (input.email) {
+      const authEmail = await ctx.supabaseAdmin.auth.admin.updateUserById(ctx.userId, {
+        email: input.email,
+        email_confirm: true,
+      });
+      if (authEmail.error) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'The sign-in email could not be changed. Profile email was left as it was.',
+        });
+      }
+      updateData.email = input.email;
+    }
     if (input.phone !== undefined) updateData.phone = input.phone;
 
     if (input.bio !== undefined) {

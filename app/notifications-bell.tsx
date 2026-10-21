@@ -5,7 +5,7 @@ import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useOrders } from '@/hooks/orders-context';
+import { trpc } from '@/lib/trpc';
 import { BackCircle } from '@/components/BackCircle';
 import { useLeaveScreen } from '@/hooks/use-leave-screen';
 
@@ -17,13 +17,17 @@ interface SimpleNotification {
 }
 
 export default function NotificationsBellScreen() {
-  const { getNotificationItems } = useOrders();
+  const listed = trpc.notifications.list.useQuery(undefined, { retry: false });
   const leave = useLeaveScreen('/(tabs)/(home)/home');
 
   const notifications: SimpleNotification[] = useMemo(() => {
-    const base = getNotificationItems();
-    return base.map(it => ({ id: it.id, title: it.title, body: it.body, date: it.date }));
-  }, [getNotificationItems]);
+    return (listed.data ?? []).map((item) => ({
+      id: item.id,
+      title: item.title,
+      body: item.body,
+      date: item.date,
+    }));
+  }, [listed.data]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -70,7 +74,7 @@ export default function NotificationsBellScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: pagePastel.yellow },
-  header: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
+  header: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerTitle: { fontSize: 22, fontWeight: '700', color: Colors.white },

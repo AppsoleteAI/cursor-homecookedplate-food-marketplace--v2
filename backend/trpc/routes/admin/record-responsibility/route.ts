@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { adminProcedure } from '../../../create-context';
+import { mainAdminProcedure } from '../../../create-context';
 import { sanitizeTextField } from '../../../../lib/text-security';
 import { recordResponsibilityEvent } from '../../../../lib/stripe-marketplace';
 
-export const recordResponsibilityProcedure = adminProcedure
+export const recordResponsibilityProcedure = mainAdminProcedure
   .input(
     z.object({
       platemakerId: z.string().uuid(),

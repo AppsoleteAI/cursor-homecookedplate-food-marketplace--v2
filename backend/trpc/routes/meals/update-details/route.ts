@@ -2,7 +2,7 @@ import { protectedProcedure } from '../../../create-context';
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { sanitizeTextArray, sanitizeTextField } from '../../../../lib/text-security';
-import { cuisineToMealCategory } from '@/lib/meal-publish';
+import { cuisineToMealCategory, portionTag, timeZoneTag } from '@/lib/meal-publish';
 
 const dateField = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional();
 
@@ -14,6 +14,8 @@ export const updateMealDetailsProcedure = protectedProcedure
       ingredients: z.array(z.string()).min(1),
       expiryDate: dateField,
       receiptDate: dateField,
+      portions: z.number().int().min(1).max(100).optional(),
+      cookTimeZone: z.string().max(80).optional(),
     }).refine((value) => Boolean(value.expiryDate || value.receiptDate), {
       message: 'Add an expiration date or a receipt date.',
     }),
@@ -32,6 +34,23 @@ export const updateMealDetailsProcedure = protectedProcedure
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'List the ingredients.' });
     }
 
+    const current = await ctx.supabase
+      .from('meals')
+      .select('tags')
+      .eq('id', input.mealId)
+      .eq('user_id', ctx.userId)
+      .maybeSingle();
+    if (current.error) {
+      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Could not save meal details.' });
+    }
+    const tags = Array.isArray(current.data?.tags) ? current.data.tags as string[] : [];
+    const zone = timeZoneTag(input.cookTimeZone);
+    const nextTags = [
+      ...tags.filter((tag) => !/^portions:\d+$/.test(tag) && !tag.startsWith('tz:')),
+      ...(input.portions ? [portionTag(input.portions)] : tags.filter((tag) => /^portions:\d+$/.test(tag))),
+      ...(zone ? [zone] : tags.filter((tag) => tag.startsWith('tz:'))),
+    ];
+
     const { data, error } = await ctx.supabase
       .from('meals')
       .update({
@@ -41,6 +60,8 @@ export const updateMealDetailsProcedure = protectedProcedure
         description: ingredients.join(', '),
         expiry_date: input.expiryDate ?? null,
         receipt_date: input.receiptDate ?? null,
+        tags: nextTags,
+        published: true,
       })
       .eq('id', input.mealId)
       .eq('user_id', ctx.userId)

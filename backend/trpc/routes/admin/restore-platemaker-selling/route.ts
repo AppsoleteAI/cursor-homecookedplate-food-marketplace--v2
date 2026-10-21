@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { adminProcedure } from '../../../create-context';
+import { mainAdminProcedure } from '../../../create-context';
 
-export const restorePlatemakerSellingProcedure = adminProcedure
+export const restorePlatemakerSellingProcedure = mainAdminProcedure
   .input(z.object({ platemakerId: z.string().uuid() }))
   .mutation(async ({ ctx, input }) => {
     const { error } = await ctx.supabaseAdmin

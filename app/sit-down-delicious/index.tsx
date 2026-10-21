@@ -63,7 +63,7 @@ export default function SitDownDeliciousHome() {
         <View style={styles.models}>
           <Text style={styles.model}>Independently owned. No chains.</Text>
           <Text style={styles.model}>Sit down, counter takeout, or both</Text>
-          <Text style={styles.model}>Same 10% service fee. Rank is not for sale.</Text>
+          <Text style={styles.model}>The service fee is 10%. A Premium PlateTaker pays 5% on an order of $20 or more. Rank is not for sale.</Text>
         </View>
 
         {links.map((link) => (

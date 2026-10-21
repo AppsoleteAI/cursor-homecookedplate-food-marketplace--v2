@@ -80,7 +80,7 @@ export default function FilterScreen() {
     metroArea: user?.metroArea || undefined,
   });
   const liveMeals: Meal[] = useMemo(() => {
-    return (mealsData || []).map((meal) => ({
+    return (mealsData || []).filter((meal) => meal.plateMakerId !== user?.id).map((meal) => ({
       id: meal.id,
       plateMakerId: meal.plateMakerId,
       plateMakerName: meal.plateMakerName,
@@ -100,7 +100,7 @@ export default function FilterScreen() {
       tags: meal.tags || [],
       isSample: meal.isSample === true,
     }));
-  }, [mealsData]);
+  }, [mealsData, user?.id]);
 
   const filteredMeals = liveMeals.filter(meal => {
     if (selectedCategories.length > 0 && !selectedCategories.includes(meal.category)) {
@@ -123,11 +123,10 @@ export default function FilterScreen() {
       const hasTag = selectedTags.some(tag => (meal.tags ?? []).includes(tag.replace('#', '')));
       if (!hasTag) return false;
     }
-    const min = parseFloat(minPrice) || 0;
-    const max = parseFloat(maxPrice) || 100;
-    if (meal.price < min || meal.price > max) {
-      return false;
-    }
+    const minValue = minPrice.trim() === '' ? null : Number(minPrice);
+    const maxValue = maxPrice.trim() === '' ? null : Number(maxPrice);
+    if (minValue != null && Number.isFinite(minValue) && meal.price < minValue) return false;
+    if (maxValue != null && Number.isFinite(maxValue) && meal.price > maxValue) return false;
     return true;
   });
 

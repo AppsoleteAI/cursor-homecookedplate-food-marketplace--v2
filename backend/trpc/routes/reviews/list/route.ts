@@ -34,10 +34,20 @@ export const listReviewsProcedure = publicProcedure
       ctx.supabaseAdmin,
       (data || []).map((review: { author_id: string }) => review.author_id)
     );
+    const mealIds = [...new Set((data || []).map((review: { meal_id?: string }) => review.meal_id).filter(Boolean))] as string[];
+    const mealNames = new Map<string, string>();
+    if (mealIds.length > 0) {
+      const meals = await ctx.supabaseAdmin.from('meals').select('id, name').in('id', mealIds);
+      for (const meal of meals.data || []) {
+        if (meal.id && meal.name) mealNames.set(meal.id, meal.name);
+      }
+    }
 
     return (data || []).map((review: any) => ({
       id: review.id,
       mealId: review.meal_id,
+      mealName: mealNames.get(review.meal_id) || '',
+      orderId: review.order_id,
       authorId: review.author_id,
       authorName: authors.get(review.author_id)?.username || 'Anonymous',
       authorImage: authors.get(review.author_id)?.profile_image,

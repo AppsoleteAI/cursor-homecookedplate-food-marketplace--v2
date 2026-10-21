@@ -1,4 +1,4 @@
-import type { SavedShopOrder } from '@/backend/lib/shop-fulfillment';
+import { COMBINED_HANDOFF, isCombinedShopFulfillment, type SavedShopOrder } from '@/backend/lib/shop-fulfillment';
 import { getPackage } from '@/constants/cater-event-deliver';
 import { getCatalogProduct } from '@/constants/farm-grown-basket';
 import { getMenuItem } from '@/constants/food-truck-popup';
@@ -22,6 +22,28 @@ export function sameOrders<T extends { id: string; createdAt: string }>(left: T[
 
 export function farmOrdersFromSaved(rows: SavedShopOrder[]): FarmOrder[] {
   return rows.flatMap((row) => {
+    if (isCombinedShopFulfillment(row.fulfillment)) {
+      if (row.shop !== 'farm') return [];
+      return [{
+        id: row.id,
+        createdAt: row.createdAt,
+        channel: 'farm_pickup' as const,
+        handoffNote: COMBINED_HANDOFF,
+        lines: row.items.map((item) => ({
+          productId: item.productId,
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          track: getCatalogProduct(item.productId)?.track ?? 'whole_produce' as const,
+        })),
+        baseAmount: row.baseAmount,
+        buyerPays: row.buyerPays,
+        sellerPayout: row.sellerPayout,
+        paid: row.paid,
+        sellerId: row.sellerId,
+        orderStatus: row.orderStatus,
+      }];
+    }
     if (row.fulfillment.shop !== 'farm') return [];
     const order: FarmOrder = {
       id: row.id,
@@ -37,6 +59,9 @@ export function farmOrdersFromSaved(rows: SavedShopOrder[]): FarmOrder[] {
       baseAmount: row.baseAmount,
       buyerPays: row.buyerPays,
       sellerPayout: row.sellerPayout,
+      paid: row.paid,
+      sellerId: row.sellerId,
+      orderStatus: row.orderStatus,
     };
     return [order];
   });
@@ -44,6 +69,37 @@ export function farmOrdersFromSaved(rows: SavedShopOrder[]): FarmOrder[] {
 
 export function prepOrdersFromSaved(rows: SavedShopOrder[]): PrepOrder[] {
   return rows.flatMap((row) => {
+    if (isCombinedShopFulfillment(row.fulfillment)) {
+      if (row.shop !== 'meal_prep') return [];
+      return [{
+        id: row.id,
+        createdAt: row.createdAt,
+        cookId: row.fulfillment.sellerId,
+        cookName: row.fulfillment.sellerName,
+        handoff: 'pickup' as const,
+        windowLabel: COMBINED_HANDOFF,
+        address: '',
+        mix: COMBINED_HANDOFF,
+        handoffNote: COMBINED_HANDOFF,
+        lines: row.items.map((item) => {
+          const catalog = getPrepItem(item.productId);
+          return {
+            itemId: item.productId,
+            name: item.name,
+            lane: catalog?.lane ?? 'ready' as const,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            minutes: catalog?.minutes ?? 0,
+          };
+        }),
+        baseAmount: row.baseAmount,
+        buyerPays: row.buyerPays,
+        sellerPayout: row.sellerPayout,
+        paid: row.paid,
+        sellerId: row.sellerId,
+        orderStatus: row.orderStatus,
+      }];
+    }
     if (row.fulfillment.shop !== 'meal_prep') return [];
     const order: PrepOrder = {
       id: row.id,
@@ -68,6 +124,9 @@ export function prepOrdersFromSaved(rows: SavedShopOrder[]): PrepOrder[] {
       baseAmount: row.baseAmount,
       buyerPays: row.buyerPays,
       sellerPayout: row.sellerPayout,
+      paid: row.paid,
+      sellerId: row.sellerId,
+      orderStatus: row.orderStatus,
     };
     return [order];
   });
@@ -75,6 +134,29 @@ export function prepOrdersFromSaved(rows: SavedShopOrder[]): PrepOrder[] {
 
 export function truckOrdersFromSaved(rows: SavedShopOrder[]): TruckOrder[] {
   return rows.flatMap((row) => {
+    if (isCombinedShopFulfillment(row.fulfillment)) {
+      if (row.shop !== 'food_truck') return [];
+      return [{
+        id: row.id,
+        createdAt: row.createdAt,
+        truckId: row.fulfillment.sellerId,
+        truckName: row.fulfillment.sellerName,
+        pickupSlot: 'Next 15 minutes',
+        handoffNote: COMBINED_HANDOFF,
+        lines: row.items.map((item) => ({
+          itemId: item.productId,
+          name: getMenuItem(item.productId)?.name ?? item.name,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+        })),
+        baseAmount: row.baseAmount,
+        buyerPays: row.buyerPays,
+        sellerPayout: row.sellerPayout,
+        paid: row.paid,
+        sellerId: row.sellerId,
+        orderStatus: row.orderStatus,
+      }];
+    }
     if (row.fulfillment.shop !== 'food_truck') return [];
     const order: TruckOrder = {
       id: row.id,
@@ -91,6 +173,9 @@ export function truckOrdersFromSaved(rows: SavedShopOrder[]): TruckOrder[] {
       baseAmount: row.baseAmount,
       buyerPays: row.buyerPays,
       sellerPayout: row.sellerPayout,
+      paid: row.paid,
+      sellerId: row.sellerId,
+      orderStatus: row.orderStatus,
     };
     return [order];
   });
@@ -98,6 +183,31 @@ export function truckOrdersFromSaved(rows: SavedShopOrder[]): TruckOrder[] {
 
 export function caterOrdersFromSaved(rows: SavedShopOrder[]): CaterOrder[] {
   return rows.flatMap((row) => {
+    if (isCombinedShopFulfillment(row.fulfillment)) {
+      if (row.shop !== 'catering') return [];
+      return [{
+        id: row.id,
+        createdAt: row.createdAt,
+        companyId: row.fulfillment.sellerId,
+        companyName: row.fulfillment.sellerName,
+        organization: row.fulfillment.sellerName,
+        dropoffWindow: 'Weekday lunch, 11:00–1:00' as const,
+        address: '',
+        handoffNote: COMBINED_HANDOFF,
+        lines: row.items.map((item) => ({
+          packageId: item.productId,
+          name: getPackage(item.productId)?.name ?? item.name,
+          headcount: item.quantity,
+          pricePerPerson: item.unitPrice,
+        })),
+        baseAmount: row.baseAmount,
+        buyerPays: row.buyerPays,
+        sellerPayout: row.sellerPayout,
+        paid: row.paid,
+        sellerId: row.sellerId,
+        orderStatus: row.orderStatus,
+      }];
+    }
     if (row.fulfillment.shop !== 'catering') return [];
     const order: CaterOrder = {
       id: row.id,
@@ -116,6 +226,9 @@ export function caterOrdersFromSaved(rows: SavedShopOrder[]): CaterOrder[] {
       baseAmount: row.baseAmount,
       buyerPays: row.buyerPays,
       sellerPayout: row.sellerPayout,
+      paid: row.paid,
+      sellerId: row.sellerId,
+      orderStatus: row.orderStatus,
     };
     return [order];
   });
@@ -123,6 +236,30 @@ export function caterOrdersFromSaved(rows: SavedShopOrder[]): CaterOrder[] {
 
 export function sitOrdersFromSaved(rows: SavedShopOrder[]): SitOrder[] {
   return rows.flatMap((row) => {
+    if (isCombinedShopFulfillment(row.fulfillment)) {
+      if (row.shop !== 'sit_down') return [];
+      return [{
+        id: row.id,
+        createdAt: row.createdAt,
+        placeId: row.fulfillment.sellerId,
+        placeName: row.fulfillment.sellerName,
+        service: 'takeout' as const,
+        partySize: 1,
+        handoffNote: COMBINED_HANDOFF,
+        lines: row.items.map((item) => ({
+          itemId: item.productId,
+          name: getSitItem(item.productId)?.name ?? item.name,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+        })),
+        baseAmount: row.baseAmount,
+        buyerPays: row.buyerPays,
+        sellerPayout: row.sellerPayout,
+        paid: row.paid,
+        sellerId: row.sellerId,
+        orderStatus: row.orderStatus,
+      }];
+    }
     if (row.fulfillment.shop !== 'sit_down') return [];
     const order: SitOrder = {
       id: row.id,
@@ -140,6 +277,9 @@ export function sitOrdersFromSaved(rows: SavedShopOrder[]): SitOrder[] {
       baseAmount: row.baseAmount,
       buyerPays: row.buyerPays,
       sellerPayout: row.sellerPayout,
+      paid: row.paid,
+      sellerId: row.sellerId,
+      orderStatus: row.orderStatus,
     };
     return [order];
   });

@@ -10,10 +10,12 @@ import { useCombinedBill } from '@/hooks/use-combined-bill';
 import { Colors } from '@/constants/colors';
 import { getCompany, getPackage } from '@/constants/cater-event-deliver';
 import { useCaterEvent } from '@/hooks/cater-event-store';
-import { calculateOrderSplit } from '@/lib/fees';
+import { buyerFoodCharge } from '@/backend/lib/fees';
+import { useAuth } from '@/hooks/auth-context';
 
 export default function CaterBasketScreen() {
   const { items, listings, license, setHeadcount, clearItems } = useCaterEvent();
+  const { user } = useAuth();
   const { payInMainCart } = useCombinedBill();
   const lines = useMemo(() => {
     return items.flatMap((item) => {
@@ -30,7 +32,7 @@ export default function CaterBasketScreen() {
   const companyId = lines[0]?.companyId;
   const companyName = companyId === 'owner-company' ? license?.companyName ?? 'Your company' : getCompany(companyId ?? '')?.name ?? 'Catering company';
   const baseAmount = lines.reduce((sum, line) => sum + line.pricePerPerson * line.headcount, 0);
-  const split = calculateOrderSplit(baseAmount);
+  const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 
   return (
     <CaterEventScreen title="Group order" subtitle="One company. Price is per person." showOrder={false} testID="cater-basket">

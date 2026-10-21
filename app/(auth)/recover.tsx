@@ -33,6 +33,7 @@ export default function RecoverScreen() {
   const params = useLocalSearchParams<{ mode?: string; email?: string }>();
   const [mode, setMode] = useState<RecoveryMode>(startingMode(params.mode));
   const [email, setEmail] = useState(typeof params.email === 'string' ? params.email : '');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const { resetPassword, reactivateAccount } = useAuth();
@@ -68,10 +69,14 @@ export default function RecoverScreen() {
           [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
         );
       } else {
-        await reactivateAccount(cleanEmail);
+        if (!password) {
+          Alert.alert('Password', 'Enter the password for this account.');
+          return;
+        }
+        await reactivateAccount(cleanEmail, password);
         Alert.alert(
           'Account Reactivation',
-          'If your account was paused, it has been reactivated. You can now log in normally.',
+          'Your account is back on. Sign in with your email and password.',
           [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
         );
       }
@@ -145,7 +150,7 @@ export default function RecoverScreen() {
                     ? 'We will email a reset link if this address has an account.'
                     : mode === 'confirm'
                       ? 'We will email a new confirmation link if this address still needs one.'
-                      : 'If this address was paused, we will turn the account back on.'}
+                      : 'Enter the password for this address. Email alone does not turn a paused account back on.'}
                 </Text>
                 <View style={styles.field}>
                   <Ionicons name="mail-outline" size={18} color={AuthColors.maroon} />
@@ -161,6 +166,22 @@ export default function RecoverScreen() {
                     testID="recover-email"
                   />
                 </View>
+                {mode === 'reactivate' ? (
+                  <View style={styles.field}>
+                    <Ionicons name="lock-closed-outline" size={18} color={AuthColors.maroon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Password"
+                      placeholderTextColor={AuthColors.placeholder}
+                      value={password}
+                      onChangeText={setPassword}
+                      secureTextEntry
+                      autoCapitalize="none"
+                      autoComplete="current-password"
+                      testID="recover-password"
+                    />
+                  </View>
+                ) : null}
                 <AuthGoldButton
                   title={mode === 'password' ? 'Send reset link' : mode === 'confirm' ? 'Email me a new link' : 'Reactivate account'}
                   onPress={handleSubmit}
@@ -194,6 +215,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    paddingTop: 16,
     paddingHorizontal: 16,
     paddingBottom: 28,
   },

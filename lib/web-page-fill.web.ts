@@ -37,6 +37,7 @@ const PAGE_COLOR: [string, string][] = [
   ['/orders', pagePastel.gold],
   ['/active-orders', pagePastel.green],
   ['/admin-dashboard', pagePastel.purple],
+  ['/admin-monitor', pagePastel.purple],
   ['/admin-payout-review', pagePastel.purple],
   ['/admin-metro-caps', Colors.gray[50]],
   ['/panic-dashboard', pagePastel.red],

@@ -16,19 +16,48 @@ import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
 import { PromotionalOffer } from '@/types';
 import { useAuth } from '@/hooks/auth-context';
-import { useNotifications } from '@/hooks/notifications-context';
+import { trpc } from '@/lib/trpc';
 import { GlassPressable } from '@/components/glass-surface';
 import { ScreenBack } from '@/components/BackCircle';
 
 export default function PromotionsScreen() {
   const { user } = useAuth();
-  const { sendPromotionNotification } = useNotifications();
-  const [offers, setOffers] = useState<PromotionalOffer[]>([]);
+  const promotions = trpc.promotions.listMine.useQuery(undefined, {
+    enabled: user?.role === 'platemaker',
+    retry: false,
+  });
+  const myMeals = trpc.meals.myMeals.useQuery(undefined, {
+    enabled: user?.role === 'platemaker',
+    retry: false,
+  });
+  const savePromotion = trpc.promotions.save.useMutation({
+    onSuccess: () => promotions.refetch(),
+  });
+  const deletePromotion = trpc.promotions.delete.useMutation({
+    onSuccess: () => promotions.refetch(),
+  });
+  const offers: PromotionalOffer[] = (promotions.data || []).map((offer) => ({
+    id: offer.id,
+    mealId: offer.mealId,
+    type: offer.type,
+    title: offer.title,
+    description: offer.description,
+    discountPercentage: offer.discountPercentage ?? undefined,
+    discountAmount: offer.discountAmount ?? undefined,
+    buyQuantity: offer.buyQuantity ?? undefined,
+    getQuantity: offer.getQuantity ?? undefined,
+    freeItemName: offer.freeItemName ?? undefined,
+    startDate: new Date(offer.startDate),
+    endDate: new Date(offer.endDate),
+    isActive: offer.isActive,
+    createdAt: new Date(offer.createdAt),
+  }));
   const [modalVisible, setModalVisible] = useState(false);
   const [editingOffer, setEditingOffer] = useState<PromotionalOffer | null>(null);
 
   const [formData, setFormData] = useState({
     type: 'percentage' as PromotionalOffer['type'],
+    mealId: '',
     title: '',
     description: '',
     discountPercentage: '',
@@ -43,6 +72,7 @@ export default function PromotionsScreen() {
   const resetForm = useCallback(() => {
     setFormData({
       type: 'percentage',
+      mealId: '',
       title: '',
       description: '',
       discountPercentage: '',
@@ -65,6 +95,7 @@ export default function PromotionsScreen() {
     setEditingOffer(offer);
     setFormData({
       type: offer.type,
+      mealId: offer.mealId || '',
       title: offer.title,
       description: offer.description,
       discountPercentage: offer.discountPercentage?.toString() || '',
@@ -84,7 +115,7 @@ export default function PromotionsScreen() {
   }, [resetForm]);
 
   const validateForm = useMemo(() => {
-    if (!formData.title.trim() || !formData.description.trim()) return false;
+    if (!formData.mealId || !formData.title.trim() || !formData.description.trim()) return false;
     if (!formData.startDate || !formData.endDate) return false;
 
     const start = new Date(formData.startDate);
@@ -114,33 +145,28 @@ export default function PromotionsScreen() {
       return;
     }
 
-    const newOffer: PromotionalOffer = {
-      id: editingOffer?.id || Date.now().toString(),
-      type: formData.type,
-      title: formData.title,
-      description: formData.description,
-      discountPercentage: formData.type === 'percentage' ? Number(formData.discountPercentage) : undefined,
-      discountAmount: formData.type === 'fixed-amount' ? Number(formData.discountAmount) : undefined,
-      buyQuantity: formData.type === 'buy-x-get-y' ? Number(formData.buyQuantity) : undefined,
-      getQuantity: formData.type === 'buy-x-get-y' ? Number(formData.getQuantity) : undefined,
-      freeItemName: formData.type === 'free-item' ? formData.freeItemName : undefined,
-      startDate: new Date(formData.startDate),
-      endDate: new Date(formData.endDate),
-      isActive: true,
-      createdAt: editingOffer?.createdAt || new Date(),
-    };
-
-    if (editingOffer) {
-      setOffers(prev => prev.map(o => o.id === editingOffer.id ? newOffer : o));
-      Alert.alert('Success', 'Promotion updated successfully!');
-    } else {
-      setOffers(prev => [...prev, newOffer]);
-      await sendPromotionNotification(newOffer.title, newOffer.description);
-      Alert.alert('Success', 'Promotion created and customers notified!');
+    try {
+      await savePromotion.mutateAsync({
+        id: editingOffer?.id,
+        mealId: formData.mealId,
+        type: formData.type,
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        discountPercentage: formData.type === 'percentage' ? Number(formData.discountPercentage) : undefined,
+        discountAmount: formData.type === 'fixed-amount' ? Number(formData.discountAmount) : undefined,
+        buyQuantity: formData.type === 'buy-x-get-y' ? Number(formData.buyQuantity) : undefined,
+        getQuantity: formData.type === 'buy-x-get-y' ? Number(formData.getQuantity) : undefined,
+        freeItemName: formData.type === 'free-item' ? formData.freeItemName.trim() : undefined,
+        startDate: new Date(formData.startDate).toISOString(),
+        endDate: new Date(formData.endDate).toISOString(),
+        isActive: true,
+      });
+      Alert.alert('Promotion saved', 'The price on that plate uses this offer while it is active.');
+      closeModal();
+    } catch (error) {
+      Alert.alert('Promotion', error instanceof Error ? error.message : 'The promotion could not be saved.');
     }
-
-    closeModal();
-  }, [formData, validateForm, editingOffer, closeModal, sendPromotionNotification]);
+  }, [formData, validateForm, editingOffer, closeModal, savePromotion]);
 
   const deleteOffer = useCallback((offerId: string) => {
     Alert.alert(
@@ -152,18 +178,32 @@ export default function PromotionsScreen() {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
-            setOffers(prev => prev.filter(o => o.id !== offerId));
+            deletePromotion.mutate({ id: offerId });
           },
         },
       ]
     );
-  }, []);
+  }, [deletePromotion]);
 
   const toggleOfferStatus = useCallback((offerId: string) => {
-    setOffers(prev => prev.map(o => 
-      o.id === offerId ? { ...o, isActive: !o.isActive } : o
-    ));
-  }, []);
+    const offer = offers.find((item) => item.id === offerId);
+    if (!offer?.mealId) return;
+    savePromotion.mutate({
+      id: offer.id,
+      mealId: offer.mealId,
+      type: offer.type,
+      title: offer.title,
+      description: offer.description,
+      discountPercentage: offer.discountPercentage,
+      discountAmount: offer.discountAmount,
+      buyQuantity: offer.buyQuantity,
+      getQuantity: offer.getQuantity,
+      freeItemName: offer.freeItemName,
+      startDate: offer.startDate.toISOString(),
+      endDate: offer.endDate.toISOString(),
+      isActive: !offer.isActive,
+    });
+  }, [offers, savePromotion]);
 
   const getOfferIcon = (type: PromotionalOffer['type']) => {
     switch (type) {
@@ -334,6 +374,21 @@ export default function PromotionsScreen() {
                     </GlassPressable>
                   ))}
                 </View>
+              </View>
+
+              <View style={styles.formSection}>
+                <Text style={styles.label}>Plate</Text>
+                {(myMeals.data || []).length === 0 ? (
+                  <Text style={styles.settingDescription}>Publish a plate before you can put an offer on it.</Text>
+                ) : (myMeals.data || []).map((meal) => (
+                  <GlassPressable
+                    key={meal.id}
+                    onPress={() => setFormData((prev) => ({ ...prev, mealId: meal.id }))}
+                    style={[styles.typeButton, formData.mealId === meal.id && styles.typeButtonActive]}
+                  >
+                    <Text style={[styles.typeButtonText, formData.mealId === meal.id && styles.typeButtonTextActive]}>{meal.name}</Text>
+                  </GlassPressable>
+                ))}
               </View>
 
               <View style={styles.formSection}>
@@ -689,6 +744,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: Colors.gray[900],
+    marginBottom: 8,
+  },
+  settingDescription: {
+    fontSize: 14,
+    color: Colors.gray[600],
     marginBottom: 8,
   },
   input: {

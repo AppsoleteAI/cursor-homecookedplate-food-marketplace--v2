@@ -35,7 +35,7 @@ export default function FunnelScreen() {
     metroArea: user?.metroArea || undefined,
   });
   const liveMeals: Meal[] = useMemo(() => {
-    return (mealsData || []).map((meal) => ({
+    return (mealsData || []).filter((meal) => meal.plateMakerId !== user?.id).map((meal) => ({
       id: meal.id,
       plateMakerId: meal.plateMakerId,
       plateMakerName: meal.plateMakerName,
@@ -55,7 +55,7 @@ export default function FunnelScreen() {
       tags: meal.tags || [],
       isSample: meal.isSample === true,
     }));
-  }, [mealsData]);
+  }, [mealsData, user?.id]);
 
   const categories = useMemo(() => {
     const mealCategories = Array.from(new Set(liveMeals.map(m => m.category)));
@@ -309,7 +309,8 @@ const styles = StyleSheet.create({
     ...glassSurface,
   },
   headerInner: {
-    paddingVertical: 16,
+    paddingTop: 24,
+    paddingBottom: 16,
   },
   headerTop: {
     alignItems: 'flex-start',

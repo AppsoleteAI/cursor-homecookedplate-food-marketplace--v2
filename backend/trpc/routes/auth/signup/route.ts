@@ -11,47 +11,6 @@ const SIGNUP_PROCEDURE_VERSION = `v4-insert-then-update-20250118-${Date.now()}`;
 
 console.log('[Signup Route] PROCEDURE_EXPORT - Version:', SIGNUP_PROCEDURE_VERSION);
 
-type SignupSession = { access_token: string; refresh_token: string };
-
-function sessionFrom(session: { access_token: string; refresh_token: string } | null | undefined): SignupSession | null {
-  if (!session?.access_token || !session.refresh_token) return null;
-  return { access_token: session.access_token, refresh_token: session.refresh_token };
-}
-
-/** The account exists. Open a session so Membership can call the server. */
-async function openSignupSession(ctx: {
-  supabase: {
-    auth: {
-      signInWithPassword: (credentials: { email: string; password: string }) => Promise<{ data: { session: { access_token: string; refresh_token: string } | null }; error: { message?: string; code?: string } | null }>;
-      verifyOtp: (credentials: { type: 'magiclink'; token_hash: string }) => Promise<{ data: { session: { access_token: string; refresh_token: string } | null }; error: { message?: string } | null }>;
-    };
-  };
-  supabaseAdmin: {
-    auth: {
-      admin: {
-        generateLink: (params: { type: 'magiclink'; email: string }) => Promise<{ data: { properties?: { hashed_token?: string } | null } | null; error: { message?: string } | null }>;
-      };
-    };
-  };
-}, email: string, password: string): Promise<SignupSession> {
-  const signedIn = await ctx.supabase.auth.signInWithPassword({ email, password });
-  const direct = sessionFrom(signedIn.data.session);
-  if (direct) return direct;
-
-  const link = await ctx.supabaseAdmin.auth.admin.generateLink({ type: 'magiclink', email });
-  const tokenHash = link.data?.properties?.hashed_token;
-  if (!link.error && tokenHash) {
-    const verified = await ctx.supabase.auth.verifyOtp({ type: 'magiclink', token_hash: tokenHash });
-    const opened = sessionFrom(verified.data.session);
-    if (opened) return opened;
-  }
-
-  throw new TRPCError({
-    code: 'INTERNAL_SERVER_ERROR',
-    message: 'The account was created, but it could not be opened.',
-  });
-}
-
 // Strict password validation schema - matches frontend PasswordStrengthMeter requirements
 // Export for reuse in other routes (e.g., password reset, password change)
 export const passwordSchema = z.string()
@@ -145,7 +104,13 @@ const createSignupProcedure = () => {
             });
           }
 
-          const session = sessionFrom(passwordCheck.data?.session) ?? await openSignupSession(ctx, input.email, input.password);
+          const existingSession = passwordCheck.data?.session;
+          if (!existingSession?.access_token || !existingSession.refresh_token) {
+            throw new TRPCError({
+              code: 'FORBIDDEN',
+              message: 'Confirm your email before signing in. Check your inbox for the verification link.',
+            });
+          }
 
           return {
             status: (existingProfile.role === 'platetaker' ? 'SUCCESS' : 'CHOOSE_MEMBERSHIP') as 'SUCCESS' | 'CHOOSE_MEMBERSHIP',
@@ -164,9 +129,13 @@ const createSignupProcedure = () => {
               metroArea: existingProfile.metro_area || null,
               trialEndsAt: existingProfile.trial_ends_at ? new Date(existingProfile.trial_ends_at) : null,
             },
-            session,
+            session: {
+              access_token: existingSession.access_token,
+              refresh_token: existingSession.refresh_token,
+            },
             metro: existingProfile.metro_area || 'Remote/Other',
             needsEmailConfirmation: true,
+            confirmationEmailSent: false,
           };
         }
 
@@ -336,6 +305,7 @@ const createSignupProcedure = () => {
       // Generate email confirmation token and send via Resend (production email service)
       // CRITICAL: Supabase emails are rate-limited and not suitable for production
       let confirmationToken: string | null = null;
+      let confirmationEmailSent = false;
       try {
         // Generate secure token
         confirmationToken = randomBytes(32).toString('hex');
@@ -364,12 +334,12 @@ const createSignupProcedure = () => {
             confirmationToken,
             webUrl
           );
+          confirmationEmailSent = true;
           console.log('[Signup] Email confirmation sent via Resend');
         }
       } catch (emailError) {
         console.error('[Signup] Failed to send confirmation email:', emailError);
-        // Don't fail signup if email sending fails - log and continue
-        // User can request a new confirmation email later
+        confirmationEmailSent = false;
       }
 
       // Note: Welcome email is sent after email verification, not during signup
@@ -391,7 +361,8 @@ const createSignupProcedure = () => {
         trialEndsAt: profile.trial_ends_at ? new Date(profile.trial_ends_at) : null,
       };
 
-      const session = await openSignupSession(ctx, input.email, input.password);
+      // The Resend link is what sets email_confirmed_at. Signup does not open a session.
+      const session = null;
 
       // PlateTakers use the app free. Premium is optional.
       if ((input.role || 'platetaker') === 'platetaker') {
@@ -401,6 +372,7 @@ const createSignupProcedure = () => {
           session,
           metro: assignedMetro || 'Remote/Other',
           needsEmailConfirmation: true,
+          confirmationEmailSent,
         };
       }
 
@@ -413,6 +385,7 @@ const createSignupProcedure = () => {
         earlyBirdEligible,
         trialDays: offeredTrialDays,
         needsEmailConfirmation: true,
+        confirmationEmailSent,
       };
     });
 };

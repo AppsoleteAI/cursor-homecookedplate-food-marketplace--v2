@@ -7,11 +7,12 @@ import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
 import { Colors } from '@/constants/colors';
 import { getCompany, getPackage } from '@/constants/cater-event-deliver';
 import { useAuth } from '@/hooks/auth-context';
-import { useCaterEvent, type CaterOrderLine } from '@/hooks/cater-event-store';
+import { forgetPaidCaterItems, useCaterEvent, type CaterOrderLine } from '@/hooks/cater-event-store';
 import { DROP_OFF_WINDOWS, type DropOffWindow } from '@/lib/cater-event-license';
-import { calculateOrderSplit, orderTotalWithDelivery } from '@/lib/fees';
+import { buyerFoodCharge } from '@/backend/lib/fees';
+import { orderTotalWithDelivery } from '@/lib/fees';
 import { DeliveryLevyLines, useDeliveryQuote } from '@/components/DeliveryFeeCard';
-import { useShopCardPayment } from '@/hooks/use-shop-payment';
+import { useShopCardPayment, useWebShopReturn } from '@/hooks/use-shop-payment';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
 import { usePaidBack } from '@/hooks/use-leave-screen';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
@@ -25,6 +26,10 @@ export default function CaterCheckoutScreen() {
   const [organization, setOrganization] = useState('');
   const [address, setAddress] = useState('');
   const [orderId, setOrderId] = useState<string | null>(null);
+  useWebShopReturn('catering', async (paidOrderId) => {
+    await forgetPaidCaterItems();
+    setOrderId(paidOrderId);
+  });
   usePaidBack('/cater-event-deliver/orders', orderId != null);
   const [block, setBlock] = useState<string | null>(null);
 
@@ -52,7 +57,7 @@ export default function CaterCheckoutScreen() {
   const companyName = companyId === 'owner-company' ? license?.companyName ?? 'Your company' : catalogCompany?.name ?? 'Catering company';
   const open = companyId === 'owner-company' ? accepting : Boolean(catalogCompany?.accepting);
   const baseAmount = lines.reduce((sum, line) => sum + line.pricePerPerson * line.headcount, 0);
-  const split = calculateOrderSplit(baseAmount);
+  const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
   const sellerAccount = catalogCompany?.sellerId ?? (companyId === 'owner-company' ? user?.id : undefined);
   const delivery = useDeliveryQuote(sellerAccount, true);
   const priced = orderTotalWithDelivery(split.totalCaptured, split.sellerPayout, delivery.deliveryFee);

@@ -127,7 +127,7 @@ export default function AdminMetroCapsScreen() {
           colors={monoGradients.blue}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
-          style={[styles.headerGradient, { paddingTop: insets.top }]}
+          style={[styles.headerGradient, { paddingTop: insets.top + 16 }]}
         >
           <View style={styles.headerContent}>
             <BackCircle tone="light" onPress={leave} gapBelow={false} testID="metro-caps-back" />

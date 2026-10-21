@@ -1,4 +1,4 @@
-import { adminProcedure } from "../../../create-context";
+import { mainAdminProcedure } from "../../../create-context";
 
 interface CheckpointResult {
   checkpoint: string;
@@ -7,7 +7,7 @@ interface CheckpointResult {
   details?: Record<string, any>;
 }
 
-export const verifyPreLaunchProcedure = adminProcedure.query(async ({ ctx }): Promise<CheckpointResult[]> => {
+export const verifyPreLaunchProcedure = mainAdminProcedure.query(async ({ ctx }): Promise<CheckpointResult[]> => {
   const results: CheckpointResult[] = [];
 
   // 1. Metro Saturation Check
@@ -139,7 +139,6 @@ export const verifyPreLaunchProcedure = adminProcedure.query(async ({ ctx }): Pr
   // This check verifies that required keys are likely configured by checking if services work
   try {
     const requiredSecrets = ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'];
-    const missingSecrets: string[] = [];
 
     // Check if keys are configured in backend environment
     // Since we're in the backend, we can check process.env

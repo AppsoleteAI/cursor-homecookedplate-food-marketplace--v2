@@ -251,13 +251,29 @@ EXCEPTION
 END;
 $$;
 
--- Function to automatically calculate order price (prevents price manipulation)
+-- Function to automatically calculate order price (prevents price manipulation).
+-- An active promotional offer lowers the stored plate price. A status change does not.
 CREATE OR REPLACE FUNCTION public.calculate_order_price()
 RETURNS trigger AS $$
 DECLARE
   meal_price numeric(10,2);
-  calculated_total numeric(10,2);
+  menu_total numeric(10,2);
+  charged numeric(10,2);
+  offer_type text;
+  discount_percentage numeric;
+  discount_amount numeric;
+  buy_quantity integer;
+  get_quantity integer;
+  bundle integer;
+  free_units integer;
 BEGIN
+  IF TG_OP = 'UPDATE'
+     AND new.meal_id IS NOT DISTINCT FROM old.meal_id
+     AND new.quantity IS NOT DISTINCT FROM old.quantity
+  THEN
+    RETURN new;
+  END IF;
+
   SELECT price INTO meal_price
   FROM public.meals
   WHERE id = new.meal_id AND available = true AND published = true;
@@ -266,12 +282,48 @@ BEGIN
     RAISE EXCEPTION 'Meal not found or not available';
   END IF;
 
+  IF new.quantity IS NULL OR new.quantity <= 0 THEN
+    RAISE EXCEPTION 'Quantity must be greater than 0';
+  END IF;
+
   IF new.quantity > 999 THEN
     RAISE EXCEPTION 'Quantity exceeds maximum allowed (999)';
   END IF;
 
-  calculated_total := meal_price * new.quantity;
-  new.total_price := calculated_total;
+  menu_total := round(meal_price * new.quantity::numeric, 2);
+  charged := menu_total;
+
+  IF to_regclass('public.promotional_offers') IS NOT NULL THEN
+    SELECT o.type, o.discount_percentage, o.discount_amount, o.buy_quantity, o.get_quantity
+      INTO offer_type, discount_percentage, discount_amount, buy_quantity, get_quantity
+    FROM public.promotional_offers o
+    WHERE o.meal_id = new.meal_id
+      AND o.is_active IS NOT FALSE
+      AND o.start_date <= now()
+      AND o.end_date >= now()
+    ORDER BY o.start_date DESC, o.id DESC
+    LIMIT 1;
+
+    IF offer_type = 'percentage'
+       AND discount_percentage > 0
+       AND discount_percentage <= 100
+    THEN
+      charged := round(menu_total * (1 - discount_percentage / 100), 2);
+    ELSIF offer_type = 'fixed-amount'
+       AND discount_amount > 0
+    THEN
+      charged := round(greatest(0, menu_total - discount_amount), 2);
+    ELSIF offer_type = 'buy-x-get-y'
+       AND buy_quantity >= 1
+       AND get_quantity >= 1
+    THEN
+      bundle := buy_quantity + get_quantity;
+      free_units := (new.quantity / bundle) * get_quantity;
+      charged := round(meal_price * greatest(0, new.quantity - free_units)::numeric, 2);
+    END IF;
+  END IF;
+
+  new.total_price := charged;
 
   RETURN new;
 END;

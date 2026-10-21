@@ -8,6 +8,7 @@ import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useCaterEvent } from '@/hooks/cater-event-store';
+import { ShopOrderActions } from '@/components/ShopOrderActions';
 
 export default function CaterOrdersScreen() {
   const { user } = useAuth();
@@ -37,13 +38,14 @@ export default function CaterOrdersScreen() {
       {orders.map((order) => (
         <View key={order.id} style={styles.card}>
           <Text style={styles.name}>{order.companyName}</Text>
-          <Text style={styles.meta}>{order.organization} · {order.dropoffWindow}</Text>
-          <Text style={styles.meta}>{order.address}</Text>
+          <Text style={styles.meta}>{order.handoffNote ?? `${order.organization} · ${order.dropoffWindow}`}</Text>
+          {order.handoffNote || !order.address ? null : <Text style={styles.meta}>{order.address}</Text>}
           <Text style={styles.meta}>{new Date(order.createdAt).toLocaleString()}</Text>
           {order.lines.map((line) => (
             <Text key={line.packageId} style={styles.line}>{line.headcount} people × {titleCase(line.name)}</Text>
           ))}
-          <Text style={styles.pay}>Paid ${order.buyerPays.toFixed(2)} · company drops off and sets up</Text>
+          <Text style={styles.pay}>Paid ${order.buyerPays.toFixed(2)}{order.handoffNote ? '' : ' · company drops off and sets up'}</Text>
+          <ShopOrderActions orderId={order.id} shop="catering" orderStatus={order.orderStatus} sellerId={order.sellerId} paid={order.paid} />
         </View>
       ))}
       <GlassPressable style={styles.button} onPress={() => router.push(dashboardHref)} testID="cater-orders-dashboard">

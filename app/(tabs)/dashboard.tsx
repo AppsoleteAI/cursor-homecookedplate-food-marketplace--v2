@@ -30,6 +30,7 @@ import { SkeletonDashboard } from '@/components/SkeletonDashboard';
 import { TrialCountdownNotice } from '@/components/TrialCountdownNotice';
 import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
 import { DeliveryFeeCard } from '@/components/DeliveryFeeCard';
+import { GetGpsCard } from '@/components/GetGpsCard';
 
 export default function DashboardScreen() {
   const pathname = usePathname();
@@ -56,14 +57,28 @@ export default function DashboardScreen() {
     enabled: user?.role === 'platemaker' && !!user?.id,
     refetchOnWindowFocus: false,
   });
+  const connect = trpc.payments.getConnectAccountStatus.useQuery(undefined, {
+    enabled: user?.role === 'platemaker' && !!user?.id,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
 
   // Toggle availability mutation
-  const toggleAvailability = trpc.platemaker.toggleAvailability.useMutation({
+  const unpublishMeal = trpc.meals.unpublish.useMutation({
     onSuccess: () => {
+      myMeals.refetch();
+    },
+    onError: (error) => {
+      Alert.alert('Unpublish', error.message);
+    },
+  });
+
+  const toggleAvailability = trpc.platemaker.toggleAvailability.useMutation({
+    onSuccess: (_data, variables) => {
       availabilityStatus.refetch();
       Alert.alert(
         'Availability Updated',
-        availabilityStatus.data?.available === false
+        variables.available
           ? 'You are now accepting new orders'
           : 'You are no longer accepting new orders. Existing orders will continue.'
       );
@@ -103,6 +118,9 @@ export default function DashboardScreen() {
     return null; // Defensive check - SellerOnly guard should prevent this, but safety first
   }
 
+  const availabilityKnown = availabilityStatus.isSuccess && typeof availabilityStatus.data?.available === 'boolean';
+  const acceptingOrders = availabilityKnown ? availabilityStatus.data.available === true : false;
+
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -113,7 +131,7 @@ export default function DashboardScreen() {
 
     if (!result.canceled) {
       setUploadedImages([...uploadedImages, result.assets[0].uri]);
-      Alert.alert('Success', 'Image uploaded successfully!');
+      Alert.alert('On this screen only', 'This photo is not saved. After you publish, add freshness photos on the plate details page.');
     }
   };
 
@@ -126,7 +144,7 @@ export default function DashboardScreen() {
 
     if (!result.canceled) {
       setUploadedImages([...uploadedImages, result.assets[0].uri]);
-      Alert.alert('Success', 'Photo uploaded successfully!');
+      Alert.alert('On this screen only', 'This photo is not saved. After you publish, add freshness photos on the plate details page.');
     }
   };
 
@@ -174,29 +192,57 @@ export default function DashboardScreen() {
         <View style={styles.availabilityCard}>
           <View style={styles.availabilityHeader}>
             <Ionicons 
-              name={availabilityStatus.data?.available ? "checkmark-circle" : "close-circle"} 
+              name={acceptingOrders ? "checkmark-circle" : "close-circle"} 
               size={24} 
-              color={availabilityStatus.data?.available ? Colors.gradient.green : Colors.gray[500]} 
+              color={acceptingOrders ? Colors.gradient.green : Colors.gray[500]} 
             />
             <Text style={styles.availabilityTitle}>Available For Orders</Text>
             <Switch
-              value={availabilityStatus.data?.available ?? true}
+              value={acceptingOrders}
               onValueChange={(value) => {
                 toggleAvailability.mutate({ available: value });
               }}
-              disabled={toggleAvailability.isPending}
+              disabled={!availabilityKnown || toggleAvailability.isPending}
               trackColor={{ false: Colors.gray[300], true: Colors.gradient.green }}
               thumbColor={Colors.white}
             />
           </View>
           <Text style={styles.availabilitySubtext}>
-            {availabilityStatus.data?.available === false
-              ? 'New orders will be blocked until you toggle this back on'
-              : 'You are currently accepting new orders'}
+            {availabilityStatus.isError
+              ? 'Availability could not be loaded. The switch stays off until this check finishes.'
+              : !availabilityKnown
+                ? 'Checking whether you are accepting orders.'
+                : acceptingOrders
+                  ? 'You are currently accepting new orders'
+                  : 'New orders will be blocked until you toggle this back on'}
           </Text>
         </View>
 
+        <GetGpsCard />
+
         <DeliveryFeeCard />
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Your plates</Text>
+          {(myMeals.data || []).length === 0 ? (
+            <Text style={styles.uploadDescription}>No plates yet.</Text>
+          ) : (myMeals.data || []).map((meal) => (
+            <View key={meal.id} style={styles.orderCard}>
+              <View style={styles.orderDetails}>
+                <Text style={styles.orderName}>{meal.name}</Text>
+                <Text style={styles.orderStatus}>{meal.published ? 'On the menu' : 'Unpublished'}</Text>
+              </View>
+              {meal.published ? (
+                <GlassPressable
+                  onPress={() => unpublishMeal.mutate({ mealId: meal.id })}
+                  disabled={unpublishMeal.isPending}
+                >
+                  <Text style={styles.viewAll}>Unpublish</Text>
+                </GlassPressable>
+              ) : null}
+            </View>
+          ))}
+        </View>
 
         <View style={styles.statsGrid}>
           <GlassPressable style={styles.statCard} testID="card-today-earnings" onPress={() => router.push('/finance/today')}>
@@ -211,7 +257,7 @@ export default function DashboardScreen() {
           </GlassPressable>
           <GlassPressable style={styles.statCard} testID="card-earnings-breakdown" onPress={() => router.push('/finance/earnings')}>
             <Ionicons name="receipt-outline" size={24} color={Colors.gradient.green} />
-            <Text style={styles.statValue}>$</Text>
+            <Text style={styles.statValue}>${(dashboardStats.data?.takeHome ?? 0).toFixed(2)}</Text>
             <Text style={styles.statLabel}>Earnings Breakdown</Text>
           </GlassPressable>
           <GlassPressable style={styles.statCard} testID="card-active-orders" onPress={() => {
@@ -227,8 +273,8 @@ export default function DashboardScreen() {
           </GlassPressable>
           <GlassPressable style={styles.statCard} testID="card-payout-responsibility" onPress={() => router.push('/payout-responsibility' as Href)}>
             <Ionicons name="time-outline" size={24} color={Colors.gradient.green} />
-            <Text style={styles.statValue}>7d</Text>
-            <Text style={styles.statLabel}>Payout Hold</Text>
+            <Text style={styles.statValue}>{connect.data?.payoutsEnabled ? 'On' : 'Set up'}</Text>
+            <Text style={styles.statLabel}>Stripe payouts</Text>
           </GlassPressable>
           <GlassPressable style={styles.statCard} testID="card-reviews" onPress={() => router.push('/reviews-dashboard')}>
             <Ionicons name="star-outline" size={24} color={Colors.gradient.green} />
@@ -382,7 +428,7 @@ export default function DashboardScreen() {
 
           <View style={{ marginTop: 16 }}>
             <Text style={styles.sectionTitle}>Category, ingredients, and freshness</Text>
-            <Text style={styles.uploadDescription}>Add these after the plate is published. Name, price, and one photo are enough to publish.</Text>
+            <Text style={styles.uploadDescription}>Name, price, prep time, and one photo start the plate. Category and ingredients put it on the menu. Photos here are not saved.</Text>
             <View style={{ marginTop: 12 }}>
               <GradientButton
                 title="Add details"
@@ -411,7 +457,7 @@ export default function DashboardScreen() {
 
           <FoodHandlingNotice inset testID="dashboard-orders-food-handling" />
           {orders.filter(o => o.status !== 'completed').map(order => (
-            <View key={order.id} style={styles.orderCard}>
+            <GlassPressable key={order.id} style={styles.orderCard} onPress={() => router.push(`/order/${order.id}` as Href)}>
               <Image source={{ uri: order.mealImage }} style={styles.orderImage} />
               <View style={styles.orderDetails}>
                 <Text style={styles.orderName}>{order.mealName}</Text>
@@ -419,7 +465,7 @@ export default function DashboardScreen() {
                 <Text style={styles.orderStatus}>Status: {order.status}</Text>
               </View>
               <Text style={styles.orderPrice}>${order.totalPrice.toFixed(2)}</Text>
-            </View>
+            </GlassPressable>
           ))}
         </View>
 

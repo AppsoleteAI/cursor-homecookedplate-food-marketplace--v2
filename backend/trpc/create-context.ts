@@ -2,6 +2,7 @@ import { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { z } from "zod";
+import { readAdminRole } from "../lib/admin-role";
 import { createServerSupabaseClient, createSupabaseAdmin } from "../lib/supabase";
 import type { CloudflareAI, MediaFrameBinding } from "../lib/image-security";
 
@@ -15,6 +16,8 @@ type EnvBindings = {
   // Cloudflare Media Transformations binding for meal-video still frames
   MEDIA?: MediaFrameBinding;
   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON?: string;
+  STRIPE_SECRET_KEY?: string;
+  RESEND_API_KEY?: string;
 };
 
 /**
@@ -83,6 +86,7 @@ export const createContext = async (opts: FetchCreateContextFnOptions, env?: Env
     ai: env?.AI, // Cloudflare Workers AI binding — available in CF Workers, undefined in local Bun dev
     media: env?.MEDIA,
     googlePlayServiceAccountJson: env?.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON,
+    stripeSecretKey: env?.STRIPE_SECRET_KEY,
   };
 };
 
@@ -167,6 +171,18 @@ const isAuthenticated = t.middleware(async ({ ctx, next }) => {
     });
   }
 
+  const paused = await ctx.supabaseAdmin
+    .from('profiles')
+    .select('is_paused')
+    .eq('id', ctx.userId)
+    .maybeSingle();
+  if (paused.data?.is_paused) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'This account is paused. Reactivate it to sign in.',
+    });
+  }
+
   // Token is valid - pass the user info into the next step of the request
   return next({
     ctx: {
@@ -219,7 +235,42 @@ const isAdmin = t.middleware(async ({ ctx, next }) => {
   });
 });
 
+const isMainAdmin = t.middleware(async ({ ctx, next }) => {
+  if (!ctx.userId) {
+    throw new TRPCError({
+      code: 'UNAUTHORIZED',
+      message: 'No ID card found! Please log in to access this resource.',
+    });
+  }
+
+  const full = await ctx.supabase
+    .from('profiles')
+    .select('is_admin, main_admin, monitor_admin')
+    .eq('id', ctx.userId)
+    .single();
+
+  const profile = full.error
+    ? (await ctx.supabase.from('profiles').select('is_admin').eq('id', ctx.userId).single()).data
+    : full.data;
+
+  if (readAdminRole(profile) !== 'main') {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Main admin access is required.',
+    });
+  }
+
+  return next({
+    ctx: {
+      ...ctx,
+      userId: ctx.userId,
+      user: { id: ctx.userId },
+    },
+  });
+});
+
 export const createTRPCRouter = t.router;
 export const publicProcedure = t.procedure;
 export const protectedProcedure = t.procedure.use(isAuthenticated);
 export const adminProcedure = t.procedure.use(isAdmin);
+export const mainAdminProcedure = t.procedure.use(isMainAdmin);

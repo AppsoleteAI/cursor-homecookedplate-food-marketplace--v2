@@ -7,23 +7,45 @@ import { getPasswordStrengthScore } from '@/components/PasswordStrengthMeter';
 import { useAuth } from './auth-context';
 import * as Location from 'expo-location';
 
+type SignupDraft = {
+  username: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  role: 'platemaker' | 'platetaker';
+  agreedToTerms: boolean;
+  foodSafetyAcknowledged: boolean;
+};
+
+const emptySignupDraft = (): SignupDraft => ({
+  username: '',
+  email: '',
+  password: '',
+  confirmPassword: '',
+  role: 'platetaker',
+  agreedToTerms: false,
+  foodSafetyAcknowledged: false,
+});
+
+let signupDraft: SignupDraft | null = null;
+
+export function clearSignupDraft() {
+  signupDraft = null;
+}
+
 export interface UseSignupFormOptions {
-  onSuccess?: (result: { requiresLogin: boolean; requiresCheckout?: boolean; chooseMembership?: boolean; needsEmailConfirmation?: boolean }) => void;
+  onSuccess?: (result: { requiresLogin: boolean; requiresCheckout?: boolean; chooseMembership?: boolean; needsEmailConfirmation?: boolean; confirmationEmailSent?: boolean }) => void;
   onError?: (error: Error) => void;
 }
 
 export const useSignupForm = (options?: UseSignupFormOptions) => {
   const { signup } = useAuth();
   
-  const [formData, setFormData] = useState({
-    username: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    role: 'platetaker' as 'platemaker' | 'platetaker',
-    agreedToTerms: false,
-    foodSafetyAcknowledged: false,
-  });
+  const [formData, setFormData] = useState<SignupDraft>(() => signupDraft ? { ...signupDraft } : emptySignupDraft());
+
+  useEffect(() => {
+    signupDraft = { ...formData };
+  }, [formData]);
 
   const [loading, setLoading] = useState(false);
   const [isSigningUp, setIsSigningUp] = useState(false);
@@ -318,6 +340,7 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
       // Set animation state - this will trigger the success UI
       setSignupUserRole(formData.role);
       setChooseMembership(formData.role === 'platemaker' || result.chooseMembership === true);
+      clearSignupDraft();
       AsyncStorage.setItem('hcp_has_account', '1').catch(() => undefined);
       setIsSigningUp(true);
 

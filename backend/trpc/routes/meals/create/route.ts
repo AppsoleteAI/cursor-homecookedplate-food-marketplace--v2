@@ -2,7 +2,9 @@ import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { calculateOrderBreakdown, calculateOrderSplit } from "@/backend/lib/fees";
+import { platemakerMayEnter } from "@/backend/lib/trial-access";
 import { sanitizeTextField, sanitizeTextArray } from "../../../../lib/text-security";
+import { portionTag, timeZoneTag } from "@/lib/meal-publish";
 
 export const createMealProcedure = protectedProcedure
   .input(
@@ -17,15 +19,17 @@ export const createMealProcedure = protectedProcedure
       dietaryOptions: z.array(z.string()).optional(),
       preparationTime: z.number().positive(),
       tags: z.array(z.string()).optional(),
+      portions: z.number().int().min(1).max(100).optional(),
+      cookTimeZone: z.string().max(80).optional(),
       expiryDate: z.string().optional(),
       receiptDate: z.string().optional(),
     })
   )
   .mutation(async ({ input, ctx }) => {
     // Check if user is a platemaker and has acknowledged food safety requirements
-    const { data: profile, error: profileError } = await ctx.supabase
+    const { data: profile, error: profileError } = await ctx.supabaseAdmin
       .from('profiles')
-      .select('role, food_safety_acknowledged')
+      .select('role, food_safety_acknowledged, membership_tier, trial_ends_at, stripe_subscription_id, apple_original_transaction_id, google_purchase_token, metro_area, stripe_account_id')
       .eq('id', ctx.userId)
       .single();
 
@@ -41,6 +45,22 @@ export const createMealProcedure = protectedProcedure
         code: 'FORBIDDEN',
         message: 'You must acknowledge food safety requirements before publishing meals. Please review cottagefoodlaws.com and acknowledge the requirements in your profile.',
       });
+    }
+
+    if (profile.role === 'platemaker') {
+      const remote = !profile.metro_area || profile.metro_area === 'Remote/Other';
+      if (!remote && !platemakerMayEnter(profile)) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Choose Early Bird or a paid plan before a plate goes on the menu.',
+        });
+      }
+      if (!profile.stripe_account_id) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Finish Stripe payouts before a plate goes on the menu. Buyers cannot pay until that account is connected.',
+        });
+      }
     }
 
     // Sanitize and validate all user-supplied text fields for prompt injection,
@@ -94,7 +114,11 @@ export const createMealProcedure = protectedProcedure
         category: input.category,
         dietary_options: input.dietaryOptions || [],
         preparation_time: input.preparationTime,
-        tags: tagsResult.values,
+        tags: [
+          ...tagsResult.values.filter((tag) => !/^portions:\d+$/.test(tag) && !tag.startsWith('tz:')),
+          portionTag(input.portions ?? 1),
+          ...(timeZoneTag(input.cookTimeZone) ? [timeZoneTag(input.cookTimeZone) as string] : []),
+        ],
         expiry_date: input.expiryDate,
         receipt_date: input.receiptDate,
         published: false,

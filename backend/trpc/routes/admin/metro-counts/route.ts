@@ -1,6 +1,6 @@
-import { adminProcedure } from "../../../create-context";
+import { mainAdminProcedure } from "../../../create-context";
 
-export const metroCountsProcedure = adminProcedure.query(async ({ ctx }) => {
+export const metroCountsProcedure = mainAdminProcedure.query(async ({ ctx }) => {
   // Query metro_area_counts table - source of truth for cap monitoring
   const { data: counts, error } = await ctx.supabase
     .from('metro_area_counts')

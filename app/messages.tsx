@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { Colors } from '@/constants/colors';
 import { MessageCircle } from 'lucide-react-native';
@@ -28,10 +29,13 @@ export default function MessagesPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const conversationsQuery = trpc.messages.conversations.useQuery(undefined, {
-    enabled: !!user,
-    refetchInterval: 10000,
-  });
+  const conversationsQuery = trpc.messages.conversations.useQuery(
+    { asBuyer: user?.orderingAsBuyer === true },
+    {
+      enabled: !!user,
+      refetchInterval: 10000,
+    },
+  );
 
   useEffect(() => {
     if (conversationsQuery.data) {
@@ -99,35 +103,36 @@ export default function MessagesPage() {
 
   if (!user) {
     return (
-      <View style={styles.container}>
-        <Stack.Screen options={{ title: 'Messages' }} />
-        <ScreenBack fallback="/(tabs)/profile" testID="messages-back" />
+      <SafeAreaView style={styles.container}>
+        <Stack.Screen options={{ title: 'Messages', headerShown: false }} />
+        <View style={styles.backRow}>
+          <ScreenBack fallback="/(tabs)/profile" testID="messages-back" />
+        </View>
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>Please log in to view messages</Text>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <Stack.Screen options={{ title: 'Messages' }} />
-        <ScreenBack fallback="/(tabs)/profile" testID="messages-back" />
+      <SafeAreaView style={styles.container}>
+        <Stack.Screen options={{ title: 'Messages', headerShown: false }} />
+        <View style={styles.backRow}>
+          <ScreenBack fallback="/(tabs)/profile" testID="messages-back" />
+        </View>
         <SkeletonMessagesList />
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Stack.Screen 
-        options={{ 
-          title: 'Messages',
-          headerStyle: { backgroundColor: Colors.white },
-        }} 
-      />
-      <ScreenBack fallback="/(tabs)/profile" testID="messages-back" />
+    <SafeAreaView style={styles.container}>
+      <Stack.Screen options={{ title: 'Messages', headerShown: false }} />
+      <View style={styles.backRow}>
+        <ScreenBack fallback="/(tabs)/profile" testID="messages-back" />
+      </View>
       {conversations.length === 0 ? (
         <View style={styles.emptyContainer}>
           <MessageCircle size={64} color={Colors.gray[400]} />
@@ -145,7 +150,7 @@ export default function MessagesPage() {
           ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -171,6 +176,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.white,
+  },
+  backRow: {
+    paddingTop: 16,
+    paddingLeft: 16,
   },
   listContent: {
     paddingVertical: 8,

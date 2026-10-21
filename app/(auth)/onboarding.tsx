@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AuthColors, preAppFont } from '@/constants/auth-palette';
-import { AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
+import { AuthBackground, AuthBrand, AuthGoldButton, MaroonButtonFill } from '@/components/auth/AuthChrome';
 import { BackCircle } from '@/components/BackCircle';
 import { useWizardBack } from '@/hooks/use-leave-screen';
 import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
@@ -176,6 +176,7 @@ export default function OnboardingScreen() {
               accessibilityRole="button"
               style={styles.successButton}
             >
+              <MaroonButtonFill />
               <Text style={styles.successButtonText}>{maker ? 'Choose Membership' : 'See Membership'}</Text>
             </Pressable>
           </View>
@@ -540,6 +541,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    paddingTop: 16,
     paddingHorizontal: 16,
     paddingBottom: 28,
   },
@@ -788,7 +790,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
-    backgroundColor: AuthColors.maroonDeep,
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.36)',
     shadowColor: '#461C06',

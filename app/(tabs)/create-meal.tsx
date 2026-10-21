@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import {
   View,
@@ -21,6 +21,7 @@ import { useAuth } from '@/hooks/auth-context';
 import { Ionicons } from '@expo/vector-icons';
 import { calculateOrderBreakdown, calculateOrderSplit } from '@/lib/fees';
 import { onPlatePublished, writePlateDraft } from '@/lib/plate-draft';
+import { ScrollJumps } from '@/components/ScrollJumps';
 
 // Import expo-video with platform-specific shim for web compatibility
 // Metro will automatically resolve to lib/expo-video.web.ts on web platform
@@ -71,6 +72,7 @@ function VideoPreview({ uri, testID }: { uri: string; testID?: string }) {
 interface FormState {
   name: string;
   price: string;
+  preparationMinutes: string;
   media: MediaItem[];
   postVideoToTimeline: boolean;
   availabilityWindows: {
@@ -78,46 +80,45 @@ interface FormState {
     startTime: string;
     endTime: string;
   }[];
+  portions: string;
 }
 
 export default function CreateMealScreen() {
-  const { user, isLoading: authLoading } = useAuth();
+  const scrollRef = useRef<ScrollView>(null);
+  const { user, isLoading: authLoading, requestPlatemakerRole } = useAuth();
   const insets = useSafeAreaInsets();
   const [headerHeight, setHeaderHeight] = useState(0);
   const [form, setForm] = useState<FormState>({
     name: '',
     price: '',
+    preparationMinutes: '',
     media: [],
     postVideoToTimeline: false,
     availabilityWindows: [],
+    portions: '1',
   });
   const [countdown, setCountdown] = useState<number>(0);
 
-  const { requestPlatemakerRole } = useAuth();
-
-  // Show onboarding if user is not a platemaker
   const isPlatemaker = user?.role === 'platemaker';
   const showOnboarding = !authLoading && !isPlatemaker;
-  const [isUpgrading, setIsUpgrading] = useState(false);
 
   const handleBecomeSeller = useCallback(async () => {
-    try {
-      setIsUpgrading(true);
-      await requestPlatemakerRole();
-      // The AuthContext will update the user state, which will trigger a re-render
-      // and automatically switch from onboarding to the meal creation form
-      Alert.alert(
-        'Success!',
-        'You are now a PlateMaker! You can start creating and selling meals.',
-        [{ text: 'OK' }]
-      );
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to upgrade account. Please try again later.';
-      Alert.alert('Error', errorMessage);
-    } finally {
-      setIsUpgrading(false);
+    if (!user?.foodSafetyAcknowledged) {
+      router.push('/(tabs)/profile');
+      return;
     }
-  }, [requestPlatemakerRole]);
+    try {
+      await requestPlatemakerRole();
+      Alert.alert('PlateMaker', 'You can create a plate.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      if (/membership/i.test(message)) {
+        router.push('/membership');
+        return;
+      }
+      Alert.alert('PlateMaker', message || 'Food safety and a membership are required.');
+    }
+  }, [requestPlatemakerRole, user?.foodSafetyAcknowledged]);
 
   const onChange = useCallback(<K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -359,9 +360,11 @@ export default function CreateMealScreen() {
     setForm({
       name: '',
       price: '',
+      preparationMinutes: '',
       media: [],
       postVideoToTimeline: false,
       availabilityWindows: [],
+      portions: '1',
     });
   }), []);
 
@@ -369,13 +372,16 @@ export default function CreateMealScreen() {
     writePlateDraft({
       name: form.name,
       price: form.price,
+      preparationMinutes: form.preparationMinutes,
       media: form.media,
+      availabilityWindows: form.availabilityWindows,
+      portions: form.portions,
       postVideoToTimeline: form.postVideoToTimeline && form.media.some((item) => item.type === 'video'),
     });
     router.push('/publish-plate' as Href);
-  }, [form.name, form.price, form.media, form.postVideoToTimeline]);
+  }, [form.name, form.price, form.preparationMinutes, form.media, form.availabilityWindows, form.portions, form.postVideoToTimeline]);
 
-  const serviceDisclosure = 'Fee Structure: Customer pays listed price + 10% (buyer fee). You receive listed price - 10% (seller fee). Platform total: 20%. If you set a delivery fee, the customer pays that amount plus 5%, and you receive the amount you set.';
+  const serviceDisclosure = 'Fee Structure: The customer pays the listed price plus 10%. A Premium PlateTaker pays 5% on an order of $20 or more. You receive the listed price minus 10%. If you set a delivery fee, the customer pays that amount plus 5%, and you receive the amount you set.';
 
   // Show loading state
   if (authLoading) {
@@ -409,7 +415,7 @@ export default function CreateMealScreen() {
             </View>
           </LinearGradient>
         </View>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.onboardingContent, { paddingTop: insets.top + headerHeight + 12 }]}>
+        <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.onboardingContent, { paddingTop: insets.top + headerHeight + 12 }]}>
           <View style={styles.onboardingSection}>
             <Text style={styles.onboardingTitle}>Why Become a PlateMaker?</Text>
             <View style={styles.benefitsList}>
@@ -471,7 +477,6 @@ export default function CreateMealScreen() {
           <View style={styles.onboardingFooter}>
             <GlassPressable
               onPress={handleBecomeSeller}
-              disabled={isUpgrading}
               style={styles.becomeSellerButton}
             >
               <LinearGradient
@@ -480,18 +485,15 @@ export default function CreateMealScreen() {
                 end={{ x: 1, y: 0 }}
                 style={styles.becomeSellerGradient}
               >
-                {isUpgrading ? (
-                  <ActivityIndicator color={Colors.white} />
-                ) : (
-                  <Text style={styles.becomeSellerText}>Become a Seller</Text>
-                )}
+                <Text style={styles.becomeSellerText}>Food safety and membership</Text>
               </LinearGradient>
             </GlassPressable>
             <Text style={styles.disclaimerText}>
-              Note: Account upgrades require admin approval for security. You&apos;ll be notified once your request is processed.
+              A PlateTaker becomes a PlateMaker after food safety and a membership. This button does not change the role by itself.
             </Text>
           </View>
         </ScrollView>
+        <ScrollJumps scrollRef={scrollRef} testID="create-meal" />
       </View>
     );
   }
@@ -516,7 +518,7 @@ export default function CreateMealScreen() {
             </View>
           </LinearGradient>
         </View>
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + headerHeight + 12 }]}>
+        <ScrollView ref={scrollRef} style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + headerHeight + 12 }]}>
 
           <View style={styles.section}>
           <GradientButton
@@ -550,6 +552,16 @@ export default function CreateMealScreen() {
             style={styles.input}
             testID="meal-price"
           />
+          <Text style={styles.label}>Portions</Text>
+          <TextInput
+            value={form.portions}
+            onChangeText={t => onChange('portions', t.replace(/[^0-9]/g, '').slice(0, 3))}
+            placeholder="1"
+            placeholderTextColor={Colors.gray[400]}
+            keyboardType="number-pad"
+            style={styles.input}
+            testID="meal-portions"
+          />
           <Text style={styles.disclosureText}>Fees Structure Disclosure: {serviceDisclosure}</Text>
           
           {feeBreakdown && (
@@ -579,15 +591,28 @@ export default function CreateMealScreen() {
                 <Text style={styles.feeBreakdownValue}>${feeBreakdown.platformRevenue.toFixed(2)}</Text>
               </View>
               <Text style={styles.feeBreakdownNote}>
-                Includes 10% buyer fee + 10% seller fee. A delivery fee adds 5% for the customer. You receive the delivery amount you set.
+Includes a 10% buyer fee and a 10% seller fee. A Premium PlateTaker pays 5% on an order of $20 or more. A delivery fee adds 5% for the customer. You receive the delivery amount you set.
               </Text>
             </View>
           )}
         </View>
 
         <View style={styles.section}>
+          <Text style={styles.label}>Prep time (minutes)</Text>
+          <TextInput
+            value={form.preparationMinutes}
+            onChangeText={t => onChange('preparationMinutes', t.replace(/[^0-9]/g, ''))}
+            placeholder="45"
+            placeholderTextColor={Colors.gray[400]}
+            keyboardType="number-pad"
+            style={styles.input}
+            testID="meal-prep-minutes"
+          />
+        </View>
+
+        <View style={styles.section}>
           <Text style={styles.label}>Availability Schedule</Text>
-          <Text style={styles.helper}>Set when customers can pick up this meal</Text>
+          <Text style={styles.helper}>These pickup days are saved on the plate when you publish.</Text>
           {form.availabilityWindows.map((window, idx) => {
             const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
             return (
@@ -731,6 +756,7 @@ export default function CreateMealScreen() {
 
         <View style={styles.footerSpacer} />
       </ScrollView>
+      <ScrollJumps scrollRef={scrollRef} testID="create-meal" />
       </View>
   );
 }
@@ -749,7 +775,7 @@ const styles = StyleSheet.create({
     ...glassSurface,
   },
   headerInner: { paddingVertical: 0 },
-  scrollContent: { paddingBottom: 40 },
+  scrollContent: { paddingBottom: 120 },
   header: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24 },
   title: { fontSize: inAppHeaderBand.titleSize, fontWeight: '700', color: Colors.white, marginBottom: 4 },
   subtitle: { fontSize: inAppHeaderBand.subtitleSize, color: Colors.white },
@@ -902,7 +928,7 @@ const styles = StyleSheet.create({
     backgroundColor: pagePastel.red,
   },
   onboardingContent: {
-    paddingBottom: 40,
+    paddingBottom: 120,
   },
   onboardingSection: {
     paddingHorizontal: 24,

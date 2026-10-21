@@ -23,6 +23,8 @@ import { SkeletonOrdersList } from '@/components/SkeletonOrdersList';
 import { GlassPressable } from '@/components/glass-surface';
 import { BackCircle } from '@/components/BackCircle';
 import { useLeaveScreen } from '@/hooks/use-leave-screen';
+import { orderCloseout } from '@/lib/order-closeout';
+import { GetGpsCard } from '@/components/GetGpsCard';
 
 /**
  * Active Orders Screen
@@ -70,6 +72,15 @@ export default function ActiveOrdersModal() {
     },
   });
 
+  const updateStatusMutation = trpc.orders.updateStatus.useMutation({
+    onSuccess: () => {
+      refetch();
+    },
+    onError: (error) => {
+      Alert.alert('Order', error.message || 'Could not update this order.');
+    },
+  });
+
   const refundOrderMutation = trpc.platemaker.refundOrder.useMutation({
     onSuccess: (data) => {
       refetch();
@@ -90,7 +101,7 @@ export default function ActiveOrdersModal() {
   const handleDeny = (order: any) => {
     Alert.alert(
       'Deny Order',
-      `Are you sure you want to deny this order? ${order.paid ? 'Payment will be refunded.' : ''}`,
+      'Are you sure you want to deny this order? A paid order stays open if the card refund does not go through.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -150,7 +161,7 @@ export default function ActiveOrdersModal() {
           colors={monoGradients.green}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
-          style={[styles.header, { paddingTop: insets.top }]}
+          style={[styles.header, { paddingTop: insets.top + 24 }]}
         >
           <View style={styles.headerRow}>
             <Text style={styles.headerTitle}>Incoming Orders</Text>
@@ -158,6 +169,9 @@ export default function ActiveOrdersModal() {
           </View>
           <Text style={styles.headerSubtitle}>Manage your orders chronologically</Text>
         </LinearGradient>
+        <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+          <GetGpsCard />
+        </View>
 
         {isLoading ? (
           <SkeletonOrdersList />
@@ -228,6 +242,25 @@ export default function ActiveOrdersModal() {
                   )}
                 </View>
                 <View style={styles.actions}>
+                  {(() => {
+                    const alreadyConfirmed = (order.pickupConfirmedBy ?? []).includes('seller');
+                    const closeout = orderCloseout('platemaker', order.status, alreadyConfirmed);
+                    if (!closeout && alreadyConfirmed) {
+                      return <Text style={styles.instructions}>You confirmed pickup. Waiting for the other person.</Text>;
+                    }
+                    if (!closeout) return null;
+                    return (
+                      <GlassPressable
+                        style={[styles.actionButton, styles.acceptButton]}
+                        onPress={() => updateStatusMutation.mutate({ orderId: order.id, status: closeout.next })}
+                        disabled={updateStatusMutation.isPending}
+                        testID={`order-closeout-${order.id}`}
+                      >
+                        <Ionicons name="checkmark-circle" size={20} color={Colors.white} />
+                        <Text style={styles.actionButtonText}>{closeout.label}</Text>
+                      </GlassPressable>
+                    );
+                  })()}
                   {order.status === 'pending' && (
                     <>
                       <GlassPressable
@@ -313,7 +346,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingTop: 24,
     paddingBottom: 20,
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,

@@ -1,9 +1,13 @@
+import { z } from "zod";
 import { protectedProcedure } from "../../../create-context";
 import { TRPCError } from "@trpc/server";
 import { loadPublicProfiles } from "../../../../lib/public-profiles";
+import { missingBuyerColumn, orderBuyerId } from "../../../../lib/order-row";
 
-export const listConversationsProcedure = protectedProcedure.query(
-  async ({ ctx }) => {
+export const listConversationsProcedure = protectedProcedure
+  .input(z.object({ asBuyer: z.boolean().optional() }).optional())
+  .query(
+  async ({ ctx, input }) => {
     const userId = ctx.userId;
 
     const { data: profile } = await ctx.supabase
@@ -19,27 +23,24 @@ export const listConversationsProcedure = protectedProcedure.query(
       });
     }
 
-    const userRole = profile.role as "platemaker" | "platetaker";
+    const userRole = profile.role === "platemaker" && input?.asBuyer
+      ? "platetaker"
+      : profile.role as "platemaker" | "platetaker";
 
-    const orderFilter =
-      userRole === "platemaker"
-        ? { seller_id: userId }
-        : { buyer_id: userId };
+    const loadOrders = (buyerColumn: "buyer_id" | "platetaker_id") => {
+      const query = ctx.supabaseAdmin
+        .from("orders")
+        .select(`id, ${buyerColumn}, seller_id, status, created_at, meals!inner(id, name, images)`)
+        .order("created_at", { ascending: false });
+      return userRole === "platemaker" ? query.eq("seller_id", userId) : query.eq(buyerColumn, userId);
+    };
 
-    const { data: orders, error: ordersError } = await ctx.supabase
-      .from("orders")
-      .select(
-        `
-        id,
-        buyer_id,
-        seller_id,
-        status,
-        created_at,
-        meals!inner(id, name, images)
-      `
-      )
-      .match(orderFilter)
-      .order("created_at", { ascending: false });
+    let orderResult = await loadOrders("buyer_id");
+    if (orderResult.error && missingBuyerColumn(orderResult.error.message)) {
+      orderResult = await loadOrders("platetaker_id");
+    }
+    const orders = orderResult.data;
+    const ordersError = orderResult.error;
 
     if (ordersError) {
       console.error("Failed to fetch orders:", ordersError);
@@ -85,12 +86,12 @@ export const listConversationsProcedure = protectedProcedure.query(
 
     const profiles = await loadPublicProfiles(
       ctx.supabaseAdmin,
-      orders.flatMap((o) => [o.buyer_id, o.seller_id])
+      orders.flatMap((o) => [orderBuyerId(o), o.seller_id])
     );
 
     return orders.map((order) => {
-      const otherUserId =
-        userRole === "platemaker" ? order.buyer_id : order.seller_id;
+      const buyerId = orderBuyerId(order);
+      const otherUserId = userRole === "platemaker" ? buyerId : order.seller_id;
       const otherUser = profiles.get(otherUserId);
       const latestMessage = latestMessageByOrder[order.id];
 

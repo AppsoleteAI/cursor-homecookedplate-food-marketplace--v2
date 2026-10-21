@@ -60,19 +60,32 @@ returns trigger
 as $$
 declare
   meal_price numeric(10,2);
-  calculated_total numeric(10,2);
+  menu_total numeric(10,2);
+  charged numeric(10,2);
+  offer_type text;
+  discount_percentage numeric;
+  discount_amount numeric;
+  buy_quantity integer;
+  get_quantity integer;
+  bundle integer;
+  free_units integer;
 begin
-  -- Fetch the actual meal price from the meals table
+  -- A status change keeps the price locked at insert.
+  if tg_op = 'UPDATE'
+     and new.meal_id is not distinct from old.meal_id
+     and new.quantity is not distinct from old.quantity
+  then
+    return new;
+  end if;
+
   select price into meal_price
   from public.meals
   where id = new.meal_id and available = true and published = true;
 
-  -- If meal not found or not available, reject the order
   if meal_price is null then
     raise exception 'Meal not found or not available';
   end if;
 
-  -- Enforce reasonable quantity limits (prevent integer overflow)
   if new.quantity is null or new.quantity <= 0 then
     raise exception 'Quantity must be greater than 0';
   end if;
@@ -81,11 +94,40 @@ begin
     raise exception 'Quantity exceeds maximum allowed (999)';
   end if;
 
-  -- Calculate the correct total price
-  calculated_total := round(meal_price * new.quantity::numeric, 2);
+  menu_total := round(meal_price * new.quantity::numeric, 2);
+  charged := menu_total;
 
-  -- OVERRIDE whatever the client sent with the server-calculated price
-  new.total_price := calculated_total;
+  if to_regclass('public.promotional_offers') is not null then
+    select o.type, o.discount_percentage, o.discount_amount, o.buy_quantity, o.get_quantity
+      into offer_type, discount_percentage, discount_amount, buy_quantity, get_quantity
+    from public.promotional_offers o
+    where o.meal_id = new.meal_id
+      and o.is_active is not false
+      and o.start_date <= now()
+      and o.end_date >= now()
+    order by o.start_date desc, o.id desc
+    limit 1;
+
+    if offer_type = 'percentage'
+       and discount_percentage > 0
+       and discount_percentage <= 100
+    then
+      charged := round(menu_total * (1 - discount_percentage / 100), 2);
+    elsif offer_type = 'fixed-amount'
+       and discount_amount > 0
+    then
+      charged := round(greatest(0, menu_total - discount_amount), 2);
+    elsif offer_type = 'buy-x-get-y'
+       and buy_quantity >= 1
+       and get_quantity >= 1
+    then
+      bundle := buy_quantity + get_quantity;
+      free_units := (new.quantity / bundle) * get_quantity;
+      charged := round(meal_price * greatest(0, new.quantity - free_units)::numeric, 2);
+    end if;
+  end if;
+
+  new.total_price := charged;
 
   return new;
 end;

@@ -5,6 +5,7 @@ import { useSavedShopOrders } from '@/hooks/use-saved-shop-orders';
 import { mergeById, sameOrders, sitOrdersFromSaved } from '@/lib/saved-shop-order';
 import type { DiningService, SitDownLicense } from '@/lib/sit-down-license';
 import { evaluateSitDownItem } from '@/lib/sit-down-license';
+import { shareLaneListing, useSharedLaneListings } from '@/lib/lane-sync';
 
 const STORAGE_KEY = 'sit_down_delicious_v1';
 
@@ -32,6 +33,10 @@ export type SitOrder = {
   baseAmount: number;
   buyerPays: number;
   sellerPayout: number;
+  paid?: boolean;
+  sellerId?: string | null;
+  orderStatus?: string;
+  handoffNote?: string;
 };
 
 export type SitListing = {
@@ -65,6 +70,7 @@ let state: SitState = {
 
 const listeners = new Set<() => void>();
 let hydrateStarted = false;
+let storeGeneration = 0;
 
 function emit() {
   listeners.forEach((listener) => listener());
@@ -83,9 +89,10 @@ function getSnapshot() {
 export function hydrateSitDown() {
   if (hydrateStarted) return;
   hydrateStarted = true;
+  const generation = storeGeneration;
   AsyncStorage.getItem(STORAGE_KEY)
     .then((raw) => {
-      if (!raw) return;
+      if (generation !== storeGeneration || !raw) return;
       const parsed = JSON.parse(raw) as Partial<SitState>;
       state = {
         items: parsed.items ?? [],
@@ -133,6 +140,31 @@ export function clearSitItems() {
   emit();
 }
 
+/** Drop a paid restaurant or ghost-kitchen order and keep the saved license and menu. */
+export async function forgetPaidSitItems() {
+  storeGeneration += 1;
+  hydrateStarted = true;
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<SitState>;
+      state = {
+        items: [],
+        follows: parsed.follows ?? state.follows,
+        orders: mergeById(parsed.orders ?? [], state.orders),
+        license: parsed.license ?? state.license,
+        listings: parsed.listings ?? state.listings,
+        ownerOpen: parsed.ownerOpen ?? state.ownerOpen,
+      };
+    } else {
+      state = { ...state, items: [] };
+    }
+  } catch {
+    state = { ...state, items: [] };
+  }
+  emit();
+}
+
 export function toggleSitFollow(placeId: string) {
   const follows = state.follows.includes(placeId)
     ? state.follows.filter((id) => id !== placeId)
@@ -174,7 +206,13 @@ export function publishSitItem(input: {
   };
   state = { ...state, listings: [listing, ...state.listings] };
   emit();
+  shareLaneListing('sit_down', listing);
   return { ok: true };
+}
+
+function applySharedSitListings(listings: SitListing[]) {
+  state = { ...state, listings };
+  emit();
 }
 
 export function placeSitOrder(input: {
@@ -209,6 +247,7 @@ export function applyServerSitOrders(rows: SavedShopOrder[]) {
 export function useSitDown() {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   useSavedShopOrders('sit_down', applyServerSitOrders);
+  useSharedLaneListings('sit_down', snapshot.listings, applySharedSitListings);
   const itemCount = snapshot.items.reduce((sum, item) => sum + item.quantity, 0);
   return {
     ...snapshot,

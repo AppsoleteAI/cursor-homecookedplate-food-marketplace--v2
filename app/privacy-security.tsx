@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -20,10 +20,12 @@ import { PRIVACY_POLICY_URL, SUPPORT_URL, TERMS_OF_SERVICE_URL } from '@/constan
 import { useAuth } from '@/hooks/auth-context';
 import { GlassPressable } from '@/components/glass-surface';
 import { ScreenBack } from '@/components/BackCircle';
+import { ScrollJumps } from '@/components/ScrollJumps';
 import { useConsumeBack } from '@/hooks/use-leave-screen';
 
 
 export default function PrivacySecurityScreen() {
+  const scrollRef = useRef<ScrollView>(null);
   const { user, pauseAccount, unpauseAccount, deleteAccount, setTwoFactorEnabled, changePassword, requestDataExport } = useAuth();
   const router = useRouter();
   const [profileVisibility, setProfileVisibility] = useState<boolean>(true);
@@ -202,7 +204,7 @@ export default function PrivacySecurityScreen() {
           headerShown: false,
         }}
       />
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           <ScreenBack fallback="/(tabs)/profile" testID="privacy-back" />
           <View style={styles.section}>
@@ -267,7 +269,7 @@ export default function PrivacySecurityScreen() {
                 </View>
                 <View style={styles.settingText}>
                   <Text style={styles.settingTitle}>Two-Factor Authentication</Text>
-                  <Text style={styles.settingDescription}>Saved on your account. Sign-in does not ask for a second code yet.</Text>
+                  <Text style={styles.settingDescription}>The next sign-in emails a 6-digit code. It expires in 10 minutes. Five wrong tries close it.</Text>
                 </View>
               </View>
               <Switch
@@ -400,6 +402,7 @@ export default function PrivacySecurityScreen() {
           </View>
         </View>
       </ScrollView>
+      <ScrollJumps scrollRef={scrollRef} testID="privacy" />
 
       <Modal visible={deleteModalVisible} transparent animationType="fade" onRequestClose={handleCancelDelete}>
         <View style={styles.modalOverlay}>
@@ -516,6 +519,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 24,
+    paddingBottom: 108,
   },
   section: {
     marginBottom: 32,

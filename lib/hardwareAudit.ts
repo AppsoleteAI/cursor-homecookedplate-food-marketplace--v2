@@ -80,10 +80,10 @@ export async function runHardwareAudit(
     });
 
     if (!result.allowed) {
-      console.error('[LifetimeBinding] Token mismatch:', result.reason);
+      console.error('[LifetimeBinding] Token mismatch');
     }
 
-    return result;
+    return { allowed: result.allowed };
   } catch (err) {
     // Fail open: allow access on network/server errors
     console.error('[LifetimeBinding] Audit error (failing open):', err);

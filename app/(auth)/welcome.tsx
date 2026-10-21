@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
-import { AuthColors, goldButtonColors, preAppFont } from '@/constants/auth-palette';
+import { AuthColors, goldButtonColors, maroonButtonColors, preAppFont } from '@/constants/auth-palette';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
 import { BackCircle } from '@/components/BackCircle';
@@ -218,7 +218,9 @@ export default function WelcomeScreen() {
               {step === 1 ? (
                 <>
                   <Text style={styles.panelTitle}>Membership</Text>
-                  {MEMBERSHIP_PRICES.map((plan) => (
+                  {MEMBERSHIP_PRICES.map((plan) => {
+                    const yearly = plan.id.endsWith('yearly');
+                    return (
                     <View key={plan.id} style={styles.priceBlock}>
                       <Text style={styles.priceCaption}>{plan.caption}</Text>
                       <GlassPressable
@@ -229,14 +231,15 @@ export default function WelcomeScreen() {
                         testID={plan.id === 'platemaker-monthly' ? 'membership-price' : `membership-price-${plan.id}`}
                       >
                         <LinearGradient
-                          colors={[...goldButtonColors]}
+                          colors={[...(yearly ? maroonButtonColors : goldButtonColors)]}
                           locations={[0, 0.42, 1]}
                           style={styles.priceFill}
                         />
                         <Text style={styles.price}>{`$${plan.amount.toFixed(2)}`}</Text>
                       </GlassPressable>
                     </View>
-                  ))}
+                    );
+                  })}
                   <View style={styles.priceNotes}>
                     <Text style={styles.priceNote}>Premium features access</Text>
                     <Text style={styles.priceNote}>Priority support</Text>
@@ -369,6 +372,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    paddingTop: 16,
     paddingHorizontal: 16,
     paddingBottom: 28,
   },

@@ -1,7 +1,7 @@
 import type { PrepDiet, PrepLane } from '@/constants/meal-prep-go';
 
 export const MEAL_PREP_RULE =
-  'MealPrepGo is a weekly plan from one local cook. Ready meals are finished and reheated. Cook kits are portioned ingredients with a recipe. Add-ons ride with that week. This app does not inspect the kitchen or book a driver. The fee is the same 10% service fee as the rest of HomeCookedPlate.';
+  'MealPrepGo is a weekly plan from one local cook. Ready meals are finished and reheated. Cook kits are portioned ingredients with a recipe. Add-ons ride with that week. This app does not inspect the kitchen or book a driver. The service fee is 10%. A Premium PlateTaker pays 5% on an order of $20 or more.';
 
 export const PREP_LANES: PrepLane[] = ['ready', 'cook', 'addon'];
 

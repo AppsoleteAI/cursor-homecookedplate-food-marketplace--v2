@@ -1,6 +1,6 @@
-import { adminProcedure } from "../../../create-context";
+import { mainAdminProcedure } from "../../../create-context";
 
-export const getMetroCountsProcedure = adminProcedure
+export const getMetroCountsProcedure = mainAdminProcedure
   .query(async ({ ctx }) => {
     // Query all metro area counts using admin client to bypass RLS
     const { data: counts, error } = await ctx.supabaseAdmin

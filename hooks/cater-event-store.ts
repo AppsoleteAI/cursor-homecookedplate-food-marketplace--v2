@@ -5,6 +5,7 @@ import { useSavedShopOrders } from '@/hooks/use-saved-shop-orders';
 import { caterOrdersFromSaved, mergeById, sameOrders } from '@/lib/saved-shop-order';
 import type { CaterLicenseRecord, DropOffWindow } from '@/lib/cater-event-license';
 import { evaluateCaterPackage } from '@/lib/cater-event-license';
+import { shareLaneListing, useSharedLaneListings } from '@/lib/lane-sync';
 
 const STORAGE_KEY = 'cater_event_deliver_v1';
 
@@ -33,6 +34,10 @@ export type CaterOrder = {
   baseAmount: number;
   buyerPays: number;
   sellerPayout: number;
+  paid?: boolean;
+  sellerId?: string | null;
+  orderStatus?: string;
+  handoffNote?: string;
 };
 
 export type CaterListing = {
@@ -67,6 +72,7 @@ let state: CaterState = {
 
 const listeners = new Set<() => void>();
 let hydrateStarted = false;
+let storeGeneration = 0;
 
 function emit() {
   listeners.forEach((listener) => listener());
@@ -85,9 +91,10 @@ function getSnapshot() {
 export function hydrateCaterEvent() {
   if (hydrateStarted) return;
   hydrateStarted = true;
+  const generation = storeGeneration;
   AsyncStorage.getItem(STORAGE_KEY)
     .then((raw) => {
-      if (!raw) return;
+      if (generation !== storeGeneration || !raw) return;
       const parsed = JSON.parse(raw) as Partial<CaterState>;
       state = {
         items: parsed.items ?? [],
@@ -136,6 +143,31 @@ export function clearCaterItems() {
   emit();
 }
 
+/** Drop a paid catering order and keep the saved license and packages. */
+export async function forgetPaidCaterItems() {
+  storeGeneration += 1;
+  hydrateStarted = true;
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<CaterState>;
+      state = {
+        items: [],
+        follows: parsed.follows ?? state.follows,
+        orders: mergeById(parsed.orders ?? [], state.orders),
+        license: parsed.license ?? state.license,
+        listings: parsed.listings ?? state.listings,
+        accepting: parsed.accepting ?? state.accepting,
+      };
+    } else {
+      state = { ...state, items: [] };
+    }
+  } catch {
+    state = { ...state, items: [] };
+  }
+  emit();
+}
+
 export function toggleCaterFollow(companyId: string) {
   const follows = state.follows.includes(companyId)
     ? state.follows.filter((id) => id !== companyId)
@@ -179,7 +211,13 @@ export function publishCaterPackage(input: {
   };
   state = { ...state, listings: [listing, ...state.listings] };
   emit();
+  shareLaneListing('catering', listing);
   return { ok: true };
+}
+
+function applySharedCaterListings(listings: CaterListing[]) {
+  state = { ...state, listings };
+  emit();
 }
 
 export function placeCaterOrder(input: {
@@ -215,6 +253,7 @@ export function applyServerCaterOrders(rows: SavedShopOrder[]) {
 export function useCaterEvent() {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   useSavedShopOrders('catering', applyServerCaterOrders);
+  useSharedLaneListings('catering', snapshot.listings, applySharedCaterListings);
   const headcount = snapshot.items.reduce((sum, item) => sum + item.headcount, 0);
   return {
     ...snapshot,

@@ -11,7 +11,7 @@ export function CombinedCartLock() {
   return (
     <View style={styles.box} testID="combined-cart-lock">
       <Text style={styles.note}>
-        This order includes more than one section. Each section keeps its own service fee, and the card is charged once in the main cart. This section checkout is closed.
+        This order includes more than one section. The card is charged once in the main cart, and the service fee uses that combined food total. This section checkout is closed.
       </Text>
       <GlassPressable onPress={() => router.push('/(tabs)/cart' as Href)} testID="combined-cart-link">
         <Text style={styles.link}>Open the main cart</Text>

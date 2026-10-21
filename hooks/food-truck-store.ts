@@ -5,6 +5,7 @@ import { useSavedShopOrders } from '@/hooks/use-saved-shop-orders';
 import { mergeById, sameOrders, truckOrdersFromSaved } from '@/lib/saved-shop-order';
 import type { PickupSlot, TruckPermitRecord } from '@/lib/food-truck-permit';
 import { evaluateTruckMenuItem } from '@/lib/food-truck-permit';
+import { shareLaneListing, useSharedLaneListings } from '@/lib/lane-sync';
 
 const STORAGE_KEY = 'food_truck_popup_v1';
 
@@ -31,6 +32,10 @@ export type TruckOrder = {
   baseAmount: number;
   buyerPays: number;
   sellerPayout: number;
+  paid?: boolean;
+  sellerId?: string | null;
+  orderStatus?: string;
+  handoffNote?: string;
 };
 
 export type TruckListing = {
@@ -64,6 +69,7 @@ let state: TruckState = {
 
 const listeners = new Set<() => void>();
 let hydrateStarted = false;
+let storeGeneration = 0;
 
 function emit() {
   listeners.forEach((listener) => listener());
@@ -82,9 +88,10 @@ function getSnapshot() {
 export function hydrateFoodTruck() {
   if (hydrateStarted) return;
   hydrateStarted = true;
+  const generation = storeGeneration;
   AsyncStorage.getItem(STORAGE_KEY)
     .then((raw) => {
-      if (!raw) return;
+      if (generation !== storeGeneration || !raw) return;
       const parsed = JSON.parse(raw) as Partial<TruckState>;
       state = {
         items: parsed.items ?? [],
@@ -132,6 +139,31 @@ export function clearTruckItems() {
   emit();
 }
 
+/** Drop a paid truck or food-cart order and keep the saved permit and menu. */
+export async function forgetPaidTruckItems() {
+  storeGeneration += 1;
+  hydrateStarted = true;
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<TruckState>;
+      state = {
+        items: [],
+        follows: parsed.follows ?? state.follows,
+        orders: mergeById(parsed.orders ?? [], state.orders),
+        permit: parsed.permit ?? state.permit,
+        listings: parsed.listings ?? state.listings,
+        ownerActive: parsed.ownerActive ?? state.ownerActive,
+      };
+    } else {
+      state = { ...state, items: [] };
+    }
+  } catch {
+    state = { ...state, items: [] };
+  }
+  emit();
+}
+
 export function toggleTruckFollow(truckId: string) {
   const follows = state.follows.includes(truckId)
     ? state.follows.filter((id) => id !== truckId)
@@ -173,7 +205,13 @@ export function publishTruckItem(input: {
   };
   state = { ...state, listings: [listing, ...state.listings] };
   emit();
+  shareLaneListing('food_truck', listing);
   return { ok: true };
+}
+
+function applySharedTruckListings(listings: TruckListing[]) {
+  state = { ...state, listings };
+  emit();
 }
 
 export function placeTruckOrder(input: {
@@ -207,6 +245,7 @@ export function applyServerTruckOrders(rows: SavedShopOrder[]) {
 export function useFoodTruck() {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   useSavedShopOrders('food_truck', applyServerTruckOrders);
+  useSharedLaneListings('food_truck', snapshot.listings, applySharedTruckListings);
   const itemCount = snapshot.items.reduce((sum, item) => sum + item.quantity, 0);
   return {
     ...snapshot,

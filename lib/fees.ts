@@ -20,6 +20,8 @@
  * @param baseAmount - The base order amount (meal price)
  * @returns Object with totalCaptured, appRevenue, and sellerPayout
  */
+export { promotionalBase, type PromotionPrice } from '@/backend/lib/fees';
+
 export const calculateOrderSplit = (baseAmount: number) => {
   // Null/NaN validation
   if (!Number.isFinite(baseAmount) || baseAmount < 0) {

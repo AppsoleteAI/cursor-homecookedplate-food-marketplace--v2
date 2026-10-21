@@ -7,11 +7,12 @@ import { MealPrepScreen } from '@/components/meal-prep/MealPrepScreen';
 import { Colors } from '@/constants/colors';
 import { getPrepCook, getPrepItem } from '@/constants/meal-prep-go';
 import { useAuth } from '@/hooks/auth-context';
-import { useMealPrep, type PrepOrderLine } from '@/hooks/meal-prep-store';
+import { forgetPaidPrepItems, useMealPrep, type PrepOrderLine } from '@/hooks/meal-prep-store';
 import { weekMix } from '@/lib/meal-prep-go';
-import { calculateOrderSplit, orderTotalWithDelivery } from '@/lib/fees';
+import { buyerFoodCharge } from '@/backend/lib/fees';
+import { orderTotalWithDelivery } from '@/lib/fees';
 import { DeliveryLevyLines, useDeliveryQuote } from '@/components/DeliveryFeeCard';
-import { useShopCardPayment } from '@/hooks/use-shop-payment';
+import { useShopCardPayment, useWebShopReturn } from '@/hooks/use-shop-payment';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
 import { usePaidBack } from '@/hooks/use-leave-screen';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
@@ -25,6 +26,10 @@ export default function MealPrepCheckoutScreen() {
   const [windowLabel, setWindowLabel] = useState('');
   const [address, setAddress] = useState('');
   const [orderId, setOrderId] = useState<string | null>(null);
+  useWebShopReturn('meal_prep', async (paidOrderId) => {
+    await forgetPaidPrepItems();
+    setOrderId(paidOrderId);
+  });
   usePaidBack('/meal-prep-go/orders', orderId != null);
   const [block, setBlock] = useState<string | null>(null);
 
@@ -58,7 +63,7 @@ export default function MealPrepCheckoutScreen() {
   const mealCount = readyCount + cookCount;
   const mix = weekMix(readyCount, cookCount);
   const baseAmount = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
-  const split = calculateOrderSplit(baseAmount);
+  const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
   const delivery = useDeliveryQuote(cookId, handoff === 'dropoff');
   const priced = orderTotalWithDelivery(split.totalCaptured, split.sellerPayout, delivery.deliveryFee);
   const chosenWindow = windowLabel || (windows[0] ? `${windows[0].day} ${windows[0].hours} · ${windows[0].place}` : 'Cook confirms the handoff');

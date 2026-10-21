@@ -3,12 +3,15 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, Alert } from 'react-native';
 import { useAuth } from '@/hooks/auth-context';
+import { trpc } from '@/lib/trpc';
 
 let Notifications: any = null;
 const originalConsoleError = console.error;
 
 try {
   console.error = () => {};
+  // Optional native module. A static import throws on web before the shim loads.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   Notifications = require('expo-notifications');
   console.error = originalConsoleError;
   
@@ -23,7 +26,7 @@ try {
       }),
     });
   }
-} catch (error) {
+} catch {
   console.error = originalConsoleError;
   Notifications = null;
 }
@@ -72,6 +75,7 @@ export const [NotificationsProvider, useNotifications] = createContextHook<Notif
   const [hasPermission, setHasPermission] = useState(false);
   const mountedRef = useRef<boolean>(true);
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const saveNoticePrefs = trpc.auth.setNotificationPrefs.useMutation();
 
   // Internal Gating: Only perform expensive operations after authentication
   // This reduces TTR on login screen by deferring AsyncStorage and permission checks
@@ -243,12 +247,13 @@ export const [NotificationsProvider, useNotifications] = createContextHook<Notif
     }
 
     const newPreferences = { ...preferences, [key]: value } as NotificationPreferences;
+    await saveNoticePrefs.mutateAsync(newPreferences);
     await savePreferences(newPreferences);
 
-    if (value && (key === 'pushNotifications' || preferences.pushNotifications)) {
+    if (value && key !== 'emailNotifications' && (key === 'pushNotifications' || preferences.pushNotifications)) {
       await sendTestNotification(key);
     }
-  }, [preferences, hasPermission, requestPermission, sendTestNotification]);
+  }, [preferences, hasPermission, requestPermission, saveNoticePrefs, sendTestNotification]);
 
   const sendOrderUpdateNotification = useCallback(async (orderId: string, status: string, mealName: string) => {
     if (!preferences.orderUpdates) {

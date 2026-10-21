@@ -14,7 +14,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { AuthColors, authGradient, authGradientLocations, goldButtonColors, preAppFont, wordmarkFont } from '@/constants/auth-palette';
+import { AuthColors, authGradient, authGradientLocations, goldButtonColors, maroonButtonColors, preAppFont, wordmarkFont } from '@/constants/auth-palette';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { titleCase } from '@/lib/title-case';
 
@@ -98,6 +98,17 @@ export function AuthBrand({ toSignIn = true }: { toSignIn?: boolean }) {
   );
 }
 
+export function MaroonButtonFill() {
+  return (
+    <LinearGradient
+      colors={[...maroonButtonColors]}
+      locations={[0, 0.42, 1]}
+      pointerEvents="none"
+      style={StyleSheet.absoluteFillObject}
+    />
+  );
+}
+
 export function AuthGoldButton({
   title,
   onPress,
@@ -124,13 +135,12 @@ export function AuthGoldButton({
       accessibilityRole="button"
       testID={testID}
     >
-      {gold ? (
-        <LinearGradient
-          colors={[...goldButtonColors]}
-          locations={[0, 0.42, 1]}
-          style={styles.goldFill}
-        />
-      ) : null}
+      <LinearGradient
+        colors={[...(gold ? goldButtonColors : maroonButtonColors)]}
+        locations={[0, 0.42, 1]}
+        pointerEvents="none"
+        style={styles.goldFill}
+      />
       {loading ? (
         <ActivityIndicator color={gold ? AuthColors.ink : AuthColors.white} />
       ) : (
@@ -196,12 +206,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
-    backgroundColor: AuthColors.maroonDeep,
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
     ...glassSurface,
   },
   buttonGold: {
     backgroundColor: 'transparent',
-    overflow: 'hidden',
   },
   goldFill: {
     position: 'absolute',

@@ -1,6 +1,6 @@
-import { adminProcedure } from "../../../create-context";
+import { mainAdminProcedure } from "../../../create-context";
 
-export const getSystemAlertsProcedure = adminProcedure.query(async ({ ctx }) => {
+export const getSystemAlertsProcedure = mainAdminProcedure.query(async ({ ctx }) => {
   // Query admin_system_alerts table - ordered by most recent first
   // Limit to 50 most recent alerts to prevent overwhelming the UI
   const { data: alerts, error } = await ctx.supabase

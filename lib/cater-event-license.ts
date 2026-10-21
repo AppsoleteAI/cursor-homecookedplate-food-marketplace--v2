@@ -1,5 +1,5 @@
 export const CATER_EVENT_RULE =
-  'CaterEventDeliver is for licensed catering companies taking group orders. Packages are a fixed price per person, with a minimum headcount. The company drops off the food and sets it up. Cottage food laws do not cover hot catering. This app does not inspect the kitchen, issue the license, hire a driver, or add a 15% to 25% marketplace commission. The fee is the same 10% service fee as the rest of HomeCookedPlate.';
+  'CaterEventDeliver is for licensed catering companies taking group orders. Packages are a fixed price per person, with a minimum headcount. The company drops off the food and sets it up. Cottage food laws do not cover hot catering. This app does not inspect the kitchen, issue the license, hire a driver, or add a 15% to 25% marketplace commission. The service fee is 10%. A Premium PlateTaker pays 5% on an order of $20 or more.';
 
 export const DROP_OFF_WINDOWS = [
   'Weekday lunch, 11:00–1:00',

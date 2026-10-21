@@ -6,6 +6,7 @@ import { MealPrepScreen } from '@/components/meal-prep/MealPrepScreen';
 import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
 import { Colors } from '@/constants/colors';
 import { useMealPrep } from '@/hooks/meal-prep-store';
+import { ShopOrderActions } from '@/components/ShopOrderActions';
 
 export default function MealPrepOrdersScreen() {
   const { orders } = useMealPrep();
@@ -21,9 +22,10 @@ export default function MealPrepOrdersScreen() {
         orders.map((order) => (
           <View key={order.id} style={styles.card}>
             <Text style={styles.name}>{order.cookName}</Text>
-            <Text style={styles.meta}>{order.mix} · {order.lines.length} item{order.lines.length === 1 ? '' : 's'} · {order.handoff === 'pickup' ? 'Pickup' : 'Household drop-off'}</Text>
-            <Text style={styles.meta}>{order.windowLabel}</Text>
+            <Text style={styles.meta}>{order.handoffNote ?? `${order.mix} · ${order.lines.length} item${order.lines.length === 1 ? '' : 's'} · ${order.handoff === 'pickup' ? 'Pickup' : 'Household drop-off'}`}</Text>
+            {order.handoffNote ? null : <Text style={styles.meta}>{order.windowLabel}</Text>}
             <Text style={styles.meta}>You paid ${order.buyerPays.toFixed(2)} · {order.id}</Text>
+            <ShopOrderActions orderId={order.id} shop="meal_prep" orderStatus={order.orderStatus} sellerId={order.sellerId} paid={order.paid} />
           </View>
         ))
       )}

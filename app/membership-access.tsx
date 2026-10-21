@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.white,
   },
-  backRow: { paddingHorizontal: 16, paddingTop: 8 },
+  backRow: { paddingHorizontal: 16, paddingTop: 16 },
   content: {
     paddingHorizontal: 24,
     paddingBottom: 24,

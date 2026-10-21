@@ -1,7 +1,7 @@
-import { adminProcedure } from "../../../create-context";
+import { mainAdminProcedure } from "../../../create-context";
 import { z } from "zod";
 
-export const updateMaxCapProcedure = adminProcedure
+export const updateMaxCapProcedure = mainAdminProcedure
   .input(
     z.object({
       metro_name: z.string().min(1),

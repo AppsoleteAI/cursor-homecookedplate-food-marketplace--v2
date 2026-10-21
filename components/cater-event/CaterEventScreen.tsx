@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 12,
     paddingHorizontal: 16,
-    paddingTop: inAppHeaderBand.paddingTop,
+    paddingTop: inAppHeaderBand.paddingHorizontal,
     paddingBottom: inAppHeaderBand.paddingBottom,
     minHeight: inAppHeaderBand.minHeight,
     borderBottomLeftRadius: 24,

@@ -7,12 +7,14 @@ import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
 import { Colors } from '@/constants/colors';
 import { getCompany, getPackage } from '@/constants/cater-event-deliver';
 import { useCaterEvent } from '@/hooks/cater-event-store';
-import { calculateOrderSplit } from '@/lib/fees';
+import { buyerFoodCharge } from '@/backend/lib/fees';
+import { useAuth } from '@/hooks/auth-context';
 
 export default function CaterPackageScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const packageId = Array.isArray(id) ? id[0] : id;
   const { listings, accepting, license, addPackage } = useCaterEvent();
+  const { user } = useAuth();
   const catalog = packageId ? getPackage(packageId) : undefined;
   const listing = listings.find((item) => item.id === packageId);
   const minimum = catalog?.minimumHeadcount ?? listing?.minimumHeadcount ?? 8;
@@ -38,7 +40,7 @@ export default function CaterPackageScreen() {
   const companyName = company?.name ?? license?.companyName ?? 'Your company';
   const people = Math.max(minimum, headcount);
   const baseAmount = pricePerPerson * people;
-  const split = calculateOrderSplit(baseAmount);
+  const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 
   return (
     <CaterEventScreen title={name} subtitle={companyName} testID="cater-package">

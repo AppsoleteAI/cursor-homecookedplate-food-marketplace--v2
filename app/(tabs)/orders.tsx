@@ -18,9 +18,34 @@ import { trpc, trpcProxyClient } from '@/lib/trpc';
 import { useAuth } from '@/hooks/auth-context';
 import { useCart } from '@/hooks/cart-context';
 import { useFavorites } from '@/hooks/favorites-context';
+import { formatPickupTime, reorderPickup } from '@/lib/pickup-time';
 import { useRouter } from 'expo-router';
 import { SkeletonOrdersList } from '@/components/SkeletonOrdersList';
 import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
+import type { Meal, PromotionalOffer } from '@/types';
+
+function mealForCart(meal: Awaited<ReturnType<typeof trpcProxyClient.meals.get.query>>): Meal {
+  const offer = meal.promotionalOffer;
+  if (!offer) return { ...meal, promotionalOffer: undefined };
+  const promotionalOffer: PromotionalOffer = {
+    id: offer.id,
+    mealId: offer.mealId,
+    type: offer.type,
+    title: offer.title,
+    description: offer.description,
+    discountPercentage: offer.discountPercentage ?? undefined,
+    discountAmount: offer.discountAmount ?? undefined,
+    buyQuantity: offer.buyQuantity ?? undefined,
+    getQuantity: offer.getQuantity ?? undefined,
+    freeItemName: offer.freeItemName ?? undefined,
+    startDate: new Date(offer.startDate),
+    endDate: new Date(offer.endDate),
+    isActive: offer.isActive,
+    createdAt: new Date(offer.startDate),
+  };
+  return { ...meal, promotionalOffer };
+}
+
 export default function OrdersScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -47,19 +72,24 @@ export default function OrdersScreen() {
       const meal = await trpcProxyClient.meals.get.query({ id: order.mealId });
       
       // Check availability
-      if (!meal.available) {
-        Alert.alert('Unavailable', 'This meal is no longer available');
+      if (!meal.available || meal.acceptingOrders === false) {
+        Alert.alert('Orders', 'This cook is not taking orders.');
         setReorderingMealId(null);
         return;
       }
       
       // Add to cart with original preferences
-      addToCart(meal, order.quantity, {
+      const added = addToCart(mealForCart(meal), order.quantity, {
         specialInstructions: order.specialInstructions,
         allergies: order.allergies,
         cookingTemperature: order.cookingTemperature,
-        pickupTime: order.pickupTime,
+        pickupTime: reorderPickup(order.pickupTime),
       });
+      if (!added) {
+        Alert.alert('Orders', 'This cook is not taking orders.');
+        setReorderingMealId(null);
+        return;
+      }
       
       // Show success and navigate to cart
       Alert.alert('Success', 'Meal added to cart!', [
@@ -68,7 +98,8 @@ export default function OrdersScreen() {
       ]);
     } catch (error) {
       console.error('[Re-order] Error:', error);
-      Alert.alert('Error', 'Failed to re-order. Please try again.');
+      const message = error instanceof Error ? error.message : 'This cook is not taking orders.';
+      Alert.alert('Orders', message);
     } finally {
       setReorderingMealId(null);
     }
@@ -80,7 +111,7 @@ export default function OrdersScreen() {
     try {
       // Fetch meal to toggle favorite
       const meal = await trpcProxyClient.meals.get.query({ id: order.mealId });
-      toggleFavorite(meal);
+      toggleFavorite(mealForCart(meal));
     } catch (error) {
       console.error('[Toggle Favorite] Error:', error);
       Alert.alert('Error', 'Failed to update favorite. Please try again.');
@@ -180,7 +211,7 @@ export default function OrdersScreen() {
                     <Text style={styles.orderDetailText}>Quantity: {order.quantity}</Text>
                     {order.pickupTime && (
                       <Text style={styles.orderDetailText}>
-                        Pickup: {new Date(order.pickupTime).toLocaleDateString()}
+                        Pickup: {formatPickupTime(order.pickupTime, order.pickupTimeZone)}
                       </Text>
                     )}
                   </View>
@@ -205,6 +236,14 @@ export default function OrdersScreen() {
                         color={isFavorite(order.mealId) ? Colors.gradient.red : Colors.gray[600]}
                       />
                     </GlassPressable>
+                    {order.status === 'completed' ? (
+                      <GlassPressable
+                        onPress={() => router.push({ pathname: '/reviews/[mealId]', params: { mealId: order.mealId, next: `/order/${order.id}` } })}
+                        testID={`review-order-${order.id}`}
+                      >
+                        <Text style={styles.reviewLink}>Review</Text>
+                      </GlassPressable>
+                    ) : null}
                     <GlassPressable
                       onPress={() => handleReorder(order)}
                       disabled={reorderingMealId === order.mealId}
@@ -476,6 +515,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  reviewLink: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.gray[800],
+    paddingHorizontal: 8,
   },
   reorderText: {
     fontSize: 14,

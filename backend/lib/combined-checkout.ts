@@ -1,4 +1,4 @@
-import { calculateFees } from '@/backend/lib/fees';
+import { buyerServiceFeePercent, calculateFees } from '@/backend/lib/fees';
 
 /** One charge can hold several of these. A checkout is one area and one seller. */
 export const CHECKOUT_AREAS = [
@@ -29,7 +29,14 @@ export type QuotedLine = {
   name: string;
   quantity: number;
   unitPrice: number;
+  /** Offer price for this line. The unit price times quantity can miss a cent. */
+  lineTotal?: number;
+  productId?: string;
 };
+
+export function quotedLineAmount(line: QuotedLine): number {
+  return line.lineTotal ?? line.unitPrice * line.quantity;
+}
 
 export type QuotedCheckout = {
   id: string;
@@ -66,9 +73,18 @@ export function quoteCheckout(input: {
   sellerId: string;
   sellerName: string;
   lines: QuotedLine[];
+  buyerRole?: string | null;
+  buyerMembershipTier?: string | null;
+  /** Food total on this card. Premium uses this, not one section alone. */
+  cardBase?: number;
 }): QuotedCheckout {
-  const baseAmount = money(input.lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0));
-  const fees = calculateFees(baseAmount, 10, 10);
+  const baseAmount = money(input.lines.reduce((sum, line) => sum + quotedLineAmount(line), 0));
+  const buyerPercent = buyerServiceFeePercent({
+    role: input.buyerRole,
+    membershipTier: input.buyerMembershipTier,
+    baseAmount: input.cardBase ?? baseAmount,
+  });
+  const fees = calculateFees(baseAmount, buyerPercent, 10);
   return {
     id: checkoutKey(input.area, input.sellerId),
     area: input.area,
@@ -84,7 +100,15 @@ export function quoteCheckout(input: {
   };
 }
 
-/** The card is charged the sum of each checkout. Fees stay on that checkout's own base. */
+/** One card uses the sum of its food totals for the buyer fee. */
+export function quoteCard(inputs: Parameters<typeof quoteCheckout>[0][]): CombinedReceipt {
+  const cardBase = money(inputs.reduce((sum, input) => (
+    sum + input.lines.reduce((lineSum, line) => lineSum + quotedLineAmount(line), 0)
+  ), 0));
+  return quoteCombined(inputs.map((input) => quoteCheckout({ ...input, cardBase })));
+}
+
+/** The card is charged the sum of each checkout. */
 export function quoteCombined(checkouts: QuotedCheckout[]): CombinedReceipt {
   return {
     checkouts,

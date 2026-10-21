@@ -1,10 +1,7 @@
 import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { calculateOrderBreakdown } from "@/backend/lib/fees";
-import { isSampleMealId } from "@/lib/sample-meals";
-import { assertBuyerCanOrder } from "@/backend/lib/buyer-order-access";
-import { salesVolumeBlock } from "@/backend/lib/stripe-marketplace";
+import { prepareHomePlate, thisOrderExceedsPortions } from "@/backend/lib/plate-order-rules";
 
 /**
  * Create Order Procedure
@@ -22,99 +19,80 @@ export const createOrderProcedure = protectedProcedure
     z.object({
       mealId: z.string(),
       sellerId: z.string(),
-      quantity: z.number().positive().max(999),
+      quantity: z.number().positive().max(100),
       unitPrice: z.number().min(0), // Price per unit from meals table (for calculation)
       specialInstructions: z.string().optional(),
       cookingTemperature: z.string().optional(),
       allergies: z.array(z.string()).optional(),
       deliveryAddress: z.string().optional(),
-      pickupTime: z.string().optional(),
+      pickupTime: z.string().min(1),
+      pickupTimeZone: z.string().min(1).max(80).optional(),
       paymentIntentId: z.string().optional(),
     })
   )
   .mutation(async ({ input, ctx }) => {
-    if (isSampleMealId(input.mealId)) {
-      throw new TRPCError({
-        code: 'BAD_REQUEST',
-        message: 'Sample plates are not for sale.',
-      });
-    }
-
-    // CRITICAL: Check if seller is available for orders before creating order
-    const { data: sellerProfile, error: sellerError } = await ctx.supabase
-      .from('profiles')
-      .select('role, available_for_orders')
-      .eq('id', input.sellerId)
-      .single();
-
-    if (sellerError || !sellerProfile) {
-      throw new TRPCError({
-        code: 'NOT_FOUND',
-        message: 'Seller profile not found',
-      });
-    }
-
-    if (sellerProfile.role !== 'platemaker') {
-      throw new TRPCError({
-        code: 'BAD_REQUEST',
-        message: 'Invalid seller account',
-      });
-    }
-
-    // Check if platemaker is available for orders
-    if (sellerProfile.available_for_orders === false) {
-      throw new TRPCError({
-        code: 'BAD_REQUEST',
-        message: 'This platemaker is currently not accepting new orders',
-      });
-    }
-
-    await assertBuyerCanOrder(ctx.supabaseAdmin, ctx.userId, input.sellerId);
-
-    const { data: removalRow } = await ctx.supabaseAdmin
-      .from('profiles')
-      .select('selling_removed')
-      .eq('id', input.sellerId)
-      .single();
-
-    if (removalRow?.selling_removed) {
-      throw new TRPCError({
-        code: 'FORBIDDEN',
-        message: 'This cook is not allowed to take new orders',
-      });
-    }
-
-    const breakdown = calculateOrderBreakdown(input.unitPrice, input.quantity);
-    const volumeBlock = await salesVolumeBlock(ctx.supabaseAdmin, input.sellerId, breakdown.subtotal);
-    if (volumeBlock) {
-      throw new TRPCError({ code: 'FORBIDDEN', message: volumeBlock });
-    }
+    const prepared = await prepareHomePlate(ctx.supabaseAdmin, {
+      buyerId: ctx.userId,
+      sellerId: input.sellerId,
+      mealId: input.mealId,
+      quantity: input.quantity,
+      pickupTime: input.pickupTime,
+      pickupTimeZone: input.pickupTimeZone,
+      specialInstructions: input.specialInstructions,
+      deliveryAddress: input.deliveryAddress,
+    });
+    const quantity = prepared.quantity;
+    const chargedBase = prepared.chargedBase;
+    const instructions = prepared.instructions;
+    const pickupTimeZone = prepared.pickupTimeZone;
+    const portionCap = prepared.portionCap;
 
     // Calculate fees based on the unit price provided (matches UI calculation)
     // SQL trigger will overwrite this if it's wrong, but we calculate here for consistency
-    const { data, error } = await ctx.supabase
+    const insertOrder = (withZone: boolean) => ctx.supabase
       .from('orders')
       .insert({
         meal_id: input.mealId,
         buyer_id: ctx.userId,
         seller_id: input.sellerId,
-        quantity: input.quantity,
-        total_price: breakdown.total, // SQL Trigger will overwrite this if it's wrong
+        quantity,
+        total_price: chargedBase,
         paid: false,
-        special_instructions: input.specialInstructions,
+        special_instructions: instructions || null,
         cooking_temperature: input.cookingTemperature,
         allergies: input.allergies || [],
-        delivery_address: input.deliveryAddress,
-        pickup_time: input.pickupTime,
+        delivery_address: prepared.deliveryAddress,
+        pickup_time: prepared.pickupTime,
+        ...(withZone && pickupTimeZone ? { pickup_timezone: pickupTimeZone } : {}),
         status: 'pending',
         payment_intent_id: input.paymentIntentId,
       })
       .select()
       .single();
+    let { data, error } = await insertOrder(true);
+    if (error && pickupTimeZone && /pickup_timezone/.test(error.message || '')) {
+      const retry = await insertOrder(false);
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error || !data) {
       console.error('[CreateOrder] Error:', error);
       throw new Error(error?.message || 'Failed to create order');
+    }
+
+    const over = await thisOrderExceedsPortions(ctx.supabaseAdmin, input.mealId, data.id, portionCap);
+    if (over == null || over) {
+      const removed = await ctx.supabaseAdmin.from('orders').delete().eq('id', data.id);
+      if (removed.error) {
+        await ctx.supabaseAdmin.from('orders').update({ status: 'cancelled' }).eq('id', data.id);
+      }
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: over
+          ? 'Those portions are already taken.'
+          : 'Portions for this plate could not be counted. The order was not placed.',
+      });
     }
 
     return {
@@ -131,6 +109,7 @@ export const createOrderProcedure = protectedProcedure
       allergies: data.allergies,
       deliveryAddress: data.delivery_address,
       pickupTime: data.pickup_time ? new Date(data.pickup_time) : undefined,
+      pickupTimeZone: typeof data.pickup_timezone === 'string' ? data.pickup_timezone : pickupTimeZone || undefined,
       createdAt: new Date(data.created_at),
     };
   });

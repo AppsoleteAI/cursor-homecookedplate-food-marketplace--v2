@@ -1,6 +1,8 @@
 import { protectedProcedure } from "../../../create-context";
 import { TRPCError } from "@trpc/server";
 import { loadPublicProfiles } from "../../../../lib/public-profiles";
+import { orderBuyerId, orderTotal } from "../../../../lib/order-row";
+import { loadPickupConfirms } from "../../../../lib/pickup-confirm";
 
 /**
  * Get Incoming Orders Procedure
@@ -42,23 +44,7 @@ export const getIncomingOrdersProcedure = protectedProcedure
     const { data: orders, error: ordersError } = await ctx.supabase
       .from('orders')
       .select(`
-        id,
-        meal_id,
-        buyer_id,
-        seller_id,
-        status,
-        quantity,
-        total_price,
-        paid,
-        payment_intent_id,
-        special_instructions,
-        cooking_temperature,
-        allergies,
-        delivery_address,
-        pickup_time,
-        estimated_completion_time,
-        created_at,
-        updated_at,
+        *,
         meals:meal_id (
           id,
           name,
@@ -66,9 +52,9 @@ export const getIncomingOrdersProcedure = protectedProcedure
           price
         )
       `)
-      .eq('seller_id', ctx.userId) // Data isolation: only this platemaker's orders
-      .in('status', ['pending', 'accepted', 'preparing']) // Active orders only
-      .order('created_at', { ascending: true }); // Chronological order (oldest first)
+      .eq('seller_id', ctx.userId)
+      .in('status', ['pending', 'accepted', 'preparing', 'ready'])
+      .order('created_at', { ascending: true });
 
     if (ordersError) {
       console.error('[GetIncomingOrders] Error fetching orders:', ordersError);
@@ -85,23 +71,28 @@ export const getIncomingOrdersProcedure = protectedProcedure
 
     const buyers = await loadPublicProfiles(
       ctx.supabaseAdmin,
-      orders.map((order: { buyer_id: string }) => order.buyer_id),
+      orders.map((order: { buyer_id?: string | null; platetaker_id?: string | null }) => orderBuyerId(order)),
       true
     );
 
-    // Format and return orders
+    const confirms = await loadPickupConfirms(
+      ctx.supabaseAdmin,
+      orders.filter((order: { status?: string }) => order.status === 'ready').map((order: { id: string }) => order.id),
+    );
+
     return orders.map((order: any) => ({
       id: order.id,
       mealId: order.meal_id,
       mealName: order.meals?.name || 'Unknown Meal',
       mealImage: order.meals?.images?.[0] || '',
       mealPrice: order.meals?.price ? parseFloat(order.meals.price.toString()) : 0,
-      buyerId: order.buyer_id,
-      buyerName: buyers.get(order.buyer_id)?.username || 'Unknown Buyer',
-      buyerEmail: buyers.get(order.buyer_id)?.email || '',
+      buyerId: orderBuyerId(order),
+      buyerName: buyers.get(orderBuyerId(order))?.username || 'Unknown Buyer',
+      buyerEmail: buyers.get(orderBuyerId(order))?.email || '',
       status: order.status,
+      pickupConfirmedBy: confirms.get(order.id) ?? [],
       quantity: order.quantity,
-      totalPrice: parseFloat(order.total_price.toString()),
+      totalPrice: orderTotal(order),
       paid: order.paid,
       paymentIntentId: order.payment_intent_id,
       specialInstructions: order.special_instructions,

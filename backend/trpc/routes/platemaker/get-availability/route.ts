@@ -34,7 +34,7 @@ export const getAvailabilityProcedure = protectedProcedure
     }
 
     return {
-      available: profile.available_for_orders ?? true, // Default to true if null
+      available: profile.available_for_orders === true,
       updatedAt: profile.available_updated_at ? new Date(profile.available_updated_at) : null,
     };
   });

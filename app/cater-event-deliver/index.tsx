@@ -65,7 +65,7 @@ export default function CaterEventDeliverHome() {
         <View style={styles.models}>
           <Text style={styles.model}>Packages are priced per person, with a minimum headcount</Text>
           <Text style={styles.model}>Accepting means the company will take a drop-off today</Text>
-          <Text style={styles.model}>Same 10% service fee. No 15% to 25% marketplace commission.</Text>
+          <Text style={styles.model}>The service fee is 10%. A Premium PlateTaker pays 5% on an order of $20 or more. No 15% to 25% marketplace commission.</Text>
         </View>
 
         {links.map((link) => (

@@ -8,6 +8,7 @@ import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useFoodTruck } from '@/hooks/food-truck-store';
+import { ShopOrderActions } from '@/components/ShopOrderActions';
 
 export default function TruckOrdersScreen() {
   const { user } = useAuth();
@@ -21,11 +22,12 @@ export default function TruckOrdersScreen() {
       {orders.map((order) => (
         <View key={order.id} style={styles.card}>
           <Text style={styles.name}>{order.truckName}</Text>
-          <Text style={styles.meta}>{order.pickupSlot} · {new Date(order.createdAt).toLocaleString()}</Text>
+          <Text style={styles.meta}>{order.handoffNote ?? order.pickupSlot} · {new Date(order.createdAt).toLocaleString()}</Text>
           {order.lines.map((line) => (
             <Text key={line.itemId} style={styles.line}>{line.quantity} × {titleCase(line.name)}</Text>
           ))}
-          <Text style={styles.pay}>Paid ${order.buyerPays.toFixed(2)} · pick up at the window</Text>
+          <Text style={styles.pay}>Paid ${order.buyerPays.toFixed(2)}{order.handoffNote ? '' : ' · pick up at the window'}</Text>
+          <ShopOrderActions orderId={order.id} shop="food_truck" orderStatus={order.orderStatus} sellerId={order.sellerId} paid={order.paid} />
         </View>
       ))}
       <GlassPressable style={styles.button} onPress={() => router.push(dashboardHref)} testID="truck-orders-dashboard">

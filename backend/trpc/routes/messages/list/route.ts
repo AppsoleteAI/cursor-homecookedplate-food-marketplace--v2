@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { protectedProcedure } from "../../../create-context";
 import { TRPCError } from "@trpc/server";
+import { missingBuyerColumn, orderBuyerId } from "../../../../lib/order-row";
 
 export const listMessagesProcedure = protectedProcedure
   .input(
@@ -12,20 +13,28 @@ export const listMessagesProcedure = protectedProcedure
     const { orderId } = input;
     const userId = ctx.userId;
 
-    const { data: order, error: orderError } = await ctx.supabase
+    let orderResult = await ctx.supabaseAdmin
       .from("orders")
       .select("id, buyer_id, seller_id")
       .eq("id", orderId)
-      .single();
+      .maybeSingle();
+    if (orderResult.error && missingBuyerColumn(orderResult.error.message)) {
+      orderResult = await ctx.supabaseAdmin
+        .from("orders")
+        .select("id, platetaker_id, seller_id")
+        .eq("id", orderId)
+        .maybeSingle();
+    }
+    const order = orderResult.data;
 
-    if (orderError || !order) {
+    if (orderResult.error || !order) {
       throw new TRPCError({
         code: "NOT_FOUND",
         message: "Order not found",
       });
     }
 
-    if (order.buyer_id !== userId && order.seller_id !== userId) {
+    if (orderBuyerId(order) !== userId && order.seller_id !== userId) {
       throw new TRPCError({
         code: "FORBIDDEN",
         message: "You are not part of this order conversation",

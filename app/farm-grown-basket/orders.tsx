@@ -9,6 +9,7 @@ import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useFarmBasket } from '@/hooks/farm-basket-store';
 import { channelLabel } from '@/lib/cottage-food';
+import { ShopOrderActions } from '@/components/ShopOrderActions';
 
 export default function FarmOrdersScreen() {
   const { user } = useAuth();
@@ -22,11 +23,12 @@ export default function FarmOrdersScreen() {
       {orders.map((order) => (
         <View key={order.id} style={styles.card}>
           <Text style={styles.name}>{order.id}</Text>
-          <Text style={styles.meta}>{new Date(order.createdAt).toLocaleString()} · {channelLabel(order.channel)}</Text>
+          <Text style={styles.meta}>{new Date(order.createdAt).toLocaleString()} · {order.handoffNote ?? channelLabel(order.channel)}</Text>
           {order.lines.map((line) => (
             <Text key={line.productId} style={styles.line}>{line.quantity} × {titleCase(line.name)}</Text>
           ))}
           <Text style={styles.pay}>Paid ${order.buyerPays.toFixed(2)}</Text>
+          <ShopOrderActions orderId={order.id} shop="farm" orderStatus={order.orderStatus} sellerId={order.sellerId} paid={order.paid} />
         </View>
       ))}
       <GlassPressable style={styles.button} onPress={() => router.push(dashboardHref)} testID="farm-orders-dashboard">

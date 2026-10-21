@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router, usePathname, type Href } from 'expo-router';
@@ -10,6 +10,7 @@ import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { SellerOnly } from '@/components/RoleGuard';
 import { AuthColors } from '@/constants/auth-palette';
 import { GlassPressable } from '@/components/glass-surface';
+import { ScrollJumps } from '@/components/ScrollJumps';
 import {
   COMMISSARY_DIRECTORIES,
   COMMISSARY_REQUIRED_STATES,
@@ -28,6 +29,7 @@ function openSource(url: string) {
 export default function KitchenRulesScreen() {
   const pathname = usePathname();
   const leave = useLeaveScreen('/(tabs)/profile');
+  const scrollRef = useRef<ScrollView>(null);
   return (
     <SellerOnly>
     <AuthBackground>
@@ -36,7 +38,7 @@ export default function KitchenRulesScreen() {
       <View style={styles.backRow}>
         <BackCircle tone="honey" onPress={leave} testID="kitchen-rules-back" />
       </View>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <AuthBrand toSignIn={false} />
         <Text style={styles.brand}>Kitchen Rules</Text>
         <Text style={styles.audience}>A resource for PlateMakers</Text>
@@ -203,6 +205,7 @@ export default function KitchenRulesScreen() {
           ))}
         </Section>
       </ScrollView>
+      <ScrollJumps scrollRef={scrollRef} testID="kitchen-rules" />
     </SafeAreaView>
     </AuthBackground>
     </SellerOnly>
@@ -248,8 +251,8 @@ function SourceCard({ source }: { source: ExternalSource }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
-  backRow: { paddingHorizontal: 20, paddingTop: 8 },
-  content: { paddingHorizontal: 20, paddingBottom: 40 },
+  backRow: { paddingHorizontal: 20, paddingTop: 20 },
+  content: { paddingHorizontal: 20, paddingBottom: 108 },
   brand: {
     color: AuthColors.ink,
     fontSize: 28,

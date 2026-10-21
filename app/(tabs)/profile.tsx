@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   Image,
   Alert,
   Platform,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +21,8 @@ import { ProfilePhotoCapture, type CapturedPhoto } from '@/components/ProfilePho
 import * as WebBrowser from 'expo-web-browser';
 import { trpc } from '@/lib/trpc';
 import { GlassPressable } from '@/components/glass-surface';
+import { ScrollJumps } from '@/components/ScrollJumps';
+import { GetGpsCard } from '@/components/GetGpsCard';
 
 function savedProfilePhoto(uri?: string | null): string | null {
   if (!uri || !uri.includes('/storage/v1/object/public/profile-images/')) return null;
@@ -36,7 +39,9 @@ function tell(message: string) {
 
 export default function ProfileScreen() {
   const pathname = usePathname();
-  const { user, logout, updateProfile } = useAuth();
+  const { user, logout, updateProfile, setOrderingAsBuyer } = useAuth();
+  const accountRole = user?.accountRole ?? user?.role;
+  const orderingAsBuyer = user?.orderingAsBuyer === true;
   const [cameraOpen, setCameraOpen] = useState(false);
   const [savingPhoto, setSavingPhoto] = useState(false);
   const uploadPhoto = trpc.media.uploadProfile.useMutation();
@@ -49,7 +54,7 @@ export default function ProfileScreen() {
   });
 
   const handleAcknowledgmentUpdate = async (acknowledged: boolean) => {
-    if (!user || user.role !== 'platemaker') return;
+    if (!user || accountRole !== 'platemaker') return;
     try {
       await updateProfileMutation.mutateAsync({
         foodSafetyAcknowledged: acknowledged,
@@ -87,12 +92,15 @@ export default function ProfileScreen() {
   };
 
   const membershipTier = user?.membershipTier || 'free';
+  const adminRole = user?.adminRole ?? (user?.isAdmin ? 'main' : null);
+  const scrollRef = useRef<ScrollView>(null);
 
   const menuItems: {
     icon: keyof typeof Ionicons.glyphMap;
     title: string;
     onPress: () => void;
     subtitle?: string;
+    disabled?: boolean;
   }[] = [
     {
       icon: 'star-outline',
@@ -132,7 +140,7 @@ export default function ProfileScreen() {
       subtitle: 'Clean, separate, cook, and chill',
       onPress: () => openFoodHandling(pathname),
     },
-    ...(user?.role === 'platemaker'
+    ...(accountRole === 'platemaker'
       ? [{
           icon: 'restaurant-outline' as const,
           title: 'Kitchen Rules',
@@ -185,6 +193,20 @@ export default function ProfileScreen() {
       title: 'Settings',
       onPress: () => router.push('/settings'),
     },
+    {
+      icon: 'shield-outline',
+      title: 'Admin',
+      subtitle: adminRole === 'main'
+        ? 'Main admin'
+        : adminRole === 'monitor'
+          ? 'Monitor admin'
+          : 'Only admins have access',
+      disabled: !adminRole,
+      onPress: () => {
+        if (adminRole === 'main') router.push('/admin-dashboard' as Href);
+        if (adminRole === 'monitor') router.push('/admin-monitor' as Href);
+      },
+    },
   ];
 
   const photo = savedProfilePhoto(user?.profileImage);
@@ -210,7 +232,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <View style={styles.avatarWrap}>
             {photo ? (
@@ -233,14 +255,38 @@ export default function ProfileScreen() {
           <Text style={styles.name}>{screenName(user?.username)}</Text>
           <Text style={styles.email}>{user?.email || 'guest@example.com'}</Text>
           <View style={[styles.roleTag, { 
-            backgroundColor: user?.role === 'platemaker' ? Colors.gradient.green : Colors.gradient.yellow,
+            backgroundColor: accountRole === 'platemaker' ? Colors.gradient.green : Colors.gradient.yellow,
             borderWidth: 2,
-            borderColor: user?.role === 'platemaker' ? Colors.gradient.yellow : Colors.gradient.green,
+            borderColor: accountRole === 'platemaker' ? Colors.gradient.yellow : Colors.gradient.green,
           }]}>
             <Text style={styles.roleText}>
-              {user?.role === 'platemaker' ? 'platemaker' : 'platetaker'}
+              {accountRole === 'platemaker' ? 'platemaker' : 'platetaker'}
             </Text>
           </View>
+          {accountRole === 'platemaker' ? (
+            <View style={styles.orderSwitch}>
+              <View style={styles.orderSwitchText}>
+                <Text style={styles.orderSwitchTitle}>Order food</Text>
+                <Text style={styles.orderSwitchSubtitle}>
+                  {orderingAsBuyer
+                    ? 'Ordering is on. Home, cart, and checkout follow a PlateTaker. Turn this off to cook again.'
+                    : 'Turn this on to order from other cooks. Your account stays a PlateMaker.'}
+                </Text>
+              </View>
+              <Switch
+                testID="order-as-buyer"
+                value={orderingAsBuyer}
+                onValueChange={(on) => {
+                  setOrderingAsBuyer(on).then(() => {
+                    router.push(on ? '/(tabs)/(home)/home' : '/(tabs)/dashboard');
+                  });
+                }}
+                trackColor={{ false: Colors.gray[300], true: Colors.gradient.green }}
+                thumbColor={Colors.white}
+                accessibilityLabel="Order food as a PlateTaker"
+              />
+            </View>
+          ) : null}
           
           {/* Membership Badge */}
           <View style={styles.membershipBadgeContainer}>
@@ -264,23 +310,30 @@ export default function ProfileScreen() {
 
         {cameraOpen ? <ProfilePhotoCapture onDone={saveCameraPhoto} /> : null}
 
+        {accountRole === 'platemaker' ? <GetGpsCard /> : null}
+
         <View style={styles.menuContainer}>
           {menuItems.map((item, index) => (
             <GlassPressable
               key={index}
-              style={styles.menuItem}
+              style={[styles.menuItem, item.disabled && styles.menuItemDisabled]}
               onPress={item.onPress}
+              disabled={item.disabled}
+              accessibilityState={{ disabled: Boolean(item.disabled) }}
             >
               <View style={styles.menuItemLeft}>
-                <Ionicons name={item.icon} size={22} color={Colors.gray[600]} />
-                <Text style={styles.menuItemText}>{item.title}</Text>
+                <Ionicons name={item.icon} size={22} color={item.disabled ? Colors.gray[400] : Colors.gray[600]} />
+                <View style={styles.menuItemTextContainer}>
+                  <Text style={[styles.menuItemText, item.disabled && styles.menuItemTextDisabled]}>{item.title}</Text>
+                  {item.subtitle ? <Text style={styles.menuItemSubtitle}>{item.subtitle}</Text> : null}
+                </View>
               </View>
               <Ionicons name="chevron-forward" size={20} color={Colors.gray[400]} />
             </GlassPressable>
           ))}
         </View>
 
-        {user?.role === 'platemaker' && (
+        {accountRole === 'platemaker' && (
           <View style={styles.foodSafetySection}>
             <View style={styles.foodSafetyHeader}>
               <Ionicons name="shield-checkmark" size={24} color={Colors.gradient.green} />
@@ -309,15 +362,15 @@ export default function ProfileScreen() {
               <View style={styles.acknowledgmentStatusContainer}>
                 <View style={styles.acknowledgmentStatusRow}>
                   <Ionicons
-                    name={user.foodSafetyAcknowledged ? "checkmark-circle" : "close-circle"}
+                    name={user?.foodSafetyAcknowledged ? "checkmark-circle" : "close-circle"}
                     size={24}
-                    color={user.foodSafetyAcknowledged ? Colors.gradient.green : Colors.gradient.orange}
+                    color={user?.foodSafetyAcknowledged ? Colors.gradient.green : Colors.gradient.orange}
                   />
                   <Text style={styles.acknowledgmentStatusText}>
-                    Status: {user.foodSafetyAcknowledged ? 'Acknowledged' : 'Not Acknowledged'}
+                    Status: {user?.foodSafetyAcknowledged ? 'Acknowledged' : 'Not Acknowledged'}
                   </Text>
                 </View>
-                {!user.foodSafetyAcknowledged && (
+                {!user?.foodSafetyAcknowledged && (
                   <GlassPressable
                     style={styles.acknowledgmentButton}
                     onPress={() => handleAcknowledgmentUpdate(true)}
@@ -343,6 +396,7 @@ export default function ProfileScreen() {
           <Text style={styles.logoutText}>Logout</Text>
         </GlassPressable>
       </ScrollView>
+      <ScrollJumps scrollRef={scrollRef} testID="profile" />
     </SafeAreaView>
   );
 }
@@ -351,6 +405,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: pagePastel.gold,
+  },
+  scrollContent: {
+    paddingBottom: 108,
+  },
+  menuItemDisabled: {
+    opacity: 0.45,
+  },
+  menuItemTextDisabled: {
+    color: Colors.gray[500],
   },
   header: {
     alignItems: 'center',
@@ -402,6 +465,32 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 2,
+  },
+  orderSwitch: {
+    alignSelf: 'stretch',
+    marginTop: 16,
+    marginHorizontal: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+  },
+  orderSwitchText: {
+    flex: 1,
+  },
+  orderSwitchTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.gray[900],
+  },
+  orderSwitchSubtitle: {
+    fontSize: 13,
+    color: Colors.gray[600],
+    marginTop: 4,
   },
   roleText: {
     color: Colors.white,

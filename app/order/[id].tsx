@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, KeyboardAvoidingView, Platform, Image, ActivityIndicator } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { View, Text, StyleSheet, ScrollView, TextInput, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Alert } from 'react-native';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { Colors } from '@/constants/colors';
 import { useOrders } from '@/hooks/orders-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,17 +10,33 @@ import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { BUYER_AFTER_NOTE } from '@/lib/buyer-safety';
 import { GlassPressable } from '@/components/glass-surface';
 import { ScreenBack } from '@/components/BackCircle';
+import { orderCloseout } from '@/lib/order-closeout';
+import { formatPickupTime } from '@/lib/pickup-time';
+import { trpc } from '@/lib/trpc';
+import { ReviewCommentActions } from '@/components/ReviewCommentActions';
+import StarRating from '@/components/StarRating';
 
 export default function OrderDetailsPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { getOrder, setOrderStatus, addMessage, getMessages, syncMessages } = useOrders();
+  const { getOrder, setOrderStatus, addMessage, getMessages, syncMessages, refresh } = useOrders();
   const { user } = useAuth();
+  const blockCook = trpc.orders.blockCook.useMutation();
   const order = getOrder(String(id));
+  useFocusEffect(useCallback(() => {
+    refresh().catch(() => undefined);
+  }, [refresh]));
   const [input, setInput] = useState<string>('');
   const [sending, setSending] = useState<boolean>(false);
   const insets = useSafeAreaInsets();
 
   const isActive = useMemo(() => order && order.status !== 'completed' && order.status !== 'cancelled', [order]);
+  const plateReviews = trpc.reviews.list.useQuery(
+    { mealId: order?.mealId ?? '' },
+    { enabled: !!order?.mealId && order.status === 'completed' },
+  );
+  const orderReview = (plateReviews.data || []).find((review) => review.orderId === order?.id);
+  const isCook = !!user && !!order && user.id === order.plateMakerId;
+  const isBuyer = !!user && !!order && user.id === order.plateTakerId && !isCook;
   const messages = useMemo(() => (order ? getMessages(order.id) : []), [order, getMessages]);
 
   useEffect(() => {
@@ -48,9 +65,13 @@ export default function OrderDetailsPage() {
 
   if (!order) {
     return (
-      <View style={[styles.center, { paddingTop: insets.top, paddingBottom: insets.bottom }]}> 
-        <ScreenBack fallback="/(tabs)/orders" testID="order-back" />
-        <Text style={styles.error}>Order not found</Text>
+      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+        <View style={styles.backRow}>
+          <ScreenBack fallback="/(tabs)/orders" testID="order-back" />
+        </View>
+        <View style={styles.center}>
+          <Text style={styles.error}>Order not found</Text>
+        </View>
       </View>
     );
   }
@@ -58,7 +79,9 @@ export default function OrderDetailsPage() {
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <Stack.Screen options={{ title: `Order #${order.id}`, headerShown: false }} />
-      <ScreenBack fallback="/(tabs)/orders" testID="order-back" />
+      <View style={styles.backRow}>
+        <ScreenBack fallback="/(tabs)/orders" testID="order-back" />
+      </View>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.mealHeader}>
           <Image source={{ uri: order.mealImage }} style={styles.mealImage} accessibilityLabel="meal-image" />
@@ -80,6 +103,15 @@ export default function OrderDetailsPage() {
             <Text style={styles.title}>Paid</Text>
             <Text style={[styles.badge, { backgroundColor: (order.paid ? Colors.success : Colors.error) + '20', color: order.paid ? Colors.success : Colors.error }]}>{order.paid ? 'Yes' : 'No'}</Text>
           </View>
+        </View>
+        <View style={styles.section}>
+          <Text style={styles.title}>Pickup</Text>
+          <Text style={styles.value}>
+            {formatPickupTime(order.pickupTime, order.pickupTimeZone)}
+          </Text>
+          {order.deliveryAddress ? (
+            <Text style={styles.value}>Delivery to {order.deliveryAddress}</Text>
+          ) : null}
         </View>
         <View style={styles.section}>
           <Text style={styles.title}>Status</Text>
@@ -108,13 +140,79 @@ export default function OrderDetailsPage() {
           )}
           <View style={styles.statusRow}>
             <Text style={styles.value}>{order.status}</Text>
-            {isActive ? (
-              <GlassPressable onPress={() => setOrderStatus(order.id, 'completed')} style={styles.completeBtn} testID="complete-order-btn">
-                <Text style={styles.completeBtnText}>Order Completed</Text>
-              </GlassPressable>
-            ) : null}
+            {(() => {
+              const confirmedRole = user?.role === 'platemaker' ? 'seller' : 'buyer';
+              const alreadyConfirmed = (order.pickupConfirmedBy ?? []).includes(confirmedRole);
+              const closeout = orderCloseout(user?.role, order.status, alreadyConfirmed);
+              const canCancel = user?.role === 'platetaker' && order.status === 'pending';
+              if (!closeout && !canCancel) return null;
+              return (
+                <GlassPressable
+                  onPress={() => {
+                    const next = canCancel && !closeout ? 'cancelled' : closeout?.next;
+                    if (!next) return;
+                    setOrderStatus(order.id, next).then((result) => {
+                      if (result?.waiting) {
+                        Alert.alert('Pickup', 'Waiting for the other person to confirm pickup.');
+                      }
+                    }).catch((error: unknown) => {
+                      const message = error instanceof Error ? error.message : 'Could not update this order.';
+                      Alert.alert('Order', message);
+                    });
+                  }}
+                  style={styles.completeBtn}
+                  testID={canCancel && !closeout ? 'cancel-order-btn' : 'complete-order-btn'}
+                >
+                  <Text style={styles.completeBtnText}>{canCancel && !closeout ? 'Cancel order' : closeout?.label}</Text>
+                </GlassPressable>
+              );
+            })()}
           </View>
+          {order.status === 'ready' ? (
+            <Text style={styles.value}>
+              {(order.pickupConfirmedBy ?? []).includes(user?.role === 'platemaker' ? 'seller' : 'buyer')
+                ? 'You confirmed pickup. Waiting for the other person.'
+                : 'Both people confirm pickup before this order closes.'}
+            </Text>
+          ) : null}
         </View>
+
+        {user?.role === 'platetaker' && order.plateMakerId ? (
+          <View style={styles.statusRow}>
+            <GlassPressable
+              onPress={() => {
+                blockCook.mutate({ orderId: order.id, action: order.cookBlocked ? 'unblock' : 'block' }, {
+                  onSuccess: () => {
+                    refresh().catch(() => undefined);
+                    Alert.alert(
+                      order.cookBlocked ? 'Unblocked' : 'Blocked',
+                      order.cookBlocked
+                        ? 'This cook can take a new order from this account. They were told.'
+                        : 'This cook cannot take a new order from this account. They were told.',
+                    );
+                  },
+                  onError: (error) => Alert.alert('Block', error.message),
+                });
+              }}
+              style={styles.completeBtn}
+              testID="block-cook-btn"
+            >
+              <Text style={styles.completeBtnText}>{order.cookBlocked ? 'Unblock this cook' : 'Block this cook'}</Text>
+            </GlassPressable>
+            <GlassPressable
+              onPress={() => {
+                blockCook.mutate({ orderId: order.id, action: 'report' }, {
+                  onSuccess: () => Alert.alert('Report', 'This report was saved, and the cook was told.'),
+                  onError: (error) => Alert.alert('Report', error.message),
+                });
+              }}
+              style={styles.completeBtn}
+              testID="report-cook-btn"
+            >
+              <Text style={styles.completeBtnText}>Report this cook</Text>
+            </GlassPressable>
+          </View>
+        ) : null}
 
         <View style={styles.section}>
           <Text style={styles.title}>{user?.role === 'platemaker' ? 'Until Pickup' : 'When You Have It'}</Text>
@@ -125,6 +223,36 @@ export default function OrderDetailsPage() {
           </Text>
           <FoodHandlingLink />
         </View>
+        {order.status === 'completed' && (isBuyer || isCook || user?.isAdmin) ? (
+          <View style={styles.section}>
+            <Text style={styles.title}>Review</Text>
+            {orderReview ? (
+              <>
+                <StarRating value={orderReview.rating} baseColor="yellow" size={16} disabled />
+                {orderReview.comment ? <Text style={styles.value}>{orderReview.comment}</Text> : (
+                  <Text style={styles.value}>Stars only. This review has no comment.</Text>
+                )}
+                <ReviewCommentActions
+                  reviewId={orderReview.id}
+                  authorId={orderReview.authorId}
+                  comment={orderReview.comment || ''}
+                  onChanged={() => plateReviews.refetch()}
+                />
+              </>
+            ) : isBuyer ? (
+              <GlassPressable
+                onPress={() => router.push({ pathname: '/reviews/[mealId]', params: { mealId: order.mealId, next: `/order/${order.id}` } })}
+                style={styles.completeBtn}
+                testID="order-write-review"
+              >
+                <Text style={styles.completeBtnText}>Review this plate</Text>
+              </GlassPressable>
+            ) : (
+              <Text style={styles.value}>No review on this order yet.</Text>
+            )}
+          </View>
+        ) : null}
+
         <View style={styles.section}>
           <Text style={styles.title}>Allergies</Text>
           <Text style={styles.value}>{order.allergies?.join(', ') ?? 'None'}</Text>
@@ -183,6 +311,7 @@ export default function OrderDetailsPage() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.white },
+  backRow: { paddingTop: 16, paddingLeft: 16 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   error: { color: Colors.error, fontWeight: '700' as const },
   content: { padding: 16, paddingBottom: 100 },
