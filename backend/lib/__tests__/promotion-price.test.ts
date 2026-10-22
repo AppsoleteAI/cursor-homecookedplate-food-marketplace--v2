@@ -1,4 +1,4 @@
-import { promotionalBase } from '../fees';
+import { producedCost, promotionalBase } from '../fees';
 import { buyerMetroCanOrder, mealVisibleInMetro } from '../metro-menu';
 
 describe('promotionalBase', () => {
@@ -10,8 +10,18 @@ describe('promotionalBase', () => {
     expect(promotionalBase(20, 1, { type: 'percentage', discountPercentage: 25 })).toBe(15);
   });
 
+  it('stops a percentage above 50 from changing the price', () => {
+    expect(promotionalBase(20, 1, { type: 'percentage', discountPercentage: 50 })).toBe(10);
+    expect(promotionalBase(20, 1, { type: 'percentage', discountPercentage: 51 })).toBe(20);
+  });
+
   it('subtracts a fixed amount once for the line', () => {
     expect(promotionalBase(10, 2, { type: 'fixed-amount', discountAmount: 5 })).toBe(15);
+  });
+
+  it('stops an amount above $100 from changing the price', () => {
+    expect(promotionalBase(120, 1, { type: 'fixed-amount', discountAmount: 100 })).toBe(20);
+    expect(promotionalBase(120, 1, { type: 'fixed-amount', discountAmount: 100.01 })).toBe(120);
   });
 
   it('charges only the paid units in buy one get one', () => {
@@ -20,6 +30,12 @@ describe('promotionalBase', () => {
 
   it('leaves the plate price unchanged for a free side', () => {
     expect(promotionalBase(9, 1, { type: 'free-item' })).toBe(9);
+  });
+});
+
+describe('producedCost', () => {
+  it('adds ingredients and packaging', () => {
+    expect(producedCost(2.5, 0.25)).toBe(2.75);
   });
 });
 

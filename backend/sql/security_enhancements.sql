@@ -110,11 +110,12 @@ begin
 
     if offer_type = 'percentage'
        and discount_percentage > 0
-       and discount_percentage <= 100
+       and discount_percentage <= 50
     then
       charged := round(menu_total * (1 - discount_percentage / 100), 2);
     elsif offer_type = 'fixed-amount'
        and discount_amount > 0
+       and discount_amount <= 100
     then
       charged := round(greatest(0, menu_total - discount_amount), 2);
     elsif offer_type = 'buy-x-get-y'
@@ -125,6 +126,10 @@ begin
       free_units := (new.quantity / bundle) * get_quantity;
       charged := round(meal_price * greatest(0, new.quantity - free_units)::numeric, 2);
     end if;
+  end if;
+
+  if charged is null or charged <= 0 then
+    raise exception 'This offer takes the price to zero. Use a smaller discount.';
   end if;
 
   new.total_price := charged;

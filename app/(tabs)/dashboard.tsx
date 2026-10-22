@@ -19,7 +19,7 @@ import { Colors, inAppHeaderBand, monoGradients, pagePastel } from '@/constants/
 import { GradientButton } from '@/components/GradientButton';
 
 
-import { router, useFocusEffect, usePathname, type Href } from 'expo-router';
+import { Redirect, router, useFocusEffect, usePathname, type Href } from 'expo-router';
 import { openFoodHandling } from '@/components/FoodHandlingLink';
 
 import { useOrders } from '@/hooks/orders-context';
@@ -115,7 +115,7 @@ export default function DashboardScreen() {
 
   // Security: Never render earnings data if user role is not platemaker (guard should prevent this, but add defensive check)
   if (user?.role !== 'platemaker') {
-    return null; // Defensive check - SellerOnly guard should prevent this, but safety first
+    return <Redirect href="/(tabs)/(home)/home" />;
   }
 
   const availabilityKnown = availabilityStatus.isSuccess && typeof availabilityStatus.data?.available === 'boolean';
@@ -442,6 +442,22 @@ export default function DashboardScreen() {
                 }}
                 baseColor="green"
                 testID="add-meal-details"
+              />
+            </View>
+            <View style={{ marginTop: 10 }}>
+              <GradientButton
+                title="Area offers"
+                onPress={() => router.push('/area-offers' as Href)}
+                baseColor="green"
+                testID="dashboard-area-offers"
+              />
+            </View>
+            <View style={{ marginTop: 10 }}>
+              <GradientButton
+                title="Charitable gifts"
+                onPress={() => router.push('/charitable-gifts' as Href)}
+                baseColor="green"
+                testID="dashboard-charitable-gifts"
               />
             </View>
           </View>

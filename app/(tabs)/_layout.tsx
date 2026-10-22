@@ -1,6 +1,6 @@
 import { Tabs, Redirect } from "expo-router";
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { Platform, View, Text, StyleSheet } from "react-native";
 import { GlassBadge } from "@/components/glass-surface";
 import { Colors } from "@/constants/colors";
 import { userNeedsMembership } from "@/backend/lib/trial-access";
@@ -15,7 +15,8 @@ export default function TabLayout() {
 
   // 1. Prevent logic execution while auth is still loading
   if (isLoading) {
-    return null;
+    if (Platform.OS === 'web') return null;
+    return <View style={styles.launch} />;
   }
 
   // 2. Fix Issue #9: Handle unauthenticated state gracefully
@@ -160,6 +161,10 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
+  launch: {
+    flex: 1,
+    backgroundColor: '#1A0F0A',
+  },
   badge: {
     position: 'absolute',
     top: -4,

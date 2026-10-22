@@ -58,6 +58,12 @@ export default function CaterSellerScreen() {
       <GlassPressable style={styles.secondary} onPress={() => router.push('/cater-event-deliver/list' as Href)} testID="seller-list">
         <Text style={styles.secondaryText}>Add a Per-person Package</Text>
       </GlassPressable>
+      <GlassPressable style={styles.secondary} onPress={() => router.push('/area-offers?area=catering' as Href)}>
+        <Text style={styles.secondaryText}>Offers, 1% to 50% or up to $100</Text>
+      </GlassPressable>
+      <GlassPressable style={styles.secondary} onPress={() => router.push('/charitable-gifts?area=catering' as Href)}>
+        <Text style={styles.secondaryText}>Charitable gifts</Text>
+      </GlassPressable>
       <GlassPressable style={styles.secondary} onPress={() => router.push('/cater-event-deliver/orders' as Href)}>
         <Text style={styles.secondaryText}>Orders and Organization Spend</Text>
       </GlassPressable>

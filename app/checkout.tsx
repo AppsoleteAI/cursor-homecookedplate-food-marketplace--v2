@@ -524,6 +524,7 @@ export default function CheckoutScreen() {
       const { error: initError } = await initPaymentSheet({
         paymentIntentClientSecret: paymentIntentResult.clientSecret,
         merchantDisplayName: 'HomeCookedPlate',
+        applePay: { merchantCountryCode: 'US' },
         returnURL: 'homecookedplate://checkout',
       });
 

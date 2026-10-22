@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../create-context';
 import { missingOffersTable, offerFromRow, type StoredOffer } from '../../../lib/active-offer';
+import { MAX_AMOUNT_OFF, MAX_PERCENT_OFF } from '../../../lib/fees';
 import { sanitizeTextField } from '../../../lib/text-security';
 
 const offerInput = z.object({
@@ -10,8 +11,8 @@ const offerInput = z.object({
   type: z.enum(['percentage', 'buy-x-get-y', 'fixed-amount', 'free-item']),
   title: z.string().min(1).max(80),
   description: z.string().min(1).max(280),
-  discountPercentage: z.number().positive().max(100).optional(),
-  discountAmount: z.number().positive().max(500).optional(),
+  discountPercentage: z.number().positive().max(MAX_PERCENT_OFF).optional(),
+  discountAmount: z.number().positive().max(MAX_AMOUNT_OFF).optional(),
   buyQuantity: z.number().int().positive().max(20).optional(),
   getQuantity: z.number().int().positive().max(20).optional(),
   freeItemName: z.string().max(80).optional(),
@@ -66,11 +67,11 @@ export const savePromotionProcedure = protectedProcedure
     if (!Number.isFinite(start) || !Number.isFinite(end) || start > end) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'The end date has to be on or after the start date.' });
     }
-    if (input.type === 'percentage' && !(Number(input.discountPercentage) > 0)) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Enter a percentage off.' });
+    if (input.type === 'percentage' && !(Number(input.discountPercentage) >= 1 && Number(input.discountPercentage) <= MAX_PERCENT_OFF)) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Percentage off is 1 to 50.' });
     }
-    if (input.type === 'fixed-amount' && !(Number(input.discountAmount) > 0)) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Enter an amount off.' });
+    if (input.type === 'fixed-amount' && !(Number(input.discountAmount) > 0 && Number(input.discountAmount) <= MAX_AMOUNT_OFF)) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Amount off is at most $100.' });
     }
     if (input.type === 'buy-x-get-y' && (!(Number(input.buyQuantity) > 0) || !(Number(input.getQuantity) > 0))) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Enter how many are paid and how many are free.' });

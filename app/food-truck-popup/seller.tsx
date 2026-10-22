@@ -75,6 +75,12 @@ export default function TruckSellerScreen() {
       <GlassPressable style={styles.secondary} onPress={() => router.push('/food-truck-popup/list' as Href)} testID="seller-list">
         <Text style={styles.secondaryText}>Add a Menu Item</Text>
       </GlassPressable>
+      <GlassPressable style={styles.secondary} onPress={() => router.push('/area-offers?area=food_truck' as Href)}>
+        <Text style={styles.secondaryText}>Offers, 1% to 50% or up to $100</Text>
+      </GlassPressable>
+      <GlassPressable style={styles.secondary} onPress={() => router.push('/charitable-gifts?area=food_truck' as Href)}>
+        <Text style={styles.secondaryText}>Charitable gifts</Text>
+      </GlassPressable>
       <GlassPressable style={styles.secondary} onPress={() => router.push('/kitchen-rules' as Href)}>
         <Text style={styles.secondaryText}>Kitchen Rules and Commissary Notes</Text>
       </GlassPressable>

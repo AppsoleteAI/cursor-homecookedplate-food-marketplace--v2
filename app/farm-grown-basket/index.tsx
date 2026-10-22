@@ -13,11 +13,12 @@ import { useAuth } from '@/hooks/auth-context';
 import { PLATFORM_COTTAGE_RULE } from '@/lib/cottage-food';
 import { titleCase } from '@/lib/title-case';
 
-const LINKS: { title: string; detail: string; href: '/farm-grown-basket/market' | '/farm-grown-basket/farms' | '/farm-grown-basket/csa' | '/farm-grown-basket/logistics' | '/farm-grown-basket/cottage-law' | '/farm-grown-basket/seller' | '/farm-grown-basket/basket' | '/farm-grown-basket/orders'; icon: keyof typeof Ionicons.glyphMap; seller?: boolean }[] = [
+const LINKS: { title: string; detail: string; href: '/farm-grown-basket/market' | '/farm-grown-basket/farms' | '/farm-grown-basket/csa' | '/farm-grown-basket/logistics' | '/farm-grown-basket/directory' | '/farm-grown-basket/cottage-law' | '/farm-grown-basket/seller' | '/farm-grown-basket/basket' | '/farm-grown-basket/orders'; icon: keyof typeof Ionicons.glyphMap; seller?: boolean }[] = [
   { title: 'Market', detail: 'Produce, eggs, honey, and homemade goods', href: '/farm-grown-basket/market', icon: 'leaf-outline' },
   { title: 'Farms and co-ops', detail: 'Find a stand by ZIP', href: '/farm-grown-basket/farms', icon: 'map-outline' },
   { title: 'CSA shares', detail: 'A weekly produce box from one farm. Pay for this box, then pause or keep the season with that farm.', href: '/farm-grown-basket/csa', icon: 'cube-outline' },
   { title: 'Pickup and delivery', detail: 'Farm pickup, neighborhood handoff, or hub', href: '/farm-grown-basket/logistics', icon: 'bicycle-outline' },
+  { title: 'Cottage food directory', detail: 'State-by-state map summary and outside pages. Not a permit.', href: '/farm-grown-basket/directory', icon: 'map-outline' },
   { title: 'Cottage food rules', detail: 'Your state, your test, your permit fee', href: '/farm-grown-basket/cottage-law', icon: 'document-text-outline', seller: true },
   { title: 'Seller stand', detail: 'List goods and see farm payouts', href: '/farm-grown-basket/seller', icon: 'storefront-outline', seller: true },
   { title: 'Farm basket', detail: 'The cart for produce, eggs, honey, and homemade goods you add on this page.', href: '/farm-grown-basket/basket', icon: 'basket-outline' },

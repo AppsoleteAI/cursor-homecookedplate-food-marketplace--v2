@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { protectedProcedure } from '../../../create-context';
-import { quoteShopOrder, type ShopName } from '../../../../lib/shop-catalog';
+import { type ShopName } from '../../../../lib/shop-catalog';
+import { priceShopOrder } from '../../../../lib/shop-quote';
 import { checkoutAreaShop, shopFulfillmentSchema, type ShopFulfillment } from '../../../../lib/shop-fulfillment';
 import { fulfillmentIsDelivery, savedDeliveryFee } from '../../../../lib/delivery-fee';
 import { appRevenueWithDelivery, orderTotalWithDelivery, sharedChargeRefundCents } from '../../../../lib/fees';
@@ -202,10 +203,13 @@ async function priceCheckout(
     priced = await priceHomeLines(admin, buyer.buyerId, checkout.sellerId, checkout.lines, checkout.deliveryAddress, reservePortions);
   } else {
     try {
-      priced = quoteShopOrder(shop, lines).lines.map((line) => ({
+      const quote = await priceShopOrder(admin, shop, lines, checkout.sellerId);
+      priced = quote.lines.map((line) => ({
         name: line.name,
         quantity: line.quantity,
         unitPrice: line.unitPrice,
+        lineTotal: line.lineTotal,
+        productId: line.productId,
       }));
     } catch (error) {
       throw new TRPCError({
@@ -268,10 +272,13 @@ async function buildReceipt(
       const lines = [...merged.entries()].map(([productId, quantity]) => ({ productId, quantity }));
       let priced: QuotedLine[];
       try {
-        priced = quoteShopOrder(shop, lines).lines.map((line) => ({
+        const quote = await priceShopOrder(admin, shop, lines, null);
+        priced = quote.lines.map((line) => ({
           name: line.name,
           quantity: line.quantity,
           unitPrice: line.unitPrice,
+          lineTotal: line.lineTotal,
+          productId: line.productId,
         }));
       } catch (error) {
         throw new TRPCError({

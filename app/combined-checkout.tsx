@@ -319,6 +319,7 @@ export default function CombinedCheckoutScreen() {
       const { error: initError } = await initPaymentSheet({
         paymentIntentClientSecret: created.clientSecret,
         merchantDisplayName: 'HomeCookedPlate',
+        applePay: { merchantCountryCode: 'US' },
         returnURL: 'homecookedplate://combined-checkout',
       });
       if (initError) throw new Error(initError.message);

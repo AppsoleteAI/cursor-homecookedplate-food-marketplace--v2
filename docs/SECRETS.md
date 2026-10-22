@@ -26,6 +26,8 @@ Commit only `*.env.example`, and only with placeholders such as `your-service-ro
 
 Do not paste a secret into chat, a terminal command that is saved in the repo, or a documented `export` line. A placeholder that looks like a real token is still rejected by the secret scan when it matches a live pattern.
 
+Never post an account number in chat. A Stripe account id, a bank account number, and any other account number are written as `xxxxxx`.
+
 If a task needs a secret, name the variable and the dashboard where it belongs. Stop there.
 
 ## Incident: Supabase access token in git history

@@ -10,6 +10,7 @@ import { getFarm, productsForFarm } from '@/constants/farm-grown-basket';
 import { useFarmBasket } from '@/hooks/farm-basket-store';
 import { useAuth } from '@/hooks/auth-context';
 import { frameworkForState, frameworkSummary, stateName, trackLabel } from '@/lib/cottage-food';
+import { cottageBandLabel, cottageDirectoryRow } from '@/lib/cottage-directory';
 
 export default function FarmProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -38,6 +39,17 @@ export default function FarmProfileScreen() {
       <GlassPressable style={styles.follow} onPress={() => toggleFollow(farm.id)} testID="farm-follow">
         <Text style={styles.followText}>{following ? 'Following This Stand' : 'Follow This Stand'}</Text>
       </GlassPressable>
+      {cottageDirectoryRow(farm.stateCode) ? (
+        <View style={styles.rule}>
+          <Text style={styles.ruleTitle}>Cottage map summary</Text>
+          <Text style={styles.body}>{cottageBandLabel(cottageDirectoryRow(farm.stateCode)!.band)}. This is a map summary, not a permit.</Text>
+          {cottageDirectoryRow(farm.stateCode)?.foodFreedom ? <Text style={styles.body}>Food freedom is named for this state. Hot meals, dairy, and cooked meat stay off the cottage shelf until you confirm the statute.</Text> : null}
+          {cottageDirectoryRow(farm.stateCode)?.cap ? <Text style={styles.body}>Annual cap: {cottageDirectoryRow(farm.stateCode)?.cap}</Text> : null}
+          <GlassPressable onPress={() => router.push('/farm-grown-basket/directory' as Href)} testID="farm-profile-directory">
+            <Text style={styles.link}>State-by-state cottage directory</Text>
+          </GlassPressable>
+        </View>
+      ) : null}
       {isMaker ? (
         <View style={styles.rule}>
           <Text style={styles.ruleTitle}>Local rule for this stand</Text>

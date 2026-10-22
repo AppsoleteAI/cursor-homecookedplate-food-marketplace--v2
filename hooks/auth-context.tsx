@@ -14,6 +14,7 @@ import { runHardwareAudit } from '@/lib/hardwareAudit';
 import { router } from 'expo-router';
 import { Alert, Platform } from 'react-native';
 import { navLogger } from '@/lib/nav-logger';
+import { SESSION_RESTORE_MS, settleWithin } from '@/lib/settle-within';
 
 interface AuthState {
   user: User | null;
@@ -110,8 +111,9 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, []);
 
   const loadUser = useCallback(async () => {
-    // Phase 3: Auth Hydration - Only starts after Phase 4 (Navigation Ready) is complete
-    // No timeout needed: RootLayout guarantees navigation context is ready before AuthProvider mounts
+    // Phase 3: Auth Hydration - Only starts after Phase 4 (Navigation Ready) is complete.
+    // A stored session from the previous install is restored with a timeout so the
+    // launch cover cannot wait on the network.
     navLogger.stateChange('hooks/auth-context.tsx:LOAD_USER', 'auth_hydration_start', undefined, {
       platform: Platform.OS,
     });
@@ -124,20 +126,20 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       // 1. Bootstrap: Pull encrypted session from SecureStore (async operation)
       // CRITICAL: SecureStore is asynchronous - must await before proceeding
       // This prevents navigation tree from mounting until session is hydrated
-      [sessionStr, userStr] = await Promise.all([
+      [sessionStr, userStr] = await settleWithin(Promise.all([
         SecureStore.getItemAsync(SESSION_KEY).catch(() => null), // Gracefully handle if not found
         AsyncStorage.getItem(STORAGE_KEY), // User data can stay in AsyncStorage (less sensitive)
-      ]);
+      ]), SESSION_RESTORE_MS).catch(() => [null, null] as [string | null, string | null]);
 
       // 2. Restore session if found. A profile without a token is not signed in.
       let sessionOk = false;
       if (sessionStr) {
         try {
           const sessionData = JSON.parse(sessionStr) as Session;
-          const { data, error } = await supabase.auth.setSession({
+          const { data, error } = await settleWithin(supabase.auth.setSession({
             access_token: sessionData.access_token,
             refresh_token: sessionData.refresh_token,
-          });
+          }), SESSION_RESTORE_MS);
 
           if (error || !data.session) {
             // Session invalid - clean up corrupted state
@@ -165,7 +167,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
             SecureStore.deleteItemAsync(SESSION_KEY).catch(() => {}), // Graceful cleanup
             AsyncStorage.removeItem(STORAGE_KEY),
           ]);
-          navLogger.error('hooks/auth-context.tsx:LOAD_USER', 'Failed to parse session data', undefined, {
+          navLogger.error('hooks/auth-context.tsx:LOAD_USER', 'Session restore did not finish', undefined, {
             error: parseError instanceof Error ? parseError.message : String(parseError),
           });
         }

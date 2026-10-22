@@ -21,6 +21,8 @@ import {
   type RegulatoryTrack,
 } from '@/lib/cottage-food';
 import { ListingPhotoField } from '@/components/ListingPhotoField';
+import { router, type Href } from 'expo-router';
+import { cottageBandLabel, cottageDirectoryRow, VEGETABLE_LEATHER_ALSO, VEGETABLE_LEATHER_PARAGRAPHS, VEGETABLE_LEATHER_TITLE } from '@/lib/cottage-directory';
 
 const TRACKS: RegulatoryTrack[] = ['whole_produce', 'csa_share', 'cottage_non_tcs', 'shell_eggs', 'temperature_control'];
 
@@ -106,6 +108,14 @@ export default function CottageLawScreen() {
         </Text>
       </View>
 
+      <View style={styles.card} testID="cottage-law-leather">
+        <Text style={styles.cardTitle}>{VEGETABLE_LEATHER_TITLE}</Text>
+        <Text style={styles.body}>Also called {VEGETABLE_LEATHER_ALSO}</Text>
+        {VEGETABLE_LEATHER_PARAGRAPHS.map((paragraph) => (
+          <Text key={paragraph} style={styles.body}>{paragraph}</Text>
+        ))}
+      </View>
+
       <Text style={styles.label}>State</Text>
       <TextInput
         value={query}
@@ -136,6 +146,16 @@ export default function CottageLawScreen() {
             cottagefoodlaws.com starting map
           </Text>
           <Text style={styles.note}>HomeCookedPlate is not affiliated with cottagefoodlaws.com.</Text>
+          {cottageDirectoryRow(draft.stateCode) ? (
+            <Text style={styles.body}>
+              Map summary: {cottageBandLabel(cottageDirectoryRow(draft.stateCode)!.band)}.
+              {cottageDirectoryRow(draft.stateCode)?.foodFreedom ? ' Food freedom is named for this state.' : ''}
+              {cottageDirectoryRow(draft.stateCode)?.cap ? ` Annual cap: ${cottageDirectoryRow(draft.stateCode)?.cap}` : ''}
+            </Text>
+          ) : null}
+          <Text style={styles.link} onPress={() => router.push('/farm-grown-basket/directory' as Href)}>
+            State-by-state directory and outside pages
+          </Text>
         </View>
       ) : null}
 

@@ -58,6 +58,7 @@ export function useShopCardPayment() {
       const { error: initError } = await initPaymentSheet({
         paymentIntentClientSecret: created.clientSecret,
         merchantDisplayName: 'HomeCookedPlate',
+        applePay: { merchantCountryCode: 'US' },
         returnURL: 'homecookedplate://checkout',
       });
       if (initError) {

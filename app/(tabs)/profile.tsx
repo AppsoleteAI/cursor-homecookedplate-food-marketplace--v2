@@ -148,6 +148,20 @@ export default function ProfileScreen() {
         }]
       : []),
     {
+      icon: 'heart-outline',
+      title: 'Charitable gifts',
+      subtitle: 'Unhoused people, elders, and children',
+      onPress: () => router.push('/charitable-gifts' as Href),
+    },
+    ...(accountRole === 'platemaker'
+      ? [{
+          icon: 'pricetag-outline' as const,
+          title: 'Area offers',
+          subtitle: '1% to 50% off, or up to $100 off',
+          onPress: () => router.push('/area-offers' as Href),
+        }]
+      : []),
+    {
       icon: 'home-outline',
       title: 'Home Kitchens',
       subtitle: 'Plates cooked near you',

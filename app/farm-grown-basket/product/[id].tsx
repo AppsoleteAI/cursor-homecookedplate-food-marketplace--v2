@@ -9,6 +9,7 @@ import { getCatalogProduct, getFarm } from '@/constants/farm-grown-basket';
 import { useFarmBasket } from '@/hooks/farm-basket-store';
 import { useAuth } from '@/hooks/auth-context';
 import { HOMEMADE_DISCLAIMER, frameworkForState, regulationDuty, stateName, trackLabel } from '@/lib/cottage-food';
+import { cottageBandLabel, cottageDirectoryRow } from '@/lib/cottage-directory';
 
 export default function FarmProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -46,6 +47,16 @@ export default function FarmProductScreen() {
       {catalog?.image || listing?.image ? <Image source={{ uri: catalog?.image || listing?.image }} style={styles.hero} /> : null}
       <Text style={styles.price}>${price.toFixed(2)} / {unit}</Text>
       <Text style={styles.track}>{trackLabel(track)} · {stateName(stateCode)}</Text>
+      {cottageDirectoryRow(stateCode) ? (
+        <GlassPressable onPress={() => router.push('/farm-grown-basket/directory' as Href)} testID="product-cottage-directory">
+          <Text style={styles.link}>
+            {cottageBandLabel(cottageDirectoryRow(stateCode)!.band)}
+            {cottageDirectoryRow(stateCode)?.foodFreedom ? ' · Food freedom' : ''}
+            {cottageDirectoryRow(stateCode)?.cap ? ` · ${cottageDirectoryRow(stateCode)?.cap}` : ''}
+            {' '}Open the state directory.
+          </Text>
+        </GlassPressable>
+      ) : null}
       <Text style={styles.body}>{summary}</Text>
       {farm ? (
         <GlassPressable onPress={() => router.push(`/farm-grown-basket/farm/${farm.id}` as Href)}>

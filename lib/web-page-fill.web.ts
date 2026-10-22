@@ -44,6 +44,8 @@ const PAGE_COLOR: [string, string][] = [
   ['/profile', pagePastel.gold],
   ['/reviews-dashboard', pagePastel.green],
   ['/promotions', pagePastel.green],
+  ['/area-offers', pagePastel.green],
+  ['/charitable-gifts', pagePastel.green],
   ['/finance', pagePastel.green],
   ['/payout-responsibility', pagePastel.green],
   ['/checkout', pagePastel.green],

@@ -11,6 +11,8 @@ import { forgetPaidPrepItems, useMealPrep, type PrepOrderLine } from '@/hooks/me
 import { weekMix } from '@/lib/meal-prep-go';
 import { buyerFoodCharge } from '@/backend/lib/fees';
 import { orderTotalWithDelivery } from '@/lib/fees';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
+import { readSellerId, shopSellerId } from '@/lib/shop-seller';
 import { DeliveryLevyLines, useDeliveryQuote } from '@/components/DeliveryFeeCard';
 import { useShopCardPayment, useWebShopReturn } from '@/hooks/use-shop-payment';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
@@ -54,6 +56,7 @@ export default function MealPrepCheckoutScreen() {
     });
   }, [items, listings]);
 
+  const offer = useAreaOfferTotal('meal_prep', lines.map((line) => ({ id: line.itemId, unitPrice: line.unitPrice, quantity: line.quantity })));
   const cookId = items[0]?.cookId ?? '';
   const catalogCook = getPrepCook(cookId);
   const cookName = catalogCook?.name ?? (cookId === 'owner-kitchen' ? kitchen?.cookName ?? 'Your kitchen' : '');
@@ -62,9 +65,11 @@ export default function MealPrepCheckoutScreen() {
   const cookCount = lines.filter((line) => line.lane === 'cook').reduce((sum, line) => sum + line.quantity, 0);
   const mealCount = readyCount + cookCount;
   const mix = weekMix(readyCount, cookCount);
-  const baseAmount = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+  const baseAmount = offer.baseAmount;
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
-  const delivery = useDeliveryQuote(cookId, handoff === 'dropoff');
+  const firstListing = listings.find((entry) => entry.id === items[0]?.itemId);
+  const sellerAccount = shopSellerId({ sellerId: readSellerId(firstListing) }, undefined, cookId === 'owner-kitchen' ? user : null);
+  const delivery = useDeliveryQuote(sellerAccount ?? cookId, handoff === 'dropoff');
   const priced = orderTotalWithDelivery(split.totalCaptured, split.sellerPayout, delivery.deliveryFee);
   const chosenWindow = windowLabel || (windows[0] ? `${windows[0].day} ${windows[0].hours} · ${windows[0].place}` : 'Cook confirms the handoff');
 
@@ -73,7 +78,7 @@ export default function MealPrepCheckoutScreen() {
   }
 
   const place = async () => {
-    if (payInMainCart || delivery.loading || lines.length === 0 || charging) return;
+    if (payInMainCart || delivery.loading || offer.loading || lines.length === 0 || charging) return;
     if (mealCount < 1) {
       setBlock('Add a ready meal or a cook kit. An add-on rides with the week.');
       return;
@@ -104,7 +109,7 @@ export default function MealPrepCheckoutScreen() {
         windowLabel: chosenWindow,
         address: handoff === 'dropoff' ? address.trim() : catalogCook?.handoffNote ?? kitchen?.handoffNote ?? '',
         mix,
-      });
+      }, sellerAccount);
       if (!paid) return;
       const order = placeOrder({
         id: paid.orderId,

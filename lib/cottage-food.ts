@@ -70,6 +70,9 @@ const NAMED_FRAMEWORK: Record<string, StateFramework> = {
   WY: 'food_freedom',
   ND: 'food_freedom',
   UT: 'food_freedom',
+  OK: 'food_freedom',
+  MT: 'food_freedom',
+  TN: 'food_freedom',
   PA: 'limited_food_establishment',
 };
 
@@ -124,7 +127,7 @@ export function frameworkSummary(framework: StateFramework): string {
     case 'traditional_cottage':
       return 'California and Florida are examples of traditional cottage states: home baking and canning can be allowed with a low barrier, and the state still limits the foods, the sales channels, or the yearly gross. Caps commonly sit somewhere between $5,000 and $150,000. The number that binds you is the one in your current statute, not a figure stored in this app.';
     case 'food_freedom':
-      return 'Wyoming, North Dakota, and Utah are examples of food-freedom states. Home producers may sell a wider set of foods, sometimes including refrigerated items, poultry, or hot meals, when the sale stays direct-to-consumer and the label is explicit. Federal meat inspection and interstate commerce rules still apply. Confirm the statute before you list.';
+      return 'Wyoming, North Dakota, Utah, Oklahoma, Montana, and Tennessee are the food-freedom states named in FarmGrownBasket. Publisher summaries describe face-to-face sales of hot home meals, dairy, cheesecake, and cooked meat in these states. The cottage directory lists those items and any annual cap a summary actually names. Federal meat inspection and interstate commerce rules still apply. Confirm the statute before you list.';
     case 'limited_food_establishment':
       return 'Pennsylvania does not use a traditional cottage food law. It uses a Limited Food Establishment registration through the Department of Agriculture. A published example of that registration is $35 a year, with an in-person home kitchen inspection, no revenue cap, and room for wholesale or interstate shipping when the registration allows the product. Confirm the current fee and your product class with the department before you list.';
     case 'confirm_locally':

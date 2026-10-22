@@ -161,6 +161,10 @@ export default function BuyerDashboardScreen() {
         >
 
           <View style={[styles.section, styles.firstSection]}>
+            <GlassPressable onPress={() => router.push('/charitable-gifts' as Href)} testID="buyer-charitable-gifts">
+              <Text style={styles.sectionTitle}>Charitable gifts</Text>
+              <Text style={styles.emptySubtext}>Portions set aside for unhoused people, elders, and children. No card.</Text>
+            </GlassPressable>
             <Text testID="recent-purchases-title" style={styles.sectionTitle}>Recent Purchases</Text>
             {(orders || []).length === 0 ? (
               <Text style={[styles.emptySubtext, { paddingHorizontal: 24 }]}>Your orders will show up here.</Text>

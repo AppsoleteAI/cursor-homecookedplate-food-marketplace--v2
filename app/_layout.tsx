@@ -26,11 +26,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Slot, usePathname, useRootNavigationState } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState, useCallback } from "react";
-import { StyleSheet, Platform, View, ActivityIndicator } from "react-native";
+import { StyleSheet, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { DefaultTheme, NavigationContainer, NavigationIndependentTree } from "@react-navigation/native";
+import { DarkTheme, DefaultTheme, NavigationContainer, NavigationIndependentTree, ThemeProvider } from "@react-navigation/native";
+import * as SystemUI from "expo-system-ui";
 import { Asset } from "expo-asset";
-import { AuthProvider, useAuth } from "@/hooks/auth-context";
+import { AuthProvider } from "@/hooks/auth-context";
+import { LaunchCover } from "@/components/launch-cover";
 import { CartProvider } from "@/hooks/cart-context";
 import { FavoritesProvider } from "@/hooks/favorites-context";
 import { NotificationsProvider } from "@/hooks/notifications-context";
@@ -48,7 +50,13 @@ import { SENTRY_TRACE_SAMPLE_RATE } from '@/lib/sentry-rate';
 import { applyScrollbarAccent } from '@/lib/web-scrollbar';
 import { applyPageFill } from '@/lib/web-page-fill';
 
-SplashScreen.preventAutoHideAsync();
+const LAUNCH_BACKGROUND = '#1A0F0A';
+
+SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
+if (Platform.OS !== 'web') {
+  SystemUI.setBackgroundColorAsync(LAUNCH_BACKGROUND).catch(() => undefined);
+}
 
 if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
   Sentry.init({
@@ -125,6 +133,15 @@ const webNavigationTheme = {
   },
 };
 
+const nativeLaunchTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: LAUNCH_BACKGROUND,
+    card: LAUNCH_BACKGROUND,
+  },
+};
+
 function ScrollbarAccent() {
   const path = usePathname();
   useEffect(() => {
@@ -132,29 +149,6 @@ function ScrollbarAccent() {
     applyPageFill(path);
   }, [path]);
   return null;
-}
-
-// Inner component that handles Extended Splash logic
-// Must be inside Providers tree to access useAuth()
-function ExtendedSplashHandler({ children }: { children: React.ReactNode }) {
-  const { isLoading: authIsLoading } = useAuth();
-  const rootNavigationState = useRootNavigationState();
-  const hasNavigationKey = !!rootNavigationState?.key;
-  const isWeb = Platform.OS === 'web';
-
-  // Extended Splash: Hide native splash only when auth is ready
-  // This eliminates the need for LoadingSplashScreen
-  useEffect(() => {
-    if (!isWeb && !authIsLoading && hasNavigationKey) {
-      SplashScreen.hideAsync().catch((error) => {
-        if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
-          Sentry.captureException(error);
-        }
-      });
-    }
-  }, [isWeb, authIsLoading, hasNavigationKey]);
-
-  return <>{children}</>;
 }
 
 // Root layout component
@@ -200,7 +194,7 @@ function RootLayout() {
     prepare();
   }, [isWeb]);
 
-  // Track if we've ever seen a navigation key (prevents Fast Refresh from breaking the lock)
+  // Log the first navigation key. The spinner does not wait on this flag.
   useEffect(() => {
     if (hasNavigationKey && !hasEverHadKey) {
       setHasEverHadKey(true);
@@ -260,32 +254,22 @@ function RootLayout() {
     );
   }
 
-  // The navigation key is created by the mounted slot. Holding the slot
-  // behind hasEverHadKey leaves that flag false, so the splash never leaves.
-  const navigationLocked = !isNativeLayoutReady || !hasEverHadKey;
-
   return (
     <ErrorBoundary>
-      <GestureHandlerRootView style={styles.container}>
-        <View 
-          style={{ flex: 1 }} 
+      <GestureHandlerRootView style={styles.launch}>
+        <View
+          style={styles.launch}
           onLayout={onLayoutRootView}
         >
           <CoreProviders>
             <ConditionalAppProviders>
-              <ExtendedSplashHandler>
-                {content}
-              </ExtendedSplashHandler>
+              <ThemeProvider value={nativeLaunchTheme}>
+                <LaunchCover layoutReady={isNativeLayoutReady}>
+                  {content}
+                </LaunchCover>
+              </ThemeProvider>
             </ConditionalAppProviders>
           </CoreProviders>
-          {navigationLocked ? (
-            <View
-              pointerEvents="auto"
-              style={[StyleSheet.absoluteFill, styles.gate]}
-            >
-              <ActivityIndicator size="large" color="#ffffff" />
-            </View>
-          ) : null}
         </View>
       </GestureHandlerRootView>
     </ErrorBoundary>
@@ -296,10 +280,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  gate: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#1A0F0A',
+  launch: {
+    flex: 1,
+    backgroundColor: LAUNCH_BACKGROUND,
   },
 });
 

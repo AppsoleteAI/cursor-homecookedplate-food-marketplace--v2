@@ -241,6 +241,9 @@ export function buyerFoodCharge(input: {
   };
 }
 
+export const MAX_PERCENT_OFF = 50;
+export const MAX_AMOUNT_OFF = 100;
+
 export type PromotionPrice = {
   type: 'percentage' | 'buy-x-get-y' | 'fixed-amount' | 'free-item';
   discountPercentage?: number | null;
@@ -248,6 +251,17 @@ export type PromotionPrice = {
   buyQuantity?: number | null;
   getQuantity?: number | null;
 };
+
+/** Ingredients plus packaging. This is the cook's cost, not a sale price. */
+export function producedCost(ingredients: number, packaging: number): number {
+  if (!Number.isFinite(ingredients) || ingredients < 0) {
+    throw new Error(`Invalid ingredient cost: ${ingredients}. Must be a finite, non-negative number.`);
+  }
+  if (!Number.isFinite(packaging) || packaging < 0) {
+    throw new Error(`Invalid packaging cost: ${packaging}. Must be a finite, non-negative number.`);
+  }
+  return roundMoney(ingredients + packaging);
+}
 
 /** Menu line total after one active offer. A free item does not change this plate's price. */
 export function promotionalBase(unitPrice: number, quantity: number, offer: PromotionPrice | null | undefined): number {
@@ -261,12 +275,12 @@ export function promotionalBase(unitPrice: number, quantity: number, offer: Prom
   if (!offer) return menu;
   if (offer.type === 'percentage') {
     const percent = Number(offer.discountPercentage);
-    if (!Number.isFinite(percent) || percent <= 0 || percent > 100) return menu;
+    if (!Number.isFinite(percent) || percent <= 0 || percent > MAX_PERCENT_OFF) return menu;
     return roundMoney(menu * (1 - percent / 100));
   }
   if (offer.type === 'fixed-amount') {
     const amount = Number(offer.discountAmount);
-    if (!Number.isFinite(amount) || amount <= 0) return menu;
+    if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT_OFF) return menu;
     return roundMoney(Math.max(0, menu - amount));
   }
   if (offer.type === 'buy-x-get-y') {

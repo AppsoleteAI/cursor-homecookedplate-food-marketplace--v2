@@ -63,5 +63,9 @@ function install(host: FontHost, key: 'Text' | 'TextInput') {
   }
 }
 
-install(ReactNative as unknown as FontHost, 'Text');
-install(ReactNative as unknown as FontHost, 'TextInput');
+// iOS already uses San Francisco and Android already uses Roboto.
+// The web stack is the only face this patch has to install.
+if (ReactNative.Platform.OS === 'web') {
+  install(ReactNative as unknown as FontHost, 'Text');
+  install(ReactNative as unknown as FontHost, 'TextInput');
+}

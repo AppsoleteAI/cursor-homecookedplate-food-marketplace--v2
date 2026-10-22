@@ -18,6 +18,8 @@ import {
 } from '@/lib/cottage-food';
 import { buyerFoodCharge } from '@/backend/lib/fees';
 import { orderTotalWithDelivery } from '@/lib/fees';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
+import { readSellerId, shopSellerId } from '@/lib/shop-seller';
 import { DeliveryLevyLines, useDeliveryQuote } from '@/components/DeliveryFeeCard';
 import { useShopCardPayment, useWebShopReturn } from '@/hooks/use-shop-payment';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
@@ -56,12 +58,15 @@ export default function FarmCheckoutScreen() {
     });
   }, [items, listings]);
 
+  const offer = useAreaOfferTotal('farm', lines.map((line) => ({ id: line.productId, unitPrice: line.unitPrice, quantity: line.quantity })));
   const tracks = lines.map((line) => line.track);
-  const baseAmount = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+  const baseAmount = offer.baseAmount;
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
   const farmSellerId = getFarm(getCatalogProduct(items[0]?.productId ?? '')?.farmId ?? '')?.sellerId;
+  const firstListing = listings.find((entry) => entry.id === items[0]?.productId);
+  const sellerAccount = shopSellerId({ sellerId: readSellerId(firstListing) }, farmSellerId, user);
   const delivering = channel === 'hand_delivery' || channel === 'hub_delivery';
-  const delivery = useDeliveryQuote(farmSellerId, delivering);
+  const delivery = useDeliveryQuote(sellerAccount, delivering);
   const priced = orderTotalWithDelivery(split.totalCaptured, split.sellerPayout, delivery.deliveryFee);
   const block = tracks.map((track) => buyerChannelBlock(track, channel)).find(Boolean) ?? null;
   const warnings = [...new Set(
@@ -75,12 +80,12 @@ export default function FarmCheckoutScreen() {
   }
 
   const place = async () => {
-    if (payInMainCart || delivery.loading || block || lines.length === 0 || charging) return;
+    if (payInMainCart || delivery.loading || offer.loading || block || lines.length === 0 || charging) return;
     try {
       const paid = await chargeShop('farm', lines.map((line) => ({ productId: line.productId, quantity: line.quantity })), {
         shop: 'farm',
         channel,
-      }, farmSellerId);
+      }, sellerAccount);
       if (!paid) return;
       const order = placeOrder({
         id: paid.orderId,

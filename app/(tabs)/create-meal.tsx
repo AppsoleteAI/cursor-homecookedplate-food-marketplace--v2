@@ -527,6 +527,20 @@ export default function CreateMealScreen() {
             baseColor="red"
             testID="manage-promotions"
           />
+          <View style={{ height: 10 }} />
+          <GradientButton
+            title="Area offers"
+            onPress={() => router.push('/area-offers' as Href)}
+            baseColor="red"
+            testID="area-offers"
+          />
+          <View style={{ height: 10 }} />
+          <GradientButton
+            title="Charitable gifts"
+            onPress={() => router.push('/charitable-gifts' as Href)}
+            baseColor="red"
+            testID="charitable-gifts"
+          />
         </View>
 
         <View style={styles.section}>

@@ -116,18 +116,16 @@ export default function WelcomeScreen() {
   const stepLabels = ['Benefits', 'Membership', isMaker ? 'Cottage food' : 'Safety'];
   const [step, setStep] = useState(stepParam(params.step));
   const stepBack = useWizardBack(step, setStep);
-  const [gate, setGate] = useState<'checking' | 'show' | 'login'>(isGate ? 'checking' : 'show');
+  const [gate, setGate] = useState<'show' | 'login'>('show');
 
   useEffect(() => {
     if (!isGate) return;
     let cancelled = false;
     AsyncStorage.getItem(WELCOME_SEEN_KEY)
       .then((value) => {
-        if (!cancelled) setGate(value === '1' ? 'login' : 'show');
+        if (!cancelled && value === '1') setGate('login');
       })
-      .catch(() => {
-        if (!cancelled) setGate('show');
-      });
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
@@ -171,7 +169,6 @@ export default function WelcomeScreen() {
     });
   };
 
-  if (gate === 'checking') return null;
   if (gate === 'login') return <Redirect href="/(auth)/login" />;
 
   return (

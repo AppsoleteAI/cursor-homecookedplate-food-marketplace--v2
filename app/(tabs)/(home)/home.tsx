@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ScrollView,
   Image,
+  TextInput,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
@@ -31,6 +32,8 @@ import { useOrders } from '@/hooks/orders-context';
 import { trpc } from '@/lib/trpc';
 import type { Meal } from '@/types';
 import { SkeletonMealList } from '@/components/SkeletonMealList';
+import { BAKED_COTTAGE_LINK, BAKED_COTTAGE_NOTE, isCottageSearch } from '@/lib/baked-cottage';
+import { isVegetableLeatherSearch, VEGETABLE_LEATHER_ALSO, VEGETABLE_LEATHER_PARAGRAPHS, VEGETABLE_LEATHER_TITLE } from '@/lib/cottage-directory';
 export default function HomeScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
@@ -40,6 +43,7 @@ export default function HomeScreen() {
   }, [refresh]));
   const [selectedCuisine, setSelectedCuisine] = useState<string | null>(null);
   const [selectedDietary, setSelectedDietary] = useState<string | null>(null);
+  const [plateSearch, setPlateSearch] = useState('');
   const cuisineBrowse: string[] = useMemo(() => cuisineTypes, []);
   const dietaryBrowse: string[] = useMemo(() => dietaryOptions, []);
 
@@ -112,8 +116,16 @@ export default function HomeScreen() {
     if (selectedDietary) {
       list = list.filter(meal => (meal.dietaryOptions ?? []).includes(selectedDietary));
     }
+    const needle = plateSearch.trim().toLowerCase();
+    if (needle.length > 0) {
+      list = list.filter((meal) => {
+        const haystack = [meal.name, meal.description, meal.cuisine, ...(meal.ingredients ?? []), ...(meal.tags ?? [])].join(' ').toLowerCase();
+        return haystack.includes(needle);
+      });
+    }
     return list;
-  }, [meals, selectedCuisine, selectedDietary]);
+  }, [meals, selectedCuisine, selectedDietary, plateSearch]);
+  const cottageSearch = isCottageSearch(plateSearch) || selectedCuisine === 'Bakery';
 
   const scrollRef = useRef<ScrollView | null>(null);
   const { onScroll } = useScrollRestoration('homeScroll', scrollRef);
@@ -344,6 +356,47 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.stickyFilters}>
+          <TextInput
+            value={plateSearch}
+            onChangeText={setPlateSearch}
+            placeholder="Search plates"
+            placeholderTextColor={Colors.gray[400]}
+            style={styles.plateSearch}
+            testID="home-plate-search"
+            autoCorrect={false}
+          />
+          {cottageSearch ? (
+            <GlassPressable
+              style={styles.cottageNote}
+              onPress={() => router.push(BAKED_COTTAGE_LINK as Href)}
+              testID="home-cottage-note"
+            >
+              <Text style={styles.cottageNoteText}>{BAKED_COTTAGE_NOTE}</Text>
+              <Text style={styles.cottageNoteLink}>Open the highlighted cottage foods</Text>
+            </GlassPressable>
+          ) : null}
+          {cottageSearch ? (
+            <GlassPressable
+              style={styles.cottageNote}
+              onPress={() => router.push('/farm-grown-basket/directory' as Href)}
+              testID="home-cottage-directory"
+            >
+              <Text style={styles.cottageNoteLink}>State-by-state cottage directory</Text>
+            </GlassPressable>
+          ) : null}
+          {isVegetableLeatherSearch(plateSearch) ? (
+            <GlassPressable
+              style={styles.cottageNote}
+              onPress={() => router.push('/farm-grown-basket/directory' as Href)}
+              testID="home-leather-definition"
+            >
+              <Text style={styles.cottageNoteText}>{VEGETABLE_LEATHER_TITLE}</Text>
+              <Text style={styles.cottageNoteText}>Also called {VEGETABLE_LEATHER_ALSO}</Text>
+              {VEGETABLE_LEATHER_PARAGRAPHS.map((paragraph) => (
+                <Text key={paragraph} style={styles.cottageNoteText}>{paragraph}</Text>
+              ))}
+            </GlassPressable>
+          ) : null}
           <Text style={styles.filterLabel}>Cuisine</Text>
           <HorizontalCarousel contentContainerStyle={styles.cuisineScroll} testID="cuisine-carousel">
             {cuisineBrowse.map(cuisine => (
@@ -535,6 +588,36 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: Colors.gray[200],
+  },
+  plateSearch: {
+    marginHorizontal: 24,
+    marginBottom: 8,
+    backgroundColor: Colors.gray[100],
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: Colors.gray[900],
+  },
+  cottageNote: {
+    marginHorizontal: 24,
+    marginBottom: 12,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#166534',
+    padding: 12,
+  },
+  cottageNoteText: {
+    color: Colors.gray[800],
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  cottageNoteLink: {
+    marginTop: 8,
+    color: '#166534',
+    fontWeight: '700',
+    fontSize: 14,
   },
   filterLabel: {
     fontSize: 13,

@@ -22,6 +22,7 @@ export default function FarmGrownBasketLayout() {
       <Stack.Screen name="seller" />
       <Stack.Screen name="list" />
       <Stack.Screen name="cottage-law" />
+      <Stack.Screen name="directory" />
     </Stack>
   );
 }

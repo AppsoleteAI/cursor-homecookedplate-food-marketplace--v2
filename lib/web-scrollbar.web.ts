@@ -56,6 +56,8 @@ const HEADER_COLORS: [string, string][] = [
   ['/profile', monoGradients.gold[0]],
   ['/reviews-dashboard', monoGradients.green[0]],
   ['/promotions', monoGradients.green[0]],
+  ['/area-offers', monoGradients.green[0]],
+  ['/charitable-gifts', monoGradients.green[0]],
   ['/finance', monoGradients.green[0]],
   ['/food-review-clips', monoGradients.green[0]],
   ['/payout-responsibility', monoGradients.green[0]],

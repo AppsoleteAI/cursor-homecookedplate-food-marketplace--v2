@@ -126,10 +126,12 @@ export default function PromotionsScreen() {
     switch (formData.type) {
       case 'percentage': {
         const pct = Number(formData.discountPercentage);
-        return pct > 0 && pct <= 100;
+        return pct >= 1 && pct <= 50;
       }
-      case 'fixed-amount':
-        return Number(formData.discountAmount) > 0;
+      case 'fixed-amount': {
+        const amount = Number(formData.discountAmount);
+        return amount > 0 && amount <= 100;
+      }
       case 'buy-x-get-y':
         return Number(formData.buyQuantity) > 0 && Number(formData.getQuantity) > 0;
       case 'free-item':
@@ -417,11 +419,11 @@ export default function PromotionsScreen() {
 
               {formData.type === 'percentage' && (
                 <View style={styles.formSection}>
-                  <Text style={styles.label}>Discount Percentage (%)</Text>
+                  <Text style={styles.label}>Discount Percentage (1 to 50)</Text>
                   <TextInput
                     value={formData.discountPercentage}
                     onChangeText={(text) => setFormData(prev => ({ ...prev, discountPercentage: text.replace(/[^0-9]/g, '') }))}
-                    placeholder="e.g., 20"
+                    placeholder="1 to 50"
                     placeholderTextColor={Colors.gray[400]}
                     keyboardType="number-pad"
                     style={styles.input}
@@ -431,11 +433,11 @@ export default function PromotionsScreen() {
 
               {formData.type === 'fixed-amount' && (
                 <View style={styles.formSection}>
-                  <Text style={styles.label}>Discount Amount ($)</Text>
+                  <Text style={styles.label}>Discount Amount ($0.01 to $100)</Text>
                   <TextInput
                     value={formData.discountAmount}
                     onChangeText={(text) => setFormData(prev => ({ ...prev, discountAmount: text.replace(/[^0-9.]/g, '') }))}
-                    placeholder="e.g., 5.00"
+                    placeholder="Up to 100.00"
                     placeholderTextColor={Colors.gray[400]}
                     keyboardType="decimal-pad"
                     style={styles.input}

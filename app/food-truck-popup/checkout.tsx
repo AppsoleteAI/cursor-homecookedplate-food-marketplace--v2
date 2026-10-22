@@ -10,6 +10,8 @@ import { useAuth } from '@/hooks/auth-context';
 import { forgetPaidTruckItems, useFoodTruck, type TruckOrderLine } from '@/hooks/food-truck-store';
 import { PICKUP_SLOTS, type PickupSlot } from '@/lib/food-truck-permit';
 import { buyerFoodCharge } from '@/backend/lib/fees';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
+import { readSellerId, shopSellerId } from '@/lib/shop-seller';
 import { useShopCardPayment, useWebShopReturn } from '@/hooks/use-shop-payment';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
 import { usePaidBack } from '@/hooks/use-leave-screen';
@@ -40,11 +42,12 @@ export default function TruckCheckoutScreen() {
     });
   }, [items, listings]);
 
+  const offer = useAreaOfferTotal('food_truck', lines.map((line) => ({ id: line.itemId, unitPrice: line.unitPrice, quantity: line.quantity })));
   const truckId = items[0]?.truckId ?? '';
   const catalogTruck = getTruck(truckId);
   const truckName = truckId === 'owner-truck' ? permit?.truckName ?? 'Your truck' : catalogTruck?.name ?? 'Truck';
   const windowOpen = truckId === 'owner-truck' ? ownerActive : Boolean(catalogTruck?.active);
-  const baseAmount = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+  const baseAmount = offer.baseAmount;
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 
   if (!isLoading && !isAuthenticated) {
@@ -52,14 +55,16 @@ export default function TruckCheckoutScreen() {
   }
 
   const place = async () => {
-    if (payInMainCart || !windowOpen || lines.length === 0 || charging) return;
+    if (payInMainCart || offer.loading || !windowOpen || lines.length === 0 || charging) return;
+    const firstListing = listings.find((entry) => entry.id === items[0]?.itemId);
+    const sellerAccount = shopSellerId({ sellerId: readSellerId(firstListing) }, undefined, truckId === 'owner-truck' ? user : null);
     try {
       const paid = await chargeShop('food_truck', lines.map((line) => ({ productId: line.itemId, quantity: line.quantity })), {
         shop: 'food_truck',
         truckId,
         truckName,
         pickupSlot: slot,
-      });
+      }, sellerAccount);
       if (!paid) return;
       const order = placeOrder({
         id: paid.orderId,

@@ -40,6 +40,21 @@ function catalogFor(shop: ShopName): Map<string, CatalogItem> {
   return new Map(PREP_ITEMS.map((item) => [item.id, { name: item.name, unitPrice: item.price, minimum: 1 }]));
 }
 
+export function catalogItem(shop: ShopName, productId: string): CatalogItem | undefined {
+  return catalogFor(shop).get(productId);
+}
+
+/** Price stored on a cook's shared listing. The phone does not send this number. */
+export function listingMenuPrice(listing: unknown): { name: string; unitPrice: number; minimum: number } | null {
+  if (!listing || typeof listing !== 'object') return null;
+  const row = listing as Record<string, unknown>;
+  const name = typeof row.name === 'string' ? row.name.trim() : '';
+  const raw = typeof row.price === 'number' ? row.price : typeof row.pricePerPerson === 'number' ? row.pricePerPerson : Number.NaN;
+  const minimum = typeof row.minimumHeadcount === 'number' && row.minimumHeadcount >= 1 ? Math.round(row.minimumHeadcount) : 1;
+  if (name.length < 1 || !Number.isFinite(raw) || raw <= 0) return null;
+  return { name, unitPrice: raw, minimum };
+}
+
 /**
  * Prices come from the server catalog. The phone does not send a price.
  */

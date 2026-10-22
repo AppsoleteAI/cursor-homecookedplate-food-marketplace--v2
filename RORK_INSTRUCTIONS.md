@@ -482,6 +482,16 @@ These sections form a stability triangle:
 
 ## 📋 AI CONSTRAINTS & STANDARDS (LOCKED)
 
+### 🚫 No PHP (PERMANENT)
+- **Never use PHP.** Not for scripts, backends, pages, workers, or dependencies.
+- This project is TypeScript: Expo and React Native on the client, Bun, Hono, and Cloudflare Workers on the API, Supabase for data.
+- Do not add `.php` files, a PHP runtime, Composer, or any PHP package.
+- **Citation:** [2026-10-21]
+
+### 🚫 No account numbers in chat (PERMANENT)
+- **Never post an account number in chat.** A Stripe account id, a bank account number, and any other account number are written as `xxxxxx`.
+- **Citation:** [2026-10-21]
+
 ### 🏷️ Naming Convention Standardization
 - **Forbidden:** All references to roles must strictly use `platemaker` or `platetaker`. No "maker/taker" abbreviations allowed.
 - **Metadata Standardization:** All metadata property names must use snake_case (e.g., `metro_name`, `platemaker_count`, `platetaker_count`) as sent from webhooks.

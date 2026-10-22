@@ -8,7 +8,8 @@ import { payoutReleaseAt } from '../../../../lib/payout-policy';
 import { fulfillmentIsDelivery, savedDeliveryFee } from '../../../../lib/delivery-fee';
 import { assertBuyerCanOrder } from '../../../../lib/buyer-order-access';
 import { salesVolumeBlock } from '../../../../lib/stripe-marketplace';
-import { quoteShopOrder, SHOP_NAMES } from '../../../../lib/shop-catalog';
+import { SHOP_NAMES } from '../../../../lib/shop-catalog';
+import { priceShopOrder } from '../../../../lib/shop-quote';
 import { browserOrigin, openStripeCheckout } from '../../../../lib/stripe-checkout';
 import { notifyCookOfPayment, notifyParty } from '../../../../lib/account-notice';
 import {
@@ -262,7 +263,7 @@ export const createShopCheckoutProcedure = protectedProcedure
 
     let quote;
     try {
-      quote = quoteShopOrder(input.shop, input.lines);
+      quote = await priceShopOrder(ctx.supabaseAdmin, input.shop, input.lines, input.sellerId);
     } catch (error) {
       throw new TRPCError({
         code: 'BAD_REQUEST',

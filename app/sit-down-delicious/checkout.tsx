@@ -10,6 +10,8 @@ import { useAuth } from '@/hooks/auth-context';
 import { forgetPaidSitItems, useSitDown, type SitOrderLine } from '@/hooks/sit-down-store';
 import { SERVICE_LABEL, type DiningService } from '@/lib/sit-down-license';
 import { buyerFoodCharge } from '@/backend/lib/fees';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
+import { readSellerId, shopSellerId } from '@/lib/shop-seller';
 import { useShopCardPayment, useWebShopReturn } from '@/hooks/use-shop-payment';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
 import { usePaidBack } from '@/hooks/use-leave-screen';
@@ -43,6 +45,7 @@ export default function SitCheckoutScreen() {
     });
   }, [items, listings]);
 
+  const offer = useAreaOfferTotal('sit_down', lines.map((line) => ({ id: line.itemId, unitPrice: line.unitPrice, quantity: line.quantity })));
   const placeId = items[0]?.placeId ?? '';
   const catalogPlace = getPlace(placeId);
   const placeName = placeId === 'owner-place' ? license?.placeName ?? 'Your restaurant' : catalogPlace?.name ?? 'Restaurant';
@@ -54,7 +57,7 @@ export default function SitCheckoutScreen() {
       ]
     : catalogPlace?.services ?? [];
   const chosen = services.includes(service) ? service : services[0] ?? 'takeout';
-  const baseAmount = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+  const baseAmount = offer.baseAmount;
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 
   if (!isLoading && !isAuthenticated) {
@@ -62,7 +65,9 @@ export default function SitCheckoutScreen() {
   }
 
   const place = async () => {
-    if (payInMainCart || !open || lines.length === 0 || services.length === 0 || charging) return;
+    if (payInMainCart || offer.loading || !open || lines.length === 0 || services.length === 0 || charging) return;
+    const firstListing = listings.find((entry) => entry.id === items[0]?.itemId);
+    const sellerAccount = shopSellerId({ sellerId: readSellerId(firstListing) }, undefined, placeId === 'owner-place' ? user : null);
     try {
       const paid = await chargeShop('sit_down', lines.map((line) => ({ productId: line.itemId, quantity: line.quantity })), {
         shop: 'sit_down',
@@ -70,7 +75,7 @@ export default function SitCheckoutScreen() {
         placeName,
         service: chosen,
         partySize: chosen === 'sit_down' ? partySize : 1,
-      });
+      }, sellerAccount);
       if (!paid) return;
       const order = placeOrder({
         id: paid.orderId,

@@ -39,6 +39,12 @@ export default function MealPrepSellerScreen() {
       <GlassPressable style={styles.button} onPress={() => router.push('/meal-prep-go/list' as Href)} testID="prep-seller-list">
         <Text style={styles.buttonText}>Add a Weekly Item</Text>
       </GlassPressable>
+      <GlassPressable onPress={() => router.push('/area-offers?area=meal_prep' as Href)}>
+        <Text style={styles.link}>Offers, 1% to 50% or up to $100</Text>
+      </GlassPressable>
+      <GlassPressable onPress={() => router.push('/charitable-gifts?area=meal_prep' as Href)}>
+        <Text style={styles.link}>Charitable gifts</Text>
+      </GlassPressable>
       <GlassPressable onPress={() => router.push('/meal-prep-go/kitchen' as Href)}>
         <Text style={styles.link}>Edit the Kitchen Record</Text>
       </GlassPressable>

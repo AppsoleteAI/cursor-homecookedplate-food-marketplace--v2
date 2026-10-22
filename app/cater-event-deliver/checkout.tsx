@@ -11,6 +11,8 @@ import { forgetPaidCaterItems, useCaterEvent, type CaterOrderLine } from '@/hook
 import { DROP_OFF_WINDOWS, type DropOffWindow } from '@/lib/cater-event-license';
 import { buyerFoodCharge } from '@/backend/lib/fees';
 import { orderTotalWithDelivery } from '@/lib/fees';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
+import { readSellerId, shopSellerId } from '@/lib/shop-seller';
 import { DeliveryLevyLines, useDeliveryQuote } from '@/components/DeliveryFeeCard';
 import { useShopCardPayment, useWebShopReturn } from '@/hooks/use-shop-payment';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
@@ -52,13 +54,19 @@ export default function CaterCheckoutScreen() {
     });
   }, [items, listings]);
 
+  const offer = useAreaOfferTotal('catering', lines.map((line) => ({ id: line.packageId, unitPrice: line.pricePerPerson, quantity: line.headcount })));
   const companyId = items[0]?.companyId ?? '';
   const catalogCompany = getCompany(companyId);
   const companyName = companyId === 'owner-company' ? license?.companyName ?? 'Your company' : catalogCompany?.name ?? 'Catering company';
   const open = companyId === 'owner-company' ? accepting : Boolean(catalogCompany?.accepting);
-  const baseAmount = lines.reduce((sum, line) => sum + line.pricePerPerson * line.headcount, 0);
+  const baseAmount = offer.baseAmount;
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
-  const sellerAccount = catalogCompany?.sellerId ?? (companyId === 'owner-company' ? user?.id : undefined);
+  const firstListing = listings.find((entry) => entry.id === items[0]?.packageId);
+  const sellerAccount = shopSellerId(
+    { sellerId: readSellerId(firstListing) },
+    catalogCompany?.sellerId,
+    companyId === 'owner-company' ? user : null,
+  );
   const delivery = useDeliveryQuote(sellerAccount, true);
   const priced = orderTotalWithDelivery(split.totalCaptured, split.sellerPayout, delivery.deliveryFee);
   const shortHeadcount = lines.find((line) => line.headcount < line.minimum);
@@ -68,7 +76,7 @@ export default function CaterCheckoutScreen() {
   }
 
   const place = async () => {
-    if (payInMainCart || delivery.loading || !open || lines.length === 0 || charging) return;
+    if (payInMainCart || delivery.loading || offer.loading || !open || lines.length === 0 || charging) return;
     if (organization.trim().length < 2) {
       setBlock('Name the organization this order is for. Spend is tracked under that name.');
       return;

@@ -67,6 +67,9 @@ export default function ListFarmGoodScreen() {
       <GlassPressable onPress={() => router.push('/farm-grown-basket/cottage-law' as Href)}>
         <Text style={styles.link}>Edit State, Test, and Permit Fee</Text>
       </GlassPressable>
+      <GlassPressable onPress={() => router.push('/farm-grown-basket/directory' as Href)} testID="farm-list-directory">
+        <Text style={styles.link}>State-by-state cottage directory</Text>
+      </GlassPressable>
     </FarmScreen>
   );
 }
