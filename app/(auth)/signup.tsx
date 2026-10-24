@@ -24,6 +24,7 @@ import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 import { useSignupForm } from '@/hooks/useSignupForm';
 import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { BUYER_AFTER_NOTE } from '@/lib/buyer-safety';
+import { SUBSCRIPTION_PRICES } from '@/backend/lib/fees';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { ResendConfirmation } from '@/components/auth/ResendConfirmation';
 
@@ -181,7 +182,7 @@ export default function SignupScreen() {
                   <Text style={styles.eligibilityLoadingText}>Checking eligibility...</Text>
                 </View>
               )}
-              {isEligibleForTrial && trialMeta && trialMeta.metro && !checkingEligibility && (
+              {formData.role === 'platemaker' && isEligibleForTrial && trialMeta && trialMeta.metro && !checkingEligibility && (
                 <View style={styles.progressBarContainer}>
                   <View style={styles.eligibilityMessage}>
                     <Ionicons name="checkmark-circle" size={20} color={AuthColors.maroon} />
@@ -196,15 +197,23 @@ export default function SignupScreen() {
                   />
                 </View>
               )}
-              {isMembershipEnabled && !isEligibleForTrial && !checkingEligibility && trialMeta === null && (
+              {isMembershipEnabled && formData.role !== 'platemaker' && !checkingEligibility && (
                 <View style={styles.eligibilityMessage}>
                   <Ionicons name="information-circle" size={20} color={AuthColors.maroon} />
                   <Text style={styles.eligibilityTextNeutral}>
-                    Premium membership: $4.99/month after trial
+                    {`The app is free. Premium is optional: $${SUBSCRIPTION_PRICES.PLATETAKER_MONTHLY.toFixed(2)} a month or $${SUBSCRIPTION_PRICES.PLATETAKER_ANNUAL.toFixed(2)} a year.`}
                   </Text>
                 </View>
               )}
-              {isMembershipEnabled && !isEligibleForTrial && trialMeta && !checkingEligibility && (
+              {isMembershipEnabled && formData.role === 'platemaker' && !isEligibleForTrial && !checkingEligibility && trialMeta === null && (
+                <View style={styles.eligibilityMessage}>
+                  <Ionicons name="information-circle" size={20} color={AuthColors.maroon} />
+                  <Text style={styles.eligibilityTextNeutral}>
+                    {`PlateMaker membership is $${SUBSCRIPTION_PRICES.PLATEMAKER_MONTHLY.toFixed(2)} a month or $${SUBSCRIPTION_PRICES.PLATEMAKER_ANNUAL.toFixed(2)} a year. Early Bird is offered inside an active metro.`}
+                  </Text>
+                </View>
+              )}
+              {isMembershipEnabled && formData.role === 'platemaker' && !isEligibleForTrial && trialMeta && !checkingEligibility && (
                 <View style={styles.eligibilityMessage}>
                   <Ionicons name="close-circle" size={20} color={AuthColors.muted} />
                   <Text style={styles.eligibilityTextNeutral}>

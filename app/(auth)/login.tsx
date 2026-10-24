@@ -21,12 +21,19 @@ import * as WebBrowser from 'expo-web-browser';
 import { Redirect, router, useFocusEffect, type Href } from 'expo-router';
 import { useAuth } from '@/hooks/auth-context';
 import { openSignInCanEmailNewCode } from '@/backend/lib/sign-in-code';
+import {
+  isIneligibleAccountMessage,
+  isMissingAccountMessage,
+  MEMBERSHIP_INELIGIBLE_MESSAGE,
+  NO_ACCOUNT_MESSAGE,
+} from '@/backend/lib/sign-in-messages';
 import { trpc } from '@/lib/trpc';
 import { isLoginLegalBoxChecked, readLegalAgreement, setLoginLegalBoxChecked, toCompletedLegalAgreement } from '@/lib/legal-agreement';
 import { AuthColors, preAppFont } from '@/constants/auth-palette';
 import { AuthBackground, AuthBrand, MaroonButtonFill } from '@/components/auth/AuthChrome';
 import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
+import { ResendConfirmation } from '@/components/auth/ResendConfirmation';
 
 const ORDER_PHOTO = require('../../assets/order-a-plate.png');
 const COOK_PHOTO = require('../../assets/start-cooking.png');
@@ -176,6 +183,7 @@ export default function LoginScreen() {
       if (timedOut) return;
 
       const serverMessage = readLoginError(loginError);
+      const loginCode = typeof loginError?.data?.code === 'string' ? loginError.data.code : '';
       const confirmationExpiredNow = /expired after 24 hours/i.test(serverMessage);
       const confirmationNeeded = confirmationExpiredNow || /confirm your email|email not confirmed/i.test(serverMessage);
       const legalNeeded = serverMessage.includes('Complete the Legal & Safety page');
@@ -204,6 +212,14 @@ export default function LoginScreen() {
         setError(null);
         setLegalNotice('Check each section on the Legal & Safety page, then enter today\'s date.');
         Alert.alert('Legal & Safety', 'Check each section on the Legal & Safety page, then enter today\'s date.');
+      } else if (isIneligibleAccountMessage(serverMessage)) {
+        setNeedsConfirmation(false);
+        setConfirmationExpired(false);
+        setError(MEMBERSHIP_INELIGIBLE_MESSAGE);
+      } else if (isMissingAccountMessage(serverMessage) || loginCode === 'NOT_FOUND') {
+        setNeedsConfirmation(false);
+        setConfirmationExpired(false);
+        setError(NO_ACCOUNT_MESSAGE);
       } else if (isValidationError) {
         setNeedsConfirmation(false);
         setConfirmationExpired(false);
@@ -431,7 +447,8 @@ export default function LoginScreen() {
                     <Ionicons name="mail-outline" size={18} color={AuthColors.maroon} />
                     <View style={styles.confirmNoticeCopy}>
                       <Text style={styles.confirmNoticeTitle}>This email is not confirmed.</Text>
-                      <Text style={styles.confirmNoticeBody}>Open the link already sent. It lasts 24 hours.</Text>
+                      <Text style={styles.confirmNoticeBody}>Open the link in that email. It lasts 24 hours. If it did not arrive, email a new link.</Text>
+                      <ResendConfirmation email={username} />
                     </View>
                   </View>
                 ) : null}
@@ -722,7 +739,7 @@ const styles = StyleSheet.create({
   },
   confirmNotice: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 10,
     backgroundColor: AuthColors.field,
     borderRadius: 16,

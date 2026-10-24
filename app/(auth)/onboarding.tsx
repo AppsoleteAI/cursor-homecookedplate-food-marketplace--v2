@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import * as Location from 'expo-location';
+import { readDeviceCoordinates } from '@/lib/device-coordinates';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AuthColors, preAppFont } from '@/constants/auth-palette';
 import { AuthBackground, AuthBrand, AuthGoldButton, MaroonButtonFill } from '@/components/auth/AuthChrome';
@@ -26,9 +26,10 @@ import { SUBSCRIPTION_PRICES } from '@/backend/lib/fees';
 import { PLATEMAKER_LOST_DISPUTE_SIGNUP, PLATETAKER_LOST_DISPUTE_SIGNUP } from '@/backend/lib/payout-policy';
 import { trpc } from '@/lib/trpc';
 import { GlassPressable, GlassTop } from '@/components/glass-surface';
+import { ResendConfirmation } from '@/components/auth/ResendConfirmation';
 
 type Role = 'platetaker' | 'platemaker';
-type MetroStatus = 'idle' | 'finding' | 'found' | 'outside' | 'denied' | 'failed';
+type MetroStatus = 'idle' | 'finding' | 'found' | 'outside' | 'denied' | 'imprecise' | 'failed';
 
 const STEPS = ['Location', 'Account', 'Legal'];
 
@@ -61,7 +62,10 @@ export default function OnboardingScreen() {
     isSigningUp,
     error,
     retryCount,
-  } = useSignupForm();
+    confirmationEmailSent,
+  } = useSignupForm({
+    initialRole: isRole(roleParam) ? roleParam : undefined,
+  });
   const stepBack = useWizardBack(step, setStep, isSigningUp || isLoading);
 
   const checkEligibility = trpc.trials.checkEligibility.useMutation();
@@ -84,21 +88,26 @@ export default function OnboardingScreen() {
     setPageError(null);
     setMetroStatus('finding');
     try {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== 'granted') {
+      const read = await readDeviceCoordinates(true);
+      if (read.status === 'denied') {
         setUserLocation(null);
         setMetroName(null);
         setMetroStatus('denied');
         return;
       }
-
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      const coords = {
-        lat: location.coords.latitude,
-        lng: location.coords.longitude,
-      };
+      if (read.status === 'imprecise') {
+        setUserLocation(null);
+        setMetroName(null);
+        setMetroStatus('imprecise');
+        return;
+      }
+      if (read.status !== 'ready') {
+        setUserLocation(null);
+        setMetroName(null);
+        setMetroStatus('failed');
+        return;
+      }
+      const coords = read.point;
       setUserLocation(coords);
 
       const result = await checkEligibility.mutateAsync({
@@ -159,19 +168,25 @@ export default function OnboardingScreen() {
     const maker = role === 'platemaker';
     const takerMonthly = SUBSCRIPTION_PRICES.PLATETAKER_MONTHLY.toFixed(2);
     const takerYearly = SUBSCRIPTION_PRICES.PLATETAKER_ANNUAL.toFixed(2);
+    const membershipRole = maker ? 'platemaker' : 'platetaker';
+    const mailLine = confirmationEmailSent
+      ? `A confirmation link was sent to ${email.trim().toLowerCase()}. Open it within 24 hours, then sign in.`
+      : `The account was created for ${email.trim().toLowerCase()}. The confirmation email was not sent. Send the link below, then open it within 24 hours and sign in.`;
     return (
       <AuthBackground>
         <SafeAreaView style={styles.safeArea}>
-          <View style={styles.success}>
+          <ScrollView contentContainerStyle={styles.success} keyboardShouldPersistTaps="handled">
             <Ionicons name="checkmark-circle" size={72} color={AuthColors.maroon} />
             <Text style={styles.successTitle}>Account created</Text>
+            <Text style={styles.successText}>{mailLine}</Text>
             <Text style={styles.successText}>
               {maker
                 ? 'Choose Early Bird or a membership before the kitchen opens. Early Bird does not charge a card.'
                 : `The app is free. Premium is optional: $${takerMonthly} a month or $${takerYearly} a year. It cuts the service fee from 10% to 5% on orders of $20 or more.`}
             </Text>
+            <ResendConfirmation email={email} />
             <Pressable
-              onPress={() => router.push('/membership')}
+              onPress={() => router.push({ pathname: '/membership', params: { role: membershipRole } })}
               testID={maker ? 'signup-choose-membership' : 'signup-see-membership'}
               accessibilityRole="button"
               style={styles.successButton}
@@ -179,7 +194,7 @@ export default function OnboardingScreen() {
               <MaroonButtonFill />
               <Text style={styles.successButtonText}>{maker ? 'Choose Membership' : 'See Membership'}</Text>
             </Pressable>
-          </View>
+          </ScrollView>
         </SafeAreaView>
       </AuthBackground>
     );
@@ -229,24 +244,26 @@ export default function OnboardingScreen() {
                     <Text style={styles.panelTitle}>Your Location</Text>
                     {askRole ? (
                       <>
-                        <OrderHoursSlogan style={{ color: AuthColors.ink, marginBottom: 8 }} />
-                        <Text style={styles.question}>How will you use HomeCookedPlate?</Text>
+                        <OrderHoursSlogan style={{ color: AuthColors.ink, marginBottom: 16 }} />
+                        <Text style={[styles.question, styles.locationQuestion]}>How will you use HomeCookedPlate?</Text>
                         <View style={styles.roleRow}>
                           <GlassPressable
                             style={styles.roleChoice}
                             onPress={() => chooseRole('platetaker')}
                             accessibilityRole="button"
-                            accessibilityLabel="Order a plate"
+                            accessibilityLabel="Order a plate, PlateTaker"
                           >
                             <Text style={styles.roleChoiceText}>Order a Plate</Text>
+                            <Text style={styles.roleChoiceRole}>PlateTaker</Text>
                           </GlassPressable>
                           <GlassPressable
                             style={styles.roleChoice}
                             onPress={() => chooseRole('platemaker')}
                             accessibilityRole="button"
-                            accessibilityLabel="Start cooking"
+                            accessibilityLabel="Start cooking, PlateMaker"
                           >
                             <Text style={styles.roleChoiceText}>Start Cooking</Text>
+                            <Text style={styles.roleChoiceRole}>PlateMaker</Text>
                           </GlassPressable>
                         </View>
                       </>
@@ -261,28 +278,33 @@ export default function OnboardingScreen() {
                           <Text style={styles.roleLineText}>{roleLine}</Text>
                           <Text style={styles.roleChange}>Change</Text>
                         </GlassPressable>
-                        <Text style={styles.question}>{metroQuestion}</Text>
-                        <Text style={styles.help}>
+                        <Text style={[styles.question, styles.locationQuestion]}>{metroQuestion}</Text>
+                        <Text style={[styles.help, styles.locationHelp]}>
                           Your location determines your options. Sign up today.
                           {role === 'platemaker' ? ' Early Bird eligibility is limited.' : ''}
                         </Text>
                         {metroStatus === 'found' && metroName ? (
-                          <Text style={styles.metroResult}>You are in {metroName}.</Text>
+                          <Text style={[styles.metroResult, styles.locationHelp]}>You are in {metroName}.</Text>
                         ) : null}
                         {metroStatus === 'outside' ? (
-                          <Text style={styles.metroResult}>
+                          <Text style={[styles.metroResult, styles.locationHelp]}>
                             {role === 'platemaker'
                               ? 'You are outside an active location. The account will be Remote, and Early Bird is not available here.'
                               : 'You are outside an active location. The account will be Remote.'}
                           </Text>
                         ) : null}
                         {metroStatus === 'denied' ? (
-                          <Text style={styles.metroResult}>
+                          <Text style={[styles.metroResult, styles.locationHelp]}>
                             Location is off. You can still create an account. Your location is saved when it is available.
                           </Text>
                         ) : null}
+                        {metroStatus === 'imprecise' ? (
+                          <Text style={[styles.metroResult, styles.locationHelp]}>
+                            This reading is not precise enough. Allow precise location, then tap Check Again.
+                          </Text>
+                        ) : null}
                         {metroStatus === 'failed' ? (
-                          <Text style={styles.errorText}>
+                          <Text style={[styles.errorText, styles.locationHelp]}>
                             Could not look up your location. A Mac or Windows computer has no GPS, so Location Services must be on and this browser allowed. On iPhone or Android, allow location for the app. An editor preview usually has no position. You can continue and try again later.
                           </Text>
                         ) : null}
@@ -604,6 +626,15 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
     marginBottom: 8,
   },
+  locationQuestion: {
+    textAlign: 'center',
+    lineHeight: 28,
+    marginBottom: 16,
+  },
+  locationHelp: {
+    lineHeight: 28,
+    marginBottom: 20,
+  },
   help: {
     ...preAppFont,
     color: AuthColors.muted,
@@ -630,6 +661,15 @@ const styles = StyleSheet.create({
     color: AuthColors.ink,
     fontSize: 16,
     fontWeight: '600',
+    textAlign: 'center',
+  },
+  roleChoiceRole: {
+    ...preAppFont,
+    color: AuthColors.maroon,
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 6,
   },
   roleLine: {
     flexDirection: 'row',
@@ -766,10 +806,11 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   success: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 28,
+    paddingVertical: 24,
     gap: 12,
   },
   successTitle: {
@@ -813,6 +854,7 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     lineHeight: 22,
     textAlign: 'center',
+    alignSelf: 'stretch',
     marginBottom: 12,
   },
 });

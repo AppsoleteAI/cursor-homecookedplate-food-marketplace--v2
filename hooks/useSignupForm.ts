@@ -5,7 +5,7 @@ import { Alert, Platform } from 'react-native';
 import { useDebounce } from './useDebounce';
 import { getPasswordStrengthScore } from '@/components/PasswordStrengthMeter';
 import { useAuth } from './auth-context';
-import * as Location from 'expo-location';
+import { readDeviceCoordinates } from '@/lib/device-coordinates';
 
 type SignupDraft = {
   username: string;
@@ -34,6 +34,7 @@ export function clearSignupDraft() {
 }
 
 export interface UseSignupFormOptions {
+  initialRole?: 'platemaker' | 'platetaker';
   onSuccess?: (result: { requiresLogin: boolean; requiresCheckout?: boolean; chooseMembership?: boolean; needsEmailConfirmation?: boolean; confirmationEmailSent?: boolean }) => void;
   onError?: (error: Error) => void;
 }
@@ -41,7 +42,13 @@ export interface UseSignupFormOptions {
 export const useSignupForm = (options?: UseSignupFormOptions) => {
   const { signup } = useAuth();
   
-  const [formData, setFormData] = useState<SignupDraft>(() => signupDraft ? { ...signupDraft } : emptySignupDraft());
+  const [formData, setFormData] = useState<SignupDraft>(() => {
+    const draft = signupDraft ? { ...signupDraft } : emptySignupDraft();
+    if (options?.initialRole === 'platemaker' || options?.initialRole === 'platetaker') {
+      draft.role = options.initialRole;
+    }
+    return draft;
+  });
 
   useEffect(() => {
     signupDraft = { ...formData };
@@ -49,6 +56,7 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
 
   const [loading, setLoading] = useState(false);
   const [isSigningUp, setIsSigningUp] = useState(false);
+  const [confirmationEmailSent, setConfirmationEmailSent] = useState(false);
   const [signupUserRole, setSignupUserRole] = useState<'platetaker' | 'platemaker' | null>(null);
   const [chooseMembership, setChooseMembership] = useState(false);
   const [isMembershipEnabled, setIsMembershipEnabled] = useState(false);
@@ -126,32 +134,24 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
     setTrialMeta(null);
 
     try {
-      // Request location permissions
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      
-      if (status !== 'granted') {
-        const message = 'We need your location to check if you qualify for the free trial. You can still sign up for premium after creating your account.';
-        Alert.alert('Location Permission Required', message);
+      const read = await readDeviceCoordinates(true);
+      if (read.status !== 'ready') {
+        const message = read.status === 'denied'
+          ? 'Location is off. Allow it, then try again. You can still sign up and check the metro later.'
+          : read.status === 'imprecise'
+            ? 'This reading is not precise enough. Allow precise location, then try again.'
+            : 'This device could not read a location. You can still sign up and check the metro later.';
+        Alert.alert('Location', message);
         setIsMembershipEnabled(false);
         setCheckingEligibility(false);
         return;
       }
 
-      // Get current position
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
+      setUserLocation(read.point);
 
-      // Store location for eligibility query
-      setUserLocation({
-        lat: location.coords.latitude,
-        lng: location.coords.longitude,
-      });
-
-      // Check eligibility via backend (with quota check)
       const result = await checkEligibilityMutation.mutateAsync({
-        lat: location.coords.latitude,
-        lng: location.coords.longitude,
+        lat: read.point.lat,
+        lng: read.point.lng,
         role: formData.role,
       });
 
@@ -161,12 +161,15 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
           metro: result.metro,
           spotsRemaining: result.spotsRemaining,
         });
-      } else {
+      } else if (result.metro) {
         setIsEligibleForTrial(false);
         setTrialMeta({
-          metro: result.metro || null,
+          metro: result.metro,
           spotsRemaining: result.spotsRemaining,
         });
+      } else {
+        setIsEligibleForTrial(false);
+        setTrialMeta(null);
       }
     } catch (error) {
       console.error('[Signup] Eligibility check error:', error);
@@ -340,6 +343,7 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
       // Set animation state - this will trigger the success UI
       setSignupUserRole(formData.role);
       setChooseMembership(formData.role === 'platemaker' || result.chooseMembership === true);
+      setConfirmationEmailSent(result.confirmationEmailSent === true);
       clearSignupDraft();
       AsyncStorage.setItem('hcp_has_account', '1').catch(() => undefined);
       setIsSigningUp(true);
@@ -445,6 +449,7 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
     handleSignup,
     isLoading: loading,
     isSigningUp,
+    confirmationEmailSent,
     signupUserRole,
     chooseMembership,
     

@@ -24,10 +24,10 @@ export function MetroStayWatch() {
       if (running.current || AppState.currentState !== 'active') return;
       running.current = true;
       try {
-        const coords = await readDeviceCoordinates(!asked.current);
+        const read = await readDeviceCoordinates(!asked.current);
         asked.current = true;
-        if (!coords) return;
-        const found = await locateRef.current({ ...coords, mode: 'visit' });
+        if (read.status !== 'ready') return;
+        const found = await locateRef.current({ ...read.point, mode: 'visit' });
         if (found.reason !== 'waiting' && found.metroArea && found.metroArea !== user.metroArea) {
           await utils.auth.me.invalidate();
         }

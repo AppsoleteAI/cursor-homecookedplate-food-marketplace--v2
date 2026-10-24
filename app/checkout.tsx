@@ -35,6 +35,7 @@ import { useCombinedBill } from '@/hooks/use-combined-bill';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
 import { buyerCardCharge, orderTotalWithDelivery, promotionalBase } from '@/lib/fees';
 import { buyerServiceFeePercent, calculateFees } from '@/backend/lib/fees';
+import { accountAccessCopy } from '@/backend/lib/sign-in-messages';
 import { deviceTimeZone } from '@/lib/pickup-time';
 import { plateCheckoutBlock } from '@/lib/plate-checkout-block';
 import { DeliveryLevyLines, useDeliveryQuote } from '@/components/DeliveryFeeCard';
@@ -558,7 +559,8 @@ export default function CheckoutScreen() {
     } catch (e) {
       console.error('[Checkout] payment error', e);
       if (createdOrderIds.length > 0) abandonUnpaid.mutate({ orderIds: createdOrderIds });
-      Alert.alert('Error', 'Failed to process payment.');
+      const message = e instanceof Error ? e.message : '';
+      Alert.alert('Error', accountAccessCopy(message) ?? 'Failed to process payment.');
       setProcessing(false);
     }
   };

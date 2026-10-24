@@ -64,10 +64,16 @@
         },
         {
           "action": "VIEW",
-          "data": {
-            "scheme": "homecookedplate",
-            "pathPrefix": "/verify-email"
-          },
+          "data": [
+            {
+              "scheme": "homecookedplate",
+              "host": "*",
+              "pathPrefix": "/verify-email"
+            },
+            {
+              "scheme": "homecookedplate"
+            }
+          ],
           "category": [
             "BROWSABLE",
             "DEFAULT"

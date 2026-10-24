@@ -1,5 +1,6 @@
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
+import { nearestMetro } from "../../../../lib/metro-radius";
 
 export const checkEligibilityProcedure = publicProcedure
   .input(
@@ -8,12 +9,8 @@ export const checkEligibilityProcedure = publicProcedure
       lng: z.number(),
     })
   )
-  .query(async ({ input, ctx }) => {
-    // Use PostGIS RPC to find metro area (simple check, no quota validation)
-    const { data: metroName, error } = await ctx.supabase.rpc(
-      'find_metro_by_location',
-      { lng: input.lng, lat: input.lat }
-    );
+  .query(async ({ input }) => {
+    const metroName = nearestMetro(input.lat, input.lng)?.name ?? null;
 
     if (metroName) {
       return {

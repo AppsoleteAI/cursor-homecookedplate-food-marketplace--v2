@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { Ionicons } from '@expo/vector-icons';
 import { trpc } from '@/lib/trpc';
 import { AuthColors } from '@/constants/auth-palette';
@@ -9,12 +10,20 @@ import { ResendConfirmation } from '@/components/auth/ResendConfirmation';
 import { GlassPressable } from '@/components/glass-surface';
 import { BackCircle } from '@/components/BackCircle';
 import { useReplaceBack } from '@/hooks/use-leave-screen';
+import { confirmationAlreadyDone, tokenFromLink } from '@/lib/verification-link';
 
 export default function VerifyEmailScreen() {
-  const { token } = useLocalSearchParams<{ token: string }>();
+  const params = useLocalSearchParams<{ token?: string | string[] }>();
+  const linkedUrl = Linking.useURL();
+  const [openedUrl, setOpenedUrl] = useState<string | null>(null);
+  const [linkChecked, setLinkChecked] = useState(false);
   const router = useRouter();
   const [verificationStatus, setVerificationStatus] = useState<'idle' | 'verifying' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const sent = useRef<string | null>(null);
+  const token = tokenFromLink(Array.isArray(params.token) ? params.token[0] : params.token)
+    || tokenFromLink(linkedUrl)
+    || tokenFromLink(openedUrl);
 
   const backToSignIn = useReplaceBack('/(auth)/login');
   const verifyEmail = trpc.auth.verifyEmail.useMutation({
@@ -22,21 +31,47 @@ export default function VerifyEmailScreen() {
       setVerificationStatus('success');
     },
     onError: (error) => {
+      if (confirmationAlreadyDone(error.message)) {
+        setVerificationStatus('success');
+        return;
+      }
       setVerificationStatus('error');
       setErrorMessage(error.message || 'Failed to verify email. Please try again.');
     },
   });
 
   useEffect(() => {
-    if (token && verificationStatus === 'idle') {
+    let live = true;
+    Linking.getInitialURL()
+      .then((url) => {
+        if (!live) return;
+        setOpenedUrl(url);
+        setLinkChecked(true);
+      })
+      .catch(() => {
+        if (live) setLinkChecked(true);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (token) {
+      if (sent.current === token) return;
+      sent.current = token;
       setVerificationStatus('verifying');
+      setErrorMessage('');
       verifyEmail.mutate({ token });
-    } else if (!token && verificationStatus === 'idle') {
+      return;
+    }
+    if (linkChecked && sent.current === null) {
       setVerificationStatus('error');
       setErrorMessage('No verification token provided. Please check your email and try again.');
     }
+    // The mutation identity changes after each result. The ref sends each token once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, linkChecked]);
 
   const handleRetry = () => {
     if (token) {

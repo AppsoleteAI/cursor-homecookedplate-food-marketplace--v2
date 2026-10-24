@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { protectedProcedure } from '../../../create-context';
 import { getStripePriceId } from '../../../../lib/stripe-utils';
+import { nearestMetro } from '../../../../lib/metro-radius';
 
 // Major metropolitan areas eligible for trial promotion
 export const MAJOR_METROS = [
@@ -159,14 +160,7 @@ export const subscribeProcedure = protectedProcedure
       // Tier 1: Try GPS coordinates with PostGIS RPC
       // Use ctx.supabase (anon key) for RPC - respects RLS
       if (input.lat !== undefined && input.lng !== undefined) {
-        const { data: gpsMetro, error: gpsError } = await ctx.supabase.rpc(
-          'find_metro_by_location',
-          { lng: input.lng, lat: input.lat }
-        );
-
-        if (!gpsError && gpsMetro) {
-          metroName = gpsMetro;
-        }
+        metroName = nearestMetro(input.lat, input.lng)?.name ?? null;
       }
 
       // Tier 2: If GPS didn't work, try user-entered location text

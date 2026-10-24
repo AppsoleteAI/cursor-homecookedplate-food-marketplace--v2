@@ -4,6 +4,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CHECKOUT_AREA_LABEL, quoteCard } from '@/backend/lib/combined-checkout';
 import { calculateDeliveryLevy, promotionalBase } from '@/backend/lib/fees';
+import { accountAccessCopy } from '@/backend/lib/sign-in-messages';
 import { checkoutAreaShop, type ShopFulfillment } from '@/backend/lib/shop-fulfillment';
 import { CombinedHandoffFields } from '@/components/CombinedHandoffFields';
 import { DeliveryLevyLines, useDeliveryQuote } from '@/components/DeliveryFeeCard';
@@ -344,7 +345,8 @@ export default function CombinedCheckoutScreen() {
       const shopsPaid = gathered.checkouts.some((checkout) => checkout.area !== 'home');
       if (platesPaid || shopsPaid) setReceiptId(created.paymentIntentId);
     } catch (error) {
-      Alert.alert('Payment failed', error instanceof Error ? error.message : 'The card was not charged.');
+      const message = error instanceof Error ? error.message : '';
+      Alert.alert('Payment failed', accountAccessCopy(message) ?? (message || 'The card was not charged.'));
     } finally {
       setCharging(false);
     }

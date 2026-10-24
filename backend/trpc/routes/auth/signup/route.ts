@@ -4,6 +4,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { randomBytes } from "node:crypto";
 import { sendEmailConfirmation } from "@/backend/lib/email";
+import { nearestMetro } from "../../../../lib/metro-radius";
 // Use process.stdout.write directly for critical logs (bypasses Bun buffering)
 
 // Force module reload by adding version to export
@@ -163,21 +164,29 @@ const createSignupProcedure = () => {
         // Consolidated RPC: Get metro settings by location (combines lookup + settings query)
         // Returns metro_name, is_active, and trial_days if metro found, otherwise returns no rows
         // Use ctx.supabaseAdmin (service role) for system operations during signup
-        const { data: metroSettingsArray, error: metroError } = await ctx.supabaseAdmin.rpc(
-          'get_metro_settings_by_location',
-          { lat: input.lat, lng: input.lng }
-        );
-
-        // Check if metro was found (RPC returns array - empty if no metro found)
-        const metro = metroSettingsArray && metroSettingsArray.length > 0 ? metroSettingsArray[0] : null;
-
-        if (metroError || !metro) {
-          // No metro found or error - assign Remote/Other
-          if (metroError) {
-            process.stdout.write(`[GEO_LOCK] Error fetching metro settings: ${metroError.message || JSON.stringify(metroError)}. Assigning Remote/Other\n`);
-          } else {
-            process.stdout.write(`[GEO_LOCK] No metro area found for coordinates (${input.lat}, ${input.lng}). Assigning Remote/Other\n`);
+        const nearest = nearestMetro(input.lat, input.lng);
+        const settingsRead = nearest
+          ? await ctx.supabaseAdmin
+            .from('metro_geofences')
+            .select('metro_name, is_active, trial_days')
+            .eq('metro_name', nearest.name)
+            .maybeSingle()
+          : null;
+        const metroError = settingsRead?.error ?? null;
+        if (metroError) {
+          process.stdout.write(`[GEO_LOCK] Could not read metro settings: ${metroError.message || JSON.stringify(metroError)}. Using the nearest 50-mile metro.\n`);
+        }
+        const saved = settingsRead?.data ?? null;
+        const metro = nearest
+          ? {
+            metro_name: nearest.name,
+            is_active: saved?.is_active !== false,
+            trial_days: typeof saved?.trial_days === 'number' ? saved.trial_days : 90,
           }
+          : null;
+
+        if (!metro) {
+          process.stdout.write(`[GEO_LOCK] No metro area found for coordinates (${input.lat}, ${input.lng}). Assigning Remote/Other\n`);
           assignedMetro = 'Remote/Other';
           membershipTier = 'free';
           process.stdout.write(`[GEO_LOCK] Remote User. Early Bird is not available. membership_tier: ${membershipTier}\n`);

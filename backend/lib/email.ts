@@ -16,20 +16,15 @@ const logError = (error: Error, context?: Record<string, unknown>) => {
  * Get your API key from: https://resend.com/api-keys
  */
 
-const resendApiKey = process.env.RESEND_API_KEY || process.env.EXPO_PUBLIC_RESEND_API_KEY;
-
-if (!resendApiKey) {
-  console.warn('[Email Service] RESEND_API_KEY not set. Email sending will fail.');
-}
-
-const resend = resendApiKey ? new Resend(resendApiKey) : null;
-
-// Get the "from" email address from environment variable
-// Defaults to a fallback if not set (for backward compatibility)
-const officialEmailFrom = process.env.OFFICIAL_EMAIL_FROM || 'HomeCookedPlate <noreply@homecookedplate.com>';
-
-if (!process.env.OFFICIAL_EMAIL_FROM) {
-  console.warn('[Email Service] OFFICIAL_EMAIL_FROM not set. Using default fallback. Update with your verified domain.');
+// The Worker copies RESEND_API_KEY onto process.env inside the request.
+// A client created at import time is empty, so confirmation mail never leaves.
+function mailDelivery(): { client: Resend; from: string } | null {
+  const key = process.env.RESEND_API_KEY || process.env.EXPO_PUBLIC_RESEND_API_KEY;
+  if (!key) return null;
+  return {
+    client: new Resend(key),
+    from: process.env.OFFICIAL_EMAIL_FROM || 'HomeCookedPlate <noreply@homecookedplate.com>',
+  };
 }
 
 /**
@@ -46,7 +41,8 @@ export async function sendEmailConfirmation(
   confirmationToken: string,
   webUrl: string
 ): Promise<void> {
-  if (!resend) {
+  const delivery = mailDelivery();
+  if (!delivery) {
     console.error('[Email Service] Resend not initialized. Check RESEND_API_KEY.');
     throw new Error('Email service not configured');
   }
@@ -58,13 +54,13 @@ export async function sendEmailConfirmation(
     const webConfirmationUrl = site.startsWith('http')
       ? `${site}/verify-email?token=${confirmationToken}`
       : `https://homecookedplate.com/verify-email?token=${confirmationToken}`;
-    const appConfirmationUrl = `homecookedplate:///verify-email?token=${confirmationToken}`;
+    const appConfirmationUrl = `homecookedplate:///verify-email/${confirmationToken}?token=${confirmationToken}`;
     const safeName = username.replace(/[&<>"']/g, (character) => (
       { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character] || character
     ));
 
-    const result = await resend.emails.send({
-      from: officialEmailFrom,
+    const result = await delivery.client.emails.send({
+      from: delivery.from,
       to: email,
       subject: 'Verify your HomeCookedPlate account',
       html: `
@@ -152,14 +148,15 @@ export async function sendWelcomeEmail(
   email: string,
   username: string
 ): Promise<void> {
-  if (!resend) {
+  const delivery = mailDelivery();
+  if (!delivery) {
     console.warn('[Email Service] Resend not initialized. Skipping welcome email.');
     return;
   }
 
   try {
-    await resend.emails.send({
-      from: officialEmailFrom,
+    await delivery.client.emails.send({
+      from: delivery.from,
       to: email,
       subject: 'Welcome to HomeCookedPlate!',
       html: `
@@ -220,7 +217,8 @@ export async function sendPasswordResetEmail(
   resetToken: string,
   webUrl: string
 ): Promise<void> {
-  if (!resend) {
+  const delivery = mailDelivery();
+  if (!delivery) {
     console.warn('[Email Service] Resend not initialized. Skipping password reset email.');
     return;
   }
@@ -228,8 +226,8 @@ export async function sendPasswordResetEmail(
   try {
     const resetUrl = `${webUrl}/reset-password?token=${resetToken}`;
 
-    await resend.emails.send({
-      from: officialEmailFrom,
+    await delivery.client.emails.send({
+      from: delivery.from,
       to: email,
       subject: 'Reset your HomeCookedPlate password',
       html: `
@@ -276,11 +274,12 @@ export async function sendPasswordResetEmail(
 }
 
 export async function sendSignInCode(email: string, code: string): Promise<void> {
-  if (!resend) {
+  const delivery = mailDelivery();
+  if (!delivery) {
     throw new Error('The sign-in code could not be emailed.');
   }
-  await resend.emails.send({
-    from: officialEmailFrom,
+  await delivery.client.emails.send({
+    from: delivery.from,
     to: email,
     subject: 'Your HomeCookedPlate sign-in code',
     text: `Your sign-in code is ${code}. It expires in 10 minutes. Five wrong tries close it.`,
@@ -288,12 +287,11 @@ export async function sendSignInCode(email: string, code: string): Promise<void>
 }
 
 export async function sendNoticeEmail(email: string, subject: string, body: string): Promise<boolean> {
-  const key = process.env.RESEND_API_KEY || process.env.EXPO_PUBLIC_RESEND_API_KEY;
-  const client = key ? new Resend(key) : resend;
-  if (!client || !email) return false;
+  const delivery = mailDelivery();
+  if (!delivery || !email) return false;
   try {
-    await client.emails.send({
-      from: officialEmailFrom,
+    await delivery.client.emails.send({
+      from: delivery.from,
       to: email,
       subject,
       text: body,

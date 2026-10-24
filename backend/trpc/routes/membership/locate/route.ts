@@ -39,44 +39,18 @@ function settingsFrom(data: unknown): MetroSettings | null {
   };
 }
 
-async function settingsForName(admin: Admin, metroName: string): Promise<MetroSettings | null> {
+async function lookupMetro(admin: Admin, lat: number, lng: number): Promise<{ settings: MetroSettings | null; error: string | null }> {
+  const nearest = nearestMetro(lat, lng);
+  if (!nearest) return { settings: null, error: null };
   const { data, error } = await admin
     .from('metro_geofences')
     .select('metro_name, is_active, trial_days')
-    .eq('metro_name', metroName)
+    .eq('metro_name', nearest.name)
     .maybeSingle();
-  if (error || !data) return null;
-  return settingsFrom(data);
-}
-
-async function lookupMetro(admin: Admin, lat: number, lng: number): Promise<{ settings: MetroSettings | null; error: string | null }> {
-  const settingsCall = await admin.rpc('get_metro_settings_by_location', { lat, lng });
-  const settings = settingsFrom(settingsCall.data);
-  if (settings) return { settings, error: null };
-
-  const findCall = await admin.rpc('find_metro_by_location', { lng, lat });
-  const foundName = metroNameFrom(findCall.data);
-  if (foundName) {
-    const saved = await settingsForName(admin, foundName);
-    if (saved) return { settings: saved, error: null };
-  }
-
-  const swapped = await admin.rpc('find_metro_by_location', { lng: lat, lat: lng });
-  const swappedName = metroNameFrom(swapped.data);
-  if (swappedName) {
-    const saved = await settingsForName(admin, swappedName);
-    if (saved) return { settings: saved, error: null };
-  }
-
-  const nearest = nearestMetro(lat, lng);
-  if (nearest) {
-    const saved = await settingsForName(admin, nearest.name);
-    if (saved) return { settings: saved, error: null };
-    return { settings: { metro_name: nearest.name, is_active: true, trial_days: 90 }, error: null };
-  }
-
-  const error = settingsCall.error?.message || findCall.error?.message || swapped.error?.message || null;
-  return { settings: null, error };
+  if (error) return { settings: null, error: error.message || 'Could not read this metro.' };
+  const saved = settingsFrom(data);
+  if (saved) return { settings: saved, error: null };
+  return { settings: { metro_name: nearest.name, is_active: true, trial_days: 90 }, error: null };
 }
 
 export const locateMembershipProcedure = protectedProcedure

@@ -150,7 +150,7 @@ export default function LegalScreen() {
       <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} testID="legal-scroll" keyboardShouldPersistTaps="handled">
         <View style={styles.content} testID="legal-content">
           <BackCircle tone="honey" onPress={leave} testID="legal-back" />
-          <AuthBrand toSignIn={false} />
+          <AuthBrand />
           <Text style={styles.brand}>Legal & Safety</Text>
           <View style={styles.warningCard}>
             <GlassTop />

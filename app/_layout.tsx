@@ -241,7 +241,11 @@ function RootLayout() {
           <CoreProviders>
             <ConditionalAppProviders>
               <NavigationIndependentTree>
-                <NavigationContainer {...({ independent: true } as any)} theme={webNavigationTheme}>
+                <NavigationContainer
+                  {...({ independent: true } as any)}
+                  theme={webNavigationTheme}
+                  documentTitle={{ enabled: false }}
+                >
                   <View />
                 </NavigationContainer>
               </NavigationIndependentTree>

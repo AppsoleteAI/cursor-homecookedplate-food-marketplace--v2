@@ -6,6 +6,7 @@ import { readAdminRole } from "../../../../lib/admin-role";
 import { assertEmailConfirmed, CONFIRMATION_EXPIRED_MESSAGE, confirmationWindowClosed } from "../../../../lib/email-confirmation";
 import { sendSignInCode } from "../../../../lib/email";
 import { nextSignInAttempt, SIGN_IN_CODE_LOCKED_MESSAGE, signInCodeStillOpen, signInCodeWasLocked } from "../../../../lib/sign-in-code";
+import { MEMBERSHIP_INELIGIBLE_MESSAGE, NO_ACCOUNT_MESSAGE } from "../../../../lib/sign-in-messages";
 
 /**
  * Login procedure - uses anon key (not service role key)
@@ -85,7 +86,7 @@ export const loginProcedure = publicProcedure
       if (!lookupError && !existingAccount) {
         throw new TRPCError({
           code: 'NOT_FOUND',
-          message: 'No account uses this email.',
+          message: NO_ACCOUNT_MESSAGE,
         });
       }
       throw new TRPCError({
@@ -122,9 +123,10 @@ export const loginProcedure = publicProcedure
       .single();
 
     if (profileError || !profile) {
+      await ctx.supabase.auth.signOut();
       throw new TRPCError({
         code: 'NOT_FOUND',
-        message: 'Profile not found',
+        message: NO_ACCOUNT_MESSAGE,
       });
     }
 
@@ -229,7 +231,7 @@ export const loginProcedure = publicProcedure
       await ctx.supabase.auth.signOut();
       throw new TRPCError({
         code: 'FORBIDDEN',
-        message: 'This account is permanently banned after lost card disputes.',
+        message: MEMBERSHIP_INELIGIBLE_MESSAGE,
       });
     }
 

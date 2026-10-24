@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/auth-context';
 import { forgetPaidTruckItems, useFoodTruck, type TruckOrderLine } from '@/hooks/food-truck-store';
 import { PICKUP_SLOTS, type PickupSlot } from '@/lib/food-truck-permit';
 import { buyerFoodCharge } from '@/backend/lib/fees';
+import { accountAccessCopy } from '@/backend/lib/sign-in-messages';
 import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 import { readSellerId, shopSellerId } from '@/lib/shop-seller';
 import { useShopCardPayment, useWebShopReturn } from '@/hooks/use-shop-payment';
@@ -78,7 +79,8 @@ export default function TruckCheckoutScreen() {
       });
       setOrderId(order.id);
     } catch (error) {
-      Alert.alert('Payment failed', error instanceof Error ? error.message : 'The card was not charged.');
+      const message = error instanceof Error ? error.message : '';
+      Alert.alert('Payment failed', accountAccessCopy(message) ?? (message || 'The card was not charged.'));
     }
   };
 

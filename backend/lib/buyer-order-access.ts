@@ -1,5 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { MEMBERSHIP_INELIGIBLE_MESSAGE } from './sign-in-messages';
 
 export async function assertBuyerCanOrder(
   admin: SupabaseClient,
@@ -15,7 +16,7 @@ export async function assertBuyerCanOrder(
   if (buyer?.ordering_removed) {
     throw new TRPCError({
       code: 'FORBIDDEN',
-      message: 'This account is permanently banned after lost card disputes.',
+      message: MEMBERSHIP_INELIGIBLE_MESSAGE,
     });
   }
 

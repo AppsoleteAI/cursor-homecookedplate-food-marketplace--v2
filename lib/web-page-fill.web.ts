@@ -86,8 +86,11 @@ function ensureFillStyle() {
   document.head.appendChild(style);
 }
 
+export const WEB_DOCUMENT_TITLE = 'HomeCookedPlate';
+
 export function applyPageFill(path: string) {
   if (typeof document === 'undefined') return;
+  document.title = WEB_DOCUMENT_TITLE;
   ensureFillStyle();
   const fill = pageFillForPath(path);
   for (const el of [document.documentElement, document.body]) {

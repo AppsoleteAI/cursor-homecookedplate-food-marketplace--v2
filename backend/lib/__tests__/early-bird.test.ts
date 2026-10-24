@@ -94,6 +94,11 @@ describe('50-mile metro circles', () => {
     expect(nearestMetro(39.9526, -75.1652)?.name).toBe('Philadelphia-Camden-Wilmington');
   });
 
+  it('picks the closer downtown when two 50-mile circles overlap', () => {
+    expect(nearestMetro(38.8816, -77.091)?.name).toBe('Washington-Arlington-Alexandria');
+    expect(nearestMetro(39.2904, -76.6122)?.name).toBe('Baltimore-Columbia-Towson');
+  });
+
   it('leaves a point outside every circle unmatched', () => {
     expect(nearestMetro(0, 0)).toBeNull();
   });

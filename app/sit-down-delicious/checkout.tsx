@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/auth-context';
 import { forgetPaidSitItems, useSitDown, type SitOrderLine } from '@/hooks/sit-down-store';
 import { SERVICE_LABEL, type DiningService } from '@/lib/sit-down-license';
 import { buyerFoodCharge } from '@/backend/lib/fees';
+import { accountAccessCopy } from '@/backend/lib/sign-in-messages';
 import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 import { readSellerId, shopSellerId } from '@/lib/shop-seller';
 import { useShopCardPayment, useWebShopReturn } from '@/hooks/use-shop-payment';
@@ -90,7 +91,8 @@ export default function SitCheckoutScreen() {
       });
       setOrderId(order.id);
     } catch (error) {
-      Alert.alert('Payment failed', error instanceof Error ? error.message : 'The card was not charged.');
+      const message = error instanceof Error ? error.message : '';
+      Alert.alert('Payment failed', accountAccessCopy(message) ?? (message || 'The card was not charged.'));
     }
   };
 

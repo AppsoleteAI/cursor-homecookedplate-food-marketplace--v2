@@ -1,5 +1,6 @@
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
+import { nearestMetro } from "../../../../lib/metro-radius";
 
 export const checkTrialEligibilityProcedure = publicProcedure
   .input(
@@ -10,20 +11,13 @@ export const checkTrialEligibilityProcedure = publicProcedure
     })
   )
   .mutation(async ({ input, ctx }) => {
-    // Step 1: Use PostGIS RPC to find metro area (per RORK_INSTRUCTIONS.md Section 2)
-    // Use ctx.supabase (anon key) for RPC - respects RLS if enabled
-    const { data: metroName, error: rpcError } = await ctx.supabase.rpc(
-      'find_metro_by_location',
-      { lng: input.lng, lat: input.lat }
-    );
-
-    // If no metro found or RPC error, return not eligible
-    if (rpcError || !metroName) {
+    const metroName = nearestMetro(input.lat, input.lng)?.name ?? null;
+    if (!metroName) {
       return {
         eligible: false,
         metro: null,
         spotsRemaining: 0,
-        reason: rpcError ? 'geocoding_error' : 'outside_metro',
+        reason: 'outside_metro',
       };
     }
 

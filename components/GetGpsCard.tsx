@@ -26,12 +26,20 @@ export function GetGpsCard() {
   const onPress = async () => {
     setBusy(true);
     try {
-      const coords = await readDeviceCoordinates(true);
-      if (!coords) {
+      const read = await readDeviceCoordinates(true);
+      if (read.status === 'denied') {
         tell('Location is off. Allow it, then tap Get GPS again. The saved metro stays until that check finishes.');
         return;
       }
-      const found = await locate.mutateAsync({ ...coords, mode: 'commit' });
+      if (read.status === 'imprecise') {
+        tell('This reading is not precise enough. Allow precise location, then tap Get GPS again. The saved metro stays.');
+        return;
+      }
+      if (read.status !== 'ready') {
+        tell('This device could not read a location. Tap Get GPS again. The saved metro stays.');
+        return;
+      }
+      const found = await locate.mutateAsync({ ...read.point, mode: 'commit' });
       await utils.auth.me.invalidate();
       if (found.reason === 'outside') {
         tell('That point is outside every 50-mile metro. The saved metro stays.');

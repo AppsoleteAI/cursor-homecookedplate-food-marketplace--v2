@@ -61,25 +61,36 @@ export const resendVerificationEmailProcedure = publicProcedure
 
     const user = authData.user;
 
-    // Check for existing unused tokens
+    const webUrl = ctx.webUrl || process.env.EXPO_PUBLIC_WEB_URL || 'https://homecookedplate.com';
+
+    // An unused token can exist when the first send failed. Send that same link again.
     const { data: existingTokens } = await ctx.supabaseAdmin
       .from('email_verification_tokens')
-      .select('id')
+      .select('token')
       .eq('user_id', user.id)
       .is('used_at', null)
       .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
       .limit(1);
-
-    // If there's a valid unused token, don't create a new one (rate limiting)
-    if (existingTokens && existingTokens.length > 0) {
-      return {
-        success: true,
-        message: 'A verification email was recently sent. Please check your inbox and spam folder.',
-      };
-    }
 
     const username = profile.username || email.split('@')[0];
     const deliveryEmail = (profile.email || email).trim().toLowerCase();
+
+    if (existingTokens && existingTokens.length > 0 && existingTokens[0]?.token) {
+      try {
+        await sendEmailConfirmation(deliveryEmail, username, existingTokens[0].token, webUrl);
+      } catch (emailError) {
+        console.error('[Resend Verification] Failed to send the saved link:', emailError);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to send verification email. Please try again later.',
+        });
+      }
+      return {
+        success: true,
+        message: 'A confirmation link was sent. Open it within 24 hours.',
+      };
+    }
 
     // Generate new secure token
     const confirmationToken = randomBytes(32).toString('hex');
@@ -106,7 +117,6 @@ export const resendVerificationEmailProcedure = publicProcedure
 
     // Send confirmation email via Resend
     try {
-      const webUrl = ctx.webUrl || process.env.EXPO_PUBLIC_WEB_URL || 'https://homecookedplate.com';
       await sendEmailConfirmation(
         deliveryEmail,
         username,

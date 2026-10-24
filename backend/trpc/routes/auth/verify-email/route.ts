@@ -52,12 +52,13 @@ export const verifyEmailProcedure = publicProcedure
       });
     }
 
-    // Check if token has already been used
+    // A second open is the same confirmed address. PlateTaker and PlateMaker share this link.
     if (tokenRecord.used_at) {
-      throw new TRPCError({
-        code: 'BAD_REQUEST',
-        message: 'This verification link has already been used. Your email is already verified.',
-      });
+      return {
+        success: true,
+        message: 'This address is already confirmed. You can sign in.',
+        userId: tokenRecord.user_id,
+      };
     }
 
     const { error: confirmError } = await ctx.supabaseAdmin.auth.admin.updateUserById(

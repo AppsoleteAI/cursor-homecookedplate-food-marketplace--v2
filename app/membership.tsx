@@ -9,14 +9,15 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
-import * as Location from 'expo-location';
+import { readDeviceCoordinates } from '@/lib/device-coordinates';
 import { SUBSCRIPTION_PRICES } from '@/backend/lib/fees';
 import { userNeedsMembership } from '@/backend/lib/trial-access';
 import { Colors, monoGradients } from '@/constants/colors';
+import { maroonButtonColors } from '@/constants/auth-palette';
 import { GradientButton } from '@/components/GradientButton';
 import { MembershipPromoBanner } from '@/components/MembershipPromoBanner';
 import { finishIAP, IAP_REQUIRED, MEMBERSHIP_ANNUAL_PRODUCT_ID, MEMBERSHIP_MONTHLY_PRODUCT_ID, purchaseIAP, restoreIAPPurchases } from '@/lib/iap';
@@ -28,28 +29,37 @@ import { BackCircle } from '@/components/BackCircle';
 import { ScrollJumps } from '@/components/ScrollJumps';
 import { useLeaveScreen, usePaidBack, useStayBack } from '@/hooks/use-leave-screen';
 
+function askedRole(value: string | string[] | undefined): 'platemaker' | 'platetaker' | undefined {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return raw === 'platemaker' || raw === 'platetaker' ? raw : undefined;
+}
+
 export default function MembershipScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const { user, openKitchen } = useAuth();
   const router = useRouter();
+  const params = useLocalSearchParams<{ role?: string | string[] }>();
+  const accountRole = user?.accountRole ?? user?.role;
+  const routeRole = askedRole(params.role);
+  const isPlateTaker = accountRole ? accountRole !== 'platemaker' : routeRole !== 'platemaker';
   const [processing, setProcessing] = useState(false);
   const [chargeLock, setChargeLock] = useState<'idle' | 'charging' | 'paid'>('idle');
   const [locationVerdict, setLocationVerdict] = useState<'unchecked' | 'outside' | 'inside'>('unchecked');
-  const remoteOnFile = !user?.metroArea || user.metroArea === 'Remote/Other';
-  const holdForGps = user?.role === 'platemaker' && remoteOnFile && locationVerdict !== 'outside';
+  const remoteOnFile = !!user && (!user.metroArea || user.metroArea === 'Remote/Other');
+  const holdForGps = !isPlateTaker && !!user && remoteOnFile && locationVerdict !== 'outside';
   const gated = userNeedsMembership(user) || holdForGps;
   const leave = useLeaveScreen('/(tabs)/profile', chargeLock === 'idle' && !gated);
   useStayBack(chargeLock === 'charging' || (gated && chargeLock !== 'paid'));
-  usePaidBack(user?.role === 'platemaker' ? '/(tabs)/dashboard' : '/(tabs)/(home)/home', chargeLock === 'paid');
+  usePaidBack(isPlateTaker ? '/(tabs)/(home)/home' : '/(tabs)/dashboard', chargeLock === 'paid');
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [gpsCoordinates, setGpsCoordinates] = useState<{ lat: number; lng: number } | null>(null);
-  const [, setLocationPermissionGranted] = useState(false);
+  const [checkedMetro, setCheckedMetro] = useState<string | null>(null);
 
   const claimEarlyBird = trpc.membership.claimEarlyBird.useMutation();
   const locateMembership = trpc.membership.locate.useMutation();
   const createCheckout = trpc.payments.createCheckoutSession.useMutation();
   const earlyBirdOffer = trpc.membership.earlyBirdOffer.useQuery(undefined, {
-    enabled: user?.role === 'platemaker',
+    enabled: accountRole === 'platemaker',
     retry: false,
   });
   const confirmAppleMutation = trpc.membership.confirmApple.useMutation();
@@ -61,10 +71,9 @@ export default function MembershipScreen() {
 
   const membershipTier = user?.membershipTier || 'free';
   // Use metroArea from profile (locked at signup via PostGIS)
-  const userMetro = user?.metroArea || null;
-  const remoteMetro = !userMetro || userMetro === 'Remote/Other';
+  const userMetro = checkedMetro || user?.metroArea || null;
+  const remoteMetro = !!user && (!userMetro || userMetro === 'Remote/Other');
   // PlateTakers join free. Early Bird is 90 days for a PlateMaker in an active metro that still has a spot.
-  const isPlateTaker = user?.role !== 'platemaker';
   const offerDays = earlyBirdOffer.data?.eligible ? earlyBirdOffer.data.trialDays : 0;
   const plans = isPlateTaker
     ? [
@@ -76,8 +85,8 @@ export default function MembershipScreen() {
         { interval: 'year' as const, amount: SUBSCRIPTION_PRICES.PLATEMAKER_ANNUAL, caption: 'Yearly' },
       ];
   const joinFree = useCallback(() => {
-    router.replace(user?.role === 'platemaker' ? '/(tabs)/dashboard' : '/(tabs)/(home)/home');
-  }, [router, user?.role]);
+    router.replace(isPlateTaker ? '/(tabs)/(home)/home' : '/(tabs)/dashboard');
+  }, [isPlateTaker, router]);
 
   const openTheKitchen = useCallback(async () => {
     await openKitchen();
@@ -92,103 +101,80 @@ export default function MembershipScreen() {
     Alert.alert(title, message);
   }, []);
 
-  const requestLocationAndGetCoordinates = useCallback(async (): Promise<{ lat: number; lng: number } | null> => {
-    if (Platform.OS === 'web') {
-      if (typeof navigator === 'undefined' || !navigator.geolocation) {
-        tell('Location', 'This browser cannot read a location. The kitchen stays closed until Get GPS can check a metro.');
-        return null;
-      }
-      try {
-        const position = await new Promise<{ coords: { latitude: number; longitude: number } }>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
-            timeout: 20000,
-            maximumAge: 0,
-          });
-        });
-        return { lat: position.coords.latitude, lng: position.coords.longitude };
-      } catch (error) {
-        console.error('[Membership] Web location error:', error);
-        const denied = typeof error === 'object' && error !== null && 'code' in error && (error as { code?: number }).code === 1;
-        tell(
-          'Location',
-          denied
-            ? 'Location is off for this browser. Allow it for this site, then tap Get GPS again. The kitchen stays closed until that check finishes.'
-            : 'This browser could not read a location. The kitchen stays closed until Get GPS can check a metro.',
-        );
-        return null;
-      }
-    }
-
-    try {
-      const { status: existingStatus } = await Location.getForegroundPermissionsAsync();
-      if (existingStatus !== 'granted') {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          tell(
-            'Location',
-            'Location is off for this app. Allow it, then tap Get GPS again. The kitchen stays closed until that check finishes.',
-          );
-          return null;
-        }
-      }
-
-      setLocationPermissionGranted(true);
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-      return { lat: location.coords.latitude, lng: location.coords.longitude };
-    } catch (error) {
-      console.error('[Membership] Location error:', error);
-      tell('Location', 'This device could not read a location. The kitchen stays closed until Get GPS can check a metro.');
-      return null;
-    }
-  }, [tell]);
-
   const handleGetGps = useCallback(async () => {
     setDetectingLocation(true);
     try {
-      const coords = await requestLocationAndGetCoordinates();
-      if (!coords) return;
-      setGpsCoordinates(coords);
-      const found = await locateMembership.mutateAsync(coords);
-      await refetchMe();
-      await earlyBirdOffer.refetch();
-      if (found.reason === 'eligible') {
-        setLocationVerdict('inside');
-        tell('Location', `You are in ${found.metroArea}. Early Bird is ${found.trialDays} days at no charge.`);
+      const read = await readDeviceCoordinates(true);
+      if (read.status !== 'ready') {
+        const closed = isPlateTaker ? '' : ' The kitchen stays closed until that check finishes.';
+        const message = read.status === 'denied'
+          ? `Location is off. Allow it, then tap Get GPS again.${closed}`
+          : read.status === 'imprecise'
+            ? `This reading is not precise enough. Allow precise location, then tap Get GPS again.${closed}`
+            : isPlateTaker
+              ? 'This device could not read a location. Tap Get GPS again.'
+              : 'This device could not read a location. The kitchen stays closed until Get GPS can check a metro.';
+        tell('Location', message);
         return;
       }
-      if (found.reason === 'in_metro') {
+      setGpsCoordinates(read.point);
+      const found = await locateMembership.mutateAsync(read.point);
+      await refetchMe();
+      if (!isPlateTaker) await earlyBirdOffer.refetch();
+      if (found.reason === 'eligible' || found.reason === 'in_metro') {
         setLocationVerdict('inside');
-        tell('Location', `You are in ${found.metroArea}. Early Bird is not available for this metro. Choose monthly or yearly before the kitchen opens.`);
+        setCheckedMetro(found.metroArea);
+        if (isPlateTaker || found.reason !== 'eligible') {
+          tell(
+            'Location',
+            isPlateTaker
+              ? `You are in ${found.metroArea}.`
+              : `You are in ${found.metroArea}. Early Bird is not available for this metro. Choose monthly or yearly before the kitchen opens.`,
+          );
+        } else {
+          tell('Location', `You are in ${found.metroArea}. Early Bird is ${found.trialDays} days at no charge.`);
+        }
         return;
       }
       if (found.reason === 'paused') {
         setLocationVerdict('outside');
-        tell('Location', 'That metro is paused. The kitchen stays open without a charge.');
+        tell('Location', isPlateTaker ? 'That metro is paused.' : 'That metro is paused. The kitchen stays open without a charge.');
         return;
       }
       if (found.reason === 'lookup_failed') {
-        tell('Location', 'The metro check did not finish. Tap Get GPS again. The kitchen stays closed until it does.');
+        tell(
+          'Location',
+          isPlateTaker
+            ? 'The metro check did not finish. Tap Get GPS again.'
+            : 'The metro check did not finish. Tap Get GPS again. The kitchen stays closed until it does.',
+        );
         return;
       }
       setLocationVerdict('outside');
       const point = `${found.lat.toFixed(4)}, ${found.lng.toFixed(4)}`;
-      tell('Location', `Checked ${point}. That point is outside the 50-mile radius of all 50 metros. The kitchen is open, and a paid plan is optional.`);
+      tell(
+        'Location',
+        isPlateTaker
+          ? `Checked ${point}. That point is outside the 50-mile radius of all 50 metros.`
+          : `Checked ${point}. That point is outside the 50-mile radius of all 50 metros. The kitchen is open, and a paid plan is optional.`,
+      );
     } catch (error: unknown) {
       const raw = error instanceof Error ? error.message : '';
       const signedOut = /no id card|unauthorized|not signed in|please log in/i.test(raw);
       tell(
         'Location',
         signedOut
-          ? 'Sign in again, then tap Get GPS. The kitchen stays closed until that check finishes.'
-          : 'The metro check did not finish. Tap Get GPS again. The kitchen stays closed until it does.',
+          ? isPlateTaker
+            ? 'Sign in again, then tap Get GPS.'
+            : 'Sign in again, then tap Get GPS. The kitchen stays closed until that check finishes.'
+          : isPlateTaker
+            ? 'The metro check did not finish. Tap Get GPS again.'
+            : 'The metro check did not finish. Tap Get GPS again. The kitchen stays closed until it does.',
       );
     } finally {
       setDetectingLocation(false);
     }
-  }, [earlyBirdOffer, locateMembership, refetchMe, requestLocationAndGetCoordinates, tell]);
+  }, [earlyBirdOffer, isPlateTaker, locateMembership, refetchMe, tell]);
 
   const isPurchaseCancel = (error: unknown) => (
     typeof error === 'object'
@@ -346,9 +332,11 @@ export default function MembershipScreen() {
     }
   }, [user, confirmStorePurchase, refetchMe, router, storeName]);
 
-  const membershipBadgeColor: readonly [string, string] = membershipTier === 'premium'
+  const membershipBadgeColor: readonly [string, string, ...string[]] = membershipTier === 'premium'
     ? monoGradients.gold
-    : [Colors.gray[400], Colors.gray[500]];
+    : isPlateTaker
+      ? maroonButtonColors
+      : [Colors.gray[400], Colors.gray[500]];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -391,7 +379,9 @@ export default function MembershipScreen() {
               
               {membershipTier === 'free' && !isPlateTaker && (
                 <Text style={styles.statusText}>
-                  {earlyBirdOffer.isError
+                  {!user
+                    ? 'Confirm your email and sign in. Then choose Early Bird or a paid plan before the kitchen opens.'
+                    : earlyBirdOffer.isError
                     ? 'Early Bird could not be checked. Tap Get GPS again once you are signed in.'
                     : earlyBirdOffer.isLoading
                       ? 'Checking Early Bird for this kitchen.'
@@ -407,7 +397,9 @@ export default function MembershipScreen() {
 
               {membershipTier === 'free' && isPlateTaker && (
                 <Text style={styles.statusText}>
-                  You have access to the app. Premium is only if you choose it.
+                  {user
+                    ? 'You have access to the app. Premium is only if you choose it.'
+                    : 'Confirm your email and sign in. The app is free. Premium is optional.'}
                 </Text>
               )}
             </View>
@@ -420,7 +412,10 @@ export default function MembershipScreen() {
                 userLocation={userMetro}
                 membershipTier={membershipTier}
                 audience={isPlateTaker ? 'platetaker' : 'platemaker'}
-                onPress={() => router.replace('/membership-access')}
+                onPress={() => router.replace({
+                  pathname: '/membership-access',
+                  params: { role: isPlateTaker ? 'platetaker' : 'platemaker' },
+                })}
               />
             </View>
           )}
@@ -444,29 +439,29 @@ export default function MembershipScreen() {
                     )}
                   </View>
                 </View>
-                {!gpsCoordinates && (
-                  <GlassPressable
-                    onPress={() => {
-                      handleGetGps().catch(() => undefined);
-                    }}
-                    disabled={detectingLocation}
-                    style={styles.detectButton}
-                  >
-                    {detectingLocation ? (
-                      <ActivityIndicator color={Colors.gradient.green} />
-                    ) : (
-                      <>
-                        <Ionicons name="locate" size={20} color={Colors.gradient.green} />
-                        <Text style={styles.detectButtonText}>Get GPS</Text>
-                      </>
-                    )}
-                  </GlassPressable>
-                )}
+                <GlassPressable
+                  onPress={() => {
+                    handleGetGps().catch(() => undefined);
+                  }}
+                  disabled={detectingLocation}
+                  style={styles.detectButton}
+                >
+                  {detectingLocation ? (
+                    <ActivityIndicator color={Colors.gradient.green} />
+                  ) : (
+                    <>
+                      <Ionicons name="locate" size={20} color={Colors.gradient.green} />
+                      <Text style={styles.detectButtonText}>Get GPS</Text>
+                    </>
+                  )}
+                </GlassPressable>
               </View>
               <Text style={styles.locationHint}>
-                {gpsCoordinates
-                  ? 'This location was checked against an active metro. Early Bird is offered only inside one.'
-                  : 'Get GPS checks this device against the saved metros. Each metro has a 50 mile radius. The kitchen stays closed until that check finishes.'}
+                {isPlateTaker
+                  ? 'Get GPS reads this device and saves the nearest metro inside a 50 mile radius. Tap it again to refresh.'
+                  : gpsCoordinates
+                    ? 'This location was checked against an active metro. Early Bird is offered only inside one. Tap Get GPS again to refresh.'
+                    : 'Get GPS checks this device against the saved metros. Each metro has a 50 mile radius. The kitchen stays closed until that check finishes.'}
               </Text>
             </View>
           )}
@@ -532,7 +527,7 @@ export default function MembershipScreen() {
                     />
                   </View>
                 ))}
-                {isPlateTaker ? (
+                {isPlateTaker && user ? (
                   <GlassPressable onPress={joinFree} style={styles.restoreButton}>
                     <Text style={styles.restoreText}>Use the app</Text>
                   </GlassPressable>

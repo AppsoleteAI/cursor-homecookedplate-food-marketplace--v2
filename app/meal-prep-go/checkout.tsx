@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/auth-context';
 import { forgetPaidPrepItems, useMealPrep, type PrepOrderLine } from '@/hooks/meal-prep-store';
 import { weekMix } from '@/lib/meal-prep-go';
 import { buyerFoodCharge } from '@/backend/lib/fees';
+import { accountAccessCopy } from '@/backend/lib/sign-in-messages';
 import { orderTotalWithDelivery } from '@/lib/fees';
 import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 import { readSellerId, shopSellerId } from '@/lib/shop-seller';
@@ -126,7 +127,8 @@ export default function MealPrepCheckoutScreen() {
       });
       setOrderId(order.id);
     } catch (error) {
-      Alert.alert('Payment failed', error instanceof Error ? error.message : 'The card was not charged.');
+      const message = error instanceof Error ? error.message : '';
+      Alert.alert('Payment failed', accountAccessCopy(message) ?? (message || 'The card was not charged.'));
     }
   };
 

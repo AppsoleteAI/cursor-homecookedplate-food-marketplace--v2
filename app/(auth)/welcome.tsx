@@ -111,8 +111,10 @@ export default function WelcomeScreen() {
   const { user } = useAuth();
   const params = useLocalSearchParams<{ role?: string | string[]; entry?: string | string[]; step?: string | string[] }>();
   const role = roleParam(params.role);
+  const [pickedRole, setPickedRole] = useState<Role | undefined>(role);
+  const chosenRole = role ?? pickedRole;
   const isGate = firstParam(params.entry) === 'gate';
-  const isMaker = role === 'platemaker';
+  const isMaker = chosenRole === 'platemaker';
   const stepLabels = ['Benefits', 'Membership', isMaker ? 'Cottage food' : 'Safety'];
   const [step, setStep] = useState(stepParam(params.step));
   const stepBack = useWizardBack(step, setStep);
@@ -146,18 +148,22 @@ export default function WelcomeScreen() {
         }
         router.push({
           pathname: '/(auth)/onboarding',
-          params: role ? { role } : {},
+          params: chosenRole ? { role: chosenRole } : {},
         });
       })
       .catch(() => {
         router.push({
           pathname: '/(auth)/onboarding',
-          params: role ? { role } : {},
+          params: chosenRole ? { role: chosenRole } : {},
         });
       });
   };
 
   const continueForward = () => {
+    if (!chosenRole && step > 0) {
+      setStep(1);
+      return;
+    }
     if (step < 2) {
       setStep((current) => current + 1);
       return;
@@ -165,7 +171,7 @@ export default function WelcomeScreen() {
     markWelcomeSeen();
     router.push({
       pathname: '/(auth)/onboarding',
-      params: role ? { role } : {},
+      params: chosenRole ? { role: chosenRole } : {},
     });
   };
 
@@ -215,7 +221,40 @@ export default function WelcomeScreen() {
               {step === 1 ? (
                 <>
                   <Text style={styles.panelTitle}>Membership</Text>
-                  {MEMBERSHIP_PRICES.map((plan) => {
+                  {!chosenRole ? (
+                    <>
+                      <Text style={[styles.help, styles.choiceQuestion]}>Choose how you will use HomeCookedPlate. Membership follows that choice.</Text>
+                      <GlassPressable
+                        style={[styles.priceButton, styles.choiceButton]}
+                        onPress={() => setPickedRole('platetaker')}
+                        accessibilityRole="button"
+                        accessibilityLabel="Order a plate, PlateTaker"
+                      >
+                        <LinearGradient
+                          colors={[...maroonButtonColors]}
+                          locations={[0, 0.42, 1]}
+                          style={styles.priceFill}
+                        />
+                        <Text style={styles.choiceLabel}>Order a Plate</Text>
+                        <Text style={styles.choiceRole}>PlateTaker</Text>
+                      </GlassPressable>
+                      <GlassPressable
+                        style={styles.priceButton}
+                        onPress={() => setPickedRole('platemaker')}
+                        accessibilityRole="button"
+                        accessibilityLabel="Start cooking, PlateMaker"
+                      >
+                        <LinearGradient
+                          colors={[...maroonButtonColors]}
+                          locations={[0, 0.42, 1]}
+                          style={styles.priceFill}
+                        />
+                        <Text style={styles.choiceLabel}>Start Cooking</Text>
+                        <Text style={styles.choiceRole}>PlateMaker</Text>
+                      </GlassPressable>
+                    </>
+                  ) : null}
+                  {chosenRole ? MEMBERSHIP_PRICES.filter((plan) => plan.id.startsWith(isMaker ? 'platemaker' : 'platetaker')).map((plan) => {
                     const yearly = plan.id.endsWith('yearly');
                     return (
                     <View key={plan.id} style={styles.priceBlock}>
@@ -236,24 +275,33 @@ export default function WelcomeScreen() {
                       </GlassPressable>
                     </View>
                     );
-                  })}
-                  <View style={styles.priceNotes}>
-                    <Text style={styles.priceNote}>Premium features access</Text>
-                    <Text style={styles.priceNote}>Priority support</Text>
-                    <Text style={styles.priceNote}>Cancel anytime</Text>
-                  </View>
-                  <View style={styles.earlyBird}>
-                    <Text style={styles.earlyTitle}>Early Bird</Text>
-                    <Text style={styles.earlyBody}>
-                      PlateMakers get 90 days of Premium at no charge while their metro still has a spot. Choosing Early Bird does not open Stripe. The start date and the end date are saved, and Premium ends when those days run out. Monthly is $4.99 and yearly is $39.99 if they pay instead.
-                    </Text>
-                    <Text style={styles.earlyBody}>
-                      PlateTakers get free access. Premium is the upgrade that cuts the service fee on the receipt from 10% to 5% on orders of $20 or more.
-                    </Text>
-                    <Text style={styles.earlyBody}>
-                      Outside an active metro, Early Bird is not available.
-                    </Text>
-                  </View>
+                  }) : null}
+                  {chosenRole ? (
+                    <>
+                      <View style={styles.priceNotes}>
+                        <Text style={styles.priceNote}>Premium features access</Text>
+                        <Text style={styles.priceNote}>Priority support</Text>
+                        <Text style={styles.priceNote}>Cancel anytime</Text>
+                      </View>
+                      <View style={styles.earlyBird}>
+                        <Text style={styles.earlyTitle}>{isMaker ? 'Early Bird' : 'The app is free'}</Text>
+                        {isMaker ? (
+                          <>
+                            <Text style={styles.earlyBody}>
+                              PlateMakers get 90 days of Premium at no charge while their metro still has a spot. Choosing Early Bird does not open Stripe. The start date and the end date are saved, and Premium ends when those days run out. Monthly is $4.99 and yearly is $39.99 if they pay instead.
+                            </Text>
+                            <Text style={styles.earlyBody}>
+                              Outside an active metro, Early Bird is not available.
+                            </Text>
+                          </>
+                        ) : (
+                          <Text style={styles.earlyBody}>
+                            PlateTakers get free access. Premium is the upgrade that cuts the service fee on the receipt from 10% to 5% on orders of $20 or more.
+                          </Text>
+                        )}
+                      </View>
+                    </>
+                  ) : null}
                 </>
               ) : null}
 
@@ -285,7 +333,7 @@ export default function WelcomeScreen() {
                     </View>
                   </View>
                   <Text style={styles.help}>{PLATETAKER_LOST_DISPUTE_SIGNUP}</Text>
-                  <FoodHandlingLink color="#3D7EBE" returnTo={welcomeReturn(role, 2)} />
+                  <FoodHandlingLink color="#3D7EBE" returnTo={welcomeReturn(chosenRole, 2)} />
                 </>
               ) : null}
 
@@ -332,7 +380,7 @@ export default function WelcomeScreen() {
                     </Text>
                     <Text style={[styles.checkText, { marginTop: 8 }]}>{PLATEMAKER_LOST_DISPUTE_SIGNUP}</Text>
                   </View>
-                  <FoodHandlingLink color="#3D7EBE" label="Food handling temperatures for the kitchen" returnTo={welcomeReturn(role, 2)} />
+                  <FoodHandlingLink color="#3D7EBE" label="Food handling temperatures for the kitchen" returnTo={welcomeReturn(chosenRole, 2)} />
                 </>
               ) : null}
 
@@ -490,6 +538,30 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
+  },
+  choiceButton: {
+    marginBottom: 12,
+  },
+  choiceQuestion: {
+    textAlign: 'center',
+    lineHeight: 26,
+  },
+  choiceLabel: {
+    ...preAppFont,
+    color: AuthColors.white,
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  choiceRole: {
+    ...preAppFont,
+    color: AuthColors.white,
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 6,
   },
   price: {
     ...preAppFont,
