@@ -19,6 +19,7 @@ import { IdleChrome } from '@/components/IdleChrome';
 import { CHROME_CHIP_SIZE, CHROME_ICON_SIZE } from '@/lib/chrome-activity';
 import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { Colors, pagePastel } from '@/constants/colors';
+import { AuthColors } from '@/constants/auth-palette';
 import { trpc } from '@/lib/trpc';
 
 type Plate = { id: string; name: string; description: string; image: string | null };
@@ -100,17 +101,17 @@ export default function AdminMonitorScreen() {
               onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
               accessibilityLabel="Scroll to top"
               size={CHROME_CHIP_SIZE}
-              tint="rgba(232, 176, 22, 0.92)"
+              maroon
             >
-              <Ionicons name="chevron-up" size={CHROME_ICON_SIZE} color={Colors.gray[900]} />
+              <Ionicons name="chevron-up" size={CHROME_ICON_SIZE} color={AuthColors.gold} />
             </GlassIconButton>
             <GlassIconButton
               onPress={() => scrollRef.current?.scrollToEnd({ animated: true })}
               accessibilityLabel="Scroll to bottom"
               size={CHROME_CHIP_SIZE}
-              tint="rgba(232, 176, 22, 0.92)"
+              maroon
             >
-              <Ionicons name="chevron-down" size={CHROME_ICON_SIZE} color={Colors.gray[900]} />
+              <Ionicons name="chevron-down" size={CHROME_ICON_SIZE} color={AuthColors.gold} />
             </GlassIconButton>
           </View>
         </IdleChrome>

@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { Stack, router, useSegments, type Href } from 'expo-router';
+import { Stack, useSegments } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { requestRecordingPermissionsAsync } from 'expo-audio';
 import { Colors, monoGradients } from '@/constants/colors';
+import { AuthColors, maroonButtonColors } from '@/constants/auth-palette';
 import { BackCircle } from '@/components/BackCircle';
 import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
@@ -88,6 +89,7 @@ export default function FoodReviewClips() {
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [query, setQuery] = useState('');
   const [menuClipId, setMenuClipId] = useState<string | null>(null);
+  const [postNotice, setPostNotice] = useState('');
   const [reactionRowWidth, setReactionRowWidth] = useState(0);
   const [reactionChipWidth, setReactionChipWidth] = useState(0);
   const reactionGap = foodReviewReactionGap(reactionRowWidth, reactionChipWidth);
@@ -194,12 +196,13 @@ export default function FoodReviewClips() {
 
   const postLink = useCallback(async () => {
     if (!canPostClip) {
-      router.push('/membership' as Href);
+      setPostNotice('Posting is for premium members');
       return;
     }
+    setPostNotice('');
     const link = foodReviewLinkClip(clipLink);
     if (!link) {
-      Alert.alert('Clip link', 'Paste a YouTube, Facebook, Instagram, TikTok, Snapchat, or X link.');
+      Alert.alert('Clip link', 'Paste a YouTube, Facebook, TikTok, or Reddit link.');
       return;
     }
     const localClip: FoodReviewClip = {
@@ -287,9 +290,10 @@ export default function FoodReviewClips() {
 
   const recordClip = useCallback(async () => {
     if (!canPostClip) {
-      router.push('/membership' as Href);
+      setPostNotice('Posting is for premium members');
       return;
     }
+    setPostNotice('');
     if (Platform.OS === 'web') {
       pickOnWeb();
       return;
@@ -312,9 +316,10 @@ export default function FoodReviewClips() {
 
   const chooseClip = useCallback(async () => {
     if (!canPostClip) {
-      router.push('/membership' as Href);
+      setPostNotice('Posting is for premium members');
       return;
     }
+    setPostNotice('');
     if (Platform.OS === 'web') {
       pickOnWeb();
       return;
@@ -365,9 +370,7 @@ export default function FoodReviewClips() {
             />
           )}
           <View style={styles.composer}>
-            <Text style={styles.composerTitle}>
-              {canPostClip ? 'Post a 20 second clip' : 'Posting is for premium members'}
-            </Text>
+            <Text style={styles.composerTitle}>Post a 20 second clip</Text>
             <TextInput
               value={mealName}
               onChangeText={setMealName}
@@ -375,16 +378,14 @@ export default function FoodReviewClips() {
               placeholderTextColor={Colors.gray[400]}
               style={styles.input}
               testID="clip-meal-name"
-              editable={canPostClip}
             />
             <TextInput
               value={clipLink}
               onChangeText={setClipLink}
-              placeholder="YouTube, Facebook, Instagram, TikTok, or Snapchat link"
+              placeholder="YouTube, Facebook, TikTok, or Reddit link"
               placeholderTextColor={Colors.gray[400]}
               style={styles.input}
               testID="clip-link"
-              editable={canPostClip}
               autoCapitalize="none"
               autoCorrect={false}
             />
@@ -392,25 +393,26 @@ export default function FoodReviewClips() {
               <GlassPressable
                 onPress={recordClip}
                 testID="record-clip"
-                style={[styles.action, !canPostClip && styles.actionLocked]}
+                style={styles.action}
               >
-                <Text style={styles.actionText}>{canPostClip ? 'Record' : 'See Membership'}</Text>
+                <Text style={styles.actionText}>Record</Text>
               </GlassPressable>
               <GlassPressable
                 onPress={chooseClip}
                 testID="choose-clip"
-                style={[styles.actionSecondary, !canPostClip && styles.actionLocked]}
+                style={styles.actionSecondary}
               >
-                <Text style={styles.actionSecondaryText}>{canPostClip ? 'Choose Clip' : 'Premium'}</Text>
+                <Text style={styles.actionSecondaryText}>Choose Clip</Text>
               </GlassPressable>
             </View>
             <GlassPressable
               onPress={postLink}
               testID="post-clip-link"
-              style={[styles.action, styles.postLink, !canPostClip && styles.actionLocked]}
+              style={[styles.action, styles.postLink]}
             >
               <Text style={styles.actionText}>Post Link</Text>
             </GlassPressable>
+            {postNotice ? <Text style={styles.postNotice}>{postNotice}</Text> : null}
             <GlassPressable
               onPress={() => setShowBookmarks((current) => !current)}
               testID="clip-bookmarks"
@@ -561,8 +563,8 @@ export default function FoodReviewClips() {
             accessibilityLabel="Scroll to top"
             style={styles.jump}
           >
-            <LinearGradient colors={monoGradients.green} style={styles.jumpFill}>
-              <Ionicons name="chevron-up" size={CHROME_ICON_SIZE} color={Colors.white} />
+            <LinearGradient colors={[...maroonButtonColors]} locations={[0, 0.42, 1]} style={styles.jumpFill}>
+              <Ionicons name="chevron-up" size={CHROME_ICON_SIZE} color={AuthColors.gold} />
             </LinearGradient>
           </GlassPressable>
           <GlassPressable
@@ -572,8 +574,8 @@ export default function FoodReviewClips() {
             accessibilityLabel="Scroll to bottom"
             style={styles.jump}
           >
-            <LinearGradient colors={monoGradients.green} style={styles.jumpFill}>
-              <Ionicons name="chevron-down" size={CHROME_ICON_SIZE} color={Colors.white} />
+            <LinearGradient colors={[...maroonButtonColors]} locations={[0, 0.42, 1]} style={styles.jumpFill}>
+              <Ionicons name="chevron-down" size={CHROME_ICON_SIZE} color={AuthColors.gold} />
             </LinearGradient>
           </GlassPressable>
         </View>
@@ -807,6 +809,12 @@ const styles = StyleSheet.create({
     color: Colors.gray[900],
     marginBottom: 8,
   },
+  postNotice: {
+    marginTop: 12,
+    color: Colors.gray[600],
+    fontSize: 14,
+    lineHeight: 20,
+  },
   input: {
     borderWidth: 1,
     borderColor: Colors.gray[200],
@@ -842,8 +850,5 @@ const styles = StyleSheet.create({
   actionSecondaryText: {
     color: Colors.gray[800],
     fontWeight: '700',
-  },
-  actionLocked: {
-    opacity: 0.85,
   },
 });

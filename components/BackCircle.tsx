@@ -35,7 +35,8 @@ export function BackCircle({
         testID={testID}
         accessibilityLabel="Back"
         size={CHROME_CHIP_SIZE}
-        tint={honey ? 'rgba(232, 176, 22, 0.72)' : 'rgba(255,255,255,0.18)'}
+        tint={honey ? undefined : 'rgba(255,255,255,0.18)'}
+        honey={honey}
       >
         <Ionicons name="chevron-back" size={CHROME_ICON_SIZE} color={honey ? AuthColors.ink : Colors.white} />
       </GlassIconButton>

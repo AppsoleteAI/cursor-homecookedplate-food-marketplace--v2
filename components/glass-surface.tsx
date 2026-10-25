@@ -1,6 +1,7 @@
 import React, { createContext, useContext } from 'react';
 import { Pressable, PressableProps, StyleProp, StyleSheet, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { goldButtonColors, maroonButtonColors } from '@/constants/auth-palette';
 import Animated, {
   SharedValue,
   useAnimatedReaction,
@@ -142,6 +143,8 @@ export function GlassIconButton({
   accessibilityLabel,
   tint = 'rgba(255,255,255,0.18)',
   size = 36,
+  honey = false,
+  maroon = false,
 }: {
   onPress: () => void;
   children: React.ReactNode;
@@ -149,15 +152,26 @@ export function GlassIconButton({
   accessibilityLabel?: string;
   tint?: string;
   size?: number;
+  honey?: boolean;
+  maroon?: boolean;
 }) {
+  const gradient = maroon || honey;
   return (
     <GlassPressable
       onPress={onPress}
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      style={[styles.icon, { width: size, height: size, borderRadius: size / 2, backgroundColor: tint }]}
+      style={[styles.icon, { width: size, height: size, borderRadius: size / 2, backgroundColor: gradient ? 'transparent' : tint, overflow: 'hidden' }]}
     >
+      {gradient ? (
+        <LinearGradient
+          pointerEvents="none"
+          colors={[...(maroon ? maroonButtonColors : goldButtonColors)]}
+          locations={[0, 0.42, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+      ) : null}
       {children}
     </GlassPressable>
   );

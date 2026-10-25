@@ -29,6 +29,15 @@ import { BackCircle } from '@/components/BackCircle';
 import { ScrollJumps } from '@/components/ScrollJumps';
 import { useLeaveScreen, usePaidBack, useStayBack } from '@/hooks/use-leave-screen';
 
+function plateTakerFreeEntry(signedIn: boolean): string {
+  const month = SUBSCRIPTION_PRICES.PLATETAKER_MONTHLY.toFixed(2);
+  const year = SUBSCRIPTION_PRICES.PLATETAKER_ANNUAL.toFixed(2);
+  const entry = signedIn
+    ? 'The app is free. Use the app to enter.'
+    : 'The app is free. Click the maroon PlateTaker button to sign in, then use the app.';
+  return `${entry} Premium is optional at $${month} a month or $${year} a year.`;
+}
+
 function askedRole(value: string | string[] | undefined): 'platemaker' | 'platetaker' | undefined {
   const raw = Array.isArray(value) ? value[0] : value;
   return raw === 'platemaker' || raw === 'platetaker' ? raw : undefined;
@@ -133,10 +142,10 @@ export default function MembershipScreen() {
           'Location',
           city
             ? isPlateTaker
-              ? `You are in ${city}.`
-              : `You are in ${city}. Sign in to start Early Bird. It is 90 days at no charge.`
+              ? `You are in ${city}. ${plateTakerFreeEntry(false)}`
+              : `You are in ${city}. Click the maroon PlateMaker button to sign in. Early Bird is 90 days at no charge.`
             : isPlateTaker
-              ? 'That point is outside the 50-mile radius of all 50 metros.'
+              ? `That point is outside the 50-mile radius of all 50 metros. ${plateTakerFreeEntry(false)}`
               : 'That point is outside the 50-mile radius of all 50 metros. The kitchen is open, and a paid plan is optional.',
         );
         return;
@@ -151,7 +160,7 @@ export default function MembershipScreen() {
         tell(
           'Location',
           isPlateTaker
-            ? `You are in ${savedName}.`
+            ? `You are in ${savedName}. ${plateTakerFreeEntry(true)}`
             : found.reason === 'eligible'
               ? `You are in ${savedName}. Early Bird is ${found.trialDays} days at no charge.`
               : `You are in ${savedName}. Early Bird is not available for this metro. Choose monthly or yearly before the kitchen opens.`,
@@ -161,7 +170,7 @@ export default function MembershipScreen() {
       if (found.reason === 'paused') {
         setLocationVerdict('outside');
         setCheckedMetro(null);
-        tell('Location', isPlateTaker ? 'That metro is paused.' : 'That metro is paused. The kitchen stays open without a charge.');
+        tell('Location', isPlateTaker ? `That metro is paused. ${plateTakerFreeEntry(true)}` : 'That metro is paused. The kitchen stays open without a charge.');
         return;
       }
       if (!city) {
@@ -170,7 +179,7 @@ export default function MembershipScreen() {
         tell(
           'Location',
           isPlateTaker
-            ? `Checked ${point}. That point is outside the 50-mile radius of all 50 metros.`
+            ? `Checked ${point}. That point is outside the 50-mile radius of all 50 metros. ${plateTakerFreeEntry(true)}`
             : `Checked ${point}. That point is outside the 50-mile radius of all 50 metros. The kitchen is open, and a paid plan is optional.`,
         );
         return;
@@ -178,7 +187,7 @@ export default function MembershipScreen() {
       tell(
         'Location',
         isPlateTaker
-          ? `You are in ${city}. Tap Get GPS again to save it on this account.`
+          ? `You are in ${city}. Tap Get GPS again to save it on this account. ${plateTakerFreeEntry(true)}`
           : `You are in ${city}. Tap Get GPS again to save it, then Early Bird can start. It is 90 days at no charge.`,
       );
     } catch (error: unknown) {
@@ -189,17 +198,17 @@ export default function MembershipScreen() {
         city
           ? signedOut
             ? isPlateTaker
-              ? `You are in ${city}. Sign in, then tap Get GPS again.`
-              : `You are in ${city}. Sign in to start Early Bird. It is 90 days at no charge.`
+              ? `You are in ${city}. ${plateTakerFreeEntry(false)} Tap Get GPS again after that.`
+              : `You are in ${city}. Click the maroon PlateMaker button to sign in. Early Bird is 90 days at no charge.`
             : isPlateTaker
-              ? `You are in ${city}. Tap Get GPS again to save it on this account.`
+              ? `You are in ${city}. Tap Get GPS again to save it on this account. ${plateTakerFreeEntry(true)}`
               : `You are in ${city}. Tap Get GPS again to save it, then Early Bird can start. It is 90 days at no charge.`
           : signedOut
             ? isPlateTaker
-              ? 'Sign in again, then tap Get GPS.'
-              : 'Sign in again, then tap Get GPS. The kitchen stays closed until that check finishes.'
+              ? `${plateTakerFreeEntry(false)} Then tap Get GPS again.`
+              : 'Click the maroon PlateMaker button to sign in, then tap Get GPS. The kitchen stays closed until that check finishes.'
             : isPlateTaker
-              ? 'The metro check did not finish. Tap Get GPS again.'
+              ? `The metro check did not finish. Tap Get GPS again. ${plateTakerFreeEntry(true)}`
               : 'The metro check did not finish. Tap Get GPS again. The kitchen stays closed until it does.',
       );
     } finally {
@@ -419,11 +428,11 @@ export default function MembershipScreen() {
               )}
               
               {membershipTier === 'free' && !isPlateTaker && (
-                <Text style={styles.statusText}>
+                <Text style={styles.noticeText}>
                   {!user
                     ? userMetro
-                      ? `You are in ${userMetro}. Sign in to start Early Bird. It is 90 days at no charge.`
-                      : 'Confirm your email and sign in. Then choose Early Bird or a paid plan before the kitchen opens.'
+                      ? `You are in ${userMetro}. Click the maroon PlateMaker button to sign in. Early Bird is 90 days at no charge.`
+                      : 'Confirm your email. Click the maroon PlateMaker button to sign in. Then choose Early Bird or a paid plan before the kitchen opens.'
                     : earlyBirdOffer.isError
                     ? 'Early Bird could not be checked. Tap Get GPS again once you are signed in.'
                     : earlyBirdOffer.isLoading
@@ -439,10 +448,12 @@ export default function MembershipScreen() {
               )}
 
               {membershipTier === 'free' && isPlateTaker && (
-                <Text style={styles.statusText}>
-                  {user
-                    ? 'You have access to the app. Premium is only if you choose it.'
-                    : 'Confirm your email and sign in. The app is free. Premium is optional.'}
+                <Text style={styles.noticeText}>
+                  {userMetro
+                    ? `You are in ${userMetro}. ${plateTakerFreeEntry(!!user)}`
+                    : user
+                      ? plateTakerFreeEntry(true)
+                      : `Confirm your email. Click the maroon PlateTaker button to sign in. The app is free. Premium is optional at $${SUBSCRIPTION_PRICES.PLATETAKER_MONTHLY.toFixed(2)} a month or $${SUBSCRIPTION_PRICES.PLATETAKER_ANNUAL.toFixed(2)} a year.`}
                 </Text>
               )}
             </View>
@@ -502,7 +513,7 @@ export default function MembershipScreen() {
               <Text style={styles.locationHint}>
                 {userMetro
                   ? isPlateTaker
-                    ? `You are in ${userMetro}. This metro covers a 50 mile radius around downtown.`
+                    ? `You are in ${userMetro}. ${user ? 'The app is free. Use the app to enter.' : 'The app is free. Click the maroon PlateTaker button to sign in, then use the app.'} This metro covers a 50 mile radius around downtown.`
                     : `You are in ${userMetro}. Early Bird is 90 days at no charge inside this metro.`
                   : isPlateTaker
                   ? 'Get GPS reads this device and saves the nearest metro inside a 50 mile radius. Tap it again to refresh.'
@@ -516,8 +527,35 @@ export default function MembershipScreen() {
           {/* Payment Setup Section */}
           {membershipTier === 'free' && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{isPlateTaker ? 'Premium' : remoteMetro && !holdForGps && offerDays === 0 ? 'Paid plans' : 'Choose one'}</Text>
+              <Text style={styles.sectionTitle}>{isPlateTaker ? 'Choose one' : remoteMetro && !holdForGps && offerDays === 0 ? 'Paid plans' : 'Choose one'}</Text>
               <View style={styles.pricingCard}>
+                {isPlateTaker ? (
+                  <>
+                    <View style={styles.trialInfo}>
+                      <Ionicons name="gift" size={20} color={Colors.gradient.green} />
+                      <Text style={styles.trialText}>The app is free</Text>
+                    </View>
+                    <Text style={[styles.trialText, styles.trialNote]}>
+                      {user
+                        ? userMetro
+                          ? `You are in ${userMetro}. Use the app to enter. Premium is optional.`
+                          : 'Use the app to enter. Premium is optional.'
+                        : userMetro
+                          ? `You are in ${userMetro}. Click the maroon PlateTaker button to sign in, then use the app. Premium is optional.`
+                          : 'Confirm your email. Click the maroon PlateTaker button to sign in. The app is free. Premium is optional.'}
+                    </Text>
+                    {user ? (
+                      <GradientButton
+                        title="Use the app"
+                        onPress={joinFree}
+                        loading={processing}
+                        disabled={processing}
+                        style={styles.subscribeButton}
+                        baseColor="green"
+                      />
+                    ) : null}
+                  </>
+                ) : null}
                 {!isPlateTaker && (offerDays > 0 || holdForGps || earlyBirdOffer.isLoading || earlyBirdOffer.isError || (!user && !!userMetro)) ? (
                   <>
                     <View style={styles.trialInfo}>
@@ -534,9 +572,9 @@ export default function MembershipScreen() {
                       {offerDays > 0
                         ? 'No card. The start date and the end date are saved on your account.'
                         : !user && userMetro
-                          ? `You are in ${userMetro}. Sign in to start Early Bird. It is 90 days at no charge.`
+                          ? `You are in ${userMetro}. Click the maroon PlateMaker button to sign in. Early Bird is 90 days at no charge.`
                           : earlyBirdOffer.isError
-                          ? 'Sign in, then tap Get GPS. Early Bird starts when this kitchen is inside an active metro.'
+                          ? 'Click the maroon PlateMaker button to sign in, then tap Get GPS. Early Bird starts when this kitchen is inside an active metro.'
                           : 'No card. Get GPS first. Early Bird starts when this kitchen is inside an active metro.'}
                     </Text>
                     {offerDays > 0 ? (
@@ -576,11 +614,6 @@ export default function MembershipScreen() {
                     />
                   </View>
                 ))}
-                {isPlateTaker && user ? (
-                  <GlassPressable onPress={joinFree} style={styles.restoreButton}>
-                    <Text style={styles.restoreText}>Use the app</Text>
-                  </GlassPressable>
-                ) : null}
                 {!isPlateTaker && locationVerdict === 'outside' && remoteMetro ? (
                   <GlassPressable onPress={openTheKitchen} style={styles.restoreButton} testID="membership-open-kitchen">
                     <Text style={styles.restoreText}>Open the kitchen</Text>
@@ -680,6 +713,12 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 15,
     color: Colors.gray[700],
+    textAlign: 'center',
+  },
+  noticeText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.gradient.green,
     textAlign: 'center',
   },
   bannerSection: {

@@ -92,18 +92,18 @@ export default function FoodHandlingScreen() {
               testID="food-handling-scroll-top"
               accessibilityLabel="Scroll to top"
               size={CHROME_CHIP_SIZE}
-              tint="rgba(232, 176, 22, 0.72)"
+              maroon
             >
-              <Ionicons name="chevron-up" size={CHROME_ICON_SIZE} color={AuthColors.ink} />
+              <Ionicons name="chevron-up" size={CHROME_ICON_SIZE} color={AuthColors.gold} />
             </GlassIconButton>
             <GlassIconButton
               onPress={scrollToBottom}
               testID="food-handling-scroll-bottom"
               accessibilityLabel="Scroll to bottom"
               size={CHROME_CHIP_SIZE}
-              tint="rgba(232, 176, 22, 0.72)"
+              maroon
             >
-              <Ionicons name="chevron-down" size={CHROME_ICON_SIZE} color={AuthColors.ink} />
+              <Ionicons name="chevron-down" size={CHROME_ICON_SIZE} color={AuthColors.gold} />
             </GlassIconButton>
           </View>
         </IdleChrome>

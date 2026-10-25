@@ -139,7 +139,7 @@ export function youtubeEmbedUrl(videoId: string): string {
   return `https://www.youtube.com/embed/${videoId}?rel=0&controls=1&playsinline=1&fs=1`;
 }
 
-export type SocialClipSource = 'youtube' | 'facebook' | 'instagram' | 'tiktok' | 'snapchat' | 'x' | 'file';
+export type SocialClipSource = 'youtube' | 'facebook' | 'instagram' | 'tiktok' | 'reddit' | 'x' | 'file';
 
 export function socialClipSourceLabel(source: SocialClipSource): string {
   switch (source) {
@@ -147,7 +147,7 @@ export function socialClipSourceLabel(source: SocialClipSource): string {
     case 'facebook': return 'Facebook';
     case 'instagram': return 'Instagram';
     case 'tiktok': return 'TikTok';
-    case 'snapchat': return 'Snapchat';
+    case 'reddit': return 'Reddit';
     case 'x': return 'X';
     default: return 'Clip';
   }
@@ -230,23 +230,21 @@ export function socialClipEmbed(
   if (host === 'tiktok.com') {
     const match = url.pathname.match(/\/video\/(\d+)/);
     if (!match) return empty;
-    return { source: 'tiktok', embedUrl: `https://www.tiktok.com/embed/v2/${match[1]}`, posterUri: '', letterbox: false };
+    return { source: 'tiktok', embedUrl: `https://www.tiktok.com/player/v1/${match[1]}?music_info=1&description=1`, posterUri: '', letterbox: false };
   }
 
-  if (host === 'snapchat.com') {
+  if (host === 'reddit.com' || host === 'old.reddit.com' || host === 'np.reddit.com') {
     const parts = url.pathname.split('/').filter(Boolean);
-    const spotlightAt = parts.indexOf('spotlight');
-    const id = spotlightAt >= 0 ? parts[spotlightAt + 1]?.split('?')[0] : '';
-    if (!id) return empty;
-    const user = parts[0]?.startsWith('@') ? parts[0] : '';
-    const canonical = user
-      ? `https://www.snapchat.com/${user}/spotlight/${id}`
-      : `https://www.snapchat.com/spotlight/${id}`;
+    const sub = parts[0] === 'r' ? parts[1] : '';
+    const id = parts[2] === 'comments' ? parts[3] : '';
+    const slug = parts[4] || '';
+    if (!sub || !id) return empty;
+    const path = `${sub}/comments/${id}${slug ? `/${slug}` : ''}`;
     return {
-      source: 'snapchat',
-      embedUrl: `https://www.snapchat.com/embed?url=${encodeURIComponent(canonical)}`,
+      source: 'reddit',
+      embedUrl: `https://www.redditmedia.com/r/${path}/?ref_source=embed&ref=share&embed=true`,
       posterUri: '',
-      letterbox: false,
+      letterbox: true,
     };
   }
 
@@ -329,16 +327,15 @@ export function foodReviewClipMeta(clip: Pick<FoodReviewClip, 'role' | 'videoUri
 export const seedFoodReviewClips: FoodReviewClip[] = [
   {
     id: 'clip-dj-yoyo-indiana',
-    mealName: 'An Indiana woman got the internet real confused',
-    author: 'DjYoyoFromMiami',
+    mealName: 'TikTok clip',
+    author: 'nicole.ludwig',
     role: 'platetaker',
-    videoUri: 'https://www.instagram.com/reel/DMWBHRruXvj/?hl=en',
+    videoUri: 'https://www.tiktok.com/@nicole.ludwig/video/7524134107157105950',
     posterUri: '',
     durationSeconds: FOOD_REVIEW_MAX_SECONDS,
-    createdAt: '2026-10-25T07:00:00.000Z',
+    createdAt: '2026-04-01T12:00:00.000Z',
     counts: { smile: 0, heart: 0, star: 0 },
     reactionsByUser: {},
-    verifiedInfluencer: true,
     durationMeasured: false,
   },
   {
@@ -367,10 +364,10 @@ export const seedFoodReviewClips: FoodReviewClip[] = [
   },
   {
     id: 'clip-belieber-spotlight',
-    mealName: 'Spotlight',
-    author: 'belieber_qal',
+    mealName: 'Reviewing influencer food reviews',
+    author: 'LoveTrash',
     role: 'platetaker',
-    videoUri: 'https://www.snapchat.com/@belieber_qal/spotlight/W7_EDlXWTBiXAEEniNoMPwAAYY2Zpdnd2c3FtAaFqnqVdAaFqnpFAAAAAAA',
+    videoUri: 'https://www.reddit.com/r/LoveTrash/comments/1wz4alk/reviewing_influencer_food_reviews/',
     posterUri: '',
     durationSeconds: FOOD_REVIEW_MAX_SECONDS,
     createdAt: '2026-10-25T06:00:00.000Z',
@@ -398,7 +395,7 @@ export function withSeedClips(clips: FoodReviewClip[]): FoodReviewClip[] {
     const seed = seeds.get(clip.id);
     if (!seed) return clip;
     return { ...clip, ...seed, counts: clip.counts, reactionsByUser: clip.reactionsByUser };
-  });
+  }).filter((clip) => !/snapchat\.com/i.test(clip.videoUri));
   const ids = new Set(refreshed.map((clip) => clip.id));
   const missing = seedFoodReviewClips.filter((clip) => !ids.has(clip.id));
   return missing.length > 0 ? [...missing, ...refreshed] : refreshed;

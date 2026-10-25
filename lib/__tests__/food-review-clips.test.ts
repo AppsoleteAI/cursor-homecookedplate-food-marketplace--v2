@@ -10,6 +10,8 @@ import {
 } from '../food-review-clips';
 
 const INSTAGRAM_REEL = 'https://www.instagram.com/reel/DMWBHRruXvj/?hl=en';
+const TIKTOK_CLIP = 'https://www.tiktok.com/@nicole.ludwig/video/7524134107157105950';
+const REDDIT_REVIEW = 'https://www.reddit.com/r/LoveTrash/comments/1wz4alk/reviewing_influencer_food_reviews/';
 const SNAPCHAT_SPOTLIGHT = 'https://www.snapchat.com/@belieber_qal/spotlight/W7_EDlXWTBiXAEEniNoMPwAAYY2Zpdnd2c3FtAaFqnqVdAaFqnpFAAAAAAA';
 
 const FACEBOOK_POST = 'https://www.facebook.com/DjYoyoFromMiami/posts/an-indiana-woman-got-the-internet-real-confused-after-her-accent-started-switchi/4412902925522983/';
@@ -32,11 +34,12 @@ describe('social clip links', () => {
     expect(short.embedUrl).toContain('https://www.youtube.com/embed/BNtYg_hnO7E');
   });
 
-  it('plays Instagram, TikTok, Snapchat, and X links inside the clip frame', () => {
+  it('plays Instagram, TikTok, Reddit, and X links inside the clip frame', () => {
     expect(socialClipEmbed(INSTAGRAM_REEL).embedUrl).toBe('https://www.instagram.com/reel/DMWBHRruXvj/embed');
-    expect(socialClipEmbed('https://www.tiktok.com/@cook/video/1234567890123456789').embedUrl).toBe('https://www.tiktok.com/embed/v2/1234567890123456789');
-    expect(socialClipEmbed(SNAPCHAT_SPOTLIGHT).embedUrl).toContain('https://www.snapchat.com/embed?url=');
-    expect(socialClipEmbed(SNAPCHAT_SPOTLIGHT).embedUrl).toContain('belieber_qal');
+    expect(socialClipEmbed(TIKTOK_CLIP).embedUrl).toBe('https://www.tiktok.com/player/v1/7524134107157105950?music_info=1&description=1');
+    expect(socialClipEmbed(REDDIT_REVIEW).embedUrl).toBe('https://www.redditmedia.com/r/LoveTrash/comments/1wz4alk/reviewing_influencer_food_reviews/?ref_source=embed&ref=share&embed=true');
+    expect(socialClipEmbed(SNAPCHAT_SPOTLIGHT).embedUrl).toBeNull();
+    expect(foodReviewLinkClip(SNAPCHAT_SPOTLIGHT)).toBeNull();
     expect(foodReviewLinkClip('https://vimeo.com/123456789')).toBeNull();
     expect(socialClipEmbed('https://x.com/cook/status/1234567890123456789').letterbox).toBe(true);
   });
@@ -54,33 +57,45 @@ describe('social clip links', () => {
 });
 
 describe('verified influencer seed', () => {
-  it('keeps the verified influencer clip and puts Snapchat in the fourth seed slot', () => {
+  it('keeps the TikTok clip in the first seed slot and the Reddit review in the fourth', () => {
     const clip = seedFoodReviewClips[0];
-    expect(clip.author).toBe('DjYoyoFromMiami');
-    expect(clip.verifiedInfluencer).toBe(true);
+    expect(clip.author).toBe('nicole.ludwig');
+    expect(clip.mealName).toBe('TikTok clip');
+    expect(clip.verifiedInfluencer).toBeUndefined();
     expect(FOOD_INFLUENCER_MARK).toBe('✅');
-    expect(clip.videoUri).toBe(INSTAGRAM_REEL);
-    expect(foodReviewClipMeta(clip)).toBe('platetaker · Instagram');
+    expect(clip.videoUri).toBe(TIKTOK_CLIP);
+    expect(foodReviewClipMeta(clip)).toBe('platetaker · TikTok');
     expect(seedFoodReviewClips[3].id).toBe('clip-belieber-spotlight');
-    expect(seedFoodReviewClips[3].author).toBe('belieber_qal');
-    expect(seedFoodReviewClips[3].videoUri).toBe(SNAPCHAT_SPOTLIGHT);
+    expect(seedFoodReviewClips[3].author).toBe('LoveTrash');
+    expect(seedFoodReviewClips[3].mealName).toBe('Reviewing influencer food reviews');
+    expect(seedFoodReviewClips[3].videoUri).toBe(REDDIT_REVIEW);
+    expect(foodReviewClipMeta(seedFoodReviewClips[3])).toBe('platetaker · Reddit');
   });
 
   it('shows two new clips, then the next popular clip', () => {
     const ordered = foodReviewTimeline(seedFoodReviewClips).map((clip) => clip.id);
     expect(ordered).toEqual([
-      'clip-dj-yoyo-indiana',
       'clip-belieber-spotlight',
-      'clip-orlando-plates',
       'clip-two-dollar-plates',
+      'clip-orlando-plates',
       'clip-louisiana-plates',
+      'clip-dj-yoyo-indiana',
     ]);
   });
 
   it('replaces a stored seed link when the seed video changes', () => {
     const stored = { ...seedFoodReviewClips[0], videoUri: FACEBOOK_POST };
     const merged = withSeedClips([stored]);
-    expect(merged.find((clip) => clip.id === 'clip-dj-yoyo-indiana')?.videoUri).toBe(INSTAGRAM_REEL);
+    expect(merged.find((clip) => clip.id === 'clip-dj-yoyo-indiana')?.videoUri).toBe(TIKTOK_CLIP);
+  });
+
+  it('drops a stored Snapchat clip and keeps the Reddit review in that slot', () => {
+    const stored = { ...seedFoodReviewClips[3], videoUri: SNAPCHAT_SPOTLIGHT, counts: { smile: 2, heart: 0, star: 0 }, reactionsByUser: {} };
+    const stray = { ...seedFoodReviewClips[1], id: 'clip-old-snap', videoUri: SNAPCHAT_SPOTLIGHT };
+    const merged = withSeedClips([stored, stray]);
+    expect(merged.some((clip) => clip.videoUri.includes('snapchat.com'))).toBe(false);
+    expect(merged.find((clip) => clip.id === 'clip-belieber-spotlight')?.videoUri).toBe(REDDIT_REVIEW);
+    expect(merged.find((clip) => clip.id === 'clip-belieber-spotlight')?.counts.smile).toBe(2);
   });
 
   it('adds a missing seed clip without dropping clips already on the device', () => {

@@ -144,7 +144,7 @@ export const publishClipLinkProcedure = protectedProcedure
   .mutation(async ({ input, ctx }) => {
     const link = foodReviewLinkClip(input.videoUrl);
     if (!link) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Paste a YouTube, Facebook, Instagram, TikTok, Snapchat, or X link.' });
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Paste a YouTube, Facebook, TikTok, or Reddit link.' });
     }
     const { data: profile } = await ctx.supabaseAdmin
       .from('profiles')

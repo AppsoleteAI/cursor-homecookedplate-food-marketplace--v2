@@ -71,7 +71,7 @@ export const MembershipPromoBanner: React.FC<MembershipPromoBannerProps> = ({
           <View style={styles.content}>
             <View style={styles.textContainer}>
               <View style={styles.headerRow}>
-                <Ionicons name="star" size={20} color={AuthColors.ink} />
+                <Ionicons name="star" size={20} color={AuthColors.white} />
                 <Text style={styles.title}>{story.title}</Text>
                 {dismissible && (
                   <GlassPressable
@@ -82,7 +82,7 @@ export const MembershipPromoBanner: React.FC<MembershipPromoBannerProps> = ({
                     style={styles.dismissButton}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
-                    <Ionicons name="close" size={18} color={AuthColors.ink} />
+                    <Ionicons name="close" size={18} color={AuthColors.white} />
                   </GlassPressable>
                 )}
               </View>
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 14,
     fontWeight: '700',
-    color: AuthColors.ink,
+    color: AuthColors.white,
     flex: 1,
   },
   dismissButton: {
@@ -140,14 +140,14 @@ const styles = StyleSheet.create({
   message: {
     fontSize: 15,
     fontWeight: '600',
-    color: AuthColors.ink,
+    color: AuthColors.white,
     marginBottom: 4,
     lineHeight: 20,
   },
   cta: {
     fontSize: 13,
     fontWeight: '500',
-    color: AuthColors.ink,
+    color: AuthColors.white,
     opacity: 0.9,
     alignSelf: 'stretch',
     textAlign: 'right',
