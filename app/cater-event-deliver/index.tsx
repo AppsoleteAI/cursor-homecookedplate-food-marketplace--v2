@@ -92,7 +92,7 @@ export default function CaterEventDeliverHome() {
           <Text style={styles.link}>Food trucks stay in FoodTruckPopup.</Text>
         </GlassPressable>
         <GlassPressable onPress={() => router.push('/sit-down-delicious' as Href)}>
-          <Text style={styles.link}>Independent restaurants stay in SitDownDelicious.</Text>
+          <Text style={styles.link}>Independent restaurants and ghost kitchens stay in SitDownDelicious.</Text>
         </GlassPressable>
         {isMaker ? <Text style={styles.rule}>{CATER_EVENT_RULE}</Text> : null}
       </ScrollView>

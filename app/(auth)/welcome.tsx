@@ -92,7 +92,7 @@ function firstParam(value: string | string[] | undefined): string | undefined {
 
 function stepParam(value: string | string[] | undefined): number {
   const step = Number(firstParam(value));
-  return step === 1 || step === 2 ? step : 0;
+  return step === 1 || step === 2 || step === 3 ? step : 0;
 }
 
 function welcomeReturn(role: Role | undefined, step: number) {
@@ -111,13 +111,30 @@ export default function WelcomeScreen() {
   const { user } = useAuth();
   const params = useLocalSearchParams<{ role?: string | string[]; entry?: string | string[]; step?: string | string[] }>();
   const role = roleParam(params.role);
-  const [pickedRole, setPickedRole] = useState<Role | undefined>(role);
-  const chosenRole = role ?? pickedRole;
+  const openedStep = stepParam(params.step);
+  const [pickedRole, setPickedRole] = useState<Role | undefined>(openedStep >= 2 ? role : undefined);
+  const chosenRole = pickedRole;
   const isGate = firstParam(params.entry) === 'gate';
   const isMaker = chosenRole === 'platemaker';
   const stepLabels = ['Benefits', 'Membership', isMaker ? 'Cottage food' : 'Safety'];
-  const [step, setStep] = useState(stepParam(params.step));
-  const stepBack = useWizardBack(step, setStep);
+  const [step, setStep] = useState(openedStep);
+  const stepQuery = firstParam(params.step);
+  useEffect(() => {
+    if (!stepQuery) return;
+    const next = stepParam(stepQuery);
+    setStep(next);
+    if (next < 2) setPickedRole(undefined);
+    else if (role) setPickedRole(role);
+  }, [stepQuery, role]);
+  const shownStep = step >= 3 ? 2 : step === 0 ? 0 : 1;
+  const setWizardStep = React.useCallback((updater: (current: number) => number) => {
+    setStep((current) => {
+      const next = updater(current);
+      if (current === 2 && next < 2) setPickedRole(undefined);
+      return next;
+    });
+  }, []);
+  const stepBack = useWizardBack(step, setWizardStep);
   const [gate, setGate] = useState<'show' | 'login'>('show');
 
   useEffect(() => {
@@ -159,19 +176,30 @@ export default function WelcomeScreen() {
       });
   };
 
+  const chooseRole = (next: Role) => {
+    setPickedRole(next);
+    setStep(2);
+  };
+
   const continueForward = () => {
-    if (!chosenRole && step > 0) {
+    if (step === 0) {
+      setPickedRole(undefined);
       setStep(1);
       return;
     }
-    if (step < 2) {
-      setStep((current) => current + 1);
+    if (step === 1 || !pickedRole) {
+      setPickedRole(undefined);
+      setStep(1);
+      return;
+    }
+    if (step === 2) {
+      setStep(3);
       return;
     }
     markWelcomeSeen();
     router.push({
       pathname: '/(auth)/onboarding',
-      params: chosenRole ? { role: chosenRole } : {},
+      params: { role: pickedRole },
     });
   };
 
@@ -190,8 +218,8 @@ export default function WelcomeScreen() {
           <View style={styles.steps}>
             {stepLabels.map((label, index) => (
               <View key={label} style={styles.stepItem}>
-                <View style={[styles.stepDot, index <= step && styles.stepDotOn]} />
-                <Text style={[styles.stepLabel, index === step && styles.stepLabelOn]}>{label}</Text>
+                <View style={[styles.stepDot, index <= shownStep && styles.stepDotOn]} />
+                <Text style={[styles.stepLabel, index === shownStep && styles.stepLabelOn]}>{label}</Text>
               </View>
             ))}
           </View>
@@ -218,43 +246,45 @@ export default function WelcomeScreen() {
                 </>
               ) : null}
 
-              {step === 1 ? (
+              {step === 1 || step === 2 ? (
                 <>
                   <Text style={styles.panelTitle}>Membership</Text>
-                  {!chosenRole ? (
+                  {step === 1 ? (
                     <>
                       <Text style={[styles.help, styles.choiceQuestion]}>Choose how you will use HomeCookedPlate. Membership follows that choice.</Text>
-                      <GlassPressable
-                        style={[styles.priceButton, styles.choiceButton]}
-                        onPress={() => setPickedRole('platetaker')}
-                        accessibilityRole="button"
-                        accessibilityLabel="Order a plate, PlateTaker"
-                      >
-                        <LinearGradient
-                          colors={[...maroonButtonColors]}
-                          locations={[0, 0.42, 1]}
-                          style={styles.priceFill}
-                        />
-                        <Text style={styles.choiceLabel}>Order a Plate</Text>
-                        <Text style={styles.choiceRole}>PlateTaker</Text>
-                      </GlassPressable>
-                      <GlassPressable
-                        style={styles.priceButton}
-                        onPress={() => setPickedRole('platemaker')}
-                        accessibilityRole="button"
-                        accessibilityLabel="Start cooking, PlateMaker"
-                      >
-                        <LinearGradient
-                          colors={[...maroonButtonColors]}
-                          locations={[0, 0.42, 1]}
-                          style={styles.priceFill}
-                        />
-                        <Text style={styles.choiceLabel}>Start Cooking</Text>
-                        <Text style={styles.choiceRole}>PlateMaker</Text>
-                      </GlassPressable>
+                      <View style={styles.choiceRow}>
+                        <GlassPressable
+                          style={styles.choiceButton}
+                          onPress={() => chooseRole('platetaker')}
+                          accessibilityRole="button"
+                          accessibilityLabel="Order a plate, PlateTaker"
+                        >
+                          <LinearGradient
+                            colors={[...maroonButtonColors]}
+                            locations={[0, 0.42, 1]}
+                            style={styles.priceFill}
+                          />
+                          <Text style={styles.choiceLabel}>Order a Plate</Text>
+                          <Text style={styles.choiceRole}>PlateTaker</Text>
+                        </GlassPressable>
+                        <GlassPressable
+                          style={styles.choiceButton}
+                          onPress={() => chooseRole('platemaker')}
+                          accessibilityRole="button"
+                          accessibilityLabel="Start cooking, PlateMaker"
+                        >
+                          <LinearGradient
+                            colors={[...maroonButtonColors]}
+                            locations={[0, 0.42, 1]}
+                            style={styles.priceFill}
+                          />
+                          <Text style={styles.choiceLabel}>Start Cooking</Text>
+                          <Text style={styles.choiceRole}>PlateMaker</Text>
+                        </GlassPressable>
+                      </View>
                     </>
                   ) : null}
-                  {chosenRole ? MEMBERSHIP_PRICES.filter((plan) => plan.id.startsWith(isMaker ? 'platemaker' : 'platetaker')).map((plan) => {
+                  {step === 2 && chosenRole ? MEMBERSHIP_PRICES.filter((plan) => plan.id.startsWith(isMaker ? 'platemaker' : 'platetaker')).map((plan) => {
                     const yearly = plan.id.endsWith('yearly');
                     return (
                     <View key={plan.id} style={styles.priceBlock}>
@@ -276,7 +306,7 @@ export default function WelcomeScreen() {
                     </View>
                     );
                   }) : null}
-                  {chosenRole ? (
+                  {step === 2 && chosenRole ? (
                     <>
                       <View style={styles.priceNotes}>
                         <Text style={styles.priceNote}>Premium features access</Text>
@@ -305,7 +335,7 @@ export default function WelcomeScreen() {
                 </>
               ) : null}
 
-              {step === 2 && !isMaker ? (
+              {step === 3 && !isMaker ? (
                 <>
                   <Text style={styles.panelTitle}>A Few Notes Before You Order</Text>
                   <Text style={styles.help}>
@@ -333,11 +363,11 @@ export default function WelcomeScreen() {
                     </View>
                   </View>
                   <Text style={styles.help}>{PLATETAKER_LOST_DISPUTE_SIGNUP}</Text>
-                  <FoodHandlingLink color="#3D7EBE" returnTo={welcomeReturn(chosenRole, 2)} />
+                  <FoodHandlingLink color="#3D7EBE" returnTo={welcomeReturn(chosenRole, 3)} />
                 </>
               ) : null}
 
-              {step === 2 && isMaker ? (
+              {step === 3 && isMaker ? (
                 <>
                   <Text style={styles.panelTitle}>Cottage Food Rules</Text>
                   <Text style={styles.help}>
@@ -380,14 +410,14 @@ export default function WelcomeScreen() {
                     </Text>
                     <Text style={[styles.checkText, { marginTop: 8 }]}>{PLATEMAKER_LOST_DISPUTE_SIGNUP}</Text>
                   </View>
-                  <FoodHandlingLink color="#3D7EBE" label="Food handling temperatures for the kitchen" returnTo={welcomeReturn(chosenRole, 2)} />
+                  <FoodHandlingLink color="#3D7EBE" label="Food handling temperatures for the kitchen" returnTo={welcomeReturn(chosenRole, 3)} />
                 </>
               ) : null}
 
               <AuthGoldButton
-                title={step === 2 ? 'Continue to your account' : 'Continue'}
+                title={step === 3 ? 'Continue to your account' : 'Continue'}
                 onPress={continueForward}
-                testID={step === 2 ? 'welcome-continue-account' : 'welcome-continue'}
+                testID={step === 3 ? 'welcome-continue-account' : 'welcome-continue'}
                 style={styles.action}
               />
               {step === 0 ? (
@@ -539,8 +569,22 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
   },
+  choiceRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 4,
+  },
   choiceButton: {
-    marginBottom: 12,
+    flex: 1,
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
+    borderRadius: 22,
+    minHeight: 92,
+    paddingHorizontal: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...glassSurface,
   },
   choiceQuestion: {
     textAlign: 'center',
@@ -549,19 +593,19 @@ const styles = StyleSheet.create({
   choiceLabel: {
     ...preAppFont,
     color: AuthColors.white,
-    fontSize: 22,
-    lineHeight: 28,
+    fontSize: 16,
+    lineHeight: 20,
     fontWeight: '700',
     textAlign: 'center',
   },
   choiceRole: {
     ...preAppFont,
     color: AuthColors.white,
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: '600',
     textAlign: 'center',
-    marginTop: 6,
+    marginTop: 4,
   },
   price: {
     ...preAppFont,

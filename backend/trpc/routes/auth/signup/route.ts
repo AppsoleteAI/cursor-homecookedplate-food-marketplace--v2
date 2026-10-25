@@ -105,11 +105,14 @@ const createSignupProcedure = () => {
             });
           }
 
-          const existingSession = passwordCheck.data?.session;
-          if (!existingSession?.access_token || !existingSession.refresh_token) {
+          if (passwordCheck.data?.session) {
+            await ctx.supabase.auth.signOut();
+          }
+          const alreadyConfirmed = Boolean(passwordCheck.data?.user?.email_confirmed_at) || Boolean(passwordCheck.data?.session);
+          if (alreadyConfirmed) {
             throw new TRPCError({
-              code: 'FORBIDDEN',
-              message: 'Confirm your email before signing in. Check your inbox for the verification link.',
+              code: 'BAD_REQUEST',
+              message: 'An account with this email already exists. Please use login instead.',
             });
           }
 
@@ -130,10 +133,7 @@ const createSignupProcedure = () => {
               metroArea: existingProfile.metro_area || null,
               trialEndsAt: existingProfile.trial_ends_at ? new Date(existingProfile.trial_ends_at) : null,
             },
-            session: {
-              access_token: existingSession.access_token,
-              refresh_token: existingSession.refresh_token,
-            },
+            session: null,
             metro: existingProfile.metro_area || 'Remote/Other',
             needsEmailConfirmation: true,
             confirmationEmailSent: false,

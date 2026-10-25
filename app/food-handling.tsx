@@ -10,6 +10,8 @@ import { AuthColors } from '@/constants/auth-palette';
 import { FOOD_HANDLING_NOTICE, FOOD_HANDLING_SECTIONS, FOOD_HANDLING_SOURCES } from '@/lib/food-handling';
 import { titleCase } from '@/lib/title-case';
 import { GlassIconButton, GlassPressable } from '@/components/glass-surface';
+import { IdleChrome } from '@/components/IdleChrome';
+import { CHROME_CHIP_SIZE, CHROME_ICON_SIZE } from '@/lib/chrome-activity';
 import { useLeaveScreen } from '@/hooks/use-leave-screen';
 
 function openSource(url: string) {
@@ -83,24 +85,28 @@ export default function FoodHandlingScreen() {
             ))}
           </View>
         </ScrollView>
-        <View style={styles.jumps} pointerEvents="box-none">
-          <GlassIconButton
-            onPress={scrollToTop}
-            testID="food-handling-scroll-top"
-            accessibilityLabel="Scroll to top"
-            tint="rgba(232, 176, 22, 0.72)"
-          >
-            <Ionicons name="chevron-up" size={22} color={AuthColors.ink} />
-          </GlassIconButton>
-          <GlassIconButton
-            onPress={scrollToBottom}
-            testID="food-handling-scroll-bottom"
-            accessibilityLabel="Scroll to bottom"
-            tint="rgba(232, 176, 22, 0.72)"
-          >
-            <Ionicons name="chevron-down" size={22} color={AuthColors.ink} />
-          </GlassIconButton>
-        </View>
+        <IdleChrome overlay>
+          <View style={styles.jumps} pointerEvents="box-none">
+            <GlassIconButton
+              onPress={scrollToTop}
+              testID="food-handling-scroll-top"
+              accessibilityLabel="Scroll to top"
+              size={CHROME_CHIP_SIZE}
+              tint="rgba(232, 176, 22, 0.72)"
+            >
+              <Ionicons name="chevron-up" size={CHROME_ICON_SIZE} color={AuthColors.ink} />
+            </GlassIconButton>
+            <GlassIconButton
+              onPress={scrollToBottom}
+              testID="food-handling-scroll-bottom"
+              accessibilityLabel="Scroll to bottom"
+              size={CHROME_CHIP_SIZE}
+              tint="rgba(232, 176, 22, 0.72)"
+            >
+              <Ionicons name="chevron-down" size={CHROME_ICON_SIZE} color={AuthColors.ink} />
+            </GlassIconButton>
+          </View>
+        </IdleChrome>
       </SafeAreaView>
     </AuthBackground>
   );

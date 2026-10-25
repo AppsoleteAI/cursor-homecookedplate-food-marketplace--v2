@@ -68,23 +68,21 @@ export const verifyEmailProcedure = publicProcedure
     if (confirmError) {
       console.error('[Verify Email] Failed to confirm auth email:', confirmError);
       throw new TRPCError({
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'Failed to verify email. Please try again.',
+        code: 'PRECONDITION_FAILED',
+        message: 'The confirmation link could not be saved. Please try again.',
       });
     }
 
-    // Mark token as used
+    // The address is confirmed once the auth update succeeds. Recording used_at
+    // stops a second open from repeating the work. A missing column must not
+    // turn a confirmed address into the busy-kitchen failure.
     const { error: updateError } = await ctx.supabaseAdmin
       .from('email_verification_tokens')
       .update({ used_at: new Date().toISOString() })
       .eq('id', tokenRecord.id);
 
     if (updateError) {
-      console.error('[Verify Email] Failed to mark token as used:', updateError);
-      throw new TRPCError({
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'Failed to verify email. Please try again.',
-      });
+      console.error('[Verify Email] Email is confirmed. The link could not be marked used:', updateError);
     }
 
     // Get user profile for welcome email

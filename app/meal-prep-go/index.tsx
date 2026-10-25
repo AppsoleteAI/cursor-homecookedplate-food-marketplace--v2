@@ -95,7 +95,7 @@ export default function MealPrepGoHome() {
           <Text style={styles.link}>Group drop-off stays in CaterEventDeliver.</Text>
         </GlassPressable>
         <GlassPressable onPress={() => router.push('/sit-down-delicious' as Href)}>
-          <Text style={styles.link}>Independent restaurants stay in SitDownDelicious.</Text>
+          <Text style={styles.link}>Independent restaurants and ghost kitchens stay in SitDownDelicious.</Text>
         </GlassPressable>
         {isMaker ? <Text style={styles.rule}>{MEAL_PREP_RULE}</Text> : null}
       </ScrollView>

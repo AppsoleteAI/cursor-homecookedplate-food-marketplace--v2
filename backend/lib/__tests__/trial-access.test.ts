@@ -89,57 +89,27 @@ describe('PlateMaker app access', () => {
     expect(userNeedsMembership({ role: 'platetaker', membershipTier: 'free' })).toBe(false);
   });
 
-  it('gates a PlateMaker with no membership flag yet', () => {
-    expect(userNeedsMembership({ role: 'platemaker', membershipTier: 'free' })).toBe(true);
+  it('does not send a signed-in PlateMaker to Membership', () => {
+    expect(userNeedsMembership({ role: 'platemaker', membershipTier: 'free' })).toBe(false);
     expect(userNeedsMembership({ role: 'platemaker', membershipTier: 'premium' })).toBe(false);
-    expect(userNeedsMembership({ role: 'platemaker', needsMembership: true, membershipTier: 'premium' })).toBe(true);
-  });
-
-  it('sends a Remote PlateMaker to Membership until Get GPS opens the kitchen', () => {
+    expect(userNeedsMembership({ role: 'platemaker', needsMembership: true, membershipTier: 'premium' })).toBe(false);
     expect(userNeedsMembership({
       role: 'platemaker',
       membershipTier: 'free',
       needsMembership: true,
       metroArea: 'Remote/Other',
-    })).toBe(true);
+    })).toBe(false);
     expect(userNeedsMembership({
       role: 'platemaker',
       membershipTier: 'free',
       metroArea: null,
-    })).toBe(true);
-    expect(userNeedsMembership({
-      role: 'platemaker',
-      membershipTier: 'free',
-      metroArea: 'Remote/Other',
-      kitchenOpened: true,
-    })).toBe(false);
-    expect(userNeedsMembership({
-      role: 'platemaker',
-      membershipTier: 'premium',
-      metroArea: 'Remote/Other',
-    })).toBe(false);
-    expect(userNeedsMembership({
-      role: 'platemaker',
-      membershipTier: 'free',
-      needsMembership: true,
-      metroArea: 'Remote/Other',
-      closeoutKeepsKitchen: true,
     })).toBe(false);
     expect(userNeedsMembership({
       role: 'platemaker',
       membershipTier: 'premium',
       needsMembership: true,
-      metroArea: 'Remote/Other',
-      kitchenOpened: true,
-      earlyBirdClaimMetro: 'Pittsburgh',
-    })).toBe(true);
-    expect(userNeedsMembership({
-      role: 'platemaker',
-      membershipTier: 'premium',
-      needsMembership: false,
-      metroArea: 'Remote/Other',
-      kitchenOpened: true,
-      earlyBirdClaimMetro: 'Pittsburgh',
+      metroArea: 'Pittsburgh',
+      earlyBirdClaimMetro: 'Cleveland',
     })).toBe(false);
   });
 

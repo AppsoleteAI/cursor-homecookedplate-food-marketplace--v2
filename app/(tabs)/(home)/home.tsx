@@ -253,8 +253,8 @@ export default function HomeScreen() {
             testID="open-sit-down-delicious"
           >
             <Text style={styles.sitKicker}>SitDownDelicious</Text>
-            <Text style={styles.farmTitle}>Independent restaurants</Text>
-            <Text style={styles.farmBody}>Coffee, yogurt, ice cream, and small restaurants. Sit down or take out.</Text>
+            <Text style={styles.farmTitle}>Independent restaurants and ghost kitchens</Text>
+            <Text style={styles.farmBody}>Coffee, yogurt, ice cream, small restaurants, and ghost kitchens. Sit down or take out.</Text>
           </GlassPressable>
           <GlassPressable
             style={styles.prepEntry}

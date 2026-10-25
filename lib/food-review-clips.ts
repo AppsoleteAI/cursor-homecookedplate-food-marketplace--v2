@@ -29,6 +29,9 @@ export const FOOD_REVIEW_REACTIONS: { kind: FoodReviewReaction; emoji: string; l
   { kind: 'star', emoji: '⭐', label: 'Star' },
 ];
 
+/** Shown beside @screenname after a food influencer is verified. */
+export const FOOD_INFLUENCER_MARK = '✅';
+
 export interface FoodReviewClip {
   id: string;
   mealName: string;
@@ -40,6 +43,10 @@ export interface FoodReviewClip {
   createdAt: string;
   counts: Record<FoodReviewReaction, number>;
   reactionsByUser: Record<string, FoodReviewReaction[]>;
+  /** Social food influencer whose profiles were verified. */
+  verifiedInfluencer?: boolean;
+  /** False when the length is the 20 second slot, not a measured clip. */
+  durationMeasured?: boolean;
 }
 
 export type FoodReviewSurface = 'mobile' | 'tablet' | 'web';
@@ -132,7 +139,208 @@ export function youtubeEmbedUrl(videoId: string): string {
   return `https://www.youtube.com/embed/${videoId}?rel=0&controls=1&playsinline=1&fs=1`;
 }
 
+export type SocialClipSource = 'youtube' | 'facebook' | 'instagram' | 'tiktok' | 'snapchat' | 'x' | 'file';
+
+export function socialClipSourceLabel(source: SocialClipSource): string {
+  switch (source) {
+    case 'youtube': return 'YouTube';
+    case 'facebook': return 'Facebook';
+    case 'instagram': return 'Instagram';
+    case 'tiktok': return 'TikTok';
+    case 'snapchat': return 'Snapchat';
+    case 'x': return 'X';
+    default: return 'Clip';
+  }
+}
+
+function httpsUrl(uri: string): URL | null {
+  try {
+    const url = new URL(uri.trim());
+    if (url.protocol !== 'https:') return null;
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+function siteHost(url: URL): string {
+  return url.hostname.replace(/^www\./, '').replace(/^m\./, '').replace(/^web\./, '');
+}
+
+/**
+ * Page links from social sites play inside the clip frame.
+ * A file URL stays a video. Any other page is not an embed.
+ */
+export function socialClipEmbed(
+  uri: string,
+  width = 360,
+  height = 640,
+): { source: SocialClipSource; embedUrl: string | null; posterUri: string; letterbox: boolean } {
+  const empty = { source: 'file' as const, embedUrl: null, posterUri: '', letterbox: false };
+  const url = httpsUrl(uri);
+  if (!url) return empty;
+
+  const youtubeId = youtubeVideoId(url.toString());
+  if (youtubeId) {
+    return {
+      source: 'youtube',
+      embedUrl: youtubeEmbedUrl(youtubeId),
+      posterUri: `https://i.ytimg.com/vi/${youtubeId}/hq2.jpg`,
+      letterbox: false,
+    };
+  }
+
+  const host = siteHost(url);
+  const frameWidth = Math.max(220, Math.round(width));
+  const frameHeight = Math.max(220, Math.round(height));
+
+  if (host === 'facebook.com' || host === 'fb.com' || host === 'fb.watch') {
+    const parts = url.pathname.split('/').filter(Boolean);
+    const video = host === 'fb.watch'
+      || /\/(videos|reel|watch)(\/|$)/.test(url.pathname)
+      || url.searchParams.has('v');
+    const postId = [...parts].reverse().find((part) => /^\d+$/.test(part));
+    const page = parts[0];
+    const permalink = !video && postId && page && page !== 'posts'
+      ? `https://www.facebook.com/${page}/posts/${postId}`
+      : url.toString();
+    const href = encodeURIComponent(permalink);
+    const embedUrl = video
+      ? `https://www.facebook.com/plugins/video.php?href=${href}&show_text=false&width=${frameWidth}&height=${frameHeight}`
+      : `https://www.facebook.com/plugins/post.php?href=${href}&show_text=true&width=${frameWidth}`;
+    return { source: 'facebook', embedUrl, posterUri: '', letterbox: !video };
+  }
+
+  if (host === 'instagram.com') {
+    const parts = url.pathname.split('/').filter(Boolean);
+    const kind = parts[0];
+    const code = parts[1];
+    if ((kind === 'p' || kind === 'reel' || kind === 'tv') && code) {
+      const embedKind = kind === 'tv' ? 'p' : kind;
+      return {
+        source: 'instagram',
+        embedUrl: `https://www.instagram.com/${embedKind}/${code}/embed`,
+        posterUri: '',
+        letterbox: kind === 'p',
+      };
+    }
+    return empty;
+  }
+
+  if (host === 'tiktok.com') {
+    const match = url.pathname.match(/\/video\/(\d+)/);
+    if (!match) return empty;
+    return { source: 'tiktok', embedUrl: `https://www.tiktok.com/embed/v2/${match[1]}`, posterUri: '', letterbox: false };
+  }
+
+  if (host === 'snapchat.com') {
+    const parts = url.pathname.split('/').filter(Boolean);
+    const spotlightAt = parts.indexOf('spotlight');
+    const id = spotlightAt >= 0 ? parts[spotlightAt + 1]?.split('?')[0] : '';
+    if (!id) return empty;
+    const user = parts[0]?.startsWith('@') ? parts[0] : '';
+    const canonical = user
+      ? `https://www.snapchat.com/${user}/spotlight/${id}`
+      : `https://www.snapchat.com/spotlight/${id}`;
+    return {
+      source: 'snapchat',
+      embedUrl: `https://www.snapchat.com/embed?url=${encodeURIComponent(canonical)}`,
+      posterUri: '',
+      letterbox: false,
+    };
+  }
+
+  if (host === 'x.com' || host === 'twitter.com') {
+    const parts = url.pathname.split('/').filter(Boolean);
+    const id = parts[parts.length - 1];
+    if (parts.includes('status') && id && /^\d+$/.test(id)) {
+      return { source: 'x', embedUrl: `https://platform.twitter.com/embed/Tweet.html?id=${id}`, posterUri: '', letterbox: true };
+    }
+    return empty;
+  }
+
+  return empty;
+}
+
+/** A pasted link that can play in the clip frame, or a direct video file. */
+export function foodReviewLinkClip(uri: string): { videoUri: string; posterUri: string; source: SocialClipSource } | null {
+  const trimmed = uri.trim();
+  const url = httpsUrl(trimmed);
+  if (!url) return null;
+  const embed = socialClipEmbed(trimmed);
+  if (embed.embedUrl) {
+    return { videoUri: url.toString(), posterUri: embed.posterUri, source: embed.source };
+  }
+  if (/\.(mp4|mov|m4v|webm|m3u8)(\?|$)/i.test(url.pathname)) {
+    return { videoUri: url.toString(), posterUri: '', source: 'file' };
+  }
+  return null;
+}
+
+export function foodReviewReactionTotal(clip: Pick<FoodReviewClip, 'counts'>): number {
+  return clip.counts.smile + clip.counts.heart + clip.counts.star;
+}
+
+/** A click that would leave the clip is refused. Playback loads stay in the frame. */
+export function clipFrameAllowsNavigation(navigationType: string | undefined): boolean {
+  return navigationType !== 'click';
+}
+
+/**
+ * Two newest clips, then the next popular clip that is not already shown.
+ * new, new, popular, new, new, popular.
+ */
+export function foodReviewTimeline<T extends FoodReviewClip>(clips: T[]): T[] {
+  const fresh = [...clips].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  const popular = [...clips].sort((left, right) => (
+    foodReviewReactionTotal(right) - foodReviewReactionTotal(left) || right.createdAt.localeCompare(left.createdAt)
+  ));
+  const used = new Set<string>();
+  const ordered: T[] = [];
+  const take = (list: T[], cursor: { index: number }) => {
+    while (cursor.index < list.length && used.has(list[cursor.index].id)) cursor.index += 1;
+    if (cursor.index >= list.length) return false;
+    used.add(list[cursor.index].id);
+    ordered.push(list[cursor.index]);
+    cursor.index += 1;
+    return true;
+  };
+  const freshCursor = { index: 0 };
+  const popularCursor = { index: 0 };
+  while (ordered.length < clips.length) {
+    const addedNew = take(fresh, freshCursor);
+    const addedSecond = take(fresh, freshCursor);
+    const addedPopular = take(popular, popularCursor);
+    if (!addedNew && !addedSecond && !addedPopular) break;
+  }
+  return ordered;
+}
+
+export function foodReviewClipMeta(clip: Pick<FoodReviewClip, 'role' | 'videoUri' | 'durationSeconds' | 'durationMeasured'>): string {
+  const embed = socialClipEmbed(clip.videoUri);
+  if (embed.embedUrl) {
+    const label = socialClipSourceLabel(embed.source);
+    if (clip.durationMeasured === false) return `${clip.role} · ${label}`;
+    return `${clip.role} · ${label} · ${clip.durationSeconds}s`;
+  }
+  return `${clip.role} · ${clip.durationSeconds}s`;
+}
+
 export const seedFoodReviewClips: FoodReviewClip[] = [
+  {
+    id: 'clip-dj-yoyo-indiana',
+    mealName: 'An Indiana woman got the internet real confused',
+    author: 'DjYoyoFromMiami',
+    role: 'platetaker',
+    videoUri: 'https://www.instagram.com/reel/DMWBHRruXvj/?hl=en',
+    posterUri: '',
+    durationSeconds: FOOD_REVIEW_MAX_SECONDS,
+    createdAt: '2026-10-25T07:00:00.000Z',
+    counts: { smile: 0, heart: 0, star: 0 },
+    reactionsByUser: {},
+    verifiedInfluencer: true,
+    durationMeasured: false,
+  },
   {
     id: 'clip-orlando-plates',
     mealName: 'Selling plates in Orlando, FL 32825',
@@ -158,6 +366,19 @@ export const seedFoodReviewClips: FoodReviewClip[] = [
     reactionsByUser: {},
   },
   {
+    id: 'clip-belieber-spotlight',
+    mealName: 'Spotlight',
+    author: 'belieber_qal',
+    role: 'platetaker',
+    videoUri: 'https://www.snapchat.com/@belieber_qal/spotlight/W7_EDlXWTBiXAEEniNoMPwAAYY2Zpdnd2c3FtAaFqnqVdAaFqnpFAAAAAAA',
+    posterUri: '',
+    durationSeconds: FOOD_REVIEW_MAX_SECONDS,
+    createdAt: '2026-10-25T06:00:00.000Z',
+    counts: { smile: 0, heart: 0, star: 0 },
+    reactionsByUser: {},
+    durationMeasured: false,
+  },
+  {
     id: 'clip-two-dollar-plates',
     mealName: 'These $2 plates are selling fast',
     author: 'chefquail',
@@ -170,3 +391,15 @@ export const seedFoodReviewClips: FoodReviewClip[] = [
     reactionsByUser: {},
   },
 ];
+
+export function withSeedClips(clips: FoodReviewClip[]): FoodReviewClip[] {
+  const seeds = new Map(seedFoodReviewClips.map((clip) => [clip.id, clip]));
+  const refreshed = clips.map((clip) => {
+    const seed = seeds.get(clip.id);
+    if (!seed) return clip;
+    return { ...clip, ...seed, counts: clip.counts, reactionsByUser: clip.reactionsByUser };
+  });
+  const ids = new Set(refreshed.map((clip) => clip.id));
+  const missing = seedFoodReviewClips.filter((clip) => !ids.has(clip.id));
+  return missing.length > 0 ? [...missing, ...refreshed] : refreshed;
+}

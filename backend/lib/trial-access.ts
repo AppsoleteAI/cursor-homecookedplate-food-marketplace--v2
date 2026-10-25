@@ -35,13 +35,9 @@ export function platemakerMayEnter(profile: TrialAccessProfile, now = new Date()
   return ends !== null && ends > now.getTime();
 }
 
-/** A named metro can require Early Bird or a paid plan. Remote/Other has no Early Bird spot until Get GPS places the cook inside one. */
+/** A named metro can offer Early Bird. Signing in does not send anyone to Membership. */
 export function metroRequiresMembership(metroArea: string | null | undefined): boolean {
   return !!metroArea && metroArea !== 'Remote/Other';
-}
-
-function remoteMetro(metroArea: string | null | undefined): boolean {
-  return metroArea == null || metroArea === 'Remote/Other';
 }
 
 export function userNeedsMembership(user: {
@@ -53,19 +49,8 @@ export function userNeedsMembership(user: {
   closeoutKeepsKitchen?: boolean;
   earlyBirdClaimMetro?: string | null;
 } | null | undefined): boolean {
-  if (!user || user.role !== 'platemaker') return false;
-  const remote = remoteMetro(user.metroArea);
-  const claim = (user.earlyBirdClaimMetro || '').trim();
-  const current = (user.metroArea || '').trim() || 'Remote/Other';
-  const claimDiffers = Boolean(claim) && claim !== current;
-  if (remote && user.kitchenOpened === true && !claim) return false;
-  if (user.closeoutKeepsKitchen === true) return false;
-  if (claimDiffers) return user.needsMembership === true;
-  if (user.needsMembership === true) return true;
-  if (user.membershipTier === 'premium' || user.membershipTier === 'lifetime') return false;
-  if (remote) return true;
-  if (user.needsMembership === false) return false;
-  return true;
+  void user;
+  return false;
 }
 
 /** A paid order still waiting on pickup keeps the kitchen open after the trial date. */

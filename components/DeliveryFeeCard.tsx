@@ -3,7 +3,7 @@ import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
-import { calculateDeliveryLevy } from '@/lib/fees';
+import { calculateDeliveryLevy, DELIVERY_PLATFORM_RATE } from '@/lib/fees';
 import { trpc } from '@/lib/trpc';
 
 export function DeliveryFeeCard() {
@@ -22,6 +22,7 @@ export function DeliveryFeeCard() {
   const shown = draft.length > 0 ? draft : (saved.data ? saved.data.deliveryFee.toFixed(2) : '');
   const amount = Number(shown);
   const preview = Number.isFinite(amount) && amount >= 0 && amount <= 50 ? calculateDeliveryLevy(amount) : null;
+  const deliveryPercent = Math.round(DELIVERY_PLATFORM_RATE * 100);
 
   const onSave = async () => {
     if (!preview) {
@@ -38,7 +39,7 @@ export function DeliveryFeeCard() {
   return (
     <View style={styles.card} testID="delivery-fee-card">
       <Text style={styles.title}>Delivery fee</Text>
-      <Text style={styles.body}>You set this amount and you receive it. The PlateTaker pays it plus 5%.</Text>
+      <Text style={styles.body}>{`You set this amount and you receive it. The PlateTaker pays it plus ${deliveryPercent}%.`}</Text>
       <TextInput
         value={shown}
         onChangeText={setDraft}
@@ -78,7 +79,7 @@ export function DeliveryLevyLines({ deliveryFee, active }: { deliveryFee: number
   return (
     <View testID="delivery-levy">
       <Text style={styles.meta}>Delivery ${total.deliveryFee.toFixed(2)}, set by the PlateMaker</Text>
-      <Text style={styles.meta}>Delivery platform fee 5% ${total.platformFee.toFixed(2)}</Text>
+      <Text style={styles.meta}>{`Delivery platform fee ${Math.round(DELIVERY_PLATFORM_RATE * 100)}% $${total.platformFee.toFixed(2)}`}</Text>
       <Text style={styles.meta}>Delivery you pay ${total.buyerPays.toFixed(2)}</Text>
     </View>
   );

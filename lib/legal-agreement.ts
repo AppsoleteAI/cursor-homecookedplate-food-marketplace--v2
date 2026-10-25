@@ -25,6 +25,10 @@ export type CompletedLegalAgreement = {
 };
 
 const STORAGE_KEY = 'legal_safety_agreement';
+const READY_KEY = 'hcp_legal_ready';
+
+export const LEGAL_SIGN_IN_MESSAGE =
+  'Complete the Legal & Safety page before signing in. Open that page, check each section, and enter today\'s date. Then return here and sign in.';
 
 let loginLegalBoxChecked = false;
 
@@ -127,4 +131,22 @@ export async function readLegalAgreement(): Promise<LegalAgreementRecord | null>
 
 export async function writeLegalAgreement(record: LegalAgreementRecord): Promise<void> {
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(record));
+}
+
+/** Set when this device just finished the Legal & Safety page. An older saved copy does not count. */
+export async function markLegalReadyForSignIn(): Promise<void> {
+  await AsyncStorage.setItem(READY_KEY, new Date().toISOString());
+}
+
+export async function isLegalReadyForSignIn(): Promise<boolean> {
+  try {
+    const value = await AsyncStorage.getItem(READY_KEY);
+    return Boolean(value);
+  } catch {
+    return false;
+  }
+}
+
+export async function clearLegalReadyForSignIn(): Promise<void> {
+  await AsyncStorage.removeItem(READY_KEY);
 }

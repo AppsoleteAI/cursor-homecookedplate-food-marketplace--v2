@@ -345,7 +345,7 @@ export default function BuyerDashboardScreen() {
             testID="buyer-sit-down-delicious"
           >
             <Text style={styles.farmTitle}>SitDownDelicious</Text>
-            <Text style={styles.farmBody}>Independent coffee, yogurt, ice cream, and small restaurants. Sit down or take out. These orders are not plate orders.</Text>
+            <Text style={styles.farmBody}>Independent coffee, yogurt, ice cream, small restaurants, and ghost kitchens. Sit down or take out. These orders are not plate orders.</Text>
           </GlassPressable>
 
           <GlassPressable

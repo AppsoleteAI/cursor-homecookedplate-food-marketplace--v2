@@ -60,7 +60,7 @@ describe('index gate', () => {
     expect(view.getByText('redirect:/(auth)/welcome')).toBeTruthy();
   });
 
-  it('a PlateMaker who needs a plan reaches membership', () => {
+  it('a signed-in PlateMaker reaches the dashboard', () => {
     useAuthMock.mockReturnValue({
       isLoading: false,
       isAuthenticated: true,
@@ -68,7 +68,7 @@ describe('index gate', () => {
       user: { id: 'cook', role: 'platemaker', needsMembership: true, metroArea: 'Austin' },
     });
     const view = render(<Index />);
-    expect(view.getByText('redirect:/membership')).toBeTruthy();
+    expect(view.getByText('redirect:/(tabs)/dashboard')).toBeTruthy();
   });
 
   it('a PlateMaker with a plan reaches the dashboard', () => {

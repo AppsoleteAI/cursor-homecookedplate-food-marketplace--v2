@@ -40,7 +40,7 @@ import { deletePromotionProcedure, listMyPromotionsProcedure, savePromotionProce
 import { deleteAreaOfferProcedure, listMyAreaOffersProcedure, listMyLaneItemsProcedure, offersForListingsProcedure, saveAreaOfferProcedure } from "./routes/area-offers/route";
 import { claimGiftProcedure, listMyGiftsProcedure, listOpenGiftsProcedure, saveGiftProcedure } from "./routes/charitable/route";
 import { listLaneListingsProcedure, saveLaneListingProcedure } from "./routes/lanes/route";
-import { listClipsProcedure, publishClipProcedure } from "./routes/clips/route";
+import { listClipsProcedure, publishClipLinkProcedure, publishClipProcedure } from "./routes/clips/route";
 import { confirmPaymentProcedure } from "./routes/payments/confirm-payment/route";
 import { createConnectAccountProcedure } from "./routes/payments/create-connect-account/route";
 import { getConnectAccountStatusProcedure } from "./routes/payments/get-connect-account-status/route";
@@ -238,6 +238,7 @@ export const appRouter = createTRPCRouter({
   clips: createTRPCRouter({
     list: listClipsProcedure,
     publish: publishClipProcedure,
+    publishLink: publishClipLinkProcedure,
   }),
   notifications: createTRPCRouter({
     list: listNotificationsProcedure,

@@ -1,7 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { agreementFromUnknown, clearLoginLegalBox, readLegalAgreement, setLoginLegalBoxChecked, toCompletedLegalAgreement, writeLegalAgreement } from '@/lib/legal-agreement';
+import { agreementFromUnknown, clearLegalReadyForSignIn, clearLoginLegalBox, isLegalReadyForSignIn, LEGAL_SIGN_IN_MESSAGE, readLegalAgreement, setLoginLegalBoxChecked, toCompletedLegalAgreement, writeLegalAgreement } from '@/lib/legal-agreement';
 // Import expo-secure-store with platform-specific shim for web compatibility
 // Metro will automatically resolve to lib/expo-secure-store.web.ts on web platform
 import * as SecureStore from '@/lib/expo-secure-store';
@@ -435,8 +435,9 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       }
       const localAgreement = toCompletedLegalAgreement(await readLegalAgreement());
       const accountAgreement = agreementFromUnknown(result.legalSafetyAgreement);
-      if (!localAgreement && !accountAgreement) {
-        throw new Error('Complete the Legal & Safety page before signing in.');
+      const legalReady = await isLegalReadyForSignIn();
+      if (!accountAgreement && !(localAgreement && legalReady)) {
+        throw new Error(LEGAL_SIGN_IN_MESSAGE);
       }
       if (!localAgreement && accountAgreement) {
         try {
@@ -445,6 +446,9 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           console.error('[Login] Could not save the Legal & Safety agreement on this device', storageError);
         }
         setLoginLegalBoxChecked(true);
+      }
+      if (accountAgreement) {
+        await clearLegalReadyForSignIn();
       }
 
       if (mountedRef.current) {
@@ -499,30 +503,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       const requiresCheckout = false;
       const needsEmailConfirmation = result.needsEmailConfirmation ?? false;
       const confirmationEmailSent = result.confirmationEmailSent !== false;
-      const remoteMetro = !result.user.metroArea || result.user.metroArea === 'Remote/Other';
-      const signedUpUser = chooseMembership && !remoteMetro ? { ...result.user, needsMembership: true as const } : result.user;
-      
-      if (result.session) {
-        const opened = await supabase.auth.setSession({
-          access_token: result.session.access_token,
-          refresh_token: result.session.refresh_token,
-        });
-        if (opened.error || !opened.data.session) {
-          throw opened.error ?? new Error('The account was created, but it could not be opened.');
-        }
-        if (mountedRef.current) {
-          setUser(signedUpUser);
-          setSession(opened.data.session);
-        }
-        await persistUser(signedUpUser);
-        await persistSession(opened.data.session);
-        setSentryUser(result.user);
-        addBreadcrumb('User signed up', 'auth', { userId: result.user.id, role: result.user.role, status: result.status, metro: result.metro });
-        return { success: true, requiresLogin: false, requiresCheckout, chooseMembership, needsEmailConfirmation, confirmationEmailSent };
-      } else {
-        addBreadcrumb('User signed up (no session - needs login)', 'auth', { userId: result.user.id, role: result.user.role, status: result.status, metro: result.metro });
-        return { success: true, requiresLogin: true, requiresCheckout, chooseMembership, needsEmailConfirmation, confirmationEmailSent };
-      }
+      addBreadcrumb('User signed up (no session - needs login)', 'auth', { userId: result.user.id, role: result.user.role, status: result.status, metro: result.metro });
+      return { success: true, requiresLogin: true, requiresCheckout, chooseMembership, needsEmailConfirmation, confirmationEmailSent };
     } catch (error) {
       captureException(error as Error, { context: 'signup', role });
       // Re-throw with better error message for network issues
@@ -531,7 +513,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       }
       throw error;
     }
-  }, [signupMutation, persistUser, persistSession]);
+  }, [signupMutation]);
 
   const logout = useCallback(async () => {
     clearLoginLegalBox();

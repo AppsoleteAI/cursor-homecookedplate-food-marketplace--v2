@@ -27,6 +27,7 @@ import {
   allSectionsAgreed,
   emptyLegalSections,
   parseEnteredDate,
+  markLegalReadyForSignIn,
   readLegalAgreement,
   todayDisplay,
   todayStamp,
@@ -119,6 +120,7 @@ export default function LegalScreen() {
       return;
     }
     await writeLegalAgreement(record);
+    await markLegalReadyForSignIn();
     setRecordedOn(acknowledgedOn);
 
     if (session) {

@@ -33,7 +33,7 @@ import { trpc, trpcProxyClient } from '@/lib/trpc';
 import { useCart } from '@/hooks/cart-context';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
-import { buyerCardCharge, orderTotalWithDelivery, promotionalBase } from '@/lib/fees';
+import { buyerCardCharge, DELIVERY_PLATFORM_RATE, orderTotalWithDelivery, promotionalBase } from '@/lib/fees';
 import { buyerServiceFeePercent, calculateFees } from '@/backend/lib/fees';
 import { accountAccessCopy } from '@/backend/lib/sign-in-messages';
 import { deviceTimeZone } from '@/lib/pickup-time';
@@ -642,7 +642,7 @@ export default function CheckoutScreen() {
                   <Text style={styles.paymentAmount}>${cardCharge.cardCharge.toFixed(2)}</Text>
                 </LinearGradient>
               </View>
-              <Text style={styles.paymentInfo}>HomeCookedPlate keeps the non-refundable {buyerPercent}% fee and the cook&apos;s 10% fee. A refund returns the cook&apos;s share only. These fees are not returned. On delivery, you also pay 5% on the delivery amount the cook set. The cook receives that amount. HomeCookedPlate keeps the 5%.</Text>
+              <Text style={styles.paymentInfo}>{`HomeCookedPlate keeps the non-refundable ${buyerPercent}% fee and the cook's 10% fee. A refund returns the cook's share only. These fees are not returned. On delivery, you also pay ${Math.round(DELIVERY_PLATFORM_RATE * 100)}% on the delivery amount the cook set. The cook receives that amount. HomeCookedPlate keeps the ${Math.round(DELIVERY_PLATFORM_RATE * 100)}%.`}</Text>
               <Pressable
                 onPress={() => setFeesAcknowledged((prev) => !prev)}
                 style={[styles.checkboxRow, feesAcknowledged ? styles.checkboxRowActive : undefined]}
@@ -667,7 +667,7 @@ export default function CheckoutScreen() {
                 <Text style={styles.farmCheckoutLink}>Group catering checks out in CaterEventDeliver. The company drops off and sets up.</Text>
               </GlassPressable>
               <GlassPressable onPress={() => router.push('/sit-down-delicious/checkout' as Href)} testID="checkout-sit-link">
-                <Text style={styles.farmCheckoutLink}>Independent restaurants check out in SitDownDelicious. Sit down or take out at the shop.</Text>
+                <Text style={styles.farmCheckoutLink}>Independent restaurants and ghost kitchens check out in SitDownDelicious. Sit down or take out at the shop.</Text>
               </GlassPressable>
             </View>
           </View>

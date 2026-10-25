@@ -345,7 +345,7 @@ export default function DashboardScreen() {
         >
           <Text style={styles.farmStandTitle}>SitDownDelicious</Text>
           <Text style={styles.farmStandText}>
-            Open the dining room, list the menu, and take sit-down or takeout orders. A retail food license for that street address is required before an item goes live.
+            Open the dining room or a ghost kitchen, list the menu, and take sit-down or takeout orders. A ghost kitchen is pickup or takeout and has no dining room. A retail food license for that street address is required before an item goes live.
           </Text>
         </GlassPressable>
 

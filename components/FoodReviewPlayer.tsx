@@ -1,8 +1,9 @@
 import React from 'react';
-import { Image, Linking, Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
+import { WebView } from '@/lib/clip-webview';
 import { useVideoPlayer, VideoView } from '@/lib/expo-video';
-import { youtubeVideoId } from '@/lib/food-review-clips';
-import { GlassPressable, glassSurface } from '@/components/glass-surface';
+import { clipFrameAllowsNavigation, socialClipEmbed } from '@/lib/food-review-clips';
+import { glassSurface } from '@/components/glass-surface';
 
 type FoodReviewPlayerProps = {
   uri: string;
@@ -11,27 +12,32 @@ type FoodReviewPlayerProps = {
   height: number;
 };
 
-export function FoodReviewPlayer({ uri, posterUri, width, height }: FoodReviewPlayerProps) {
-  const youtubeId = youtubeVideoId(uri);
-  const player = useVideoPlayer(Platform.OS === 'web' || youtubeId ? '' : uri, (instance) => {
-    if (instance && Platform.OS !== 'web' && !youtubeId) {
+export function FoodReviewPlayer({ uri, width, height }: FoodReviewPlayerProps) {
+  const embed = socialClipEmbed(uri, width, height);
+  const player = useVideoPlayer(embed.embedUrl ? '' : uri, (instance) => {
+    if (instance && !embed.embedUrl) {
       instance.loop = true;
     }
   });
 
-  if (youtubeId) {
+  if (embed.embedUrl) {
     return (
-      <GlassPressable
-        style={[styles.frame, { width, height }]}
-        testID="food-review-player"
-        accessibilityRole="button"
-        accessibilityLabel="Play clip"
-        onPress={() => Linking.openURL(uri)}
-      >
-        <View style={styles.clip}>
-          {posterUri ? <Image source={{ uri: posterUri }} style={styles.video} resizeMode="cover" /> : null}
+      <View style={[styles.frame, { width, height }]} testID="food-review-player">
+        <View style={[styles.clip, embed.letterbox && styles.letterbox]}>
+          <WebView
+            source={{ uri: embed.embedUrl }}
+            style={embed.letterbox ? styles.letterboxVideo : styles.video}
+            allowsInlineMediaPlayback
+            mediaPlaybackRequiresUserAction={false}
+            allowsFullscreenVideo
+            javaScriptEnabled
+            domStorageEnabled
+            setSupportMultipleWindows={false}
+            originWhitelist={['https://*', 'http://*']}
+            onShouldStartLoadWithRequest={(request) => clipFrameAllowsNavigation(request.navigationType)}
+          />
         </View>
-      </GlassPressable>
+      </View>
     );
   }
 
@@ -66,8 +72,15 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
   },
+  letterbox: {
+    justifyContent: 'center',
+  },
   video: {
     width: '100%',
     height: '100%',
+  },
+  letterboxVideo: {
+    width: '100%',
+    height: '72%',
   },
 });

@@ -1,5 +1,6 @@
 name: Store release
 
+# EAS publishes the iOS and Android apps. This workflow does not run, so GitHub does not start a second build.
 on:
   workflow_dispatch:
     inputs:
@@ -13,6 +14,7 @@ on:
 
 jobs:
   hardening:
+    if: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +27,7 @@ jobs:
         run: npx jest backend/lib/__tests__/hardening.test.ts backend/lib/__tests__/launch-guards.test.ts --watchman=false
 
   store:
+    if: false
     needs: hardening
     runs-on: ubuntu-latest
     steps:

@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { readDeviceCoordinates } from '@/lib/device-coordinates';
+import { nearestMetro } from '@/backend/lib/metro-radius';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AuthColors, preAppFont } from '@/constants/auth-palette';
 import { AuthBackground, AuthBrand, AuthGoldButton, MaroonButtonFill } from '@/components/auth/AuthChrome';
@@ -67,6 +68,19 @@ export default function OnboardingScreen() {
     initialRole: isRole(roleParam) ? roleParam : undefined,
   });
   const stepBack = useWizardBack(step, setStep, isSigningUp || isLoading);
+  const leaveStep = () => {
+    if (isSigningUp || isLoading) return;
+    if (step === 0 && !askRole) {
+      setAskRole(true);
+      setPageError(null);
+      return;
+    }
+    if (step === 0) {
+      router.navigate({ pathname: '/(auth)/welcome', params: { step: '1' } });
+      return;
+    }
+    stepBack();
+  };
 
   const checkEligibility = trpc.trials.checkEligibility.useMutation();
   const { username, email, password, confirmPassword, role, agreedToTerms, foodSafetyAcknowledged } = formData;
@@ -109,15 +123,22 @@ export default function OnboardingScreen() {
       }
       const coords = read.point;
       setUserLocation(coords);
+      const nearby = nearestMetro(coords.lat, coords.lng)?.name ?? null;
 
-      const result = await checkEligibility.mutateAsync({
-        lat: coords.lat,
-        lng: coords.lng,
-        role,
-      });
+      let city = nearby;
+      try {
+        const result = await checkEligibility.mutateAsync({
+          lat: coords.lat,
+          lng: coords.lng,
+          role,
+        });
+        city = result.metro || nearby;
+      } catch (err) {
+        console.error('[Onboarding] Metro lookup failed', err);
+      }
 
-      if (result.metro) {
-        setMetroName(result.metro);
+      if (city) {
+        setMetroName(city);
         setMetroStatus('found');
       } else {
         setMetroName(null);
@@ -215,13 +236,10 @@ export default function OnboardingScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {step > 0 && !isSigningUp && !isLoading ? (
+            {!isSigningUp && !isLoading ? (
               <BackCircle
                 tone="honey"
-                onPress={() => {
-                  setPageError(null);
-                  stepBack();
-                }}
+                onPress={leaveStep}
                 testID="onboarding-back"
               />
             ) : null}

@@ -15,6 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { AdminOnly } from '@/components/RoleGuard';
 import { BackCircle } from '@/components/BackCircle';
 import { GlassIconButton, GlassPressable } from '@/components/glass-surface';
+import { IdleChrome } from '@/components/IdleChrome';
+import { CHROME_CHIP_SIZE, CHROME_ICON_SIZE } from '@/lib/chrome-activity';
 import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { Colors, pagePastel } from '@/constants/colors';
 import { trpc } from '@/lib/trpc';
@@ -92,22 +94,26 @@ export default function AdminMonitorScreen() {
           <Text style={styles.section}>Screen names</Text>
           {(names.data ?? []).map((account) => <NameEditor key={account.id} account={account} />)}
         </ScrollView>
-        <View style={styles.jumps} pointerEvents="box-none">
-          <GlassIconButton
-            onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
-            accessibilityLabel="Scroll to top"
-            tint="rgba(232, 176, 22, 0.92)"
-          >
-            <Ionicons name="chevron-up" size={22} color={Colors.gray[900]} />
-          </GlassIconButton>
-          <GlassIconButton
-            onPress={() => scrollRef.current?.scrollToEnd({ animated: true })}
-            accessibilityLabel="Scroll to bottom"
-            tint="rgba(232, 176, 22, 0.92)"
-          >
-            <Ionicons name="chevron-down" size={22} color={Colors.gray[900]} />
-          </GlassIconButton>
-        </View>
+        <IdleChrome overlay>
+          <View style={styles.jumps} pointerEvents="box-none">
+            <GlassIconButton
+              onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
+              accessibilityLabel="Scroll to top"
+              size={CHROME_CHIP_SIZE}
+              tint="rgba(232, 176, 22, 0.92)"
+            >
+              <Ionicons name="chevron-up" size={CHROME_ICON_SIZE} color={Colors.gray[900]} />
+            </GlassIconButton>
+            <GlassIconButton
+              onPress={() => scrollRef.current?.scrollToEnd({ animated: true })}
+              accessibilityLabel="Scroll to bottom"
+              size={CHROME_CHIP_SIZE}
+              tint="rgba(232, 176, 22, 0.92)"
+            >
+              <Ionicons name="chevron-down" size={CHROME_ICON_SIZE} color={Colors.gray[900]} />
+            </GlassIconButton>
+          </View>
+        </IdleChrome>
       </SafeAreaView>
     </AdminOnly>
   );

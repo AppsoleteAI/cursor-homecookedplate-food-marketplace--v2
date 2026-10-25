@@ -19,6 +19,7 @@ import { CHECKOUT_AREA_LABEL } from '@/backend/lib/combined-checkout';
 import { useCart } from '@/hooks/cart-context';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
 import { buyerFoodCharge } from '@/backend/lib/fees';
+import { DELIVERY_PLATFORM_RATE } from '@/lib/fees';
 import { useAuth } from '@/hooks/auth-context';
 
 export default function CartScreen() {
@@ -49,7 +50,7 @@ export default function CartScreen() {
               <Text style={styles.farmLinkDark}>Ordering for a group? Open CaterEventDeliver.</Text>
             </GlassPressable>
             <GlassPressable onPress={() => router.push('/sit-down-delicious' as Href)} testID="empty-cart-sit">
-              <Text style={styles.farmLinkDark}>Looking for a local restaurant? Open SitDownDelicious.</Text>
+              <Text style={styles.farmLinkDark}>Looking for a restaurant or ghost kitchen? Open SitDownDelicious.</Text>
             </GlassPressable>
             <GradientButton
               title="Browse Meals"
@@ -84,7 +85,7 @@ export default function CartScreen() {
                 <Text style={styles.farmLink}>Group catering uses CaterEventDeliver</Text>
               </GlassPressable>
               <GlassPressable onPress={() => router.push('/sit-down-delicious/basket' as Href)} testID="cart-sit-basket">
-                <Text style={styles.farmLink}>Restaurants use SitDownDelicious</Text>
+                <Text style={styles.farmLink}>Restaurants and ghost kitchens use SitDownDelicious</Text>
               </GlassPressable>
             </View>
           </LinearGradient>
@@ -168,7 +169,7 @@ export default function CartScreen() {
             <Text style={styles.summaryValue}>${serviceFee.toFixed(2)}</Text>
           </View>
 
-          <Text style={styles.summaryNote}>Pickup has no delivery fee. For delivery, the cook sets the fee and you pay that fee plus 5%.</Text>
+          <Text style={styles.summaryNote}>{`Pickup has no delivery fee. For delivery, the cook sets the fee and you pay that fee plus ${Math.round(DELIVERY_PLATFORM_RATE * 100)}%.`}</Text>
           
           <View style={styles.divider} />
           

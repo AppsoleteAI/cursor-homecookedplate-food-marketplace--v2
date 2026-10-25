@@ -167,7 +167,7 @@ describe.each(['ios', 'android'] as const)('phone launch on %s', (os) => {
     expect(view.getByText('redirect:/(auth)/welcome')).toBeTruthy();
   });
 
-  it('a restored PlateMaker who needs a plan opens membership', async () => {
+  it('a restored PlateMaker opens the dashboard', async () => {
     mockPhone.readSession = () => Promise.resolve(storedSession());
     mockPhone.restoreSession = () => restoredSession('cook');
     storedUser({ id: 'cook', role: 'platemaker', needsMembership: true, metroArea: 'Austin' });
@@ -177,7 +177,7 @@ describe.each(['ios', 'android'] as const)('phone launch on %s', (os) => {
     });
     expect(hideAsync).toHaveBeenCalled();
     expect(view.queryByTestId('launch-cover')).toBeNull();
-    expect(view.getByText('redirect:/membership')).toBeTruthy();
+    expect(view.getByText('redirect:/(tabs)/dashboard')).toBeTruthy();
   });
 
   it('a restored PlateMaker with a plan opens the dashboard', async () => {

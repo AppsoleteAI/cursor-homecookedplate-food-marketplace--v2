@@ -194,7 +194,7 @@ export default function ProfileScreen() {
     {
       icon: 'cafe-outline',
       title: 'SitDownDelicious',
-      subtitle: 'Independent sit-down and takeout shops',
+      subtitle: 'Independent sit-down shops, takeout, and ghost kitchens',
       onPress: () => router.push('/sit-down-delicious' as Href),
     },
     {

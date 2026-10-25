@@ -1,3 +1,7 @@
+/** Shown when the email or password does not match. */
+export const WRONG_SIGN_IN_MESSAGE =
+  'That email or password does not match. Check both and try again, or tap Forgot Password to set a new one.';
+
 /** Shown when the email has no account, including one that was deleted. */
 export const NO_ACCOUNT_MESSAGE = 'No account found. Create an account.';
 

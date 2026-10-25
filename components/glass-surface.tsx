@@ -141,12 +141,14 @@ export function GlassIconButton({
   testID,
   accessibilityLabel,
   tint = 'rgba(255,255,255,0.18)',
+  size = 36,
 }: {
   onPress: () => void;
   children: React.ReactNode;
   testID?: string;
   accessibilityLabel?: string;
   tint?: string;
+  size?: number;
 }) {
   return (
     <GlassPressable
@@ -154,7 +156,7 @@ export function GlassIconButton({
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      style={[styles.icon, { backgroundColor: tint }]}
+      style={[styles.icon, { width: size, height: size, borderRadius: size / 2, backgroundColor: tint }]}
     >
       {children}
     </GlassPressable>

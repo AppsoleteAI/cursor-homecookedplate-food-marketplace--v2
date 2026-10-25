@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Linking,
@@ -24,20 +24,37 @@ import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { useAuth } from '@/hooks/auth-context';
 import { FoodReviewPlayer } from '@/components/FoodReviewPlayer';
 import {
+  FOOD_INFLUENCER_MARK,
   FOOD_REVIEW_MAX_SECONDS,
   FOOD_REVIEW_REACTIONS,
   FOOD_REVIEW_REACTION_EMOJI_SIZE,
   exceedsFoodReviewClipLimit,
+  foodReviewClipMeta,
   foodReviewDurationSeconds,
+  foodReviewLinkClip,
   foodReviewReactionGap,
+  foodReviewTimeline,
   foodReviewSurface,
   resolveFoodReviewTimelineLayout,
   seedFoodReviewClips,
+  socialClipEmbed,
+  socialClipSourceLabel,
   toggleFoodReviewReaction,
   type FoodReviewClip,
   type FoodReviewReaction,
 } from '@/lib/food-review-clips';
-import { readFoodReviewClips, writeFoodReviewClips } from '@/lib/food-review-clip-store';
+import {
+  readFoodReviewBookmarks,
+  readFoodReviewClips,
+  readFoodReviewReports,
+  readHiddenFoodReviewClips,
+  writeFoodReviewBookmarks,
+  writeFoodReviewClips,
+  writeFoodReviewReports,
+  writeHiddenFoodReviewClips,
+} from '@/lib/food-review-clip-store';
+import { IdleChrome } from '@/components/IdleChrome';
+import { CHROME_CHIP_SIZE, CHROME_ICON_SIZE } from '@/lib/chrome-activity';
 import { readLocalMedia } from '@/lib/read-local-media';
 import { trpc } from '@/lib/trpc';
 
@@ -60,9 +77,15 @@ export default function FoodReviewClips() {
     { retry: false, refetchOnWindowFocus: false },
   );
   const publishClip = trpc.clips.publish.useMutation();
+  const publishClipLink = trpc.clips.publishLink.useMutation();
+  const scrollRef = useRef<ScrollView>(null);
   const [clips, setClips] = useState<FoodReviewClip[]>(seedFoodReviewClips);
   const [loaded, setLoaded] = useState(false);
   const [mealName, setMealName] = useState('');
+  const [clipLink, setClipLink] = useState('');
+  const [bookmarkIds, setBookmarkIds] = useState<string[]>([]);
+  const [hiddenIds, setHiddenIds] = useState<string[]>([]);
+  const [showBookmarks, setShowBookmarks] = useState(false);
   const [query, setQuery] = useState('');
   const [menuClipId, setMenuClipId] = useState<string | null>(null);
   const [reactionRowWidth, setReactionRowWidth] = useState(0);
@@ -70,11 +93,16 @@ export default function FoodReviewClips() {
   const reactionGap = foodReviewReactionGap(reactionRowWidth, reactionChipWidth);
   const isPlatemaker = role === 'platemaker';
   const needle = query.trim().toLowerCase();
-  const visibleClips = !isPlatemaker && needle
+  const searchedClips = !isPlatemaker && needle
     ? clips.filter((clip) => (
       clip.mealName.toLowerCase().includes(needle) || clip.author.toLowerCase().includes(needle)
     ))
     : clips;
+  const listedClips = (showBookmarks
+    ? searchedClips.filter((clip) => bookmarkIds.includes(clip.id))
+    : searchedClips
+  ).filter((clip) => !hiddenIds.includes(clip.id));
+  const visibleClips = foodReviewTimeline(listedClips);
 
   const loadClips = useCallback(() => {
     let active = true;
@@ -93,7 +121,20 @@ export default function FoodReviewClips() {
     };
   }, []);
 
-  useFocusEffect(useCallback(() => loadClips(), [loadClips]));
+  useFocusEffect(useCallback(() => {
+    const stop = loadClips();
+    readFoodReviewBookmarks()
+      .then(setBookmarkIds)
+      .catch((error) => {
+        console.error('[FoodReviewClips] Failed to load bookmarks', error);
+      });
+    readHiddenFoodReviewClips()
+      .then(setHiddenIds)
+      .catch((error) => {
+        console.error('[FoodReviewClips] Failed to load hidden clips', error);
+      });
+    return stop;
+  }, [loadClips]));
 
   useEffect(() => {
     if (!loaded) return;
@@ -140,6 +181,81 @@ export default function FoodReviewClips() {
       Alert.alert('Clip', error instanceof Error ? error.message : 'The clip could not be posted.');
     }
   }, [mealName, publishClip]);
+
+  const toggleBookmark = useCallback((clipId: string) => {
+    setBookmarkIds((prev) => {
+      const next = prev.includes(clipId) ? prev.filter((id) => id !== clipId) : [clipId, ...prev];
+      writeFoodReviewBookmarks(next).catch((error) => {
+        console.error('[FoodReviewClips] Failed to save bookmarks', error);
+      });
+      return next;
+    });
+  }, []);
+
+  const postLink = useCallback(async () => {
+    if (!canPostClip) {
+      router.push('/membership' as Href);
+      return;
+    }
+    const link = foodReviewLinkClip(clipLink);
+    if (!link) {
+      Alert.alert('Clip link', 'Paste a YouTube, Facebook, Instagram, TikTok, Snapchat, or X link.');
+      return;
+    }
+    const localClip: FoodReviewClip = {
+      id: `clip-${Date.now()}`,
+      mealName: mealName.trim() || 'Food review',
+      author: username,
+      role,
+      videoUri: link.videoUri,
+      posterUri: link.posterUri,
+      durationSeconds: FOOD_REVIEW_MAX_SECONDS,
+      durationMeasured: false,
+      createdAt: new Date().toISOString(),
+      counts: { smile: 0, heart: 0, star: 0 },
+      reactionsByUser: {},
+    };
+    try {
+      const saved = await publishClipLink.mutateAsync({
+        mealName: localClip.mealName,
+        videoUrl: link.videoUri,
+      });
+      const clip: FoodReviewClip = {
+        ...saved,
+        role: saved.role === 'platetaker' ? 'platetaker' : 'platemaker',
+        durationMeasured: false,
+      };
+      setClips((prev) => [clip, ...prev.filter((item) => item.id !== clip.id && item.id !== localClip.id)]);
+    } catch (error) {
+      setClips((prev) => [localClip, ...prev.filter((item) => item.id !== localClip.id)]);
+      console.error('[FoodReviewClips] Shared link post stayed on this device', error);
+    }
+    setMealName('');
+    setClipLink('');
+    setShowBookmarks(false);
+  }, [canPostClip, clipLink, mealName, publishClipLink, role, username]);
+
+  const hideClip = useCallback((clipId: string) => {
+    setMenuClipId(null);
+    setHiddenIds((prev) => {
+      if (prev.includes(clipId)) return prev;
+      const next = [clipId, ...prev];
+      writeHiddenFoodReviewClips(next).catch((error) => {
+        console.error('[FoodReviewClips] Failed to hide a clip', error);
+      });
+      return next;
+    });
+  }, []);
+
+  const reportClip = useCallback((clipId: string) => {
+    setMenuClipId(null);
+    readFoodReviewReports()
+      .then((current) => writeFoodReviewReports(current.includes(clipId) ? current : [clipId, ...current]))
+      .catch((error) => {
+        console.error('[FoodReviewClips] Failed to save a report', error);
+      });
+    Alert.alert('Clip reported', 'Thanks. This report stays on this device.');
+  }, []);
 
   const pickOnWeb = useCallback(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
@@ -234,7 +350,7 @@ export default function FoodReviewClips() {
         </View>
       </LinearGradient>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <View style={styles.pinned}>
         <View style={[styles.column, { width: layout.columnWidth }]}>
           {isPlatemaker ? null : (
             <TextInput
@@ -248,11 +364,82 @@ export default function FoodReviewClips() {
               autoCorrect={false}
             />
           )}
+          <View style={styles.composer}>
+            <Text style={styles.composerTitle}>
+              {canPostClip ? 'Post a 20 second clip' : 'Posting is for premium members'}
+            </Text>
+            <TextInput
+              value={mealName}
+              onChangeText={setMealName}
+              placeholder="Meal name"
+              placeholderTextColor={Colors.gray[400]}
+              style={styles.input}
+              testID="clip-meal-name"
+              editable={canPostClip}
+            />
+            <TextInput
+              value={clipLink}
+              onChangeText={setClipLink}
+              placeholder="YouTube, Facebook, Instagram, TikTok, or Snapchat link"
+              placeholderTextColor={Colors.gray[400]}
+              style={styles.input}
+              testID="clip-link"
+              editable={canPostClip}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <View style={styles.composerActions}>
+              <GlassPressable
+                onPress={recordClip}
+                testID="record-clip"
+                style={[styles.action, !canPostClip && styles.actionLocked]}
+              >
+                <Text style={styles.actionText}>{canPostClip ? 'Record' : 'See Membership'}</Text>
+              </GlassPressable>
+              <GlassPressable
+                onPress={chooseClip}
+                testID="choose-clip"
+                style={[styles.actionSecondary, !canPostClip && styles.actionLocked]}
+              >
+                <Text style={styles.actionSecondaryText}>{canPostClip ? 'Choose Clip' : 'Premium'}</Text>
+              </GlassPressable>
+            </View>
+            <GlassPressable
+              onPress={postLink}
+              testID="post-clip-link"
+              style={[styles.action, styles.postLink, !canPostClip && styles.actionLocked]}
+            >
+              <Text style={styles.actionText}>Post Link</Text>
+            </GlassPressable>
+            <GlassPressable
+              onPress={() => setShowBookmarks((current) => !current)}
+              testID="clip-bookmarks"
+              accessibilityRole="button"
+              accessibilityState={{ selected: showBookmarks }}
+              style={styles.bookmarks}
+            >
+              <Text style={styles.bookmarksText}>{showBookmarks ? 'All clips' : 'Bookmarks'}</Text>
+            </GlassPressable>
+          </View>
+        </View>
+      </View>
+
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.column, { width: layout.columnWidth }]}>
           {visibleClips.length === 0 ? (
-            <Text style={styles.empty}>{needle ? 'No clips match that search.' : 'No clips yet.'}</Text>
+            <Text style={styles.empty}>
+              {showBookmarks ? 'No bookmarked clips yet.' : needle ? 'No clips match that search.' : 'No clips yet.'}
+            </Text>
           ) : null}
           {visibleClips.map((clip) => {
             const mine = new Set(clip.reactionsByUser[username] ?? []);
+            const saved = bookmarkIds.includes(clip.id);
+            const source = socialClipEmbed(clip.videoUri).source;
+            const openLabel = source === 'file' ? 'Open clip' : `Open on ${socialClipSourceLabel(source)}`;
             return (
               <View key={clip.id} style={styles.post} testID={`clip-${clip.id}`}>
                 <View style={styles.authorRow}>
@@ -260,9 +447,25 @@ export default function FoodReviewClips() {
                     <Text style={styles.avatarText}>{clip.author.slice(0, 1).toUpperCase()}</Text>
                   </View>
                   <View style={styles.authorCopy}>
-                    <Text style={styles.author} numberOfLines={1}>@{clip.author}</Text>
-                    <Text style={styles.meta} numberOfLines={1}>{clip.role} · {clip.durationSeconds}s</Text>
+                    <Text
+                      style={styles.author}
+                      numberOfLines={1}
+                      accessibilityLabel={clip.verifiedInfluencer ? `@${clip.author}, verified food influencer` : `@${clip.author}`}
+                    >
+                      @{clip.author}{clip.verifiedInfluencer ? ` ${FOOD_INFLUENCER_MARK}` : ''}
+                    </Text>
+                    <Text style={styles.meta} numberOfLines={1}>{foodReviewClipMeta(clip)}</Text>
                   </View>
+                  <GlassPressable
+                    onPress={() => toggleBookmark(clip.id)}
+                    testID={`bookmark-${clip.id}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={saved ? 'Remove bookmark' : 'Bookmark clip'}
+                    accessibilityState={{ selected: saved }}
+                    style={styles.bookmarkClip}
+                  >
+                    <Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={22} color={Colors.gray[900]} />
+                  </GlassPressable>
                 </View>
                 <Text style={styles.mealName}>{clip.mealName}</Text>
                 <View style={styles.playerWrap}>
@@ -273,15 +476,17 @@ export default function FoodReviewClips() {
                       width={layout.width}
                       height={layout.height}
                     />
-                    <GlassPressable
-                      style={styles.moreButton}
-                      testID="clip-more"
-                      accessibilityRole="button"
-                      accessibilityLabel="Clip menu"
-                      onPress={() => setMenuClipId((current) => (current === clip.id ? null : clip.id))}
-                    >
-                      <Ionicons name="ellipsis-vertical" size={18} color={Colors.white} />
-                    </GlassPressable>
+                    <IdleChrome overlay>
+                      <GlassPressable
+                        style={styles.moreButton}
+                        testID="clip-more"
+                        accessibilityRole="button"
+                        accessibilityLabel="Clip menu"
+                        onPress={() => setMenuClipId((current) => (current === clip.id ? null : clip.id))}
+                      >
+                        <Ionicons name="ellipsis-vertical" size={18} color={Colors.white} />
+                      </GlassPressable>
+                    </IdleChrome>
                     {menuClipId === clip.id ? (
                       <View style={styles.moreMenu}>
                         <GlassPressable
@@ -293,7 +498,21 @@ export default function FoodReviewClips() {
                             });
                           }}
                         >
-                          <Text style={styles.moreItemText}>Watch on YouTube</Text>
+                          <Text style={styles.moreItemText}>{openLabel}</Text>
+                        </GlassPressable>
+                        <GlassPressable
+                          style={styles.moreItem}
+                          testID={`report-${clip.id}`}
+                          onPress={() => reportClip(clip.id)}
+                        >
+                          <Text style={styles.moreItemText}>Report this clip</Text>
+                        </GlassPressable>
+                        <GlassPressable
+                          style={styles.moreItem}
+                          testID={`hide-${clip.id}`}
+                          onPress={() => hideClip(clip.id)}
+                        >
+                          <Text style={styles.moreItemText}>Hide this clip</Text>
                         </GlassPressable>
                       </View>
                     ) : null}
@@ -331,39 +550,34 @@ export default function FoodReviewClips() {
               </View>
             );
           })}
-
-        {isPlatemaker ? <View style={styles.composer}>
-          <Text style={styles.composerTitle}>
-            {canPostClip ? 'Post a 20 second clip' : 'Posting is for premium members'}
-          </Text>
-          <TextInput
-            value={mealName}
-            onChangeText={setMealName}
-            placeholder="Meal name"
-            placeholderTextColor={Colors.gray[400]}
-            style={styles.input}
-            testID="clip-meal-name"
-            editable={canPostClip}
-          />
-          <View style={styles.composerActions}>
-            <GlassPressable
-              onPress={recordClip}
-              testID="record-clip"
-              style={[styles.action, !canPostClip && styles.actionLocked]}
-            >
-              <Text style={styles.actionText}>{canPostClip ? 'Record' : 'See Membership'}</Text>
-            </GlassPressable>
-            <GlassPressable
-              onPress={chooseClip}
-              testID="choose-clip"
-              style={[styles.actionSecondary, !canPostClip && styles.actionLocked]}
-            >
-              <Text style={styles.actionSecondaryText}>{canPostClip ? 'Choose Clip' : 'Premium'}</Text>
-            </GlassPressable>
-          </View>
-        </View> : null}
         </View>
       </ScrollView>
+      <IdleChrome overlay>
+        <View style={[styles.scrollJumps, { bottom: insets.bottom + 16 }]} pointerEvents="box-none">
+          <GlassPressable
+            onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
+            testID="clips-scroll-up"
+            accessibilityRole="button"
+            accessibilityLabel="Scroll to top"
+            style={styles.jump}
+          >
+            <LinearGradient colors={monoGradients.green} style={styles.jumpFill}>
+              <Ionicons name="chevron-up" size={CHROME_ICON_SIZE} color={Colors.white} />
+            </LinearGradient>
+          </GlassPressable>
+          <GlassPressable
+            onPress={() => scrollRef.current?.scrollToEnd({ animated: true })}
+            testID="clips-scroll-down"
+            accessibilityRole="button"
+            accessibilityLabel="Scroll to bottom"
+            style={styles.jump}
+          >
+            <LinearGradient colors={monoGradients.green} style={styles.jumpFill}>
+              <Ionicons name="chevron-down" size={CHROME_ICON_SIZE} color={Colors.white} />
+            </LinearGradient>
+          </GlassPressable>
+        </View>
+      </IdleChrome>
     </View>
   );
 }
@@ -406,7 +620,14 @@ const styles = StyleSheet.create({
   content: {
     alignItems: 'center',
     paddingTop: 8,
-    paddingBottom: 48,
+    paddingBottom: 96,
+  },
+  pinned: {
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.gray[200],
+    paddingBottom: 8,
   },
   column: {
     alignSelf: 'center',
@@ -436,6 +657,12 @@ const styles = StyleSheet.create({
   },
   authorCopy: {
     flex: 1,
+  },
+  bookmarkClip: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   author: {
     fontSize: 15,
@@ -540,7 +767,39 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   composer: {
-    marginTop: 20,
+    paddingTop: 8,
+  },
+  postLink: {
+    marginTop: 8,
+  },
+  bookmarks: {
+    marginTop: 8,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.gray[300],
+  },
+  bookmarksText: {
+    color: Colors.gray[800],
+    fontWeight: '700',
+  },
+  scrollJumps: {
+    position: 'absolute',
+    right: 16,
+    gap: 8,
+  },
+  jump: {
+    width: CHROME_CHIP_SIZE,
+    height: CHROME_CHIP_SIZE,
+    borderRadius: CHROME_CHIP_SIZE / 2,
+    overflow: 'hidden',
+  },
+  jumpFill: {
+    width: CHROME_CHIP_SIZE,
+    height: CHROME_CHIP_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   composerTitle: {
     fontSize: 16,

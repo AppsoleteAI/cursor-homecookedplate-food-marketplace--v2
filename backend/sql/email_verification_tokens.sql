@@ -19,6 +19,11 @@ CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_token ON public.email_v
 CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user_id ON public.email_verification_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_expires_at ON public.email_verification_tokens(expires_at);
 
+-- The live table was created before used_at. CREATE TABLE IF NOT EXISTS does not add it.
+-- Without this column, the link confirms the address and then the page reports a failure.
+ALTER TABLE public.email_verification_tokens
+  ADD COLUMN IF NOT EXISTS used_at timestamptz;
+
 -- Function to clean up expired tokens (can be called by a scheduled job)
 CREATE OR REPLACE FUNCTION public.cleanup_expired_email_tokens()
 RETURNS void AS $$

@@ -49,6 +49,8 @@ import { captureException, scrubSentryEvent, Sentry } from '@/lib/sentry';
 import { SENTRY_TRACE_SAMPLE_RATE } from '@/lib/sentry-rate';
 import { applyScrollbarAccent } from '@/lib/web-scrollbar';
 import { applyPageFill } from '@/lib/web-page-fill';
+import { ChromeActivity } from '@/components/IdleChrome';
+import { pokeChromeActivity } from '@/lib/chrome-activity';
 
 const LAUNCH_BACKGROUND = '#1A0F0A';
 
@@ -237,7 +239,7 @@ function RootLayout() {
   if (isWeb) {
     return (
       <ErrorBoundary>
-        <GestureHandlerRootView style={styles.container}>
+        <GestureHandlerRootView style={styles.container} onTouchMove={pokeChromeActivity}>
           <CoreProviders>
             <ConditionalAppProviders>
               <NavigationIndependentTree>
@@ -250,6 +252,7 @@ function RootLayout() {
                 </NavigationContainer>
               </NavigationIndependentTree>
               <ScrollbarAccent />
+              <ChromeActivity />
               {content}
             </ConditionalAppProviders>
           </CoreProviders>
@@ -260,11 +263,12 @@ function RootLayout() {
 
   return (
     <ErrorBoundary>
-      <GestureHandlerRootView style={styles.launch}>
+      <GestureHandlerRootView style={styles.launch} onTouchMove={pokeChromeActivity}>
         <View
           style={styles.launch}
           onLayout={onLayoutRootView}
         >
+          <ChromeActivity />
           <CoreProviders>
             <ConditionalAppProviders>
               <ThemeProvider value={nativeLaunchTheme}>

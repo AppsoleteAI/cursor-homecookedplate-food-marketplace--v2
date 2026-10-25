@@ -47,8 +47,10 @@ async function lookupMetro(admin: Admin, lat: number, lng: number): Promise<{ se
     .select('metro_name, is_active, trial_days')
     .eq('metro_name', nearest.name)
     .maybeSingle();
-  if (error) return { settings: null, error: error.message || 'Could not read this metro.' };
-  const saved = settingsFrom(data);
+  const saved = error ? null : settingsFrom(data);
+  if (error) {
+    console.error(`[Locate] Metro settings for ${nearest.name} could not be read. Using the 50-mile match.`);
+  }
   if (saved) return { settings: saved, error: null };
   return { settings: { metro_name: nearest.name, is_active: true, trial_days: 90 }, error: null };
 }
@@ -140,14 +142,10 @@ export const locateMembershipProcedure = protectedProcedure
     }
 
     if (current !== metro.metro_name) {
-      let headcount: { blocked: boolean };
       try {
-        headcount = await moveMetroHeadcount(ctx.supabaseAdmin, profile.role, current, metro.metro_name);
-      } catch {
-        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Could not save this metro.' });
-      }
-      if (headcount.blocked) {
-        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'This metro is full.' });
+        await moveMetroHeadcount(ctx.supabaseAdmin, profile.role, current, metro.metro_name);
+      } catch (headcountError) {
+        console.error('[Locate] Headcount did not move. The city is still saved.', headcountError);
       }
       const leaving = namedMetro(current);
       if (profile.trial_ends_at && leaving) {

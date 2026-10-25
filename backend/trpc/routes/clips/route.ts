@@ -5,6 +5,7 @@ import { decode } from 'base64-arraybuffer';
 import { mediaFrameSource, scanVideo } from '../../../lib/image-security';
 import { mealVisibleInMetro } from '../../../lib/metro-menu';
 import { platemakerMayEnter } from '../../../lib/trial-access';
+import { foodReviewLinkClip } from '@/lib/food-review-clips';
 
 function missingTable(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
@@ -129,6 +130,60 @@ export const publishClipProcedure = protectedProcedure
       videoUri: publicUrl,
       posterUri: input.posterUri?.startsWith('https://') ? input.posterUri : '',
       durationSeconds: input.durationSeconds,
+      createdAt: new Date().toISOString(),
+      counts: { smile: 0, heart: 0, star: 0 },
+      reactionsByUser: {},
+    };
+  });
+
+export const publishClipLinkProcedure = protectedProcedure
+  .input(z.object({
+    mealName: z.string().min(1).max(80),
+    videoUrl: z.string().min(12).max(500),
+  }))
+  .mutation(async ({ input, ctx }) => {
+    const link = foodReviewLinkClip(input.videoUrl);
+    if (!link) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Paste a YouTube, Facebook, Instagram, TikTok, Snapchat, or X link.' });
+    }
+    const { data: profile } = await ctx.supabaseAdmin
+      .from('profiles')
+      .select('username, role, membership_tier, trial_ends_at, stripe_subscription_id, apple_original_transaction_id, google_purchase_token')
+      .eq('id', ctx.userId)
+      .maybeSingle();
+    const cookMayPost = profile?.role === 'platemaker' && platemakerMayEnter(profile);
+    const buyerMayPost = profile?.role === 'platetaker' && profile.membership_tier === 'premium';
+    if (!profile || (!cookMayPost && !buyerMayPost)) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Posting a clip is for a premium membership.' });
+    }
+    const id = `clip-${Date.now()}`;
+    const role = profile.role === 'platemaker' ? 'platemaker' : 'platetaker';
+    const mealName = input.mealName.trim();
+    const { error } = await ctx.supabaseAdmin.from('food_review_clips').insert({
+      id,
+      user_id: ctx.userId,
+      meal_name: mealName,
+      author: profile.username || 'Cook',
+      role,
+      video_url: link.videoUri,
+      poster_url: link.posterUri.startsWith('https://') ? link.posterUri : null,
+      duration_seconds: 20,
+    });
+    if (error) {
+      if (missingTable(error)) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'The shared clip timeline is not on this kitchen yet.' });
+      }
+      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'The clip could not be posted.' });
+    }
+    return {
+      id,
+      mealName,
+      author: profile.username || 'Cook',
+      role,
+      videoUri: link.videoUri,
+      posterUri: link.posterUri,
+      durationSeconds: 20,
+      durationMeasured: false as const,
       createdAt: new Date().toISOString(),
       counts: { smile: 0, heart: 0, star: 0 },
       reactionsByUser: {},

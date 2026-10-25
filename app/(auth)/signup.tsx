@@ -99,9 +99,10 @@ export default function SignupScreen() {
             <ResendConfirmation email={email} />
             <GlassPressable
               style={styles.loginButton}
-              onPress={() => router.push('/(auth)/login')}
+              onPress={() => router.push({ pathname: '/membership', params: { role: formData.role } })}
+              testID={formData.role === 'platemaker' ? 'signup-choose-membership' : 'signup-see-membership'}
             >
-              <Text style={styles.loginButtonText}>Go to Login</Text>
+              <Text style={styles.loginButtonText}>{formData.role === 'platemaker' ? 'Choose Membership' : 'See Membership'}</Text>
             </GlassPressable>
           </View>
         </SafeAreaView>

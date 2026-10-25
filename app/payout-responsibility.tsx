@@ -15,6 +15,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { SellerOnly } from '@/components/RoleGuard';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
+import { DELIVERY_PLATFORM_RATE } from '@/lib/fees';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
 
@@ -133,7 +134,7 @@ export default function PayoutResponsibilityScreen() {
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>Stripe account</Text>
                 <Text style={styles.body}>
-                  HomeCookedPlate keeps both non-refundable 10% fees. Buyers pay 10% on top. Your payout is 10% less. Neither fee is returned on a refund. If you set a delivery fee, the buyer pays that amount plus 5%. You receive the amount you set. HomeCookedPlate keeps the 5%.
+                  {`HomeCookedPlate keeps both non-refundable 10% fees. Buyers pay 10% on top. Your payout is 10% less. Neither fee is returned on a refund. If you set a delivery fee, the buyer pays that amount plus ${Math.round(DELIVERY_PLATFORM_RATE * 100)}%. You receive the amount you set. HomeCookedPlate keeps the ${Math.round(DELIVERY_PLATFORM_RATE * 100)}%.`}
                 </Text>
                 <Text style={styles.body}>
                   {connect.data?.payoutsEnabled

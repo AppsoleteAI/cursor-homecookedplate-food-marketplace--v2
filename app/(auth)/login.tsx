@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TextInput,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -26,9 +27,10 @@ import {
   isMissingAccountMessage,
   MEMBERSHIP_INELIGIBLE_MESSAGE,
   NO_ACCOUNT_MESSAGE,
+  WRONG_SIGN_IN_MESSAGE,
 } from '@/backend/lib/sign-in-messages';
 import { trpc } from '@/lib/trpc';
-import { isLoginLegalBoxChecked, readLegalAgreement, setLoginLegalBoxChecked, toCompletedLegalAgreement } from '@/lib/legal-agreement';
+import { clearLegalReadyForSignIn, isLoginLegalBoxChecked, LEGAL_SIGN_IN_MESSAGE, readLegalAgreement, setLoginLegalBoxChecked, toCompletedLegalAgreement } from '@/lib/legal-agreement';
 import { AuthColors, preAppFont } from '@/constants/auth-palette';
 import { AuthBackground, AuthBrand, MaroonButtonFill } from '@/components/auth/AuthChrome';
 import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
@@ -72,6 +74,22 @@ export default function LoginScreen() {
   const [legalNotice, setLegalNotice] = useState<string | null>(null);
   const { login, user } = useAuth();
   const saveAgreement = trpc.auth.updateProfile.useMutation();
+  const scrollRef = useRef<ScrollView>(null);
+  const [legalPrompt, setLegalPrompt] = useState(false);
+
+  const reveal = (message: string, legal = false) => {
+    setLegalPrompt(legal);
+    setError(message);
+    setLegalNotice(legal ? 'Check each section on the Legal & Safety page, then enter today\'s date.' : null);
+    Keyboard.dismiss();
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+    if (!legal) return;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.alert(`Legal & Safety\n\n${LEGAL_SIGN_IN_MESSAGE}`);
+      return;
+    }
+    Alert.alert('Legal & Safety', LEGAL_SIGN_IN_MESSAGE);
+  };
 
   useEffect(() => {
     WebBrowser.maybeCompleteAuthSession();
@@ -110,14 +128,14 @@ export default function LoginScreen() {
     console.log('Sign-in triggered', { isRetry, retryCount });
 
     if (!username || !password) {
-      setError('Enter your email and password.');
+      reveal('Enter your email and password.');
       return;
     }
 
     const cleanEmail = username.trim().toLowerCase();
 
     if (!cleanEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-      setError('Check the email address.');
+      reveal('Check the email address, then try again.');
       return;
     }
 
@@ -130,7 +148,7 @@ export default function LoginScreen() {
     }
 
     if (retryCount >= 3 && !isRetry) {
-      setError('Too many attempts. Wait a moment, then try again.');
+      reveal('Too many attempts. Wait a moment, then try again.');
       return;
     }
 
@@ -138,6 +156,7 @@ export default function LoginScreen() {
 
     setLoading(true);
     setError(null);
+    setLegalPrompt(false);
     setNeedsConfirmation(false);
     setConfirmationExpired(false);
     setProviderNotice(null);
@@ -151,7 +170,7 @@ export default function LoginScreen() {
 
     try {
       if (needsCode && signInCode.length !== 6) {
-        setError('Enter the 6-digit code from your email.');
+        reveal('Enter the 6-digit code from your email.');
         setLoading(false);
         clearTimeout(timeoutId);
         return;
@@ -171,6 +190,7 @@ export default function LoginScreen() {
       if (agreement) {
         try {
           await saveAgreement.mutateAsync({ legalSafetyAgreement: agreement });
+          await clearLegalReadyForSignIn();
         } catch (syncError) {
           console.error('[Login] Legal agreement was not stored on the account', syncError);
         }
@@ -205,37 +225,39 @@ export default function LoginScreen() {
         setSignInCode('');
         setNeedsConfirmation(false);
         setConfirmationExpired(false);
-        setError(serverMessage);
+        reveal(serverMessage);
       } else if (legalNeeded) {
         setNeedsConfirmation(false);
         setConfirmationExpired(false);
-        setError(null);
-        setLegalNotice('Check each section on the Legal & Safety page, then enter today\'s date.');
-        Alert.alert('Legal & Safety', 'Check each section on the Legal & Safety page, then enter today\'s date.');
+        reveal(LEGAL_SIGN_IN_MESSAGE, true);
       } else if (isIneligibleAccountMessage(serverMessage)) {
         setNeedsConfirmation(false);
         setConfirmationExpired(false);
-        setError(MEMBERSHIP_INELIGIBLE_MESSAGE);
+        reveal(MEMBERSHIP_INELIGIBLE_MESSAGE);
       } else if (isMissingAccountMessage(serverMessage) || loginCode === 'NOT_FOUND') {
         setNeedsConfirmation(false);
         setConfirmationExpired(false);
-        setError(NO_ACCOUNT_MESSAGE);
+        reveal(`${NO_ACCOUNT_MESSAGE} Tap Create an Account.`);
       } else if (isValidationError) {
         setNeedsConfirmation(false);
         setConfirmationExpired(false);
-        setError('Check the email address.');
+        reveal('Check the email address, then try again.');
       } else if (isNetworkError) {
         setNeedsConfirmation(false);
         setConfirmationExpired(false);
-        setError('Network error. Check your connection and try again.');
+        reveal('Network error. Check your connection and try again.');
       } else if (confirmationNeeded) {
         setNeedsConfirmation(true);
         setConfirmationExpired(confirmationExpiredNow);
+        setLegalPrompt(false);
         setError(null);
+        Keyboard.dismiss();
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
       } else {
         setNeedsConfirmation(false);
         setConfirmationExpired(false);
-        setError(serverMessage || 'That email or password does not match.');
+        const passwordMismatch = /password does not match|invalid login credentials|invalid credentials/i.test(serverMessage);
+        reveal(passwordMismatch || !serverMessage.trim() ? WRONG_SIGN_IN_MESSAGE : serverMessage);
       }
     } finally {
       clearTimeout(timeoutId);
@@ -258,6 +280,7 @@ export default function LoginScreen() {
           style={styles.keyboardView}
         >
           <ScrollView
+            ref={scrollRef}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
@@ -413,9 +436,19 @@ export default function LoginScreen() {
                 </GlassPressable>
 
                 {error ? (
-                  <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>{error}</Text>
-                    {retryCount > 0 && retryCount < 3 && !needsConfirmation ? (
+                  <View style={styles.entryNotice} testID="login-entry-notice">
+                    <Text style={styles.entryNoticeText}>{error}</Text>
+                    {legalPrompt ? (
+                      <GlassPressable
+                        onPress={() => router.push('/legal')}
+                        accessibilityRole="button"
+                        accessibilityLabel="Open Legal and Safety"
+                        testID="login-open-legal"
+                      >
+                        <Text style={styles.entryNoticeAction}>Open Legal & Safety</Text>
+                      </GlassPressable>
+                    ) : null}
+                    {retryCount > 0 && retryCount < 3 && !needsConfirmation && !legalPrompt ? (
                       <GlassPressable
                         onPress={() => handleLogin(true)}
                         style={styles.retryButton}
@@ -715,11 +748,26 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: AuthColors.maroon,
   },
-  errorContainer: {
-    borderRadius: 10,
-    paddingVertical: 8,
+  entryNotice: {
+    backgroundColor: AuthColors.field,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     marginBottom: 12,
     gap: 8,
+  },
+  entryNoticeText: {
+    ...preAppFont,
+    color: AuthColors.ink,
+    fontSize: 15,
+    fontWeight: '600',
+    lineHeight: 21,
+  },
+  entryNoticeAction: {
+    ...preAppFont,
+    color: AuthColors.maroon,
+    fontSize: 15,
+    fontWeight: '700',
   },
   errorText: {
     ...preAppFont,

@@ -2,6 +2,8 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GlassIconButton } from '@/components/glass-surface';
+import { IdleChrome } from '@/components/IdleChrome';
+import { CHROME_CHIP_SIZE, CHROME_ICON_SIZE } from '@/lib/chrome-activity';
 import { Colors } from '@/constants/colors';
 import { AuthColors } from '@/constants/auth-palette';
 import { useLeaveScreen } from '@/hooks/use-leave-screen';
@@ -27,14 +29,17 @@ export function BackCircle({
 }) {
   const honey = tone === 'honey';
   const chip = (
-    <GlassIconButton
-      onPress={onPress}
-      testID={testID}
-      accessibilityLabel="Back"
-      tint={honey ? 'rgba(232, 176, 22, 0.72)' : 'rgba(255,255,255,0.18)'}
-    >
-      <Ionicons name="chevron-back" size={22} color={honey ? AuthColors.ink : Colors.white} />
-    </GlassIconButton>
+    <IdleChrome>
+      <GlassIconButton
+        onPress={onPress}
+        testID={testID}
+        accessibilityLabel="Back"
+        size={CHROME_CHIP_SIZE}
+        tint={honey ? 'rgba(232, 176, 22, 0.72)' : 'rgba(255,255,255,0.18)'}
+      >
+        <Ionicons name="chevron-back" size={CHROME_ICON_SIZE} color={honey ? AuthColors.ink : Colors.white} />
+      </GlassIconButton>
+    </IdleChrome>
   );
   if (!gapBelow) return chip;
   return <View style={styles.gap}>{chip}</View>;

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { calculateFees, getNetPayout } from '@/backend/lib/fees';
+import { DELIVERY_PLATFORM_RATE } from '@/lib/fees';
 
 function formatMoney(n: number) {
   const v = Number.isFinite(n) ? n : 0;
@@ -91,7 +92,7 @@ export default function PlatemakerEarningsScreen() {
             <Text style={styles.rowValue}>{formatMoney(netAfterStripe)}</Text>
           </View>
           <Text style={styles.cardHint}>
-            Note: &quot;Your Net Payout&quot; shows platform fees only. &quot;Estimated net (after Stripe)&quot; includes estimated Stripe processing fees (2.9% + $0.30). Delivery is separate. You set that amount and receive it. The buyer pays it plus 5%.
+            {`Note: "Your Net Payout" shows platform fees only. "Estimated net (after Stripe)" includes estimated Stripe processing fees (2.9% + $0.30). Delivery is separate. You set that amount and receive it. The buyer pays it plus ${Math.round(DELIVERY_PLATFORM_RATE * 100)}%.`}
           </Text>
         </View>
       </ScrollView>

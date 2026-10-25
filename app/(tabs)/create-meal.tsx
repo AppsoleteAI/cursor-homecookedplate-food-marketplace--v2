@@ -19,7 +19,7 @@ import { router , type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/auth-context';
 import { Ionicons } from '@expo/vector-icons';
-import { calculateOrderBreakdown, calculateOrderSplit } from '@/lib/fees';
+import { calculateOrderBreakdown, calculateOrderSplit, DELIVERY_PLATFORM_RATE } from '@/lib/fees';
 import { onPlatePublished, writePlateDraft } from '@/lib/plate-draft';
 import { ScrollJumps } from '@/components/ScrollJumps';
 
@@ -381,7 +381,8 @@ export default function CreateMealScreen() {
     router.push('/publish-plate' as Href);
   }, [form.name, form.price, form.preparationMinutes, form.media, form.availabilityWindows, form.portions, form.postVideoToTimeline]);
 
-  const serviceDisclosure = 'Fee Structure: The customer pays the listed price plus 10%. A Premium PlateTaker pays 5% on an order of $20 or more. You receive the listed price minus 10%. If you set a delivery fee, the customer pays that amount plus 5%, and you receive the amount you set.';
+  const deliveryPercent = Math.round(DELIVERY_PLATFORM_RATE * 100);
+  const serviceDisclosure = `Fee Structure: The customer pays the listed price plus 10%. A Premium PlateTaker pays 5% on an order of $20 or more. You receive the listed price minus 10%. If you set a delivery fee, the customer pays that amount plus ${deliveryPercent}%, and you receive the amount you set.`;
 
   // Show loading state
   if (authLoading) {
@@ -605,7 +606,7 @@ export default function CreateMealScreen() {
                 <Text style={styles.feeBreakdownValue}>${feeBreakdown.platformRevenue.toFixed(2)}</Text>
               </View>
               <Text style={styles.feeBreakdownNote}>
-Includes a 10% buyer fee and a 10% seller fee. A Premium PlateTaker pays 5% on an order of $20 or more. A delivery fee adds 5% for the customer. You receive the delivery amount you set.
+{`Includes a 10% buyer fee and a 10% seller fee. A Premium PlateTaker pays 5% on an order of $20 or more. A delivery fee adds ${Math.round(DELIVERY_PLATFORM_RATE * 100)}% for the customer. You receive the delivery amount you set.`}
               </Text>
             </View>
           )}

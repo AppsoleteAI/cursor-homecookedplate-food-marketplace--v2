@@ -202,7 +202,7 @@ export default function PublishPlateScreen() {
                   Food trucks list in FoodTruckPopup and need a mobile-unit permit
                 </Text>
                 <Text style={[styles.foodSafetyLink, { marginTop: 8 }]} onPress={() => router.push('/sit-down-delicious/license' as Href)}>
-                  Independent restaurants list in SitDownDelicious and need a retail food license
+                  Independent restaurants and ghost kitchens list in SitDownDelicious and need a retail food license
                 </Text>
                 <Text style={[styles.foodSafetyLink, { marginTop: 8 }]} onPress={() => router.push('/kitchen-rules' as Href)}>
                   Kitchen rules for cooked plates and commissary kitchens

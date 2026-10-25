@@ -121,11 +121,11 @@ function roundMoney(amount: number): number {
 }
 
 /** Platform share added on top of the delivery amount the PlateMaker sets. */
-export const DELIVERY_PLATFORM_RATE = 0.05;
+export const DELIVERY_PLATFORM_RATE = 0.10;
 
 /**
  * The PlateMaker sets the delivery amount and receives it.
- * The PlateTaker pays that amount plus 5%. The platform keeps the 5%.
+ * The PlateTaker pays that amount plus 10%. The platform keeps the 10%.
  */
 export function calculateDeliveryLevy(deliveryFee: number) {
   if (!Number.isFinite(deliveryFee) || deliveryFee < 0) {
@@ -141,7 +141,7 @@ export function calculateDeliveryLevy(deliveryFee: number) {
   };
 }
 
-/** Food platform revenue plus the 5% kept on a delivery fee. */
+/** Food platform revenue plus the 10% kept on a delivery fee. */
 export function appRevenueWithDelivery(foodAppRevenue: number, deliveryFee: number) {
   if (!Number.isFinite(foodAppRevenue) || foodAppRevenue < 0) {
     throw new Error(`Invalid foodAppRevenue: ${foodAppRevenue}. Must be a finite, non-negative number.`);

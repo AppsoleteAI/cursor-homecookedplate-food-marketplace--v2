@@ -7,7 +7,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Colors, monoGradients } from '@/constants/colors';
+import { AuthColors, goldButtonColors } from '@/constants/auth-palette';
 import { GlassPressable } from '@/components/glass-surface';
 interface MembershipPromoBannerProps {
   userLocation?: string | null;
@@ -62,15 +62,16 @@ export const MembershipPromoBanner: React.FC<MembershipPromoBannerProps> = ({
         style={styles.touchable}
       >
         <LinearGradient
-          colors={monoGradients.gold}
+          colors={[...goldButtonColors]}
+          locations={[0, 0.42, 1]}
           start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
+          end={{ x: 1, y: 1 }}
           style={styles.gradient}
         >
           <View style={styles.content}>
             <View style={styles.textContainer}>
               <View style={styles.headerRow}>
-                <Ionicons name="star" size={20} color={Colors.white} />
+                <Ionicons name="star" size={20} color={AuthColors.ink} />
                 <Text style={styles.title}>{story.title}</Text>
                 {dismissible && (
                   <GlassPressable
@@ -81,7 +82,7 @@ export const MembershipPromoBanner: React.FC<MembershipPromoBannerProps> = ({
                     style={styles.dismissButton}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
-                    <Ionicons name="close" size={18} color={Colors.white} />
+                    <Ionicons name="close" size={18} color={AuthColors.ink} />
                   </GlassPressable>
                 )}
               </View>
@@ -130,7 +131,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 14,
     fontWeight: '700',
-    color: Colors.white,
+    color: AuthColors.ink,
     flex: 1,
   },
   dismissButton: {
@@ -139,14 +140,16 @@ const styles = StyleSheet.create({
   message: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.white,
+    color: AuthColors.ink,
     marginBottom: 4,
     lineHeight: 20,
   },
   cta: {
     fontSize: 13,
     fontWeight: '500',
-    color: Colors.white,
+    color: AuthColors.ink,
     opacity: 0.9,
+    alignSelf: 'stretch',
+    textAlign: 'right',
   },
 });

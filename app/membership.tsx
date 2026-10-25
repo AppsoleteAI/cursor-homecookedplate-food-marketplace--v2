@@ -14,17 +14,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
 import { readDeviceCoordinates } from '@/lib/device-coordinates';
+import { nearestMetro } from '@/backend/lib/metro-radius';
 import { SUBSCRIPTION_PRICES } from '@/backend/lib/fees';
-import { userNeedsMembership } from '@/backend/lib/trial-access';
 import { Colors, monoGradients } from '@/constants/colors';
-import { maroonButtonColors } from '@/constants/auth-palette';
 import { GradientButton } from '@/components/GradientButton';
 import { MembershipPromoBanner } from '@/components/MembershipPromoBanner';
 import { finishIAP, IAP_REQUIRED, MEMBERSHIP_ANNUAL_PRODUCT_ID, MEMBERSHIP_MONTHLY_PRODUCT_ID, purchaseIAP, restoreIAPPurchases } from '@/lib/iap';
 import { useAuth } from '@/hooks/auth-context';
 import { supabase } from '@/lib/supabase';
 import { trpc } from '@/lib/trpc';
-import { GlassPressable } from '@/components/glass-surface';
+import { MaroonButtonFill } from '@/components/auth/AuthChrome';
+import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { BackCircle } from '@/components/BackCircle';
 import { ScrollJumps } from '@/components/ScrollJumps';
 import { useLeaveScreen, usePaidBack, useStayBack } from '@/hooks/use-leave-screen';
@@ -47,9 +47,8 @@ export default function MembershipScreen() {
   const [locationVerdict, setLocationVerdict] = useState<'unchecked' | 'outside' | 'inside'>('unchecked');
   const remoteOnFile = !!user && (!user.metroArea || user.metroArea === 'Remote/Other');
   const holdForGps = !isPlateTaker && !!user && remoteOnFile && locationVerdict !== 'outside';
-  const gated = userNeedsMembership(user) || holdForGps;
-  const leave = useLeaveScreen('/(tabs)/profile', chargeLock === 'idle' && !gated);
-  useStayBack(chargeLock === 'charging' || (gated && chargeLock !== 'paid'));
+  const leave = useLeaveScreen(isPlateTaker ? '/(tabs)/(home)/home' : '/(tabs)/dashboard', chargeLock === 'idle');
+  useStayBack(chargeLock === 'charging');
   usePaidBack(isPlateTaker ? '/(tabs)/(home)/home' : '/(tabs)/dashboard', chargeLock === 'paid');
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [gpsCoordinates, setGpsCoordinates] = useState<{ lat: number; lng: number } | null>(null);
@@ -71,7 +70,9 @@ export default function MembershipScreen() {
 
   const membershipTier = user?.membershipTier || 'free';
   // Use metroArea from profile (locked at signup via PostGIS)
-  const userMetro = checkedMetro || user?.metroArea || null;
+  const matchedCity = gpsCoordinates ? nearestMetro(gpsCoordinates.lat, gpsCoordinates.lng)?.name ?? null : null;
+  const savedMetro = user?.metroArea && user.metroArea !== 'Remote/Other' ? user.metroArea : null;
+  const userMetro = checkedMetro || savedMetro || matchedCity;
   const remoteMetro = !!user && (!userMetro || userMetro === 'Remote/Other');
   // PlateTakers join free. Early Bird is 90 days for a PlateMaker in an active metro that still has a spot.
   const offerDays = earlyBirdOffer.data?.eligible ? earlyBirdOffer.data.trialDays : 0;
@@ -103,6 +104,7 @@ export default function MembershipScreen() {
 
   const handleGetGps = useCallback(async () => {
     setDetectingLocation(true);
+    let city: string | null = null;
     try {
       const read = await readDeviceCoordinates(true);
       if (read.status !== 'ready') {
@@ -118,63 +120,92 @@ export default function MembershipScreen() {
         return;
       }
       setGpsCoordinates(read.point);
-      const found = await locateMembership.mutateAsync(read.point);
+      city = nearestMetro(read.point.lat, read.point.lng)?.name ?? null;
+      if (city) {
+        setCheckedMetro(city);
+        setLocationVerdict('inside');
+      } else {
+        setCheckedMetro(null);
+        setLocationVerdict('outside');
+      }
+      if (!user) {
+        tell(
+          'Location',
+          city
+            ? isPlateTaker
+              ? `You are in ${city}.`
+              : `You are in ${city}. Sign in to start Early Bird. It is 90 days at no charge.`
+            : isPlateTaker
+              ? 'That point is outside the 50-mile radius of all 50 metros.'
+              : 'That point is outside the 50-mile radius of all 50 metros. The kitchen is open, and a paid plan is optional.',
+        );
+        return;
+      }
+      const found = await locateMembership.mutateAsync({ ...read.point, mode: 'commit' });
       await refetchMe();
       if (!isPlateTaker) await earlyBirdOffer.refetch();
-      if (found.reason === 'eligible' || found.reason === 'in_metro') {
+      const savedName = found.metroArea && found.metroArea !== 'Remote/Other' ? found.metroArea : city;
+      if (savedName && found.reason !== 'paused' && found.reason !== 'outside') {
         setLocationVerdict('inside');
-        setCheckedMetro(found.metroArea);
-        if (isPlateTaker || found.reason !== 'eligible') {
-          tell(
-            'Location',
-            isPlateTaker
-              ? `You are in ${found.metroArea}.`
-              : `You are in ${found.metroArea}. Early Bird is not available for this metro. Choose monthly or yearly before the kitchen opens.`,
-          );
-        } else {
-          tell('Location', `You are in ${found.metroArea}. Early Bird is ${found.trialDays} days at no charge.`);
-        }
+        setCheckedMetro(savedName);
+        tell(
+          'Location',
+          isPlateTaker
+            ? `You are in ${savedName}.`
+            : found.reason === 'eligible'
+              ? `You are in ${savedName}. Early Bird is ${found.trialDays} days at no charge.`
+              : `You are in ${savedName}. Early Bird is not available for this metro. Choose monthly or yearly before the kitchen opens.`,
+        );
         return;
       }
       if (found.reason === 'paused') {
         setLocationVerdict('outside');
+        setCheckedMetro(null);
         tell('Location', isPlateTaker ? 'That metro is paused.' : 'That metro is paused. The kitchen stays open without a charge.');
         return;
       }
-      if (found.reason === 'lookup_failed') {
+      if (!city) {
+        setLocationVerdict('outside');
+        const point = `${found.lat.toFixed(4)}, ${found.lng.toFixed(4)}`;
         tell(
           'Location',
           isPlateTaker
-            ? 'The metro check did not finish. Tap Get GPS again.'
-            : 'The metro check did not finish. Tap Get GPS again. The kitchen stays closed until it does.',
+            ? `Checked ${point}. That point is outside the 50-mile radius of all 50 metros.`
+            : `Checked ${point}. That point is outside the 50-mile radius of all 50 metros. The kitchen is open, and a paid plan is optional.`,
         );
         return;
       }
-      setLocationVerdict('outside');
-      const point = `${found.lat.toFixed(4)}, ${found.lng.toFixed(4)}`;
       tell(
         'Location',
         isPlateTaker
-          ? `Checked ${point}. That point is outside the 50-mile radius of all 50 metros.`
-          : `Checked ${point}. That point is outside the 50-mile radius of all 50 metros. The kitchen is open, and a paid plan is optional.`,
+          ? `You are in ${city}. Tap Get GPS again to save it on this account.`
+          : `You are in ${city}. Tap Get GPS again to save it, then Early Bird can start. It is 90 days at no charge.`,
       );
     } catch (error: unknown) {
       const raw = error instanceof Error ? error.message : '';
-      const signedOut = /no id card|unauthorized|not signed in|please log in/i.test(raw);
+      const signedOut = !user || /no id card|unauthorized|not signed in|please log in/i.test(raw);
       tell(
         'Location',
-        signedOut
-          ? isPlateTaker
-            ? 'Sign in again, then tap Get GPS.'
-            : 'Sign in again, then tap Get GPS. The kitchen stays closed until that check finishes.'
-          : isPlateTaker
-            ? 'The metro check did not finish. Tap Get GPS again.'
-            : 'The metro check did not finish. Tap Get GPS again. The kitchen stays closed until it does.',
+        city
+          ? signedOut
+            ? isPlateTaker
+              ? `You are in ${city}. Sign in, then tap Get GPS again.`
+              : `You are in ${city}. Sign in to start Early Bird. It is 90 days at no charge.`
+            : isPlateTaker
+              ? `You are in ${city}. Tap Get GPS again to save it on this account.`
+              : `You are in ${city}. Tap Get GPS again to save it, then Early Bird can start. It is 90 days at no charge.`
+          : signedOut
+            ? isPlateTaker
+              ? 'Sign in again, then tap Get GPS.'
+              : 'Sign in again, then tap Get GPS. The kitchen stays closed until that check finishes.'
+            : isPlateTaker
+              ? 'The metro check did not finish. Tap Get GPS again.'
+              : 'The metro check did not finish. Tap Get GPS again. The kitchen stays closed until it does.',
       );
     } finally {
       setDetectingLocation(false);
     }
-  }, [earlyBirdOffer, isPlateTaker, locateMembership, refetchMe, tell]);
+  }, [earlyBirdOffer, isPlateTaker, locateMembership, refetchMe, tell, user]);
 
   const isPurchaseCancel = (error: unknown) => (
     typeof error === 'object'
@@ -332,11 +363,13 @@ export default function MembershipScreen() {
     }
   }, [user, confirmStorePurchase, refetchMe, router, storeName]);
 
-  const membershipBadgeColor: readonly [string, string, ...string[]] = membershipTier === 'premium'
-    ? monoGradients.gold
-    : isPlateTaker
-      ? maroonButtonColors
-      : [Colors.gray[400], Colors.gray[500]];
+  const openSignIn = useCallback(() => {
+    if (user) {
+      router.replace(isPlateTaker ? '/(tabs)/(home)/home' : '/(tabs)/dashboard');
+      return;
+    }
+    router.push('/(auth)/login');
+  }, [isPlateTaker, router, user]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -348,28 +381,36 @@ export default function MembershipScreen() {
       />
       <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} style={styles.scrollView}>
         <View style={styles.content}>
-          {chargeLock === 'idle' && !gated ? (
+          {chargeLock === 'idle' ? (
             <BackCircle tone="honey" onPress={leave} testID="membership-back" />
           ) : null}
           {/* Status Header */}
           <View style={styles.statusSection}>
             <Text style={styles.sectionTitle}>Your Membership</Text>
             <View style={styles.statusCard}>
-              <LinearGradient
-                colors={membershipBadgeColor}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.badge}
-              >
-                <Ionicons
-                  name={membershipTier === 'premium' ? 'diamond' : 'person'}
-                  size={24}
-                  color={Colors.white}
-                />
-                <Text style={styles.badgeText}>
-                  {membershipTier === 'premium' ? 'Premium Member' : (isPlateTaker ? 'PlateTaker' : 'PlateMaker')}
-                </Text>
-              </LinearGradient>
+              {membershipTier === 'premium' ? (
+                <LinearGradient
+                  colors={monoGradients.gold}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.badge}
+                >
+                  <Ionicons name="diamond" size={24} color={Colors.white} />
+                  <Text style={styles.badgeText}>Premium Member</Text>
+                </LinearGradient>
+              ) : (
+                <GlassPressable
+                  style={styles.roleButton}
+                  onPress={openSignIn}
+                  accessibilityRole="button"
+                  accessibilityLabel={isPlateTaker ? 'PlateTaker, sign in' : 'PlateMaker, sign in'}
+                  testID={isPlateTaker ? 'membership-platetaker-sign-in' : 'membership-platemaker-sign-in'}
+                >
+                  <MaroonButtonFill />
+                  <Ionicons name="person" size={24} color={Colors.white} />
+                  <Text style={styles.badgeText}>{isPlateTaker ? 'PlateTaker' : 'PlateMaker'}</Text>
+                </GlassPressable>
+              )}
               
               {membershipTier === 'premium' && (
                 <Text style={styles.statusText}>
@@ -380,7 +421,9 @@ export default function MembershipScreen() {
               {membershipTier === 'free' && !isPlateTaker && (
                 <Text style={styles.statusText}>
                   {!user
-                    ? 'Confirm your email and sign in. Then choose Early Bird or a paid plan before the kitchen opens.'
+                    ? userMetro
+                      ? `You are in ${userMetro}. Sign in to start Early Bird. It is 90 days at no charge.`
+                      : 'Confirm your email and sign in. Then choose Early Bird or a paid plan before the kitchen opens.'
                     : earlyBirdOffer.isError
                     ? 'Early Bird could not be checked. Tap Get GPS again once you are signed in.'
                     : earlyBirdOffer.isLoading
@@ -457,10 +500,14 @@ export default function MembershipScreen() {
                 </GlassPressable>
               </View>
               <Text style={styles.locationHint}>
-                {isPlateTaker
+                {userMetro
+                  ? isPlateTaker
+                    ? `You are in ${userMetro}. This metro covers a 50 mile radius around downtown.`
+                    : `You are in ${userMetro}. Early Bird is 90 days at no charge inside this metro.`
+                  : isPlateTaker
                   ? 'Get GPS reads this device and saves the nearest metro inside a 50 mile radius. Tap it again to refresh.'
                   : gpsCoordinates
-                    ? 'This location was checked against an active metro. Early Bird is offered only inside one. Tap Get GPS again to refresh.'
+                    ? 'These coordinates are outside the 50 mile radius of all 50 metros.'
                     : 'Get GPS checks this device against the saved metros. Each metro has a 50 mile radius. The kitchen stays closed until that check finishes.'}
               </Text>
             </View>
@@ -471,7 +518,7 @@ export default function MembershipScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>{isPlateTaker ? 'Premium' : remoteMetro && !holdForGps && offerDays === 0 ? 'Paid plans' : 'Choose one'}</Text>
               <View style={styles.pricingCard}>
-                {!isPlateTaker && (offerDays > 0 || holdForGps || earlyBirdOffer.isLoading || earlyBirdOffer.isError) ? (
+                {!isPlateTaker && (offerDays > 0 || holdForGps || earlyBirdOffer.isLoading || earlyBirdOffer.isError || (!user && !!userMetro)) ? (
                   <>
                     <View style={styles.trialInfo}>
                       <Ionicons name="gift" size={20} color={Colors.gradient.green} />
@@ -483,10 +530,12 @@ export default function MembershipScreen() {
                             : `Early Bird · ${offerDays > 0 ? offerDays : 90} days free`}
                       </Text>
                     </View>
-                    <Text style={styles.trialText}>
+                    <Text style={[styles.trialText, styles.trialNote]}>
                       {offerDays > 0
                         ? 'No card. The start date and the end date are saved on your account.'
-                        : earlyBirdOffer.isError
+                        : !user && userMetro
+                          ? `You are in ${userMetro}. Sign in to start Early Bird. It is 90 days at no charge.`
+                          : earlyBirdOffer.isError
                           ? 'Sign in, then tap Get GPS. Early Bird starts when this kitchen is inside an active metro.'
                           : 'No card. Get GPS first. Early Bird starts when this kitchen is inside an active metro.'}
                     </Text>
@@ -611,6 +660,18 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     marginBottom: 12,
   },
+  roleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 24,
+    marginBottom: 12,
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
+    ...glassSurface,
+  },
   badgeText: {
     fontSize: 18,
     fontWeight: '700',
@@ -710,6 +771,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: Colors.gradient.green,
+  },
+  trialNote: {
+    marginBottom: 24,
   },
   features: {
     gap: 12,

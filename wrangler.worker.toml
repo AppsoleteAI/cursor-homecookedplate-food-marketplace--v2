@@ -1,5 +1,7 @@
 # Worker for the already-deployed plate-marketplace-api.
 # Deploy with: npx wrangler deploy --config wrangler.worker.toml
+# GitHub Actions does not deploy this Worker. Cloudflare Pages publishes the site when main is pushed.
+# EAS publishes the iOS and Android apps.
 # Moving this file does not redeploy the Worker.
 name = "plate-marketplace-api"
 main = "backend/hono.ts"
