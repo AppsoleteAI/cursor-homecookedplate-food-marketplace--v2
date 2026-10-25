@@ -31,81 +31,101 @@ type Bindings = {
 export const app = new Hono<{ Bindings: Bindings }>();
 
 const inMemoryRateLimit = new Map<string, { count: number; resetTime: number }>();
+let kvWriteLimitReached = false;
+
+const BUSY_MESSAGE = "Our kitchen is a bit busy right now. Please try again in a moment!";
 
 function runtimeIsProduction(env: Bindings | undefined): boolean {
   const name = env?.ENVIRONMENT || process.env.ENVIRONMENT || process.env.NODE_ENV;
   return name === "production";
 }
 
-const rateLimit = (maxRequests: number, windowMs: number) => {
+function rememberKvFailure(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error("[Rate Limit] KV unavailable:", message);
+  if (/limit exceeded/i.test(message)) {
+    kvWriteLimitReached = true;
+  }
+}
+
+function memoryAllows(key: string, maxRequests: number, windowMs: number, now: number): boolean {
+  const record = inMemoryRateLimit.get(key);
+  if (record && now < record.resetTime) {
+    if (record.count >= maxRequests) return false;
+    record.count++;
+    inMemoryRateLimit.set(key, record);
+    return true;
+  }
+  inMemoryRateLimit.set(key, { count: 1, resetTime: now + windowMs });
+  setTimeout(() => {
+    inMemoryRateLimit.delete(key);
+  }, windowMs);
+  return true;
+}
+
+async function kvAllows(
+  kv: KVNamespace,
+  key: string,
+  maxRequests: number,
+  windowMs: number,
+  now: number,
+): Promise<boolean> {
+  const recordStr = await kv.get(key);
+  let record: { count: number; resetTime: number } | null = null;
+  if (recordStr) {
+    try {
+      record = JSON.parse(recordStr);
+    } catch (parseError) {
+      console.error("[Rate Limit] Failed to parse record:", parseError instanceof Error ? parseError.message : "unknown");
+    }
+  }
+
+  if (record && now < record.resetTime) {
+    if (record.count >= maxRequests) return false;
+    record.count++;
+    await kv.put(key, JSON.stringify(record), {
+      expirationTtl: Math.max(60, Math.ceil((record.resetTime - now) / 1000)),
+    });
+    return true;
+  }
+
+  await kv.put(key, JSON.stringify({ count: 1, resetTime: now + windowMs }), {
+    expirationTtl: Math.max(60, Math.ceil(windowMs / 1000)),
+  });
+  return true;
+}
+
+function isCredentialPath(path: string): boolean {
+  return /\/auth\.(login|signup|resetPassword|resendVerificationEmail|verifyEmail|reactivateAccount)(?:\?|$)/.test(path);
+}
+
+const rateLimit = (maxRequests: number, windowMs: number, store: "memory" | "kv" = "kv") => {
   return async (c: any, next: any) => {
-    const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown';
+    const ip = c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown";
     const now = Date.now();
-    const key = `ratelimit:${ip}`;
+    const key = `ratelimit:${store}:${maxRequests}:${ip}`;
+    const kv = c.env?.RATE_LIMIT_KV as KVNamespace | undefined;
+    let allowed = true;
 
-    const kv = c.env?.RATE_LIMIT_KV;
-
-    if (!kv && runtimeIsProduction(c.env)) {
+    if (store === "kv" && !kv && runtimeIsProduction(c.env)) {
       console.error("[Rate Limit] Refusing request because RATE_LIMIT_KV is not bound");
       return c.json({ error: "Service temporarily unavailable." }, 503);
     }
-    
-    if (kv) {
-      const recordStr = await kv.get(key);
-      let record: { count: number; resetTime: number } | null = null;
 
-      if (recordStr) {
-        try {
-          record = JSON.parse(recordStr);
-        } catch (e) {
-          console.error('[Rate Limit] Failed to parse record:', e);
-        }
-      }
-
-      if (record && now < record.resetTime) {
-        if (record.count >= maxRequests) {
-          return c.json(
-            { error: 'Too many requests, please try again later.' },
-            429
-          );
-        }
-        record.count++;
-        await kv.put(key, JSON.stringify(record), {
-          expirationTtl: Math.max(60, Math.ceil((record.resetTime - now) / 1000)),
-        });
-      } else {
-        const newRecord = {
-          count: 1,
-          resetTime: now + windowMs,
-        };
-        await kv.put(key, JSON.stringify(newRecord), {
-          expirationTtl: Math.max(60, Math.ceil(windowMs / 1000)),
-        });
+    if (store === "kv" && kv && !kvWriteLimitReached) {
+      try {
+        allowed = await kvAllows(kv, key, maxRequests, windowMs, now);
+      } catch (error) {
+        rememberKvFailure(error);
+        allowed = memoryAllows(key, maxRequests, windowMs, now);
       }
     } else {
-      const record = inMemoryRateLimit.get(key);
-      
-      if (record && now < record.resetTime) {
-        if (record.count >= maxRequests) {
-          return c.json(
-            { error: 'Too many requests, please try again later.' },
-            429
-          );
-        }
-        record.count++;
-        inMemoryRateLimit.set(key, record);
-      } else {
-        inMemoryRateLimit.set(key, {
-          count: 1,
-          resetTime: now + windowMs,
-        });
-      }
-      
-      setTimeout(() => {
-        inMemoryRateLimit.delete(key);
-      }, windowMs);
+      allowed = memoryAllows(key, maxRequests, windowMs, now);
     }
 
+    if (!allowed) {
+      return c.json({ error: "Too many requests, please try again later." }, 429);
+    }
     await next();
   };
 };
@@ -183,9 +203,19 @@ app.use(
   })
 );
 
-app.use("*", rateLimit(100, 60 * 1000));
+app.use("*", rateLimit(100, 60 * 1000, "memory"));
 
-app.use("/api/auth/*", rateLimit(10, 60 * 1000));
+const credentialLimit = rateLimit(10, 60 * 1000, "kv");
+
+app.use("/api/trpc/*", async (c, next) => {
+  if (!isCredentialPath(c.req.path)) {
+    await next();
+    return;
+  }
+  return credentialLimit(c, next);
+});
+
+app.use("/api/auth/*", credentialLimit);
 
 app.post("/webhook/stripe", async (c) => {
   const webhookSecret = c.env?.STRIPE_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET;
@@ -668,6 +698,23 @@ async function releaseHeldPayoutsFromEnv(env: Bindings) {
   });
   await releaseDuePayouts(supabaseAdmin, stripeSecretKey);
 }
+
+app.onError((error, c) => {
+  const message = error instanceof Error ? error.message : "unknown";
+  console.error("[API] Unhandled error:", message);
+  if (c.req.path.startsWith("/api/trpc")) {
+    return c.json({
+      error: {
+        json: {
+          message: BUSY_MESSAGE,
+          code: -32603,
+          data: { code: "INTERNAL_SERVER_ERROR", httpStatus: 500 },
+        },
+      },
+    }, 500);
+  }
+  return c.json({ error: BUSY_MESSAGE }, 500);
+});
 
 export default {
   fetch: (request: Request, env: Bindings, ctx: ExecutionContext) => app.fetch(request, env, ctx),

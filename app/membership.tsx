@@ -82,6 +82,7 @@ export default function MembershipScreen() {
   const matchedCity = gpsCoordinates ? nearestMetro(gpsCoordinates.lat, gpsCoordinates.lng)?.name ?? null : null;
   const savedMetro = user?.metroArea && user.metroArea !== 'Remote/Other' ? user.metroArea : null;
   const userMetro = checkedMetro || savedMetro || matchedCity;
+  const locationConfirmed = locationVerdict === 'inside' || locationVerdict === 'outside';
   const remoteMetro = !!user && (!userMetro || userMetro === 'Remote/Other');
   // PlateTakers join free. Early Bird is 90 days for a PlateMaker in an active metro that still has a spot.
   const offerDays = earlyBirdOffer.data?.eligible ? earlyBirdOffer.data.trialDays : 0;
@@ -426,36 +427,6 @@ export default function MembershipScreen() {
                   Thank you for being a premium member!
                 </Text>
               )}
-              
-              {membershipTier === 'free' && !isPlateTaker && (
-                <Text style={styles.noticeText}>
-                  {!user
-                    ? userMetro
-                      ? `You are in ${userMetro}. Click the maroon PlateMaker button to sign in. Early Bird is 90 days at no charge.`
-                      : 'Confirm your email. Click the maroon PlateMaker button to sign in. Then choose Early Bird or a paid plan before the kitchen opens.'
-                    : earlyBirdOffer.isError
-                    ? 'Early Bird could not be checked. Tap Get GPS again once you are signed in.'
-                    : earlyBirdOffer.isLoading
-                      ? 'Checking Early Bird for this kitchen.'
-                      : offerDays > 0
-                        ? `Early Bird is ${offerDays} days of Premium at no charge. Or choose monthly or yearly.`
-                        : holdForGps
-                          ? 'Get GPS before the kitchen opens. Every saved metro covers a 50-mile radius. Early Bird is offered when this location is inside one.'
-                          : remoteMetro
-                            ? 'This location is outside every saved metro. The kitchen is open without a charge.'
-                            : 'Choose monthly or yearly before the kitchen opens. Early Bird is not available for this metro.'}
-                </Text>
-              )}
-
-              {membershipTier === 'free' && isPlateTaker && (
-                <Text style={styles.noticeText}>
-                  {userMetro
-                    ? `You are in ${userMetro}. ${plateTakerFreeEntry(!!user)}`
-                    : user
-                      ? plateTakerFreeEntry(true)
-                      : `Confirm your email. Click the maroon PlateTaker button to sign in. The app is free. Premium is optional at $${SUBSCRIPTION_PRICES.PLATETAKER_MONTHLY.toFixed(2)} a month or $${SUBSCRIPTION_PRICES.PLATETAKER_ANNUAL.toFixed(2)} a year.`}
-                </Text>
-              )}
             </View>
           </View>
 
@@ -531,19 +502,23 @@ export default function MembershipScreen() {
               <View style={styles.pricingCard}>
                 {isPlateTaker ? (
                   <>
-                    <View style={styles.trialInfo}>
-                      <Ionicons name="gift" size={20} color={Colors.gradient.green} />
-                      <Text style={styles.trialText}>The app is free</Text>
-                    </View>
-                    <Text style={[styles.trialText, styles.trialNote]}>
-                      {user
-                        ? userMetro
-                          ? `You are in ${userMetro}. Use the app to enter. Premium is optional.`
-                          : 'Use the app to enter. Premium is optional.'
-                        : userMetro
-                          ? `You are in ${userMetro}. Click the maroon PlateTaker button to sign in, then use the app. Premium is optional.`
-                          : 'Confirm your email. Click the maroon PlateTaker button to sign in. The app is free. Premium is optional.'}
-                    </Text>
+                    {locationConfirmed ? (
+                      <>
+                        <View style={styles.trialInfo}>
+                          <Ionicons name="gift" size={20} color={Colors.gradient.green} />
+                          <Text style={styles.trialText}>The app is free</Text>
+                        </View>
+                        <Text style={[styles.trialText, styles.trialNote]}>
+                          {user
+                            ? userMetro
+                              ? `You are in ${userMetro}. Use the app to enter. Premium is optional.`
+                              : 'Use the app to enter. Premium is optional.'
+                            : userMetro
+                              ? `You are in ${userMetro}. Click the maroon PlateTaker button to sign in, then use the app. Premium is optional.`
+                              : 'Confirm your email. Click the maroon PlateTaker button to sign in. The app is free. Premium is optional.'}
+                        </Text>
+                      </>
+                    ) : null}
                     {user ? (
                       <GradientButton
                         title="Use the app"
@@ -558,25 +533,29 @@ export default function MembershipScreen() {
                 ) : null}
                 {!isPlateTaker && (offerDays > 0 || holdForGps || earlyBirdOffer.isLoading || earlyBirdOffer.isError || (!user && !!userMetro)) ? (
                   <>
-                    <View style={styles.trialInfo}>
-                      <Ionicons name="gift" size={20} color={Colors.gradient.green} />
-                      <Text style={styles.trialText}>
-                        {earlyBirdOffer.isLoading
-                          ? 'Checking Early Bird'
-                          : earlyBirdOffer.isError
-                            ? 'Early Bird could not be checked'
-                            : `Early Bird · ${offerDays > 0 ? offerDays : 90} days free`}
+                    {locationConfirmed ? (
+                      <View style={styles.trialInfo}>
+                        <Ionicons name="gift" size={20} color={Colors.gradient.green} />
+                        <Text style={styles.trialText}>
+                          {earlyBirdOffer.isLoading
+                            ? 'Checking Early Bird'
+                            : earlyBirdOffer.isError
+                              ? 'Early Bird could not be checked'
+                              : `Early Bird · ${offerDays > 0 ? offerDays : 90} days free`}
+                        </Text>
+                      </View>
+                    ) : null}
+                    {locationConfirmed ? (
+                      <Text style={[styles.trialText, styles.trialNote]}>
+                        {offerDays > 0
+                          ? 'No card. The start date and the end date are saved on your account.'
+                          : !user && userMetro
+                            ? `You are in ${userMetro}. Click the maroon PlateMaker button to sign in. Early Bird is 90 days at no charge.`
+                            : earlyBirdOffer.isError
+                            ? 'Click the maroon PlateMaker button to sign in, then tap Get GPS. Early Bird starts when this kitchen is inside an active metro.'
+                            : 'No card. Get GPS first. Early Bird starts when this kitchen is inside an active metro.'}
                       </Text>
-                    </View>
-                    <Text style={[styles.trialText, styles.trialNote]}>
-                      {offerDays > 0
-                        ? 'No card. The start date and the end date are saved on your account.'
-                        : !user && userMetro
-                          ? `You are in ${userMetro}. Click the maroon PlateMaker button to sign in. Early Bird is 90 days at no charge.`
-                          : earlyBirdOffer.isError
-                          ? 'Click the maroon PlateMaker button to sign in, then tap Get GPS. Early Bird starts when this kitchen is inside an active metro.'
-                          : 'No card. Get GPS first. Early Bird starts when this kitchen is inside an active metro.'}
-                    </Text>
+                    ) : null}
                     {offerDays > 0 ? (
                       <GradientButton
                         title={`Start ${offerDays} days free`}
@@ -713,12 +692,6 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 15,
     color: Colors.gray[700],
-    textAlign: 'center',
-  },
-  noticeText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.gradient.green,
     textAlign: 'center',
   },
   bannerSection: {

@@ -367,6 +367,7 @@ export const seedFoodReviewClips: FoodReviewClip[] = [
     mealName: 'Reviewing influencer food reviews',
     author: 'LoveTrash',
     role: 'platetaker',
+    verifiedInfluencer: true,
     videoUri: 'https://www.reddit.com/r/LoveTrash/comments/1wz4alk/reviewing_influencer_food_reviews/',
     posterUri: '',
     durationSeconds: FOOD_REVIEW_MAX_SECONDS,

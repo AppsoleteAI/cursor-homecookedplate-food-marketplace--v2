@@ -7,6 +7,23 @@ import { supabase } from "./supabase";
 
 export const trpc = createTRPCReact<AppRouter>();
 
+const BUSY_MESSAGE = 'Our kitchen is a bit busy right now. Please try again in a moment!';
+
+function busyTrpcResponse(status: number): Response {
+  return new Response(JSON.stringify({
+    error: {
+      json: {
+        message: BUSY_MESSAGE,
+        code: -32603,
+        data: { code: 'INTERNAL_SERVER_ERROR', httpStatus: status },
+      },
+    },
+  }), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
 // Hardcoded Cloudflare Pages host. Do not read EXPO_PUBLIC_RORK_API_BASE_URL;
 // that variable is system-managed and often points at the legacy api.rivet.dev host.
 // Switch this to https://homecookedplate.com only after that domain serves /api/trpc.
@@ -108,10 +125,13 @@ export const trpcClient = trpc.createClient({
           });
           console.log('[tRPC] Response status:', response.status, response.statusText);
           if (!response.ok) {
-            // Clone the response before reading the body to avoid "Body stream already read" error
             const clonedResponse = response.clone();
             const text = await clonedResponse.text();
             console.error('[tRPC] Request failed:', response.status, response.statusText, 'Body:', text.substring(0, 200));
+            const trimmed = text.trim();
+            if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+              return busyTrpcResponse(response.status);
+            }
           }
           return response;
         } catch (error) {

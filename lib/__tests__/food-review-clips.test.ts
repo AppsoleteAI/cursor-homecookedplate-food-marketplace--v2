@@ -67,6 +67,7 @@ describe('verified influencer seed', () => {
     expect(foodReviewClipMeta(clip)).toBe('platetaker · TikTok');
     expect(seedFoodReviewClips[3].id).toBe('clip-belieber-spotlight');
     expect(seedFoodReviewClips[3].author).toBe('LoveTrash');
+    expect(seedFoodReviewClips[3].verifiedInfluencer).toBe(true);
     expect(seedFoodReviewClips[3].mealName).toBe('Reviewing influencer food reviews');
     expect(seedFoodReviewClips[3].videoUri).toBe(REDDIT_REVIEW);
     expect(foodReviewClipMeta(seedFoodReviewClips[3])).toBe('platetaker · Reddit');

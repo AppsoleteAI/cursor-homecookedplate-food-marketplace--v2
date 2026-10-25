@@ -50,14 +50,16 @@ A PlateTaker is told the app is free. Premium is optional at $7.99 a month or $7
 
 ## Free entry on Membership
 
-Web, iOS, and Android use this same screen. This note is local until a web publish and new store builds.
+Web, iOS, and Android use this same screen. The website publish includes this screen. An installed app keeps the previous membership screen until the next store build.
 
 | | PlateMaker | PlateTaker |
 | --- | --- | --- |
 | Gold card words | Your Cook Path, white on honey gold | Where You Can Eat, white on honey gold |
+| Under the maroon button | No green sentence. The button is PlateMaker. | No green sentence. The button is PlateTaker. |
+| Green words above the prices | Hidden until Get GPS finishes and the location is inside a metro or outside every metro. | Hidden until that same check finishes. Then the green line says the app is free and Premium is optional. |
 | After Get GPS names a city, signed in | Early Bird at no charge, or a paid plan before the kitchen opens. Outside every metro, the kitchen opens without a charge. | The same alert says the app is free and to use the app. Premium stays optional. |
 | After Get GPS names a city, signed out | Click the maroon PlateMaker button to sign in. Early Bird is 90 days at no charge. | Click the maroon PlateTaker button to sign in, then use the app. The app is free. |
-| Free control on the screen | Early Bird, or Open the kitchen when the location is outside every metro | Use the app, above the $7.99 and $75.99 prices, when signed in. Signed out, the notice says to sign in first. |
+| Free control on the screen | Early Bird, or Open the kitchen when the location is outside every metro | Use the app, above the $7.99 and $75.99 prices, when signed in. |
 
 Get GPS still reads the device and saves the metro. The free-entry words are the only addition on the buyer alerts.
 

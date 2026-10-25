@@ -44,6 +44,7 @@ export default function ProfileScreen() {
   const orderingAsBuyer = user?.orderingAsBuyer === true;
   const [cameraOpen, setCameraOpen] = useState(false);
   const [savingPhoto, setSavingPhoto] = useState(false);
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
   const uploadPhoto = trpc.media.uploadProfile.useMutation();
   const utils = trpc.useUtils();
   const updateProfileMutation = trpc.auth.updateProfile.useMutation({
@@ -223,11 +224,12 @@ export default function ProfileScreen() {
     },
   ];
 
-  const photo = savedProfilePhoto(user?.profileImage);
+  const photo = localPreview || savedProfilePhoto(user?.profileImage);
 
   const saveCameraPhoto = async (captured: CapturedPhoto | null) => {
     setCameraOpen(false);
     if (!captured) return;
+    setLocalPreview(`data:${captured.mimeType};base64,${captured.base64}`);
     setSavingPhoto(true);
     try {
       const uploaded = await uploadPhoto.mutateAsync({

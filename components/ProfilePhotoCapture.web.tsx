@@ -42,21 +42,52 @@ export function ProfilePhotoCapture({ onDone }: { onDone: (photo: CapturedPhoto 
     streamRef.current?.getTracks().forEach((track) => track.stop());
   };
 
-  const shoot = () => {
-    const video = videoRef.current;
-    if (!video || !video.videoWidth) return;
-    const side = Math.min(video.videoWidth, video.videoHeight, 1024);
+  const frameOf = (video: HTMLVideoElement): string => {
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+    if (!width || !height) return '';
+    const side = Math.min(width, height, 1024);
     const canvas = document.createElement('canvas');
     canvas.width = side;
     canvas.height = side;
     const context = canvas.getContext('2d');
-    if (!context) return;
-    const sx = Math.max(0, (video.videoWidth - side) / 2);
-    const sy = Math.max(0, (video.videoHeight - side) / 2);
+    if (!context) return '';
+    const sx = Math.max(0, (width - side) / 2);
+    const sy = Math.max(0, (height - side) / 2);
     context.drawImage(video, sx, sy, side, side, 0, 0, side, side);
-    const base64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1] ?? '';
-    stop();
-    onDoneRef.current(base64 ? { base64, mimeType: 'image/jpeg' } : null);
+    return canvas.toDataURL('image/jpeg', 0.85).split(',')[1] ?? '';
+  };
+
+  const shoot = () => {
+    const video = videoRef.current;
+    const take = () => {
+      if (!video) return;
+      const base64 = frameOf(video);
+      if (!base64) {
+        if (typeof window !== 'undefined') {
+          window.alert('The camera did not take a photo. Wait until you can see yourself, then tap Use this photo.');
+        }
+        return;
+      }
+      stop();
+      onDoneRef.current({ base64, mimeType: 'image/jpeg' });
+    };
+    if (!video) {
+      if (typeof window !== 'undefined') {
+        window.alert('The camera is not ready. Wait until you can see yourself, then tap Use this photo.');
+      }
+      return;
+    }
+    if (video.videoWidth > 0) {
+      take();
+      return;
+    }
+    const onReady = () => {
+      video.removeEventListener('loadeddata', onReady);
+      take();
+    };
+    video.addEventListener('loadeddata', onReady);
+    void video.play();
   };
 
   return (
@@ -65,7 +96,10 @@ export function ProfilePhotoCapture({ onDone }: { onDone: (photo: CapturedPhoto 
         {React.createElement('video', {
           ref: (node: HTMLVideoElement | null) => {
             videoRef.current = node;
-            if (node && streamRef.current) node.srcObject = streamRef.current;
+            if (node && streamRef.current && node.srcObject !== streamRef.current) {
+              node.srcObject = streamRef.current;
+              void node.play();
+            }
           },
           autoPlay: true,
           playsInline: true,
