@@ -61,6 +61,7 @@ function HorizontalCarouselBase({ children, contentContainerStyle, onScroll, tes
         horizontal
         bounces={Platform.OS !== 'web'}
         showsHorizontalScrollIndicator={false}
+        style={[styles.scroll, webEdgeFade]}
         contentContainerStyle={[styles.content, contentContainerStyle]}
         onScroll={handleInternalScroll}
         scrollEventThrottle={16}
@@ -74,12 +75,23 @@ function HorizontalCarouselBase({ children, contentContainerStyle, onScroll, tes
 const HorizontalCarousel = memo(HorizontalCarouselBase);
 export default HorizontalCarousel;
 
+const webEdgeFade: ViewStyle | null = Platform.OS === 'web'
+  ? ({
+      maskImage: 'linear-gradient(to right, transparent, #000 18px, #000 calc(100% - 18px), transparent)',
+      WebkitMaskImage: 'linear-gradient(to right, transparent, #000 18px, #000 calc(100% - 18px), transparent)',
+    } as unknown as ViewStyle)
+  : null;
+
 const styles = StyleSheet.create({
   container: {
     width: '100%',
   },
+  scroll: {
+    paddingVertical: 16,
+  },
   content: {
     flexDirection: 'row',
     alignItems: 'stretch',
+    paddingHorizontal: 18,
   },
 });

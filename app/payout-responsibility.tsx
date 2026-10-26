@@ -18,6 +18,7 @@ import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { DELIVERY_PLATFORM_RATE } from '@/lib/fees';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
+import { DashboardSectionBack } from '@/components/BackCircle';
 
 function money(value: number) {
   return `$${Number.isFinite(value) ? value.toFixed(2) : '0.00'}`;
@@ -97,6 +98,7 @@ export default function PayoutResponsibilityScreen() {
             }}
           >
             <View style={styles.header}>
+              <DashboardSectionBack />
               <Text style={styles.title}>Payouts and responsibility</Text>
               <Text style={styles.subtitle}>Stripe pays you after a 7-day hold</Text>
             </View>

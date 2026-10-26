@@ -4,9 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BackCircle } from '@/components/BackCircle';
-import { useLeaveScreen } from '@/hooks/use-leave-screen';
+import { useLeaveScreen, useReplaceBack } from '@/hooks/use-leave-screen';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, inAppHeaderBand, monoGradients } from '@/constants/colors';
+import { CHROME_FROST_TINT } from '@/lib/chrome-activity';
 import { GlassBadge, GlassIconButton, glassSurface } from '@/components/glass-surface';
 import { titleCase } from '@/lib/title-case';
 import { useMealPrep } from '@/hooks/meal-prep-store';
@@ -18,10 +19,14 @@ type MealPrepScreenProps = {
   testID?: string;
   showWeek?: boolean;
   showBack?: boolean;
+  backHref?: Href;
 };
 
-export function MealPrepScreen({ title, subtitle, children, testID, showWeek = true, showBack = true }: MealPrepScreenProps) {
-  const leave = useLeaveScreen('/meal-prep-go', showBack);
+export function MealPrepScreen({ title, subtitle, children, testID, showWeek = true, showBack = true, backHref }: MealPrepScreenProps) {
+  const replace = backHref != null;
+  const popLeave = useLeaveScreen('/meal-prep-go', showBack && !replace);
+  const swapLeave = useReplaceBack(backHref ?? '/meal-prep-go', showBack && replace);
+  const leave = replace ? swapLeave : popLeave;
   const { portionCount } = useMealPrep();
 
   return (
@@ -34,7 +39,7 @@ export function MealPrepScreen({ title, subtitle, children, testID, showWeek = t
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
         {showWeek ? (
-          <GlassIconButton onPress={() => router.push('/meal-prep-go/week' as Href)} accessibilityLabel="Open the week" testID="prep-week-button">
+          <GlassIconButton onPress={() => router.push('/meal-prep-go/week' as Href)} accessibilityLabel="Open the week" testID="prep-week-button" tint={CHROME_FROST_TINT}>
             <Ionicons name="calendar-outline" size={20} color={Colors.white} />
             {portionCount > 0 ? (
               <GlassBadge style={styles.badge}>

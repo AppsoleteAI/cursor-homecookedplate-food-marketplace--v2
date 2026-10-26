@@ -8,7 +8,7 @@ import { Colors } from '@/constants/colors';
 import { producedCost } from '@/backend/lib/fees';
 import { GIFT_AREAS, GIFT_AREA_LABEL, RECIPIENTS, RECIPIENT_LABEL, type GiftArea, type GiftRecipient } from '@/backend/lib/gift-areas';
 import { useAuth } from '@/hooks/auth-context';
-import { useLeaveScreen } from '@/hooks/use-leave-screen';
+import { useReplaceBack } from '@/hooks/use-leave-screen';
 import { trpc } from '@/lib/trpc';
 
 function areaFromParam(value: string | string[] | undefined): GiftArea {
@@ -19,7 +19,7 @@ function areaFromParam(value: string | string[] | undefined): GiftArea {
 export default function CharitableGiftsScreen() {
   const params = useLocalSearchParams<{ area?: string }>();
   const { isAuthenticated, isLoading, user } = useAuth();
-  const leave = useLeaveScreen('/(tabs)/profile');
+  const leave = useReplaceBack('/(tabs)/create-meal');
   const [area, setArea] = useState<GiftArea>(areaFromParam(params.area));
   const [itemName, setItemName] = useState('');
   const [quantityText, setQuantityText] = useState('1');

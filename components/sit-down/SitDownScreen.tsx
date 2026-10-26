@@ -4,9 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BackCircle } from '@/components/BackCircle';
-import { useLeaveScreen } from '@/hooks/use-leave-screen';
+import { useLeaveScreen, useReplaceBack } from '@/hooks/use-leave-screen';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, inAppHeaderBand, monoGradients } from '@/constants/colors';
+import { CHROME_FROST_TINT } from '@/lib/chrome-activity';
 import { GlassBadge, GlassIconButton, glassSurface } from '@/components/glass-surface';
 import { titleCase } from '@/lib/title-case';
 import { useSitDown } from '@/hooks/sit-down-store';
@@ -19,10 +20,14 @@ type SitDownScreenProps = {
   testID?: string;
   showBasket?: boolean;
   showBack?: boolean;
+  backHref?: Href;
 };
 
-export function SitDownScreen({ title, subtitle, children, testID, showBasket = true, showBack = true }: SitDownScreenProps) {
-  const leave = useLeaveScreen('/sit-down-delicious', showBack);
+export function SitDownScreen({ title, subtitle, children, testID, showBasket = true, showBack = true, backHref }: SitDownScreenProps) {
+  const replace = backHref != null;
+  const popLeave = useLeaveScreen('/sit-down-delicious', showBack && !replace);
+  const swapLeave = useReplaceBack(backHref ?? '/sit-down-delicious', showBack && replace);
+  const leave = replace ? swapLeave : popLeave;
   const { itemCount } = useSitDown();
   const { user } = useAuth();
   const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
@@ -37,7 +42,7 @@ export function SitDownScreen({ title, subtitle, children, testID, showBasket = 
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
         {showBasket ? (
-          <GlassIconButton onPress={() => router.push('/sit-down-delicious/basket' as Href)} accessibilityLabel="Open restaurant order" testID="sit-basket-button">
+          <GlassIconButton onPress={() => router.push('/sit-down-delicious/basket' as Href)} accessibilityLabel="Open restaurant order" testID="sit-basket-button" tint={CHROME_FROST_TINT}>
             <Ionicons name="cafe-outline" size={20} color={Colors.white} />
             {itemCount > 0 ? (
               <GlassBadge style={styles.badge}>

@@ -2,7 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
-import { Redirect, router, type Href } from 'expo-router';
+import { Redirect, router } from 'expo-router';
+import { useReturnHere } from '@/hooks/use-leave-screen';
 import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
 import { PricedItemCard } from '@/components/PricedItemCard';
 import { Colors } from '@/constants/colors';
@@ -19,6 +20,7 @@ export default function CaterSellerScreen() {
   const baseAmount = orders.reduce((sum, order) => sum + order.baseAmount, 0);
   const split = calculateOrderSplit(baseAmount);
   const licenseCheck = evaluateCaterLicense(license);
+  const openFromStand = useReturnHere('/cater-event-deliver/seller');
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
@@ -52,22 +54,22 @@ export default function CaterSellerScreen() {
         )}
         {!licenseCheck.ok ? <Text style={styles.block}>{licenseCheck.blocks[0]}</Text> : <Text style={styles.ok}>License record is complete enough to list.</Text>}
       </View>
-      <GlassPressable style={styles.button} onPress={() => router.push('/cater-event-deliver/license' as Href)} testID="seller-license">
+      <GlassPressable style={styles.button} onPress={() => router.push(openFromStand('/cater-event-deliver/license'))} testID="seller-license">
         <Text style={styles.buttonText}>License, Kitchen, and Fee</Text>
       </GlassPressable>
-      <GlassPressable style={styles.secondary} onPress={() => router.push('/cater-event-deliver/list' as Href)} testID="seller-list">
+      <GlassPressable style={styles.secondary} onPress={() => router.push(openFromStand('/cater-event-deliver/list'))} testID="seller-list">
         <Text style={styles.secondaryText}>Add a Per-person Package</Text>
       </GlassPressable>
-      <GlassPressable style={styles.secondary} onPress={() => router.push('/area-offers?area=catering' as Href)}>
+      <GlassPressable style={styles.secondary} onPress={() => router.push(openFromStand('/area-offers', { area: 'catering' }))}>
         <Text style={styles.secondaryText}>Offers, 1% to 50% or up to $100</Text>
       </GlassPressable>
-      <GlassPressable style={styles.secondary} onPress={() => router.push('/charitable-gifts?area=catering' as Href)}>
+      <GlassPressable style={styles.secondary} onPress={() => router.push(openFromStand('/charitable-gifts', { area: 'catering' }))}>
         <Text style={styles.secondaryText}>Charitable gifts</Text>
       </GlassPressable>
-      <GlassPressable style={styles.secondary} onPress={() => router.push('/cater-event-deliver/orders' as Href)}>
+      <GlassPressable style={styles.secondary} onPress={() => router.push(openFromStand('/cater-event-deliver/orders'))}>
         <Text style={styles.secondaryText}>Orders and Organization Spend</Text>
       </GlassPressable>
-      <GlassPressable style={styles.secondary} onPress={() => router.push('/kitchen-rules' as Href)}>
+      <GlassPressable style={styles.secondary} onPress={() => router.push(openFromStand('/kitchen-rules'))}>
         <Text style={styles.secondaryText}>Kitchen Rules</Text>
       </GlassPressable>
       {user?.role === 'platemaker' ? (
@@ -85,7 +87,7 @@ export default function CaterSellerScreen() {
           meta={`Minimum ${item.minimumHeadcount} · ${accepting ? 'On the board' : 'Hidden while you are closed'}`}
           price={`$${item.pricePerPerson.toFixed(2)} per person`}
           priceColor="#6D28D9"
-          onPress={() => router.push(`/cater-event-deliver/package/${item.id}` as Href)}
+          onPress={() => router.push(openFromStand('/cater-event-deliver/package/[id]', { id: item.id }))}
         />
       ))}
     </CaterEventScreen>

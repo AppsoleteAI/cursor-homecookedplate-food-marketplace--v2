@@ -4,9 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BackCircle } from '@/components/BackCircle';
-import { useLeaveScreen } from '@/hooks/use-leave-screen';
+import { useLeaveScreen, useReplaceBack } from '@/hooks/use-leave-screen';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, inAppHeaderBand, monoGradients } from '@/constants/colors';
+import { CHROME_FROST_TINT } from '@/lib/chrome-activity';
 import { GlassBadge, GlassIconButton, glassSurface } from '@/components/glass-surface';
 import { titleCase } from '@/lib/title-case';
 import { useCaterEvent } from '@/hooks/cater-event-store';
@@ -19,10 +20,14 @@ type CaterEventScreenProps = {
   testID?: string;
   showOrder?: boolean;
   showBack?: boolean;
+  backHref?: Href;
 };
 
-export function CaterEventScreen({ title, subtitle, children, testID, showOrder = true, showBack = true }: CaterEventScreenProps) {
-  const leave = useLeaveScreen('/cater-event-deliver', showBack);
+export function CaterEventScreen({ title, subtitle, children, testID, showOrder = true, showBack = true, backHref }: CaterEventScreenProps) {
+  const replace = backHref != null;
+  const popLeave = useLeaveScreen('/cater-event-deliver', showBack && !replace);
+  const swapLeave = useReplaceBack(backHref ?? '/cater-event-deliver', showBack && replace);
+  const leave = replace ? swapLeave : popLeave;
   const { packageCount } = useCaterEvent();
   const { user } = useAuth();
   const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
@@ -37,7 +42,7 @@ export function CaterEventScreen({ title, subtitle, children, testID, showOrder 
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
         {showOrder ? (
-          <GlassIconButton onPress={() => router.push('/cater-event-deliver/basket' as Href)} accessibilityLabel="Open catering order" testID="cater-order-button">
+          <GlassIconButton onPress={() => router.push('/cater-event-deliver/basket' as Href)} accessibilityLabel="Open catering order" testID="cater-order-button" tint={CHROME_FROST_TINT}>
             <Ionicons name="people-outline" size={20} color={Colors.white} />
             {packageCount > 0 ? (
               <GlassBadge style={styles.badge}>

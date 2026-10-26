@@ -5,12 +5,13 @@ import { router , type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, inAppHeaderBand, monoGradients, pagePastel } from '@/constants/colors';
+import { CHROME_FROST_TINT } from '@/lib/chrome-activity';
 import { GlassBadge, GlassIconButton, glassSurface } from '@/components/glass-surface';
 import { titleCase } from '@/lib/title-case';
 import { useFarmBasket } from '@/hooks/farm-basket-store';
 import { useAuth } from '@/hooks/auth-context';
 import { BackCircle } from '@/components/BackCircle';
-import { useLeaveScreen } from '@/hooks/use-leave-screen';
+import { useLeaveScreen, useReplaceBack } from '@/hooks/use-leave-screen';
 
 type FarmScreenProps = {
   title: string;
@@ -20,10 +21,14 @@ type FarmScreenProps = {
   testID?: string;
   showBasket?: boolean;
   showBack?: boolean;
+  backHref?: Href;
 };
 
-export function FarmScreen({ title, subtitle, children, footer, testID, showBasket = true, showBack = true }: FarmScreenProps) {
-  const leave = useLeaveScreen('/farm-grown-basket', showBack);
+export function FarmScreen({ title, subtitle, children, footer, testID, showBasket = true, showBack = true, backHref }: FarmScreenProps) {
+  const replace = backHref != null;
+  const popLeave = useLeaveScreen('/farm-grown-basket', showBack && !replace);
+  const swapLeave = useReplaceBack(backHref ?? '/farm-grown-basket', showBack && replace);
+  const leave = replace ? swapLeave : popLeave;
   const { itemCount } = useFarmBasket();
   const { user } = useAuth();
   const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
@@ -38,7 +43,7 @@ export function FarmScreen({ title, subtitle, children, footer, testID, showBask
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
         {showBasket ? (
-          <GlassIconButton onPress={() => router.push('/farm-grown-basket/basket' as Href)} accessibilityLabel="Open farm basket" testID="farm-basket-button">
+          <GlassIconButton onPress={() => router.push('/farm-grown-basket/basket' as Href)} accessibilityLabel="Open farm basket" testID="farm-basket-button" tint={CHROME_FROST_TINT}>
             <Ionicons name="basket-outline" size={20} color={Colors.white} />
             {itemCount > 0 ? (
               <GlassBadge style={styles.badge}>

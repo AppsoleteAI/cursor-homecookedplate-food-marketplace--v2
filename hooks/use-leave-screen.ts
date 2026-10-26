@@ -9,6 +9,20 @@ type Nav = {
   getParent?: () => Nav | undefined;
 };
 
+export function hrefFromHere(pathname: string, here: string, params?: Record<string, string>): Href {
+  return { pathname, params: { ...params, returnTo: here } } as Href;
+}
+
+/** Open the next screen and come back here, keeping a dashboard return when this screen has one. */
+export function useReturnHere(here: string) {
+  const params = useLocalSearchParams<{ returnTo?: string | string[] }>();
+  const raw = Array.isArray(params.returnTo) ? params.returnTo[0] : params.returnTo;
+  const back = raw && raw.startsWith('/') && !raw.startsWith('//')
+    ? `${here}?returnTo=${encodeURIComponent(raw)}`
+    : here;
+  return (pathname: string, extra?: Record<string, string>) => hrefFromHere(pathname, back, extra);
+}
+
 function safePath(value: string | string[] | undefined): string | null {
   const raw = Array.isArray(value) ? value[0] : value;
   if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return null;
@@ -242,11 +256,14 @@ export function useLeaveScreen(fallback?: Href | null, enabled = true) {
 
 /** Replace with one screen. Does not pop the stack. */
 export function useReplaceBack(href: Href, enabled = true) {
+  const params = useLocalSearchParams<{ returnTo?: string | string[] }>();
+  const returnTo = safePath(params.returnTo);
+  const destination = (returnTo ?? href) as Href;
   const go = useCallback(() => {
     if (!enabled) return false;
-    router.replace(href);
+    router.replace(destination);
     return true;
-  }, [enabled, href]);
+  }, [enabled, destination]);
   useHardware(go, enabled);
   useEffect(() => {
     if (Platform.OS !== 'web' || !enabled) return;
@@ -254,7 +271,7 @@ export function useReplaceBack(href: Href, enabled = true) {
   }, [enabled]);
   useWebHandler(() => {
     if (!enabled) return 'ignore';
-    router.replace(href);
+    router.replace(destination);
     return 'handled';
   }, enabled);
   return go;

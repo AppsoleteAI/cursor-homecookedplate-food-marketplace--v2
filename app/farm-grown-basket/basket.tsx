@@ -33,7 +33,13 @@ export default function FarmBasketScreen() {
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 
   return (
-    <FarmScreen title="Farm basket" subtitle="These goods never mix with cooked plates." showBasket={false} testID="farm-basket">
+    <FarmScreen
+      title="Farm basket"
+      subtitle="These goods never mix with cooked plates."
+      showBasket={false}
+      testID="farm-basket"
+      backHref={user?.role === 'platemaker' || user?.isAdmin === true ? '/farm-grown-basket/seller' : '/farm-grown-basket'}
+    >
       <FoodHandlingNotice inset testID="farm-basket-food-handling" />
       {lines.length === 0 ? (
         <View>

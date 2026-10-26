@@ -1,6 +1,8 @@
 /** Floating back arrows and jump chevrons. 25% under the old 44px chip. */
 export const CHROME_CHIP_SIZE = 33;
 export const CHROME_ICON_SIZE = 17;
+/** Original header glass was white at 0.18. This is that same frost, darkened so the circle reads on a bright header. */
+export const CHROME_FROST_TINT = 'rgba(90, 48, 18, 0.34)';
 export const CHROME_IDLE_MS = 5000;
 
 type Listener = (visible: boolean) => void;

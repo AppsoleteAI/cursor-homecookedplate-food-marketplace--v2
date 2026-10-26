@@ -20,8 +20,9 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect, type Href } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
+import { CHROME_FROST_TINT } from '@/lib/chrome-activity';
 import { MealCard } from '@/components/MealCard';
 import { cuisineTypes, dietaryOptions } from '@/mocks/data';
 import { useAuth } from '@/hooks/auth-context';
@@ -33,10 +34,16 @@ import type { Meal } from '@/types';
 import { SkeletonMealList } from '@/components/SkeletonMealList';
 import { ScrollJumps } from '@/components/ScrollJumps';
 import { FoodImage } from '@/components/FoodImage';
+import { BackCircle } from '@/components/BackCircle';
+import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { BAKED_COTTAGE_LINK, BAKED_COTTAGE_NOTE, isCottageSearch } from '@/lib/baked-cottage';
 import { isVegetableLeatherSearch, VEGETABLE_LEATHER_ALSO, VEGETABLE_LEATHER_PARAGRAPHS, VEGETABLE_LEATHER_TITLE } from '@/lib/cottage-directory';
 export default function HomeScreen() {
   const { user } = useAuth();
+  const openedFrom = useLocalSearchParams<{ returnTo?: string | string[] }>();
+  const returnTo = Array.isArray(openedFrom.returnTo) ? openedFrom.returnTo[0] : openedFrom.returnTo;
+  const fromProfile = typeof returnTo === 'string' && returnTo.startsWith('/') && !returnTo.startsWith('//');
+  const leaveProfile = useLeaveScreen('/(tabs)/profile', fromProfile);
   const insets = useSafeAreaInsets();
   const { bellCount, markBellSeen, refresh } = useOrders();
   useFocusEffect(useCallback(() => {
@@ -178,6 +185,7 @@ export default function HomeScreen() {
           end={{ x: 1, y: 1 }}
           style={[styles.headerCard, { paddingTop: insets.top }]}
         >
+          {fromProfile ? <BackCircle tone="frost" onPress={leaveProfile} testID="home-back-to-profile" /> : null}
           <View style={styles.headerTop}>
             <View>
               <Text style={styles.greeting}>Hello, {screenName(user?.username)}!</Text>
@@ -517,7 +525,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: CHROME_FROST_TINT,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',

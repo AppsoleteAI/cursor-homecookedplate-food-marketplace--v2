@@ -2,7 +2,7 @@
 
 Web, iOS, and Android use the same FoodReviewClips screen. The website publish includes this screen. An app already installed on a phone keeps the previous clips screen until the next store build.
 
-The post card stays under the green header. The clips scroll underneath it. Up and down chevrons in the lower right jump to the top and the bottom of that list. Those chevrons, and the jump chevrons on the other screens, use the maroon gradient `#7A3146`, `#3A0D18`, `#21060C`, at 33 pixels with a 17-pixel gold arrow. Back arrows stay honey or light.
+The post card stays under the green header. It has no “Post a 20 second clip” title. The bottom edge of that card is the drag line. Hovering there makes the grey line thicker. A click drag moves the card to any height, from fully open down to tucked under the header. Dragging that edge down and dragging it up both leave the post feed where it was. A short click still collapses the card when it is open and expands it when it is tucked. Releasing the click hides that thicker line. A PlateMaker and a PlateTaker use the same drag, so the 9:16 clip can fill the scroll. The clips scroll underneath it. Up and down chevrons in the lower right jump to the top and the bottom of that list. Those chevrons, and the jump chevrons on the other screens, use the maroon gradient `#7A3146`, `#3A0D18`, `#21060C`, at 33 pixels with a 17-pixel gold arrow. Back arrows stay honey or light.
 
 The timeline shows two newest clips, then the popular clip with the highest smile, heart, and star total that is not already on screen, then repeats. The top clip is the newest. The bottom clip is not simply the oldest. A PlateMaker and a PlateTaker see that same order. Search and Bookmarks narrow the list before that order is applied. Hide removes a clip on this device.
 
@@ -16,7 +16,7 @@ After 5 seconds without a scroll, a touch move, or device motion, the three-dot 
 
 Signed out, the footer is not on screen. The app sends that person to sign-in.
 
-Signed in, every footer tab has the same up and down chips in the lower right. Up jumps to the top of that screen. Down jumps to the bottom. They use the same 5-second fade.
+Signed in, every footer tab has the same up and down chips in the lower right. Up jumps to the top of that screen. Down jumps to the bottom. They use the same 5-second fade. Publish this plate uses those same maroon chips in the lower right. A PlateMaker opens that screen from Create Meal. A PlateTaker does not open it.
 
 | Footer | PlateMaker | PlateTaker |
 | --- | --- | --- |
@@ -29,13 +29,13 @@ Signed in, every footer tab has the same up and down chips in the lower right. U
 
 ## PlateMaker
 
-Signed in or signed out, the post card is pinned and titled “Post a 20 second clip.” A free cook can type a meal name and a link. Record, Choose Clip, and Post Link do not upload and do not open Membership. The line “Posting is for premium members” appears under those buttons. Premium, lifetime, or a paid subscription is what lets a cook post.
+Signed in or signed out, the post card starts open under the header and can be dragged up until only its edge remains. A free cook can type a meal name and a link. Record, Choose Clip, and Post Link do not upload and do not open Membership. The line “Posting is for premium members” appears under those buttons. Premium, lifetime, or a paid subscription is what lets a cook post.
 
 A cook who can post records a clip, chooses a video file, or pastes a link. The link box lists YouTube, Facebook, TikTok, and Reddit. A direct video file also plays in the clip frame. Bookmarks sits under that card. The bookmark on a clip saves it on this device. Bookmarks opens that list. All clips returns to the timeline.
 
 ## PlateTaker
 
-Signed in or signed out, the same post card is pinned, with Search clips above it. A free buyer can type in the card. Record, Choose Clip, and Post Link do not upload and do not open Membership. The same line, “Posting is for premium members,” appears under those buttons. Premium is what lets a buyer post. Watching a clip does not require Premium.
+Signed in or signed out, the same post card starts open, with Search clips above the meal name. Dragging the card tucks Search with it. A free buyer can type in the card. Record, Choose Clip, and Post Link do not upload and do not open Membership. The same line, “Posting is for premium members,” appears under those buttons. Premium is what lets a buyer post. Watching a clip does not require Premium.
 
 Bookmarks sits under that card for a buyer too. The saved list stays on this device. The chevrons and the in-frame player are the same as the cook timeline.
 

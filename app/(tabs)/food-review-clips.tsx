@@ -1,16 +1,19 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Alert,
   Linking,
+  PanResponder,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  View,
+  ViewProps,
+  ViewStyle,
   TextInput,
   useWindowDimensions,
-  View,
 } from 'react-native';
-import { Stack, useSegments } from 'expo-router';
+import { Stack, useLocalSearchParams, useSegments } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -59,10 +62,123 @@ import { CHROME_CHIP_SIZE, CHROME_ICON_SIZE } from '@/lib/chrome-activity';
 import { readLocalMedia } from '@/lib/read-local-media';
 import { trpc } from '@/lib/trpc';
 
+const webHandle: ViewStyle | null = Platform.OS === 'web'
+  ? ({ cursor: 'ns-resize', touchAction: 'none' } as unknown as ViewStyle)
+  : null;
+
+function ClipComposerSheet({
+  children,
+  width,
+  keepFeed,
+  releaseFeed,
+}: {
+  children: React.ReactNode;
+  width: number;
+  keepFeed: () => void;
+  releaseFeed: () => void;
+}) {
+  const fullRef = useRef(0);
+  const sheetRef = useRef<number | null>(null);
+  const dragStart = useRef(0);
+  const [fullHeight, setFullHeight] = useState(0);
+  const [sheetHeight, setSheetHeight] = useState<number | null>(null);
+  const [hot, setHot] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const webHover = Platform.OS === 'web'
+    ? ({
+        onMouseEnter: () => setHot(true),
+        onMouseLeave: () => setHot(false),
+      } as unknown as ViewProps)
+    : null;
+  const keepRef = useRef(keepFeed);
+  const releaseRef = useRef(releaseFeed);
+  keepRef.current = keepFeed;
+  releaseRef.current = releaseFeed;
+
+  useLayoutEffect(() => {
+    if (sheetHeight === null) return;
+    keepRef.current();
+    const frame = requestAnimationFrame(() => keepRef.current());
+    return () => cancelAnimationFrame(frame);
+  }, [sheetHeight]);
+
+  const remember = (next: number | null) => {
+    sheetRef.current = next;
+    setSheetHeight(next);
+  };
+
+  const pan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => {
+        dragStart.current = sheetRef.current ?? fullRef.current;
+        setDragging(true);
+        keepRef.current();
+      },
+      onPanResponderMove: (_event, gesture) => {
+        const next = dragStart.current + gesture.dy;
+        remember(Math.min(fullRef.current, Math.max(0, next)));
+        keepRef.current();
+      },
+      onPanResponderRelease: (_event, gesture) => {
+        setDragging(false);
+        setHot(false);
+        if (Math.abs(gesture.dy) < 8 && Math.abs(gesture.dx) < 8) {
+          const current = sheetRef.current ?? fullRef.current;
+          remember(current > fullRef.current / 2 ? 0 : fullRef.current);
+        }
+        releaseRef.current();
+      },
+      onPanResponderTerminate: () => {
+        setDragging(false);
+        setHot(false);
+        releaseRef.current();
+      },
+    }),
+  ).current;
+
+  const shown = sheetHeight === null ? (fullHeight > 0 ? fullHeight : undefined) : sheetHeight;
+
+  return (
+    <View style={[styles.sheet, { width }]}>
+      <View style={[styles.sheetClip, shown === undefined ? null : { height: shown }]}>
+        <View
+          onLayout={(event) => {
+            const next = Math.round(event.nativeEvent.layout.height);
+            const open = sheetRef.current === null || sheetRef.current >= fullRef.current - 1;
+            if (!open || next <= 0 || next === fullRef.current) return;
+            fullRef.current = next;
+            setFullHeight(next);
+          }}
+        >
+          {children}
+        </View>
+      </View>
+      <View
+        style={[styles.handleHit, webHandle]}
+        testID="clip-sheet-handle"
+        accessibilityRole="adjustable"
+        accessibilityLabel="Drag the clip form"
+        {...pan.panHandlers}
+        {...webHover}
+      >
+        <View style={[styles.handleLine, (hot || dragging) && styles.handleLineHot]} />
+      </View>
+    </View>
+  );
+}
+
 export default function FoodReviewClips() {
   const insets = useSafeAreaInsets();
   const isTab = useSegments()[0] === '(tabs)';
-  const leave = useLeaveScreen('/(tabs)/profile', !isTab);
+  const openedFrom = useLocalSearchParams<{ returnTo?: string | string[] }>();
+  const returnTo = Array.isArray(openedFrom.returnTo) ? openedFrom.returnTo[0] : openedFrom.returnTo;
+  const fromProfile = typeof returnTo === 'string' && returnTo.startsWith('/') && !returnTo.startsWith('//');
+  const leave = useLeaveScreen('/(tabs)/profile', fromProfile || !isTab);
   const { width, height } = useWindowDimensions();
   const { user } = useAuth();
   const username = user?.username || 'Guest';
@@ -80,6 +196,25 @@ export default function FoodReviewClips() {
   const publishClip = trpc.clips.publish.useMutation();
   const publishClipLink = trpc.clips.publishLink.useMutation();
   const scrollRef = useRef<ScrollView>(null);
+  const feedY = useRef(0);
+  const lockedY = useRef<number | null>(null);
+  const readFeed = useCallback(() => {
+    const node = (scrollRef.current as { getScrollableNode?: () => { scrollTop?: number } } | null)?.getScrollableNode?.();
+    return typeof node?.scrollTop === 'number' ? node.scrollTop : feedY.current;
+  }, []);
+  const keepFeed = useCallback(() => {
+    if (lockedY.current == null) lockedY.current = readFeed();
+    scrollRef.current?.scrollTo({ y: lockedY.current, animated: false });
+  }, [readFeed]);
+  const releaseFeed = useCallback(() => {
+    const y = lockedY.current;
+    if (y == null) return;
+    scrollRef.current?.scrollTo({ y, animated: false });
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y, animated: false });
+      lockedY.current = null;
+    });
+  }, []);
   const [clips, setClips] = useState<FoodReviewClip[]>(seedFoodReviewClips);
   const [loaded, setLoaded] = useState(false);
   const [mealName, setMealName] = useState('');
@@ -348,7 +483,7 @@ export default function FoodReviewClips() {
         end={{ x: 1, y: 0 }}
         style={[styles.header, { paddingTop: insets.top + 16 }]}
       >
-        {isTab ? null : <BackCircle tone="light" onPress={leave} testID="food-review-back" />}
+        {isTab && !fromProfile ? null : <BackCircle tone="light" onPress={leave} testID="food-review-back" />}
         <View style={styles.headerCopy}>
           <Text style={styles.title}>FoodReviewClips</Text>
           <Text style={styles.subtitle}>9:16 POV · {FOOD_REVIEW_MAX_SECONDS} second clips · premium</Text>
@@ -356,6 +491,7 @@ export default function FoodReviewClips() {
       </LinearGradient>
 
       <View style={styles.pinned}>
+        <ClipComposerSheet width={layout.columnWidth} keepFeed={keepFeed} releaseFeed={releaseFeed}>
         <View style={[styles.column, { width: layout.columnWidth }]}>
           {isPlatemaker ? null : (
             <TextInput
@@ -370,7 +506,6 @@ export default function FoodReviewClips() {
             />
           )}
           <View style={styles.composer}>
-            <Text style={styles.composerTitle}>Post a 20 second clip</Text>
             <TextInput
               value={mealName}
               onChangeText={setMealName}
@@ -424,12 +559,19 @@ export default function FoodReviewClips() {
             </GlassPressable>
           </View>
         </View>
+        </ClipComposerSheet>
       </View>
 
       <ScrollView
         ref={scrollRef}
+        style={styles.feed}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={(event) => {
+          if (lockedY.current != null) return;
+          feedY.current = event.nativeEvent.contentOffset.y;
+        }}
       >
         <View style={[styles.column, { width: layout.columnWidth }]}>
           {visibleClips.length === 0 ? (
@@ -627,9 +769,32 @@ const styles = StyleSheet.create({
   pinned: {
     alignItems: 'center',
     backgroundColor: Colors.white,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.gray[200],
-    paddingBottom: 8,
+  },
+  feed: {
+    flex: 1,
+    ...(Platform.OS === 'web' ? { overflowAnchor: 'none' as const } : null),
+  },
+  sheet: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  sheetClip: {
+    width: '100%',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  handleHit: {
+    width: '100%',
+    height: 18,
+    justifyContent: 'flex-end',
+  },
+  handleLine: {
+    width: '100%',
+    height: 0,
+    backgroundColor: Colors.gray[400],
+  },
+  handleLineHot: {
+    height: 4,
   },
   column: {
     alignSelf: 'center',
@@ -802,12 +967,6 @@ const styles = StyleSheet.create({
     height: CHROME_CHIP_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  composerTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.gray[900],
-    marginBottom: 8,
   },
   postNotice: {
     marginTop: 12,

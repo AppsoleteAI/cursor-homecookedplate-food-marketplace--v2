@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
-import { Redirect, router, type Href } from 'expo-router';
+import { Redirect, router } from 'expo-router';
+import { useReturnHere } from '@/hooks/use-leave-screen';
 import { SitDownScreen } from '@/components/sit-down/SitDownScreen';
 import { PricedItemCard } from '@/components/PricedItemCard';
 import { Colors } from '@/constants/colors';
@@ -20,6 +21,7 @@ export default function SitSellerScreen() {
   const split = calculateOrderSplit(baseAmount);
   const licenseCheck = evaluateSitDownLicense(license);
   const [ghostOpen, setGhostOpen] = useState(false);
+  const openFromStand = useReturnHere('/sit-down-delicious/seller');
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
@@ -69,19 +71,19 @@ export default function SitSellerScreen() {
         )}
         {!licenseCheck.ok ? <Text style={styles.block}>{licenseCheck.blocks[0]}</Text> : <Text style={styles.ok}>License record is complete enough to list.</Text>}
       </View>
-      <GlassPressable style={styles.button} onPress={() => router.push('/sit-down-delicious/license' as Href)} testID="seller-license">
+      <GlassPressable style={styles.button} onPress={() => router.push(openFromStand('/sit-down-delicious/license'))} testID="seller-license">
         <Text style={styles.buttonText}>License, Address, and Fee</Text>
       </GlassPressable>
-      <GlassPressable style={styles.secondary} onPress={() => router.push('/sit-down-delicious/list' as Href)} testID="seller-list">
+      <GlassPressable style={styles.secondary} onPress={() => router.push(openFromStand('/sit-down-delicious/list'))} testID="seller-list">
         <Text style={styles.secondaryText}>Add a Menu Item</Text>
       </GlassPressable>
-      <GlassPressable style={styles.secondary} onPress={() => router.push('/area-offers?area=sit_down' as Href)}>
+      <GlassPressable style={styles.secondary} onPress={() => router.push(openFromStand('/area-offers', { area: 'sit_down' }))}>
         <Text style={styles.secondaryText}>Offers, 1% to 50% or up to $100</Text>
       </GlassPressable>
-      <GlassPressable style={styles.secondary} onPress={() => router.push('/charitable-gifts?area=sit_down' as Href)}>
+      <GlassPressable style={styles.secondary} onPress={() => router.push(openFromStand('/charitable-gifts', { area: 'sit_down' }))}>
         <Text style={styles.secondaryText}>Charitable gifts</Text>
       </GlassPressable>
-      <GlassPressable style={styles.secondary} onPress={() => router.push('/kitchen-rules' as Href)}>
+      <GlassPressable style={styles.secondary} onPress={() => router.push(openFromStand('/kitchen-rules'))}>
         <Text style={styles.secondaryText}>Kitchen Rules</Text>
       </GlassPressable>
       {user?.role === 'platemaker' ? (
@@ -99,7 +101,7 @@ export default function SitSellerScreen() {
           meta={ownerOpen ? 'On the list' : 'Hidden while the shop is closed'}
           price={`$${item.price.toFixed(2)}`}
           priceColor="#92400E"
-          onPress={() => router.push(`/sit-down-delicious/item/${item.id}` as Href)}
+          onPress={() => router.push(openFromStand('/sit-down-delicious/item/[id]', { id: item.id }))}
         />
       ))}
     </SitDownScreen>

@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router, usePathname, type Href } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { openFoodHandling } from '@/components/FoodHandlingLink';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { screenName } from '@/lib/title-case';
@@ -23,6 +23,15 @@ import { trpc } from '@/lib/trpc';
 import { GlassPressable } from '@/components/glass-surface';
 import { ScrollJumps } from '@/components/ScrollJumps';
 import { GetGpsCard } from '@/components/GetGpsCard';
+
+const PROFILE_RETURN = '/(tabs)/profile';
+
+function openFromProfile(pathname: string, params?: Record<string, string>) {
+  router.push({
+    pathname,
+    params: { returnTo: PROFILE_RETURN, ...params },
+  } as Href);
+}
 
 function savedProfilePhoto(uri?: string | null): string | null {
   if (!uri || !uri.includes('/storage/v1/object/public/profile-images/')) return null;
@@ -38,7 +47,6 @@ function tell(message: string) {
 }
 
 export default function ProfileScreen() {
-  const pathname = usePathname();
   const { user, logout, updateProfile, setOrderingAsBuyer } = useAuth();
   const accountRole = user?.accountRole ?? user?.role;
   const orderingAsBuyer = user?.orderingAsBuyer === true;
@@ -106,107 +114,107 @@ export default function ProfileScreen() {
     {
       icon: 'star-outline',
       title: 'Membership',
-      onPress: () => router.push('/membership'),
+      onPress: () => openFromProfile('/membership'),
       subtitle: membershipTier === 'premium' ? 'Premium Member' : 'Free Member',
     },
     {
       icon: 'videocam-outline',
       title: 'FoodReviewClips',
       subtitle: '9:16 food clips · smile, heart, star',
-      onPress: () => router.push('/food-review-clips' as Href),
+      onPress: () => openFromProfile('/food-review-clips'),
     },
     {
       icon: 'person-outline',
       title: 'Edit Profile',
-      onPress: () => router.push('/edit-profile'),
+      onPress: () => openFromProfile('/edit-profile'),
     },
     {
       icon: 'notifications-outline',
       title: 'Notifications',
-      onPress: () => router.push('/notifications'),
+      onPress: () => openFromProfile('/notifications'),
     },
     {
       icon: 'shield-checkmark-outline',
       title: 'Privacy & Security',
-      onPress: () => router.push('/privacy-security'),
+      onPress: () => openFromProfile('/privacy-security'),
     },
     {
       icon: 'document-text-outline',
       title: 'Legal & Safety',
-      onPress: () => router.push('/legal'),
+      onPress: () => openFromProfile('/legal'),
     },
     {
       icon: 'thermometer-outline',
       title: 'Food Handling',
       subtitle: 'Clean, separate, cook, and chill',
-      onPress: () => openFoodHandling(pathname),
+      onPress: () => openFoodHandling(PROFILE_RETURN),
     },
     ...(accountRole === 'platemaker'
       ? [{
           icon: 'restaurant-outline' as const,
           title: 'Kitchen Rules',
-          onPress: () => router.push('/kitchen-rules' as Href),
+          onPress: () => openFromProfile('/kitchen-rules'),
         }]
       : []),
     {
       icon: 'heart-outline',
       title: 'Charitable gifts',
       subtitle: 'Unhoused people, elders, and children',
-      onPress: () => router.push('/charitable-gifts' as Href),
+      onPress: () => openFromProfile('/charitable-gifts'),
     },
     ...(accountRole === 'platemaker'
       ? [{
           icon: 'pricetag-outline' as const,
           title: 'Area offers',
           subtitle: '1% to 50% off, or up to $100 off',
-          onPress: () => router.push('/area-offers' as Href),
+          onPress: () => openFromProfile('/area-offers'),
         }]
       : []),
     {
       icon: 'home-outline',
       title: 'Home Kitchens',
       subtitle: 'Plates cooked near you',
-      onPress: () => router.push('/(tabs)/(home)/home' as Href),
+      onPress: () => openFromProfile('/(tabs)/(home)/home'),
     },
     {
       icon: 'leaf-outline',
       title: 'FarmGrownBasket',
       subtitle: 'Farms, gardens, and pickup',
-      onPress: () => router.push('/farm-grown-basket' as Href),
+      onPress: () => openFromProfile('/farm-grown-basket'),
     },
     {
       icon: 'nutrition-outline',
       title: 'MealPrepGo',
       subtitle: 'Meals built for the week',
-      onPress: () => router.push('/meal-prep-go' as Href),
+      onPress: () => openFromProfile('/meal-prep-go'),
     },
     {
       icon: 'people-outline',
       title: 'CaterEventDeliver',
       subtitle: 'Group drop-off for offices and events',
-      onPress: () => router.push('/cater-event-deliver' as Href),
+      onPress: () => openFromProfile('/cater-event-deliver'),
     },
     {
       icon: 'bus-outline',
       title: 'FoodTruckPopup',
       subtitle: 'Order ahead for the service window',
-      onPress: () => router.push('/food-truck-popup' as Href),
+      onPress: () => openFromProfile('/food-truck-popup'),
     },
     {
       icon: 'cafe-outline',
       title: 'SitDownDelicious',
       subtitle: 'Independent sit-down shops, takeout, and ghost kitchens',
-      onPress: () => router.push('/sit-down-delicious' as Href),
+      onPress: () => openFromProfile('/sit-down-delicious'),
     },
     {
       icon: 'help-circle-outline',
       title: 'Help & Support',
-      onPress: () => router.push('/help-support'),
+      onPress: () => openFromProfile('/help-support'),
     },
     {
       icon: 'settings-outline',
       title: 'Settings',
-      onPress: () => router.push('/settings'),
+      onPress: () => openFromProfile('/settings'),
     },
     {
       icon: 'shield-outline',
@@ -218,8 +226,8 @@ export default function ProfileScreen() {
           : 'Only admins have access',
       disabled: !adminRole,
       onPress: () => {
-        if (adminRole === 'main') router.push('/admin-dashboard' as Href);
-        if (adminRole === 'monitor') router.push('/admin-monitor' as Href);
+        if (adminRole === 'main') openFromProfile('/admin-dashboard');
+        if (adminRole === 'monitor') openFromProfile('/admin-monitor');
       },
     },
   ];
@@ -371,7 +379,7 @@ export default function ProfileScreen() {
               </Text>
               <Text
                 style={[styles.foodSafetyLink, { marginTop: 8 }]}
-                onPress={() => router.push('/kitchen-rules' as Href)}
+                onPress={() => openFromProfile('/kitchen-rules')}
               >
                 Kitchen rules for cooked plates, MEHKO, and commissary kitchens
               </Text>

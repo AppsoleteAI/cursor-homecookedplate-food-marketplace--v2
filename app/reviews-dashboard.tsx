@@ -10,6 +10,7 @@ import { trpc } from '@/lib/trpc';
 import StarRating from '@/components/StarRating';
 import { router, type Href } from 'expo-router';
 import { ReviewCommentActions } from '@/components/ReviewCommentActions';
+import { DashboardSectionBack } from '@/components/BackCircle';
 
 export default function ReviewsDashboardScreen() {
   const insets = useSafeAreaInsets();
@@ -80,6 +81,7 @@ export default function ReviewsDashboardScreen() {
           }}
         >
           <View style={styles.header}>
+            <DashboardSectionBack />
             <Text style={styles.title}>Reviews</Text>
             <Text style={styles.subtitle}>{isAdmin ? 'All plates • most recent 50' : 'Your plates • most recent 5'}</Text>
           </View>

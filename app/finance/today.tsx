@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/auth-context';
 import { SellerOnly } from '@/components/RoleGuard';
 import { trpc } from '@/lib/trpc';
 import BarChart, { BarDatum } from '@/components/BarChart';
+import { DashboardSectionBack } from '@/components/BackCircle';
 
 export default function TodayFinanceScreen() {
   const insets = useSafeAreaInsets();
@@ -84,6 +85,7 @@ export default function TodayFinanceScreen() {
           }}
         >
           <View style={styles.header}>
+            <DashboardSectionBack />
             <Text style={styles.title}>{'Today\u2019s Earnings'}</Text>
             <Text style={styles.subtitle}>{today.toLocaleDateString()}</Text>
           </View>

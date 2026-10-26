@@ -737,7 +737,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: Colors.gradient.green,
   },
   detectButtonText: {

@@ -6,6 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { calculateFees, getNetPayout } from '@/backend/lib/fees';
 import { DELIVERY_PLATFORM_RATE } from '@/lib/fees';
+import { DashboardSectionBack } from '@/components/BackCircle';
 
 function formatMoney(n: number) {
   const v = Number.isFinite(n) ? n : 0;
@@ -39,6 +40,7 @@ export default function PlatemakerEarningsScreen() {
           }}
         >
           <View style={styles.header}>
+            <DashboardSectionBack />
             <Text style={styles.title}>Platemaker Earnings</Text>
             <Text style={styles.subtitle}>Transparent fee breakdown (Double 10)</Text>
           </View>

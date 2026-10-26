@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { GlassPressable, glassSurface } from '@/components/glass-surface';
+import { GlassIconButton, GlassPressable, glassSurface } from '@/components/glass-surface';
 import {
   View,
   Text,
@@ -19,8 +19,9 @@ import { Ionicons } from '@expo/vector-icons';
 import HorizontalCarousel from '@/components/HorizontalCarousel';
 import { useAuth } from '@/hooks/auth-context';
 import { BackCircle } from '@/components/BackCircle';
-import { useLeaveScreen } from '@/hooks/use-leave-screen';
+import { useReplaceBack } from '@/hooks/use-leave-screen';
 import { useCart } from '@/hooks/cart-context';
+import { CHROME_CHIP_SIZE, CHROME_FROST_TINT, CHROME_ICON_SIZE } from '@/lib/chrome-activity';
 
 const categories: string[] = ['dinner', 'dessert', 'lunch', 'breakfast', 'brunch', 'vegan'];
 const ratings: string[] = ['Any', '1★+', '2★+', '3★+', '4★+', '5★+'];
@@ -45,7 +46,7 @@ const tags: string[] = [
 export default function FilterScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const leave = useLeaveScreen('/(tabs)/search');
+  const leave = useReplaceBack('/(tabs)/search');
   const { user } = useAuth();
   const { totalItems } = useCart();
   const isPlatemaker = user?.role === 'platemaker';
@@ -170,15 +171,15 @@ export default function FilterScreen() {
             <Text style={styles.title}>Filter Search</Text>
             <View style={styles.headerButtons}>
               <BackCircle tone="light" onPress={leave} gapBelow={false} testID="back-to-search" />
-              <GlassPressable
-                style={styles.clearButton}
+              <GlassIconButton
                 onPress={clearAll}
                 testID="clear-all"
-                accessibilityRole="button"
                 accessibilityLabel="Reset filters"
+                size={CHROME_CHIP_SIZE}
+                tint={CHROME_FROST_TINT}
               >
-                <Ionicons name="refresh" size={20} color={Colors.white} />
-              </GlassPressable>
+                <Ionicons name="refresh" size={CHROME_ICON_SIZE} color={Colors.white} />
+              </GlassIconButton>
             </View>
           </View>
         </LinearGradient>
@@ -422,7 +423,8 @@ const styles = StyleSheet.create({
   },
   headerButtons: {
     flexDirection: 'row',
-    gap: 12,
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   backButton: {
     flex: 1,
@@ -432,14 +434,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     height: 48,
-    justifyContent: 'center',
-  },
-  clearButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
     justifyContent: 'center',
   },
   headerButtonText: {
@@ -459,13 +453,13 @@ const styles = StyleSheet.create({
   },
   section: {
     paddingHorizontal: 24,
-    marginBottom: 32,
+    marginBottom: 4,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: Colors.gray[900],
-    marginBottom: 16,
+    marginBottom: 0,
     paddingHorizontal: 0,
   },
   chipContainer: {
@@ -539,10 +533,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   cuisineScroll: {
-    paddingHorizontal: 0,
+    paddingHorizontal: 18,
+    paddingTop: 6,
+    paddingBottom: 22,
     gap: 12,
   },
   cuisineChip: {
+    ...glassSurface,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 20,

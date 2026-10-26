@@ -42,7 +42,12 @@ export default function MealPrepWeekScreen() {
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 
   return (
-    <MealPrepScreen title="Your week" subtitle={lines.length === 0 ? 'Nothing added yet' : cookName} testID="prep-week">
+    <MealPrepScreen
+      title="Your week"
+      subtitle={lines.length === 0 ? 'Nothing added yet' : cookName}
+      testID="prep-week"
+      backHref={user?.role === 'platemaker' || user?.isAdmin === true ? '/meal-prep-go/seller' : '/meal-prep-go'}
+    >
       <FoodHandlingNotice inset testID="prep-week-food-handling" />
       {lines.length === 0 ? (
         <GlassPressable onPress={() => router.push('/meal-prep-go/board' as Href)}>

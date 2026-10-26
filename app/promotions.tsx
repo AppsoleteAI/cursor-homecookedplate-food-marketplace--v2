@@ -18,10 +18,12 @@ import { PromotionalOffer } from '@/types';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
 import { GlassPressable } from '@/components/glass-surface';
-import { ScreenBack } from '@/components/BackCircle';
+import { BackCircle } from '@/components/BackCircle';
+import { useReplaceBack } from '@/hooks/use-leave-screen';
 
 export default function PromotionsScreen() {
   const { user } = useAuth();
+  const leave = useReplaceBack('/(tabs)/create-meal');
   const promotions = trpc.promotions.listMine.useQuery(undefined, {
     enabled: user?.role === 'platemaker',
     retry: false,
@@ -242,7 +244,7 @@ export default function PromotionsScreen() {
       <SafeAreaView style={styles.container}>
         <Stack.Screen options={{ title: 'Promotions', headerShown: false }} />
         <View style={styles.errorContainer}>
-          <ScreenBack fallback="/(tabs)/profile" testID="promotions-back" />
+          <BackCircle tone="honey" onPress={leave} testID="promotions-back" />
           <Text style={styles.errorText}>Only Platemakers can manage promotions</Text>
         </View>
       </SafeAreaView>
@@ -255,7 +257,7 @@ export default function PromotionsScreen() {
       
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          <ScreenBack fallback="/(tabs)/profile" testID="promotions-back" />
+          <BackCircle tone="honey" onPress={leave} testID="promotions-back" />
           <View style={styles.header}>
             <Text style={styles.title}>Promotional Offers</Text>
             <Text style={styles.subtitle}>Create special deals to attract more customers</Text>

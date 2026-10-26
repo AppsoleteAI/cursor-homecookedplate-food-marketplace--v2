@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
-import { Redirect, router, type Href } from 'expo-router';
+import { Redirect, router } from 'expo-router';
+import { useReturnHere } from '@/hooks/use-leave-screen';
 import { FoodTruckScreen } from '@/components/food-truck/FoodTruckScreen';
 import { PricedItemCard } from '@/components/PricedItemCard';
 import { Colors } from '@/constants/colors';
@@ -20,6 +21,7 @@ export default function TruckSellerScreen() {
   const split = calculateOrderSplit(baseAmount);
   const permitCheck = evaluateTruckPermit(permit);
   const [cartOpen, setCartOpen] = useState(false);
+  const openFromStand = useReturnHere('/food-truck-popup/seller');
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
@@ -69,19 +71,19 @@ export default function TruckSellerScreen() {
         )}
         {!permitCheck.ok ? <Text style={styles.block}>{permitCheck.blocks[0]}</Text> : <Text style={styles.ok}>Permit record is complete enough to list.</Text>}
       </View>
-      <GlassPressable style={styles.button} onPress={() => router.push('/food-truck-popup/permit' as Href)} testID="seller-permit">
+      <GlassPressable style={styles.button} onPress={() => router.push(openFromStand('/food-truck-popup/permit'))} testID="seller-permit">
         <Text style={styles.buttonText}>Permit, Commissary, and Fee</Text>
       </GlassPressable>
-      <GlassPressable style={styles.secondary} onPress={() => router.push('/food-truck-popup/list' as Href)} testID="seller-list">
+      <GlassPressable style={styles.secondary} onPress={() => router.push(openFromStand('/food-truck-popup/list'))} testID="seller-list">
         <Text style={styles.secondaryText}>Add a Menu Item</Text>
       </GlassPressable>
-      <GlassPressable style={styles.secondary} onPress={() => router.push('/area-offers?area=food_truck' as Href)}>
+      <GlassPressable style={styles.secondary} onPress={() => router.push(openFromStand('/area-offers', { area: 'food_truck' }))}>
         <Text style={styles.secondaryText}>Offers, 1% to 50% or up to $100</Text>
       </GlassPressable>
-      <GlassPressable style={styles.secondary} onPress={() => router.push('/charitable-gifts?area=food_truck' as Href)}>
+      <GlassPressable style={styles.secondary} onPress={() => router.push(openFromStand('/charitable-gifts', { area: 'food_truck' }))}>
         <Text style={styles.secondaryText}>Charitable gifts</Text>
       </GlassPressable>
-      <GlassPressable style={styles.secondary} onPress={() => router.push('/kitchen-rules' as Href)}>
+      <GlassPressable style={styles.secondary} onPress={() => router.push(openFromStand('/kitchen-rules'))}>
         <Text style={styles.secondaryText}>Kitchen Rules and Commissary Notes</Text>
       </GlassPressable>
       {user?.role === 'platemaker' ? (
@@ -99,7 +101,7 @@ export default function TruckSellerScreen() {
           meta={ownerActive ? 'On the board' : 'Hidden while the window is closed'}
           price={`$${item.price.toFixed(2)}`}
           priceColor="#C2410C"
-          onPress={() => router.push(`/food-truck-popup/item/${item.id}` as Href)}
+          onPress={() => router.push(openFromStand('/food-truck-popup/item/[id]', { id: item.id }))}
         />
       ))}
     </FoodTruckScreen>

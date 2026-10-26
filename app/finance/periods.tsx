@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/auth-context';
 import { SellerOnly } from '@/components/RoleGuard';
 import { trpc } from '@/lib/trpc';
 import BarChart, { BarDatum } from '@/components/BarChart';
+import { DashboardSectionBack } from '@/components/BackCircle';
 
 function getWeekDays(): string[] {
   const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -103,6 +104,7 @@ export default function PeriodsFinanceScreen() {
           }}
         >
           <View style={styles.header}>
+            <DashboardSectionBack />
             <Text style={styles.title}>This Week</Text>
             <Text style={styles.subtitle}>Weekly, Monthly, Year-to-Date</Text>
           </View>

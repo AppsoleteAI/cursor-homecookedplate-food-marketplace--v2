@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -16,7 +16,7 @@ import { SellerOnly } from '@/components/RoleGuard';
 import { BackCircle } from '@/components/BackCircle';
 import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { GradientButton } from '@/components/GradientButton';
-import { useLeaveScreen } from '@/hooks/use-leave-screen';
+import { useReplaceBack } from '@/hooks/use-leave-screen';
 import { useAuth } from '@/hooks/auth-context';
 import { useMeals } from '@/hooks/meals-context';
 import { trpc } from '@/lib/trpc';
@@ -27,11 +27,13 @@ import { markPlatePublished, readPlateDraft, type PlateDraft } from '@/lib/plate
 import { appendFoodReviewClip } from '@/lib/food-review-clip-store';
 import { foodReviewDurationSeconds } from '@/lib/food-review-clips';
 import { Colors, pagePastel } from '@/constants/colors';
+import { ScrollJumps } from '@/components/ScrollJumps';
 
 const EMPTY: PlateDraft = { name: '', price: '', preparationMinutes: '', media: [], availabilityWindows: [], portions: '1', postVideoToTimeline: false };
 
 export default function PublishPlateScreen() {
-  const leave = useLeaveScreen('/(tabs)/create-meal');
+  const leave = useReplaceBack('/(tabs)/create-meal');
+  const scrollRef = useRef<ScrollView>(null);
   const { user } = useAuth();
   const { addMeal } = useMeals();
   const createMeal = trpc.meals.create.useMutation();
@@ -159,6 +161,7 @@ export default function PublishPlateScreen() {
       <SafeAreaView style={styles.screen} testID="publish-plate">
         <Stack.Screen options={{ headerShown: false, title: 'Publish this plate' }} />
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -244,6 +247,7 @@ export default function PublishPlateScreen() {
             testID="publish-meal"
           />
         </ScrollView>
+        <ScrollJumps scrollRef={scrollRef} testID="publish-plate" />
       </SafeAreaView>
     </SellerOnly>
   );
@@ -251,7 +255,7 @@ export default function PublishPlateScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: pagePastel.red },
-  content: { paddingTop: 20, paddingHorizontal: 20, paddingBottom: 40 },
+  content: { paddingTop: 20, paddingHorizontal: 20, paddingBottom: 96 },
   title: { fontSize: 28, fontWeight: '700', color: Colors.gray[900], marginBottom: 6 },
   subtitle: { fontSize: 16, color: Colors.gray[700], marginBottom: 16, lineHeight: 22 },
   warningBox: {

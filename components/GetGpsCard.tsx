@@ -70,23 +70,23 @@ export function GetGpsCard() {
   };
 
   return (
-    <Pressable
-      onPress={() => {
-        onPress().catch(() => undefined);
-      }}
-      disabled={busy}
-      testID="get-gps"
-      accessibilityRole="button"
-      style={styles.card}
-    >
-      <View style={styles.titleRow}>
+    <View style={styles.card}>
+      <Pressable
+        onPress={() => {
+          onPress().catch(() => undefined);
+        }}
+        disabled={busy}
+        testID="get-gps"
+        accessibilityRole="button"
+        style={styles.gpsButton}
+      >
         <Ionicons name="locate" size={20} color={Colors.gradient.green} />
-        <Text style={styles.title}>{busy ? 'Checking this metro' : 'Get GPS'}</Text>
-      </View>
+        <Text style={styles.gpsText}>{busy ? 'Checking this metro' : 'Get GPS'}</Text>
+      </Pressable>
       <Text style={styles.body}>
-        {seenMetro || (user?.metroArea && user.metroArea !== 'Remote/Other' ? user.metroArea : null) || 'Not set'}. Each metro has a 50 mile radius. This tap saves the metro. A drive-through waits 30 minutes.
+        {seenMetro || (user?.metroArea && user.metroArea !== 'Remote/Other' ? user.metroArea : null) || 'Not set'}. Each metro has a 50 mile radius. This tap saves the metro. A new metro takes 30 minutes to update location.
       </Text>
-    </Pressable>
+    </View>
   );
 }
 
@@ -97,13 +97,20 @@ const styles = StyleSheet.create({
     paddingBottom: 18,
     paddingHorizontal: 16,
   },
-  titleRow: {
+  gpsButton: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: Colors.gradient.green,
   },
-  title: {
-    color: Colors.gray[900],
+  gpsText: {
+    color: Colors.gradient.green,
+    fontSize: 14,
     fontWeight: '600',
   },
   body: {

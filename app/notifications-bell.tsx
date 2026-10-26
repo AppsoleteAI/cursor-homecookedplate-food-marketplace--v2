@@ -38,7 +38,7 @@ export default function NotificationsBellScreen() {
             <Ionicons name="notifications" size={22} color={Colors.white} />
             <Text style={styles.headerTitle}>Notifications</Text>
           </View>
-          <BackCircle tone="light" onPress={leave} gapBelow={false} testID="close-notifications-bell" />
+          <BackCircle tone="frost" onPress={leave} gapBelow={false} testID="close-notifications-bell" />
         </View>
         <Text style={styles.headerSubtitle}>Your recent alerts</Text>
       </LinearGradient>

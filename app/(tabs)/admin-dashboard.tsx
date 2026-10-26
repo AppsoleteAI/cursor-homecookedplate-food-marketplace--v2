@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { ProgressBar } from '@/components/ProgressBar';
-import { Redirect, router, type Href } from 'expo-router';
+import { Redirect, router, Stack, type Href } from 'expo-router';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
 import { UserTrialControl } from '@/components/Admin/UserTrialControl';
@@ -25,6 +25,8 @@ import { CityMaxAlerts } from '@/components/Admin/CityMaxAlerts';
 import { PreLaunchChecklist } from '@/components/Admin/PreLaunchChecklist';
 import BarChart, { BarDatum } from '@/components/BarChart';
 import { ScrollJumps } from '@/components/ScrollJumps';
+import { BackCircle } from '@/components/BackCircle';
+import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import {
   DEFAULT_FORECAST_ASSUMPTIONS,
   ForecastTimeUnit,
@@ -480,6 +482,7 @@ export default function AdminDashboardScreen() {
   const insets = useSafeAreaInsets();
   const [headerHeight, setHeaderHeight] = useState<number>(0);
   const scrollRef = useRef<ScrollView>(null);
+  const leave = useLeaveScreen('/(tabs)/profile');
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     // The query will automatically refetch when we invalidate it
@@ -508,6 +511,8 @@ export default function AdminDashboardScreen() {
             }}
           >
             <View style={styles.header}>
+              <Stack.Screen options={{ headerShown: false }} />
+              <BackCircle tone="light" onPress={leave} gapBelow={false} testID="admin-dashboard-back" />
               <Text style={styles.title}>Main admin</Text>
               <Text style={styles.subtitle}>Money, payouts, and account details</Text>
             </View>

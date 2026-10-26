@@ -34,7 +34,13 @@ export default function TruckBasketScreen() {
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 
   return (
-    <FoodTruckScreen title="Window order" subtitle="One truck. Pickup at the window." showBasket={false} testID="truck-basket">
+    <FoodTruckScreen
+      title="Window order"
+      subtitle="One truck. Pickup at the window."
+      showBasket={false}
+      testID="truck-basket"
+      backHref={user?.role === 'platemaker' || user?.isAdmin === true ? '/food-truck-popup/seller' : '/food-truck-popup'}
+    >
       <FoodHandlingNotice inset testID="truck-basket-food-handling" />
       {lines.length === 0 ? (
         <View>

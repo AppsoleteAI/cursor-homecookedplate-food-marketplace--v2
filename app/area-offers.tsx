@@ -7,7 +7,7 @@ import { GlassPressable } from '@/components/glass-surface';
 import { Colors } from '@/constants/colors';
 import { GIFT_AREA_LABEL, OFFER_AREAS, type OfferArea } from '@/backend/lib/gift-areas';
 import { useAuth } from '@/hooks/auth-context';
-import { useLeaveScreen } from '@/hooks/use-leave-screen';
+import { useReplaceBack } from '@/hooks/use-leave-screen';
 import { trpc } from '@/lib/trpc';
 
 function areaFromParam(value: string | string[] | undefined): OfferArea {
@@ -18,7 +18,7 @@ function areaFromParam(value: string | string[] | undefined): OfferArea {
 export default function AreaOffersScreen() {
   const params = useLocalSearchParams<{ area?: string }>();
   const { isAuthenticated, isLoading, user } = useAuth();
-  const leave = useLeaveScreen('/(tabs)/profile');
+  const leave = useReplaceBack('/(tabs)/create-meal');
   const [area, setArea] = useState<OfferArea>(areaFromParam(params.area));
   const [listingId, setListingId] = useState('');
   const [type, setType] = useState<'percentage' | 'fixed-amount' | 'buy-x-get-y' | 'free-item'>('percentage');

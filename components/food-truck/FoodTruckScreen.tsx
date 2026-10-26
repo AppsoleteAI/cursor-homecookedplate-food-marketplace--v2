@@ -4,9 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BackCircle } from '@/components/BackCircle';
-import { useLeaveScreen } from '@/hooks/use-leave-screen';
+import { useLeaveScreen, useReplaceBack } from '@/hooks/use-leave-screen';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, inAppHeaderBand, monoGradients } from '@/constants/colors';
+import { CHROME_FROST_TINT } from '@/lib/chrome-activity';
 import { GlassBadge, GlassIconButton, glassSurface } from '@/components/glass-surface';
 import { titleCase } from '@/lib/title-case';
 import { useFoodTruck } from '@/hooks/food-truck-store';
@@ -19,10 +20,14 @@ type FoodTruckScreenProps = {
   testID?: string;
   showBasket?: boolean;
   showBack?: boolean;
+  backHref?: Href;
 };
 
-export function FoodTruckScreen({ title, subtitle, children, testID, showBasket = true, showBack = true }: FoodTruckScreenProps) {
-  const leave = useLeaveScreen('/food-truck-popup', showBack);
+export function FoodTruckScreen({ title, subtitle, children, testID, showBasket = true, showBack = true, backHref }: FoodTruckScreenProps) {
+  const replace = backHref != null;
+  const popLeave = useLeaveScreen('/food-truck-popup', showBack && !replace);
+  const swapLeave = useReplaceBack(backHref ?? '/food-truck-popup', showBack && replace);
+  const leave = replace ? swapLeave : popLeave;
   const { itemCount } = useFoodTruck();
   const { user } = useAuth();
   const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
@@ -37,7 +42,7 @@ export function FoodTruckScreen({ title, subtitle, children, testID, showBasket 
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
         {showBasket ? (
-          <GlassIconButton onPress={() => router.push('/food-truck-popup/basket' as Href)} accessibilityLabel="Open truck basket" testID="truck-basket-button">
+          <GlassIconButton onPress={() => router.push('/food-truck-popup/basket' as Href)} accessibilityLabel="Open truck basket" testID="truck-basket-button" tint={CHROME_FROST_TINT}>
             <Ionicons name="receipt-outline" size={20} color={Colors.white} />
             {itemCount > 0 ? (
               <GlassBadge style={styles.badge}>

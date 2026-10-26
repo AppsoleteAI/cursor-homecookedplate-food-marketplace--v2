@@ -165,7 +165,7 @@ export default function ActiveOrdersModal() {
         >
           <View style={styles.headerRow}>
             <Text style={styles.headerTitle}>Incoming Orders</Text>
-            <BackCircle tone="light" onPress={leave} gapBelow={false} testID="close-active-orders" />
+            <BackCircle tone="frost" onPress={leave} gapBelow={false} testID="close-active-orders" />
           </View>
           <Text style={styles.headerSubtitle}>Manage your orders chronologically</Text>
         </LinearGradient>

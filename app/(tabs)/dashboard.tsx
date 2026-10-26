@@ -17,9 +17,8 @@ import { Colors, inAppHeaderBand, monoGradients, pagePastel } from '@/constants/
 import { GradientButton } from '@/components/GradientButton';
 
 
-import { Redirect, router, usePathname, type Href } from 'expo-router';
+import { Redirect, router, type Href } from 'expo-router';
 import { openFoodHandling } from '@/components/FoodHandlingLink';
-
 import { useOrders } from '@/hooks/orders-context';
 import { useAuth } from '@/hooks/auth-context';
 import * as WebBrowser from 'expo-web-browser';
@@ -31,8 +30,16 @@ import { GetGpsCard } from '@/components/GetGpsCard';
 import { ScrollJumps } from '@/components/ScrollJumps';
 import { FoodImage } from '@/components/FoodImage';
 
+const DASHBOARD_RETURN = '/(tabs)/dashboard';
+
+function openDashboardSection(pathname: string, params?: Record<string, string>) {
+  router.push({
+    pathname,
+    params: { returnTo: DASHBOARD_RETURN, ...params },
+  } as Href);
+}
+
 export default function DashboardScreen() {
-  const pathname = usePathname();
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [headerHeight, setHeaderHeight] = useState<number>(inAppHeaderBand.minHeight);
   const insets = useSafeAreaInsets();
@@ -236,24 +243,24 @@ export default function DashboardScreen() {
         </View>
 
         <View style={styles.statsGrid}>
-          <GlassPressable style={styles.statCard} testID="card-today-earnings" onPress={() => router.push('/finance/today')}>
+          <GlassPressable style={styles.statCard} testID="card-today-earnings" onPress={() => openDashboardSection('/finance/today')}>
             <Ionicons name="cash-outline" size={24} color={Colors.gradient.green} />
             <Text style={styles.statValue}>${stats.todayEarnings.toFixed(2)}</Text>
             <Text style={styles.statLabel}>Today&apos;s Earnings</Text>
           </GlassPressable>
-          <GlassPressable style={styles.statCard} testID="card-week-earnings" onPress={() => router.push('/finance/periods')}>
+          <GlassPressable style={styles.statCard} testID="card-week-earnings" onPress={() => openDashboardSection('/finance/periods')}>
             <Ionicons name="trending-up-outline" size={24} color={Colors.gradient.green} />
             <Text style={styles.statValue}>${stats.weekEarnings.toFixed(2)}</Text>
             <Text style={styles.statLabel}>This Week</Text>
           </GlassPressable>
-          <GlassPressable style={styles.statCard} testID="card-earnings-breakdown" onPress={() => router.push('/finance/earnings')}>
+          <GlassPressable style={styles.statCard} testID="card-earnings-breakdown" onPress={() => openDashboardSection('/finance/earnings')}>
             <Ionicons name="receipt-outline" size={24} color={Colors.gradient.green} />
             <Text style={styles.statValue}>${(dashboardStats.data?.takeHome ?? 0).toFixed(2)}</Text>
             <Text style={styles.statLabel}>Earnings Breakdown</Text>
           </GlassPressable>
           <GlassPressable style={styles.statCard} testID="card-active-orders" onPress={() => {
             try {
-              router.push('/active-orders');
+              openDashboardSection('/active-orders');
             } catch (error) {
               console.error('[dashboard] Error navigating to active orders:', error);
             }
@@ -262,12 +269,12 @@ export default function DashboardScreen() {
             <Text style={styles.statValue}>{stats.activeOrders}</Text>
             <Text style={styles.statLabel}>Active Orders</Text>
           </GlassPressable>
-          <GlassPressable style={styles.statCard} testID="card-payout-responsibility" onPress={() => router.push('/payout-responsibility' as Href)}>
+          <GlassPressable style={styles.statCard} testID="card-payout-responsibility" onPress={() => openDashboardSection('/payout-responsibility')}>
             <Ionicons name="time-outline" size={24} color={Colors.gradient.green} />
             <Text style={styles.statValue}>{connect.data?.payoutsEnabled ? 'On' : 'Set up'}</Text>
             <Text style={styles.statLabel}>Stripe payouts</Text>
           </GlassPressable>
-          <GlassPressable style={styles.statCard} testID="card-reviews" onPress={() => router.push('/reviews-dashboard')}>
+          <GlassPressable style={styles.statCard} testID="card-reviews" onPress={() => openDashboardSection('/reviews-dashboard')}>
             <Ionicons name="star-outline" size={24} color={Colors.gradient.green} />
             <Text style={styles.statValue}>{stats.totalReviews}</Text>
             <Text style={styles.statLabel}>Reviews</Text>
@@ -276,7 +283,7 @@ export default function DashboardScreen() {
 
         <GlassPressable
           style={styles.farmStandCard}
-          onPress={() => router.push('/farm-grown-basket/seller' as Href)}
+          onPress={() => openDashboardSection('/farm-grown-basket/seller')}
           testID="dashboard-farm-stand"
         >
           <Text style={styles.farmStandTitle}>FarmGrownBasket stand</Text>
@@ -287,7 +294,7 @@ export default function DashboardScreen() {
 
         <GlassPressable
           style={styles.truckStandCard}
-          onPress={() => router.push('/food-truck-popup/seller' as Href)}
+          onPress={() => openDashboardSection('/food-truck-popup/seller')}
           testID="dashboard-food-truck"
         >
           <Text style={styles.farmStandTitle}>FoodTruckPopup</Text>
@@ -298,7 +305,7 @@ export default function DashboardScreen() {
 
         <GlassPressable
           style={styles.caterStandCard}
-          onPress={() => router.push('/cater-event-deliver/seller' as Href)}
+          onPress={() => openDashboardSection('/cater-event-deliver/seller')}
           testID="dashboard-cater-event"
         >
           <Text style={styles.farmStandTitle}>CaterEventDeliver</Text>
@@ -309,7 +316,7 @@ export default function DashboardScreen() {
 
         <Pressable
           style={styles.handlingStandCard}
-          onPress={() => openFoodHandling(pathname)}
+          onPress={() => openFoodHandling(DASHBOARD_RETURN)}
           testID="dashboard-food-handling"
         >
           <Text style={styles.handlingStandTitle}>Food handling</Text>
@@ -331,7 +338,7 @@ export default function DashboardScreen() {
 
         <GlassPressable
           style={styles.sitStandCard}
-          onPress={() => router.push('/sit-down-delicious/seller' as Href)}
+          onPress={() => openDashboardSection('/sit-down-delicious/seller')}
           testID="dashboard-sit-down"
         >
           <Text style={styles.farmStandTitle}>SitDownDelicious</Text>
@@ -342,7 +349,7 @@ export default function DashboardScreen() {
 
         <GlassPressable
           style={styles.prepStandCard}
-          onPress={() => router.push('/meal-prep-go/seller' as Href)}
+          onPress={() => openDashboardSection('/meal-prep-go/seller')}
           testID="dashboard-meal-prep"
         >
           <Text style={styles.farmStandTitle}>MealPrepGo</Text>
@@ -372,7 +379,7 @@ export default function DashboardScreen() {
             </Text>
             <Text
               style={[styles.foodSafetyBannerLink, { marginBottom: 12 }]}
-              onPress={() => router.push('/kitchen-rules' as Href)}
+              onPress={() => openDashboardSection('/kitchen-rules')}
             >
               Kitchen rules for cooked plates and commissary kitchens
             </Text>
@@ -426,7 +433,7 @@ export default function DashboardScreen() {
                 onPress={() => {
                   const latest = myMeals.data?.[0];
                   if (latest) {
-                    router.push({ pathname: '/meal-details', params: { id: latest.id } } as Href);
+                    openDashboardSection('/meal-details', { id: latest.id });
                     return;
                   }
                   router.push('/(tabs)/create-meal');
@@ -438,7 +445,7 @@ export default function DashboardScreen() {
             <View style={{ marginTop: 10 }}>
               <GradientButton
                 title="Area offers"
-                onPress={() => router.push('/area-offers' as Href)}
+                onPress={() => openDashboardSection('/area-offers')}
                 baseColor="green"
                 testID="dashboard-area-offers"
               />
@@ -446,7 +453,7 @@ export default function DashboardScreen() {
             <View style={{ marginTop: 10 }}>
               <GradientButton
                 title="Charitable gifts"
-                onPress={() => router.push('/charitable-gifts' as Href)}
+                onPress={() => openDashboardSection('/charitable-gifts')}
                 baseColor="green"
                 testID="dashboard-charitable-gifts"
               />
@@ -464,7 +471,7 @@ export default function DashboardScreen() {
 
           <FoodHandlingNotice inset testID="dashboard-orders-food-handling" />
           {orders.filter(o => o.status !== 'completed').map(order => (
-            <GlassPressable key={order.id} style={styles.orderCard} onPress={() => router.push(`/order/${order.id}` as Href)}>
+            <GlassPressable key={order.id} style={styles.orderCard} onPress={() => openDashboardSection('/order/[id]', { id: order.id })}>
               <FoodImage source={{ uri: order.mealImage }} style={styles.orderImage} />
               <View style={styles.orderDetails}>
                 <Text style={styles.orderName}>{order.mealName}</Text>

@@ -135,7 +135,7 @@ export default function SearchScreen() {
                 accessibilityRole="button"
                 testID="toggle-filters"
               >
-                <Ionicons name="options-outline" size={20} color={Colors.gray[800]} />
+                <Ionicons name="funnel-outline" size={20} color={Colors.gray[800]} />
               </GlassPressable>
             </View>
             {isSearchActive && (

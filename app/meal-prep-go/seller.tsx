@@ -3,7 +3,8 @@ import { Text, StyleSheet, View, Image } from 'react-native';
 import { AreaStoreSwitch } from '@/components/AreaStoreSwitch';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
-import { Redirect, router, type Href } from 'expo-router';
+import { Redirect, router } from 'expo-router';
+import { useReturnHere } from '@/hooks/use-leave-screen';
 import { MealPrepScreen } from '@/components/meal-prep/MealPrepScreen';
 import { PricedItemCard } from '@/components/PricedItemCard';
 import { Colors } from '@/constants/colors';
@@ -16,6 +17,7 @@ export default function MealPrepSellerScreen() {
   const { kitchen, listings, accepting, setAccepting, orders } = useMealPrep();
   const check = evaluatePrepKitchen(kitchen);
   const payout = orders.reduce((sum, order) => sum + order.sellerPayout, 0);
+  const openFromStand = useReturnHere('/meal-prep-go/seller');
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
@@ -36,16 +38,16 @@ export default function MealPrepSellerScreen() {
       ) : (
         <Text style={styles.block}>{check.blocks[0]}</Text>
       )}
-      <GlassPressable style={styles.button} onPress={() => router.push('/meal-prep-go/list' as Href)} testID="prep-seller-list">
+      <GlassPressable style={styles.button} onPress={() => router.push(openFromStand('/meal-prep-go/list'))} testID="prep-seller-list">
         <Text style={styles.buttonText}>Add a Weekly Item</Text>
       </GlassPressable>
-      <GlassPressable onPress={() => router.push('/area-offers?area=meal_prep' as Href)}>
+      <GlassPressable onPress={() => router.push(openFromStand('/area-offers', { area: 'meal_prep' }))}>
         <Text style={styles.link}>Offers, 1% to 50% or up to $100</Text>
       </GlassPressable>
-      <GlassPressable onPress={() => router.push('/charitable-gifts?area=meal_prep' as Href)}>
+      <GlassPressable onPress={() => router.push(openFromStand('/charitable-gifts', { area: 'meal_prep' }))}>
         <Text style={styles.link}>Charitable gifts</Text>
       </GlassPressable>
-      <GlassPressable onPress={() => router.push('/meal-prep-go/kitchen' as Href)}>
+      <GlassPressable onPress={() => router.push(openFromStand('/meal-prep-go/kitchen'))}>
         <Text style={styles.link}>Edit the Kitchen Record</Text>
       </GlassPressable>
       <Text style={styles.section}>On your menu</Text>
@@ -58,7 +60,7 @@ export default function MealPrepSellerScreen() {
           meta={laneLabel(item.lane)}
           price={`$${item.price.toFixed(2)}`}
           priceColor="#0E7490"
-          onPress={() => router.push(`/meal-prep-go/item/${item.id}` as Href)}
+          onPress={() => router.push(openFromStand('/meal-prep-go/item/[id]', { id: item.id }))}
         />
       ))}
       <Text style={styles.section}>Payout from recorded weeks</Text>

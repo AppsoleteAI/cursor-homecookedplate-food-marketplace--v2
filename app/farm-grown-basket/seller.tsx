@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Image } from 'react-native';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router , type Href } from 'expo-router';
+import { useReturnHere } from '@/hooks/use-leave-screen';
 import { FarmScreen } from '@/components/farm/FarmScreen';
 import { PricedItemCard } from '@/components/PricedItemCard';
 import { Colors } from '@/constants/colors';
@@ -20,6 +21,7 @@ export default function FarmSellerScreen() {
   const split = calculateOrderSplit(baseAmount);
   const complianceCheck = evaluateListing(compliance);
   const [standOpen, setStandOpen] = useState(false);
+  const openFromStand = useReturnHere('/farm-grown-basket/seller');
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
@@ -52,19 +54,19 @@ export default function FarmSellerScreen() {
           <AreaStoreSwitch area="farm" value={standOpen} onValueChange={setStandOpen} disabled={!complianceCheck.ok} trackColor={{ true: '#166534', false: Colors.gray[300] }} />
         </View>
       </View>
-      <GlassPressable style={styles.button} onPress={() => router.push('/farm-grown-basket/cottage-law' as Href)} testID="seller-cottage-law">
+      <GlassPressable style={styles.button} onPress={() => router.push(openFromStand('/farm-grown-basket/cottage-law'))} testID="seller-cottage-law">
         <Text style={styles.buttonText}>State, Test, and Permit Fee</Text>
       </GlassPressable>
-      <GlassPressable style={styles.secondary} onPress={() => router.push('/farm-grown-basket/directory' as Href)} testID="seller-cottage-directory">
+      <GlassPressable style={styles.secondary} onPress={() => router.push(openFromStand('/farm-grown-basket/directory'))} testID="seller-cottage-directory">
         <Text style={styles.secondaryText}>State-by-state cottage directory</Text>
       </GlassPressable>
-      <GlassPressable style={styles.secondary} onPress={() => router.push('/farm-grown-basket/list' as Href)} testID="seller-list">
+      <GlassPressable style={styles.secondary} onPress={() => router.push(openFromStand('/farm-grown-basket/list'))} testID="seller-list">
         <Text style={styles.secondaryText}>List a Farm Good</Text>
       </GlassPressable>
-      <GlassPressable style={styles.secondary} onPress={() => router.push('/area-offers?area=farm' as Href)} testID="seller-offers">
+      <GlassPressable style={styles.secondary} onPress={() => router.push(openFromStand('/area-offers', { area: 'farm' }))} testID="seller-offers">
         <Text style={styles.secondaryText}>Offers, 1% to 50% or up to $100</Text>
       </GlassPressable>
-      <GlassPressable style={styles.secondary} onPress={() => router.push('/charitable-gifts?area=farm' as Href)} testID="seller-gifts">
+      <GlassPressable style={styles.secondary} onPress={() => router.push(openFromStand('/charitable-gifts', { area: 'farm' }))} testID="seller-gifts">
         <Text style={styles.secondaryText}>Charitable gifts</Text>
       </GlassPressable>
       {user?.role === 'platemaker' ? (
@@ -86,7 +88,7 @@ export default function FarmSellerScreen() {
           title={titleCase(listing.name)}
           meta={highlightBakedCottage(listing) ? `${trackLabel(listing.track)} · Cottage shelf` : trackLabel(listing.track)}
           price={`$${listing.price.toFixed(2)} / ${listing.unit}`}
-          onPress={() => router.push(`/farm-grown-basket/product/${listing.id}` as Href)}
+          onPress={() => router.push(openFromStand('/farm-grown-basket/product/[id]', { id: listing.id }))}
         />
       ))}
     </FarmScreen>

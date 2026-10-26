@@ -35,7 +35,13 @@ export default function CaterBasketScreen() {
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 
   return (
-    <CaterEventScreen title="Group order" subtitle="One company. Price is per person." showOrder={false} testID="cater-basket">
+    <CaterEventScreen
+      title="Group order"
+      subtitle="One company. Price is per person."
+      showOrder={false}
+      testID="cater-basket"
+      backHref={user?.role === 'platemaker' || user?.isAdmin === true ? '/cater-event-deliver/seller' : '/cater-event-deliver'}
+    >
       <FoodHandlingNotice inset testID="cater-basket-food-handling" />
       {lines.length === 0 ? (
         <View>

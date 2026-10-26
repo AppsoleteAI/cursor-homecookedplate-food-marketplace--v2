@@ -4,7 +4,7 @@ Web, iOS, and Android use the same dashboard screen. A push to main publishes th
 
 ## PlateMaker
 
-The dashboard paints the header, the availability switch, Get GPS, and the plates without waiting for the earnings scan. Today and this week use the orders already on the phone until the server take-home arrives. Opening the tab does not download every order again. Refresh on Active Orders still does. Earnings stay for a minute before another scan. Stripe payout status stays for five minutes. The worker copy of the earnings scan totals the completed orders instead of reading every row, and the plate list can ask for names only. Those two stay unused until that worker is published. The screen still calls the current plate list.
+The dashboard paints the header, the availability switch, Get GPS, and the plates without waiting for the earnings scan. The green outline is only around the Get GPS words. Today and this week use the orders already on the phone until the server take-home arrives. A section opened from this screen returns to this screen. FoodReviewClips is a footer tab and has no back chip. The Dashboard tab returns there. Web, iOS, and Android share that return. The website publish includes this return. An app already on a phone keeps the previous back behavior until the next store build. Opening the tab does not download every order again. Refresh on Active Orders still does. Earnings stay for a minute before another scan. Stripe payout status stays for five minutes. The worker copy of the earnings scan totals the completed orders instead of reading every row, and the plate list can ask for names only. Those two stay unused until that worker is published. The screen still calls the current plate list.
 
 ## PlateTaker
 

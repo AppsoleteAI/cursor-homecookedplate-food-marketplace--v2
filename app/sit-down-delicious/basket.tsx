@@ -34,7 +34,13 @@ export default function SitBasketScreen() {
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 
   return (
-    <SitDownScreen title="Restaurant order" subtitle="One shop. A table or counter takeout." showBasket={false} testID="sit-basket">
+    <SitDownScreen
+      title="Restaurant order"
+      subtitle="One shop. A table or counter takeout."
+      showBasket={false}
+      testID="sit-basket"
+      backHref={user?.role === 'platemaker' || user?.isAdmin === true ? '/sit-down-delicious/seller' : '/sit-down-delicious'}
+    >
       <FoodHandlingNotice inset testID="sit-basket-food-handling" />
       {lines.length === 0 ? (
         <View>
