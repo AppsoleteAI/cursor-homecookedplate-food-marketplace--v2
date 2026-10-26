@@ -6,13 +6,13 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Image,
   ActivityIndicator,
   Alert,
 } from 'react-native';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FoodImage } from '@/components/FoodImage';
 import { Ionicons } from '@expo/vector-icons';
 import { trpc, trpcProxyClient } from '@/lib/trpc';
 import { useAuth } from '@/hooks/auth-context';
@@ -193,7 +193,7 @@ export default function OrdersScreen() {
           ) : (
             orders.map((order) => (
               <View key={order.id} style={styles.orderCard}>
-                <Image
+                <FoodImage
                   source={{ uri: order.mealImage || 'https://via.placeholder.com/150' }}
                   style={styles.orderImage}
                 />

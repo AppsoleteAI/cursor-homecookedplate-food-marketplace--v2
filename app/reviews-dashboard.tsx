@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { FoodImage } from '@/components/FoodImage';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -139,7 +140,7 @@ export default function ReviewsDashboardScreen() {
               const meal = mealsById.get(r.mealId);
               return (
                 <View key={r.id} style={styles.reviewCard}>
-                  {meal?.image ? <Image source={{ uri: meal.image }} style={styles.mealImage} /> : null}
+                  {meal?.image ? <FoodImage source={{ uri: meal.image }} style={styles.mealImage} /> : null}
                   <View style={{ flex: 1 }}>
                     <View style={styles.rowBetween}>
                       <Text style={styles.user}>{r.mealName || meal?.name || 'Plate'}</Text>

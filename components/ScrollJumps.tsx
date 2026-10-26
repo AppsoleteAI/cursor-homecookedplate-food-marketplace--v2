@@ -46,5 +46,6 @@ const styles = StyleSheet.create({
     right: 16,
     bottom: 16,
     gap: 10,
+    zIndex: 20,
   },
 });

@@ -59,7 +59,7 @@ export default function ListCaterPackageScreen() {
       ) : (
         <Text style={styles.block}>Save the catering license before a package can go up.</Text>
       )}
-      <ListingPhotoField label="Photo of this package" value={image} onChange={setImage} testID="cater-list-photo" />
+      <ListingPhotoField food label="Photo of this package" value={image} onChange={setImage} testID="cater-list-photo" />
       <TextInput value={name} onChangeText={setName} placeholder="Package name" placeholderTextColor={Colors.gray[400]} style={styles.input} testID="cater-list-name" />
       <TextInput value={priceText} onChangeText={setPriceText} placeholder="Price per person" placeholderTextColor={Colors.gray[400]} keyboardType="decimal-pad" style={styles.input} testID="cater-list-price" />
       <TextInput value={headcountText} onChangeText={setHeadcountText} placeholder="Minimum headcount" placeholderTextColor={Colors.gray[400]} keyboardType="number-pad" style={styles.input} testID="cater-list-headcount" />

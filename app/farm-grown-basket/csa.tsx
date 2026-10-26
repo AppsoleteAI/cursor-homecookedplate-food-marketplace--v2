@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { FoodImage } from '@/components/FoodImage';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router , type Href } from 'expo-router';
@@ -22,7 +23,7 @@ export default function CsaScreen() {
         return (
           <View key={share.id} style={styles.card}>
             <View style={styles.row}>
-              <Image source={{ uri: share.image }} style={styles.image} />
+              <FoodImage source={{ uri: share.image }} style={styles.image} />
               <View style={styles.copy}>
                 <Text style={styles.name}>{titleCase(share.name)}</Text>
                 <Text style={styles.meta}>{farm?.name}</Text>

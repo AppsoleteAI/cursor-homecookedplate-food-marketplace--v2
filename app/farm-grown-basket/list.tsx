@@ -53,7 +53,7 @@ export default function ListFarmGoodScreen() {
       ) : (
         <Text style={styles.block}>Save the cottage food record before you can list.</Text>
       )}
-      <ListingPhotoField label="Photo of this good" value={image} onChange={setImage} testID="farm-list-photo" />
+      <ListingPhotoField food label="Photo of this good" value={image} onChange={setImage} testID="farm-list-photo" />
       <TextInput value={name} onChangeText={setName} placeholder="Product name" placeholderTextColor={Colors.gray[400]} style={styles.input} testID="farm-list-name" />
       <TextInput value={priceText} onChangeText={setPriceText} placeholder="Price" placeholderTextColor={Colors.gray[400]} keyboardType="decimal-pad" style={styles.input} testID="farm-list-price" />
       <TextInput value={unit} onChangeText={setUnit} placeholder="Unit (jar, dozen, pound)" placeholderTextColor={Colors.gray[400]} style={styles.input} />

@@ -1,7 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { agreementFromUnknown, clearLegalReadyForSignIn, clearLoginLegalBox, isLegalReadyForSignIn, LEGAL_SIGN_IN_MESSAGE, readLegalAgreement, setLoginLegalBoxChecked, toCompletedLegalAgreement, writeLegalAgreement } from '@/lib/legal-agreement';
+import { agreementFromUnknown, agreementPredatesAccount, chooseLegalForm, clearLegalAgreement, clearLegalReadyForSignIn, clearLoginLegalBox, isLegalReadyForSignIn, LEGAL_SIGN_IN_MESSAGE, readLegalAgreement, setLoginLegalBoxChecked, todayStamp, toCompletedLegalAgreement, writeLegalAgreement } from '@/lib/legal-agreement';
 // Import expo-secure-store with platform-specific shim for web compatibility
 // Metro will automatically resolve to lib/expo-secure-store.web.ts on web platform
 import * as SecureStore from '@/lib/expo-secure-store';
@@ -433,21 +433,36 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       if (result.needsTwoFactor) {
         return { needsTwoFactor: true as const, codeReused: result.codeReused === true };
       }
-      const localAgreement = toCompletedLegalAgreement(await readLegalAgreement());
+      const createdAt = new Date(result.user.createdAt);
+      const storedAgreement = await readLegalAgreement();
+      const localAgreement = toCompletedLegalAgreement(storedAgreement);
       const accountAgreement = agreementFromUnknown(result.legalSafetyAgreement);
+      const accountOk = Boolean(accountAgreement && !agreementPredatesAccount(accountAgreement, createdAt));
       const legalReady = await isLegalReadyForSignIn();
-      if (!accountAgreement && !(localAgreement && legalReady)) {
+      const localOk = chooseLegalForm({
+        signedIn: true,
+        createdAt,
+        account: null,
+        device: storedAgreement,
+        legalReady,
+        today: todayStamp(),
+      }) === 'device';
+      if (!accountOk && !localOk) {
+        if (localAgreement) {
+          await clearLegalAgreement();
+          await clearLegalReadyForSignIn();
+        }
         throw new Error(LEGAL_SIGN_IN_MESSAGE);
       }
-      if (!localAgreement && accountAgreement) {
-        try {
-          await writeLegalAgreement(accountAgreement);
-        } catch (storageError) {
-          console.error('[Login] Could not save the Legal & Safety agreement on this device', storageError);
+      if (accountOk && accountAgreement) {
+        if (!localOk) {
+          try {
+            await writeLegalAgreement(accountAgreement);
+          } catch (storageError) {
+            console.error('[Login] Could not save the Legal & Safety agreement on this device', storageError);
+          }
         }
         setLoginLegalBoxChecked(true);
-      }
-      if (accountAgreement) {
         await clearLegalReadyForSignIn();
       }
 
@@ -517,6 +532,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   const logout = useCallback(async () => {
     clearLoginLegalBox();
+    await clearLegalAgreement().catch(() => undefined);
+    await clearLegalReadyForSignIn().catch(() => undefined);
     try {
       await logoutMutation.mutateAsync();
     } catch (error) {
@@ -609,6 +626,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     }
     await persistUser(null);
     await persistSession(null);
+    await clearLegalAgreement().catch(() => undefined);
+    await clearLegalReadyForSignIn().catch(() => undefined);
     await SecureStore.deleteItemAsync('lifetime_binding_token').catch(() => {});
   }, [deleteAccountMutation, persistSession, persistUser]);
 

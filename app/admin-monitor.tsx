@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
-  Image,
   ActivityIndicator,
   Alert,
 } from 'react-native';
@@ -16,6 +15,7 @@ import { AdminOnly } from '@/components/RoleGuard';
 import { BackCircle } from '@/components/BackCircle';
 import { GlassIconButton, GlassPressable } from '@/components/glass-surface';
 import { IdleChrome } from '@/components/IdleChrome';
+import { FoodImage } from '@/components/FoodImage';
 import { CHROME_CHIP_SIZE, CHROME_ICON_SIZE } from '@/lib/chrome-activity';
 import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { Colors, pagePastel } from '@/constants/colors';
@@ -35,7 +35,7 @@ function PlateEditor({ plate }: { plate: Plate }) {
 
   return (
     <View style={styles.card}>
-      {plate.image ? <Image source={{ uri: plate.image }} style={styles.photo} /> : null}
+      {plate.image ? <FoodImage source={{ uri: plate.image }} style={styles.photo} /> : null}
       <Text style={styles.label}>Plate name</Text>
       <TextInput value={name} onChangeText={setName} style={styles.input} />
       <Text style={styles.label}>Plate text</Text>

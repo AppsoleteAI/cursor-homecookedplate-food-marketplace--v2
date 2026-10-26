@@ -20,7 +20,8 @@ export default function TodayFinanceScreen() {
   const dashboardStats = trpc.platemaker.getDashboardStats.useQuery(undefined, {
     enabled: user?.role === 'platemaker' && !!user?.id,
     refetchOnWindowFocus: false,
-    refetchOnMount: true,
+    refetchOnMount: false,
+    staleTime: 60_000,
   });
 
   // Call all hooks before any early returns

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
+import { FoodImage } from '@/components/FoodImage';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Colors } from '@/constants/colors';
@@ -84,7 +85,7 @@ export default function OrderDetailsPage() {
       </View>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.mealHeader}>
-          <Image source={{ uri: order.mealImage }} style={styles.mealImage} accessibilityLabel="meal-image" />
+          <FoodImage source={{ uri: order.mealImage }} style={styles.mealImage} accessibilityLabel="meal-image" />
           <View style={{ flex: 1 }}>
             <Text style={styles.mealName}>{order.mealName}</Text>
             <Text style={styles.mealMeta}>{`Qty ${order.quantity} • ${order.totalPrice.toFixed(2)}`}</Text>

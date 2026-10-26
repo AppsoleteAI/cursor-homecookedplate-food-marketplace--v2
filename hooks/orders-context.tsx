@@ -194,7 +194,8 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
   const dashboardStats = trpc.platemaker.getDashboardStats.useQuery(undefined, {
     enabled: user?.role === 'platemaker' && isAuthenticated,
     refetchOnWindowFocus: false,
-    refetchOnMount: true,
+    refetchOnMount: false,
+    staleTime: 60_000,
   });
 
   const todayEarnings = useMemo(() => {

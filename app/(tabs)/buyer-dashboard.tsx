@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BuyerOnly } from '@/components/RoleGuard';
-import { AppState, View, Text, StyleSheet, ScrollView, Image, Alert, ActivityIndicator, Pressable } from 'react-native';
+import { AppState, View, Text, StyleSheet, ScrollView, Alert, ActivityIndicator, Pressable } from 'react-native';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,6 +16,8 @@ import { trpc, trpcProxyClient } from '@/lib/trpc';
 import { reorderPickup } from '@/lib/pickup-time';
 import { savedFavoriteStaysOnDashboard } from '@/lib/cart-line';
 import HorizontalCarousel from '@/components/HorizontalCarousel';
+import { ScrollJumps } from '@/components/ScrollJumps';
+import { FoodImage } from '@/components/FoodImage';
 
 export default function BuyerDashboardScreen() {
   const pathname = usePathname();
@@ -27,6 +29,7 @@ export default function BuyerDashboardScreen() {
   const { addToCart } = useCart();
   const { refresh: refreshOrders } = useOrders();
   const [reorderingMealId, setReorderingMealId] = useState<string | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
 
   const orderList = trpc.orders.list.useQuery({ role: 'buyer' });
   const orders = orderList.data;
@@ -156,6 +159,7 @@ export default function BuyerDashboardScreen() {
           </View>
         </View>
         <ScrollView
+          ref={scrollRef}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.scrollContent, { paddingTop: contentTopPadding }]}
         >
@@ -182,7 +186,7 @@ export default function BuyerDashboardScreen() {
                     }}
                   >
                     {order.mealImage ? (
-                      <Image source={{ uri: order.mealImage }} style={styles.cardImage} />
+                      <FoodImage source={{ uri: order.mealImage }} style={styles.cardImage} />
                     ) : (
                       <View style={styles.cardImage} />
                     )}
@@ -250,7 +254,7 @@ export default function BuyerDashboardScreen() {
                     }}
                     activeOpacity={0.9}
                   >
-                    <Image source={{ uri: m.images[0] }} style={styles.cardImage} />
+                    <FoodImage source={{ uri: m.images[0] }} style={styles.cardImage} />
                     <View style={styles.cardContent}>
                       <Text style={styles.cardTitle} numberOfLines={1}>{m.name}</Text>
                       <View style={styles.row}>
@@ -359,6 +363,7 @@ export default function BuyerDashboardScreen() {
 
           <View style={styles.bottomSpacer} />
         </ScrollView>
+        <ScrollJumps scrollRef={scrollRef} testID="orders" />
       </View>
     </BuyerOnly>
   );

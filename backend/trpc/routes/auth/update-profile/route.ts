@@ -33,11 +33,11 @@ export const updateProfileProcedure = protectedProcedure
           }),
           acknowledgedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
           acknowledgedAt: z.string().min(10),
-        }).optional(),
+        }).nullable().optional(),
       })
   )
   .mutation(async ({ input, ctx }) => {
-    const updateData: Record<string, string | boolean | object> = {};
+    const updateData: Record<string, string | boolean | object | null> = {};
 
     if (input.username) {
       const r = sanitizeTextField(input.username);
@@ -83,7 +83,7 @@ export const updateProfileProcedure = protectedProcedure
     }
 
     if (input.foodSafetyAcknowledged !== undefined) updateData.food_safety_acknowledged = input.foodSafetyAcknowledged;
-    if (input.legalSafetyAgreement) updateData.legal_safety_agreement = input.legalSafetyAgreement;
+    if (input.legalSafetyAgreement !== undefined) updateData.legal_safety_agreement = input.legalSafetyAgreement;
 
     const { data: profile, error } = await ctx.supabase
       .from('profiles')

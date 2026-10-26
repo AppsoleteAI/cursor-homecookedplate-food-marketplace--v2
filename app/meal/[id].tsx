@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Image,
   Alert,
   Dimensions,
   Platform,
@@ -20,6 +19,7 @@ import { allergyOptions, cookingTemperatures } from '@/mocks/data';
 import { isSampleMealId } from '@/lib/sample-meals';
 import { portionsFromTags } from '@/lib/meal-publish';
 import { FoodHandlingLink } from '@/components/FoodHandlingLink';
+import { FoodImage } from '@/components/FoodImage';
 import { trpc } from '@/lib/trpc';
 import { buyerFoodCharge } from '@/backend/lib/fees';
 import type { Meal } from '@/types';
@@ -219,16 +219,11 @@ export default function MealDetailScreen() {
             }}
           >
             {meal.images.map((image, index) => (
-              <Image 
-                key={index} 
-                source={{ uri: image }} 
+              <FoodImage
+                key={index}
+                source={{ uri: image }}
                 style={styles.image}
-                onLoad={() => {
-                  if (__DEV__) {
-                    console.log('[MealDetail] Image loaded', { index, platform: Platform.OS });
-                  }
-                }}
-                onError={(error) => {
+                onError={() => {
                   const err = new Error(`Failed to load image ${index}: ${image}`);
                   navLogger.error('app/meal/[id].tsx:IMAGE_LOAD_ERROR', err, `/meal/${id}`, {
                     imageIndex: index,
@@ -242,7 +237,6 @@ export default function MealDetailScreen() {
                     platform: Platform.OS,
                   });
                 }}
-                resizeMode="cover"
               />
             ))}
           </ScrollView>

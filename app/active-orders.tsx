@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Image,
   Alert,
   RefreshControl,
 } from 'react-native';
@@ -13,6 +12,7 @@ import { Stack } from 'expo-router';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { FoodImage } from '@/components/FoodImage';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
 import { SellerOnly } from '@/components/RoleGuard';
@@ -204,7 +204,7 @@ export default function ActiveOrdersModal() {
           >
             {orders.map((order) => (
               <View key={order.id} style={styles.card}>
-                <Image
+                <FoodImage
                   source={{ uri: order.mealImage || 'https://via.placeholder.com/80' }}
                   style={styles.image}
                 />

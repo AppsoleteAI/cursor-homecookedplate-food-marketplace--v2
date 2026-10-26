@@ -51,7 +51,7 @@ export default function ListTruckItemScreen() {
       ) : (
         <Text style={styles.block}>Save the mobile permit before a menu item can go up.</Text>
       )}
-      <ListingPhotoField label="Photo of this menu item" value={image} onChange={setImage} testID="truck-list-photo" />
+      <ListingPhotoField food label="Photo of this menu item" value={image} onChange={setImage} testID="truck-list-photo" />
       <TextInput value={name} onChangeText={setName} placeholder="Item name" placeholderTextColor={Colors.gray[400]} style={styles.input} testID="truck-list-name" />
       <TextInput value={priceText} onChangeText={setPriceText} placeholder="Price" placeholderTextColor={Colors.gray[400]} keyboardType="decimal-pad" style={styles.input} testID="truck-list-price" />
       <TextInput value={summary} onChangeText={setSummary} placeholder="What the customer picks up" placeholderTextColor={Colors.gray[400]} style={[styles.input, styles.area]} multiline />

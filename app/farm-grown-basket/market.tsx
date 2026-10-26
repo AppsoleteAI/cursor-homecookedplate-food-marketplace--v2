@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Image, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TextInput } from 'react-native';
+import { FoodImage } from '@/components/FoodImage';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, useLocalSearchParams , type Href } from 'expo-router';
@@ -85,7 +86,7 @@ export default function FarmMarketScreen() {
           </GlassPressable>
           {bakedListings.map((listing) => (
             <GlassPressable key={listing.id} style={[styles.card, styles.highlightCard]} onPress={() => router.push(`/farm-grown-basket/product/${listing.id}` as Href)}>
-              {listing.image ? <Image source={{ uri: listing.image }} style={styles.image} /> : null}
+              {listing.image ? <FoodImage source={{ uri: listing.image }} style={styles.image} /> : null}
               <View style={styles.copy}>
                 <Text style={styles.badge}>Cottage shelf</Text>
                 <Text style={styles.name}>{titleCase(listing.name)}</Text>
@@ -103,7 +104,7 @@ export default function FarmMarketScreen() {
                 onPress={() => router.push(`/farm-grown-basket/product/${product.id}` as Href)}
                 testID={`baked-cottage-${product.id}`}
               >
-                <Image source={{ uri: product.image }} style={styles.image} />
+                <FoodImage source={{ uri: product.image }} style={styles.image} />
                 <View style={styles.copy}>
                   <Text style={styles.badge}>Cottage shelf</Text>
                   <Text style={styles.name}>{titleCase(product.name)}</Text>
@@ -123,7 +124,7 @@ export default function FarmMarketScreen() {
             .filter((listing) => (filter === 'all' || listing.track === filter) && !(showBaked && highlightBakedCottage(listing)))
             .map((listing) => (
               <GlassPressable key={listing.id} style={styles.card} onPress={() => router.push(`/farm-grown-basket/product/${listing.id}` as Href)}>
-                {listing.image ? <Image source={{ uri: listing.image }} style={styles.image} /> : null}
+                {listing.image ? <FoodImage source={{ uri: listing.image }} style={styles.image} /> : null}
                 <View style={styles.copy}>
                   <Text style={styles.name}>{titleCase(listing.name)}</Text>
                   <Text style={styles.meta}>{listing.farmName} · {trackLabel(listing.track)}</Text>
@@ -158,7 +159,7 @@ export default function FarmMarketScreen() {
               onPress={() => router.push(`/farm-grown-basket/product/${product.id}` as Href)}
               testID={`market-product-${product.id}`}
             >
-              <Image source={{ uri: product.image }} style={styles.image} />
+              <FoodImage source={{ uri: product.image }} style={styles.image} />
               <View style={styles.copy}>
                 <Text style={styles.name}>{titleCase(product.name)}</Text>
                 <Text style={styles.meta}>{farm?.name} · {trackLabel(product.track)}</Text>

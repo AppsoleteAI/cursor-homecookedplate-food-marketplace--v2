@@ -81,7 +81,7 @@ export default function ListPrepItemScreen() {
           </GlassPressable>
         ))}
       </View>
-      <ListingPhotoField label="Photo of this weekly item" value={image} onChange={setImage} testID="prep-list-photo" />
+      <ListingPhotoField food label="Photo of this weekly item" value={image} onChange={setImage} testID="prep-list-photo" />
       <TextInput value={name} onChangeText={setName} placeholder="Item name" placeholderTextColor={Colors.gray[400]} style={styles.input} testID="prep-list-name" />
       <TextInput value={priceText} onChangeText={setPriceText} placeholder="Price" placeholderTextColor={Colors.gray[400]} keyboardType="decimal-pad" style={styles.input} testID="prep-list-price" />
       <TextInput value={minutesText} onChangeText={setMinutesText} placeholder="Minutes" placeholderTextColor={Colors.gray[400]} keyboardType="number-pad" style={styles.input} />

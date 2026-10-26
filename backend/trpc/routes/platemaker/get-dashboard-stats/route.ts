@@ -1,6 +1,6 @@
 import { protectedProcedure } from "../../../create-context";
 import { TRPCError } from "@trpc/server";
-import { calculateOrderSplit } from "../../../../lib/fees";
+import { sellerTakeHome } from "../../../../lib/fees";
 
 /**
  * Get Dashboard Stats Procedure
@@ -36,113 +36,72 @@ export const getDashboardStatsProcedure = protectedProcedure
       });
     }
 
-    // CRITICAL: Always filter by seller_id = ctx.userId to ensure data isolation
-    // Query all completed orders for this platemaker
-    const { data: allOrders, error: ordersError } = await ctx.supabase
-      .from('orders')
-      .select('id, total_price, created_at')
-      .eq('seller_id', ctx.userId) // Data isolation: only this platemaker's orders
-      .eq('status', 'completed')
-      .order('created_at', { ascending: false });
-
-    if (ordersError) {
-      console.error('[GetDashboardStats] Error fetching orders:', ordersError);
-      throw new TRPCError({
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'Failed to fetch orders',
-      });
-    }
-
-    // Handle edge case: no orders
-    if (!allOrders || allOrders.length === 0) {
-      return {
-        totalRevenue: 0,
-        takeHome: 0,
-        todayRevenue: 0,
-        todayTakeHome: 0,
-        weekRevenue: 0,
-        weekTakeHome: 0,
-        orderCount: 0,
-        todayOrderCount: 0,
-        weekOrderCount: 0,
-      };
-    }
-
-    // Calculate date boundaries
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    
-    // Start of week (Monday)
     const startOfWeek = new Date(startOfToday);
     const dayOfWeek = startOfToday.getDay();
-    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Sunday = 0, so 6 days back
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     startOfWeek.setDate(startOfToday.getDate() - daysToMonday);
     startOfWeek.setHours(0, 0, 0, 0);
 
-    // Initialize accumulators
-    let totalRevenue = 0;
-    let totalTakeHome = 0;
-    let todayRevenue = 0;
-    let todayTakeHome = 0;
-    let weekRevenue = 0;
-    let weekTakeHome = 0;
-    let todayOrderCount = 0;
-    let weekOrderCount = 0;
-
-    // Process each order
-    for (const order of allOrders) {
-      const orderDate = new Date(order.created_at);
-      const orderTotalPrice = parseFloat(order.total_price.toString());
-
-      // Skip invalid orders
-      if (!Number.isFinite(orderTotalPrice) || orderTotalPrice < 0) {
-        console.warn('[GetDashboardStats] Skipping invalid order:', order.id, orderTotalPrice);
-        continue;
+    const completedTotals = async (since?: string) => {
+      let aggregate = ctx.supabase
+        .from('orders')
+        .select('total_price.sum(),id.count()')
+        .eq('seller_id', ctx.userId)
+        .eq('status', 'completed');
+      if (since) aggregate = aggregate.gte('created_at', since);
+      const summed = await aggregate;
+      const row = (Array.isArray(summed.data) ? summed.data[0] : summed.data) as { sum?: number | string | null; count?: number | string | null } | null;
+      if (!summed.error && row && (row.sum !== undefined || row.count !== undefined)) {
+        const revenue = Number(row.sum ?? 0);
+        const count = Number(row.count ?? 0);
+        return {
+          revenue: Number.isFinite(revenue) && revenue > 0 ? revenue : 0,
+          count: Number.isFinite(count) && count > 0 ? count : 0,
+        };
       }
 
-      // orders.total_price is the plate base (DB trigger). Do not divide by 1.10.
-      const baseAmount = orderTotalPrice;
-
-      // Calculate take-home using calculateOrderSplit (90% of base after 10% seller fee)
-      let orderTakeHome = 0;
-      try {
-        const split = calculateOrderSplit(baseAmount);
-        orderTakeHome = split.sellerPayout; // This is baseAmount * 0.90
-      } catch (error) {
-        console.error('[GetDashboardStats] Error calculating take-home for order:', order.id, error);
-        // Fallback: use baseAmount * 0.90 directly
-        orderTakeHome = baseAmount * 0.90;
+      let listed = ctx.supabase
+        .from('orders')
+        .select('total_price')
+        .eq('seller_id', ctx.userId)
+        .eq('status', 'completed');
+      if (since) listed = listed.gte('created_at', since);
+      const { data, error } = await listed;
+      if (error) {
+        console.error('[GetDashboardStats] Error fetching orders:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to fetch orders',
+        });
       }
-
-      // Accumulate totals
-      totalRevenue += orderTotalPrice;
-      totalTakeHome += orderTakeHome;
-
-      // Check if order is from today
-      if (orderDate >= startOfToday) {
-        todayRevenue += orderTotalPrice;
-        todayTakeHome += orderTakeHome;
-        todayOrderCount++;
+      let revenue = 0;
+      let count = 0;
+      for (const order of data || []) {
+        const amount = parseFloat(String(order.total_price));
+        if (!Number.isFinite(amount) || amount < 0) continue;
+        revenue += amount;
+        count += 1;
       }
+      return { revenue, count };
+    };
 
-      // Check if order is from this week
-      if (orderDate >= startOfWeek) {
-        weekRevenue += orderTotalPrice;
-        weekTakeHome += orderTakeHome;
-        weekOrderCount++;
-      }
-    }
+    const [allTime, week, today] = await Promise.all([
+      completedTotals(),
+      completedTotals(startOfWeek.toISOString()),
+      completedTotals(startOfToday.toISOString()),
+    ]);
 
-    // Round to 2 decimal places for currency
     return {
-      totalRevenue: parseFloat(totalRevenue.toFixed(2)),
-      takeHome: parseFloat(totalTakeHome.toFixed(2)),
-      todayRevenue: parseFloat(todayRevenue.toFixed(2)),
-      todayTakeHome: parseFloat(todayTakeHome.toFixed(2)),
-      weekRevenue: parseFloat(weekRevenue.toFixed(2)),
-      weekTakeHome: parseFloat(weekTakeHome.toFixed(2)),
-      orderCount: allOrders.length,
-      todayOrderCount,
-      weekOrderCount,
+      totalRevenue: Number(allTime.revenue.toFixed(2)),
+      takeHome: sellerTakeHome(allTime.revenue),
+      todayRevenue: Number(today.revenue.toFixed(2)),
+      todayTakeHome: sellerTakeHome(today.revenue),
+      weekRevenue: Number(week.revenue.toFixed(2)),
+      weekTakeHome: sellerTakeHome(week.revenue),
+      orderCount: allTime.count,
+      todayOrderCount: today.count,
+      weekOrderCount: week.count,
     };
   });

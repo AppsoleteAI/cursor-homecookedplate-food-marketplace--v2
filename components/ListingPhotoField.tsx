@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Alert, Image, Platform, StyleSheet, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { FoodImage } from '@/components/FoodImage';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Colors } from '@/constants/colors';
 
@@ -9,6 +10,7 @@ type ListingPhotoFieldProps = {
   value?: string;
   onChange: (uri: string) => void;
   testID?: string;
+  food?: boolean;
 };
 
 async function pickedUri(asset: ImagePicker.ImagePickerAsset): Promise<string> {
@@ -19,7 +21,7 @@ async function pickedUri(asset: ImagePicker.ImagePickerAsset): Promise<string> {
   return asset.uri;
 }
 
-export function ListingPhotoField({ label, value, onChange, testID }: ListingPhotoFieldProps) {
+export function ListingPhotoField({ label, value, onChange, testID, food }: ListingPhotoFieldProps) {
   const [busy, setBusy] = useState(false);
 
   const choose = async (source: 'camera' | 'library') => {
@@ -69,7 +71,9 @@ export function ListingPhotoField({ label, value, onChange, testID }: ListingPho
       <Text style={styles.label}>{label}</Text>
       <Text style={styles.note}>Use good lighting. Showcase the best photo of the food, and capture the heart of the cooking space, truck, cart, event space, or farmers table.</Text>
       <View style={styles.row}>
-        {value ? <Image source={{ uri: value }} style={styles.preview} /> : <View style={styles.preview} />}
+        {value ? (
+          food ? <FoodImage source={{ uri: value }} style={styles.preview} /> : <Image source={{ uri: value }} style={styles.preview} />
+        ) : <View style={styles.preview} />}
         <View style={styles.actions}>
           <GlassPressable style={styles.button} onPress={() => choose('camera')} disabled={busy} testID={testID ? `${testID}-camera` : undefined}>
             <Text style={styles.buttonText}>{busy ? 'Opening…' : 'Take photo'}</Text>

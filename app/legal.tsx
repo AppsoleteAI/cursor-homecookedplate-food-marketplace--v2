@@ -24,8 +24,13 @@ import { GlassTop } from '@/components/glass-surface';
 import { ScrollJumps } from '@/components/ScrollJumps';
 import {
   agreementFromUnknown,
+  agreementPredatesAccount,
   allSectionsAgreed,
+  chooseLegalForm,
+  clearLegalAgreement,
+  clearLegalReadyForSignIn,
   emptyLegalSections,
+  isLegalReadyForSignIn,
   parseEnteredDate,
   markLegalReadyForSignIn,
   readLegalAgreement,
@@ -46,13 +51,16 @@ const FINAL_AGREEMENT =
 
 export default function LegalScreen() {
   const leave = useLeaveScreen('/(auth)/login');
-  const { session } = useAuth();
+  const { session, user, isLoading } = useAuth();
   const saveAgreement = trpc.auth.updateProfile.useMutation();
+  const saveAgreementRef = useRef(saveAgreement);
+  saveAgreementRef.current = saveAgreement;
   const [sections, setSections] = useState(emptyLegalSections);
   const [dateText, setDateText] = useState('');
   const [recordedOn, setRecordedOn] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadedFor = useRef('');
   const scrollRef = useRef<ScrollView>(null);
   const accountAgreement = trpc.auth.me.useQuery(undefined, {
     enabled: Boolean(session),
@@ -71,27 +79,61 @@ export default function LegalScreen() {
   };
 
   useEffect(() => {
+    if (isLoading) return;
+    if (session && accountAgreement.isLoading) return;
+    const loadKey = session ? user?.id ?? 'session' : 'signed-out';
+    if (loadedFor.current === loadKey) return;
     let active = true;
+    const createdAt = user?.createdAt
+      ? new Date(user.createdAt)
+      : accountAgreement.data?.createdAt
+        ? new Date(accountAgreement.data.createdAt)
+        : null;
     readLegalAgreement().then(async (record) => {
+      const ready = await isLegalReadyForSignIn();
+      const fromAccount = agreementFromUnknown(accountAgreement.data?.legalSafetyAgreement);
+      const choice = chooseLegalForm({
+        signedIn: Boolean(session),
+        createdAt,
+        account: fromAccount,
+        device: record,
+        legalReady: ready,
+        today: todayStamp(),
+      });
       if (!active) return;
-      if (toCompletedLegalAgreement(record) && record) {
+      loadedFor.current = loadKey;
+      if (choice === 'account' && fromAccount) {
+        try {
+          await writeLegalAgreement(fromAccount);
+        } catch (error) {
+          console.error('[Legal] Could not save the account agreement on this device', error);
+        }
+        if (!active) return;
+        applyRecord(fromAccount);
+        return;
+      }
+      if (choice === 'device' && record) {
         applyRecord(record);
         return;
       }
-      const fromAccount = agreementFromUnknown(accountAgreement.data?.legalSafetyAgreement);
-      if (!fromAccount) return;
       try {
-        await writeLegalAgreement(fromAccount);
+        await clearLegalAgreement();
+        await clearLegalReadyForSignIn();
       } catch (error) {
-        console.error('[Legal] Could not save the account agreement on this device', error);
+        console.error('[Legal] Could not clear an agreement from another account', error);
       }
       if (!active) return;
-      applyRecord(fromAccount);
+      setSections(emptyLegalSections());
+      setDateText('');
+      setRecordedOn(null);
+      if (session && fromAccount && createdAt && agreementPredatesAccount(fromAccount, createdAt)) {
+        saveAgreementRef.current.mutate({ legalSafetyAgreement: null });
+      }
     });
     return () => {
       active = false;
     };
-  }, [accountAgreement.data]);
+  }, [accountAgreement.data, accountAgreement.isLoading, isLoading, session, user?.createdAt, user?.id]);
 
   const toggle = (id: LegalSectionId) => {
     if (recordedOn) return;

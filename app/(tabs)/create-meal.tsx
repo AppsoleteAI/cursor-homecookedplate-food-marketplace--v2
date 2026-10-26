@@ -6,7 +6,6 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
-  Image,
   Alert,
   Platform,
   ActivityIndicator,
@@ -22,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { calculateOrderBreakdown, calculateOrderSplit, DELIVERY_PLATFORM_RATE } from '@/lib/fees';
 import { onPlatePublished, writePlateDraft } from '@/lib/plate-draft';
 import { ScrollJumps } from '@/components/ScrollJumps';
+import { FoodImage } from '@/components/FoodImage';
 
 // Import expo-video with platform-specific shim for web compatibility
 // Metro will automatically resolve to lib/expo-video.web.ts on web platform
@@ -742,7 +742,7 @@ export default function CreateMealScreen() {
               {form.media.map((item, idx) => (
                 <View key={`${item.uri}-${idx}`} style={styles.previewItem}>
                   {item.type === 'image' ? (
-                    <Image source={{ uri: item.uri }} style={styles.previewImage} />
+                    <FoodImage source={{ uri: item.uri }} style={styles.previewImage} />
                   ) : (
                     Platform.OS === 'web' ? (
                       // @ts-ignore web-only built-in element

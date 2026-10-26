@@ -116,6 +116,12 @@ export const calculateOrderSplit = (baseAmount: number) => {
   return result;
 };
 
+/** Take-home for a sum of plate bases. The 10% cook fee is linear, so one split of the sum matches a split of each order. */
+export function sellerTakeHome(baseAmount: number): number {
+  if (!Number.isFinite(baseAmount) || baseAmount <= 0) return 0;
+  return Number(calculateOrderSplit(baseAmount).sellerPayout.toFixed(2));
+}
+
 function roundMoney(amount: number): number {
   return Math.round(amount * 100) / 100;
 }

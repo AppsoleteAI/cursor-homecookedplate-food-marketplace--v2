@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Text, StyleSheet, View, Image } from 'react-native';
+import { Text, StyleSheet, View } from 'react-native';
+import { FoodImage } from '@/components/FoodImage';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, useLocalSearchParams, router, type Href } from 'expo-router';
@@ -34,7 +35,7 @@ export default function MealPrepItemScreen() {
 
   return (
     <MealPrepScreen title={titleCase(item.name)} subtitle={`${laneLabel(item.lane)} · ${cookName}`} testID="prep-item">
-      {catalog?.image || listing?.image ? <Image source={{ uri: catalog?.image || listing?.image }} style={styles.hero} /> : null}
+      {catalog?.image || listing?.image ? <FoodImage source={{ uri: catalog?.image || listing?.image }} style={styles.hero} /> : null}
       <Text style={styles.price}>${item.price.toFixed(2)}</Text>
       <Text style={styles.meta}>{dietLabel(item.diet)} · {item.lane === 'addon' ? 'Rides with the week' : `${item.minutes} minutes`}</Text>
       <Text style={styles.body}>{item.summary}</Text>

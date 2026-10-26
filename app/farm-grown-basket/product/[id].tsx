@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { FoodImage } from '@/components/FoodImage';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, useLocalSearchParams , type Href } from 'expo-router';
@@ -44,7 +45,7 @@ export default function FarmProductScreen() {
 
   return (
     <FarmScreen title={name} subtitle={farm ? farm.name : listing!.farmName} testID="farm-product">
-      {catalog?.image || listing?.image ? <Image source={{ uri: catalog?.image || listing?.image }} style={styles.hero} /> : null}
+      {catalog?.image || listing?.image ? <FoodImage source={{ uri: catalog?.image || listing?.image }} style={styles.hero} /> : null}
       <Text style={styles.price}>${price.toFixed(2)} / {unit}</Text>
       <Text style={styles.track}>{trackLabel(track)} · {stateName(stateCode)}</Text>
       {cottageDirectoryRow(stateCode) ? (

@@ -31,6 +31,16 @@ The back control on Membership follows the signed-in row for the role on the scr
 
 Your Cook Path and Where You Can Eat use the honey gold from the home screens: `#F6CC3E`, `#E8B016`, and `#D39A08`. The words on that gold card are white, the same white Home Kitchens uses on its gold header. Other membership text stays dark.
 
+## A new account
+
+Legal & Safety checks live on the account. The browser also kept a copy, so a deleted account's checks and date stayed on the phone after a refresh.
+
+Signed out, a PlateMaker and a PlateTaker see those checks only after confirming them today, before the next sign-in. An older date, including 10/18/2026 from a deleted account, is removed. The boxes start unchecked and the date starts empty.
+
+Signed in, each role sees the acknowledgment stored on that account. It counts only when it was saved after that account existed. A copy from a deleted account, including one made earlier the same day, is removed. That person checks each section again and enters today's date. The phone keeps one pending confirmation for the next sign-in. Sign-in stamps that confirmation on the account, then the pending copy is cleared. Sign-out clears it too. Each phone does this for itself, so the number of people using the app does not bring the old checks back.
+
+A push to main publishes this on the website. The iOS and Android store builds stay on the previous copy until a new build.
+
 ## Website sign-in on the phone
 
 The sign-in page on homecookedplate.com, in a phone browser, calls the same API as the iOS app and the Android app. Signed out, a PlateMaker and a PlateTaker use that one sign-in screen. Signed in, both roles use that same API for the kitchen, home, membership, and orders.

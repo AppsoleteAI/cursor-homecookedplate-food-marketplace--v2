@@ -30,7 +30,7 @@ import {
   WRONG_SIGN_IN_MESSAGE,
 } from '@/backend/lib/sign-in-messages';
 import { trpc } from '@/lib/trpc';
-import { clearLegalReadyForSignIn, isLoginLegalBoxChecked, LEGAL_SIGN_IN_MESSAGE, readLegalAgreement, setLoginLegalBoxChecked, toCompletedLegalAgreement } from '@/lib/legal-agreement';
+import { chooseLegalForm, clearLegalAgreement, clearLegalReadyForSignIn, isLegalReadyForSignIn, isLoginLegalBoxChecked, LEGAL_SIGN_IN_MESSAGE, readLegalAgreement, setLoginLegalBoxChecked, todayStamp, toCompletedLegalAgreement, writeLegalAgreement } from '@/lib/legal-agreement';
 import { AuthColors, preAppFont } from '@/constants/auth-palette';
 import { AuthBackground, AuthBrand, MaroonButtonFill } from '@/components/auth/AuthChrome';
 import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
@@ -98,8 +98,25 @@ export default function LoginScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      readLegalAgreement().then((record) => {
-        if (!active || !toCompletedLegalAgreement(record)) return;
+      readLegalAgreement().then(async (record) => {
+        const ready = await isLegalReadyForSignIn();
+        const choice = chooseLegalForm({
+          signedIn: false,
+          createdAt: null,
+          account: null,
+          device: record,
+          legalReady: ready,
+          today: todayStamp(),
+        });
+        if (!active) return;
+        if (choice !== 'device') {
+          if (toCompletedLegalAgreement(record)) {
+            await clearLegalAgreement();
+            await clearLegalReadyForSignIn();
+          }
+          setAgreementOnFile(false);
+          return;
+        }
         setAgreementOnFile(true);
         setLegalChecked(true);
         setLoginLegalBoxChecked(true);
@@ -139,12 +156,27 @@ export default function LoginScreen() {
       return;
     }
 
-    const agreement = toCompletedLegalAgreement(await readLegalAgreement());
+    const storedAgreement = await readLegalAgreement();
+    const agreementReady = await isLegalReadyForSignIn();
+    const agreement = chooseLegalForm({
+      signedIn: false,
+      createdAt: null,
+      account: null,
+      device: storedAgreement,
+      legalReady: agreementReady,
+      today: todayStamp(),
+    }) === 'device'
+      ? toCompletedLegalAgreement(storedAgreement)
+      : null;
     if (agreement) {
       setAgreementOnFile(true);
       setLegalChecked(true);
       setLoginLegalBoxChecked(true);
       setLegalNotice(null);
+    } else if (toCompletedLegalAgreement(storedAgreement)) {
+      await clearLegalAgreement();
+      await clearLegalReadyForSignIn();
+      setAgreementOnFile(false);
     }
 
     if (retryCount >= 3 && !isRetry) {
@@ -189,7 +221,9 @@ export default function LoginScreen() {
       if (timedOut) return;
       if (agreement) {
         try {
-          await saveAgreement.mutateAsync({ legalSafetyAgreement: agreement });
+          const stamped = { ...agreement, acknowledgedAt: new Date().toISOString() };
+          await saveAgreement.mutateAsync({ legalSafetyAgreement: stamped });
+          await writeLegalAgreement(stamped);
           await clearLegalReadyForSignIn();
         } catch (syncError) {
           console.error('[Login] Legal agreement was not stored on the account', syncError);

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { SellerOnly } from '@/components/RoleGuard';
 import {
@@ -6,7 +6,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Image,
   Alert,
   Switch,
   Pressable,
@@ -14,29 +13,30 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import { Colors, inAppHeaderBand, monoGradients, pagePastel } from '@/constants/colors';
 import { GradientButton } from '@/components/GradientButton';
 
 
-import { Redirect, router, useFocusEffect, usePathname, type Href } from 'expo-router';
+import { Redirect, router, usePathname, type Href } from 'expo-router';
 import { openFoodHandling } from '@/components/FoodHandlingLink';
 
 import { useOrders } from '@/hooks/orders-context';
 import { useAuth } from '@/hooks/auth-context';
 import * as WebBrowser from 'expo-web-browser';
 import { trpc } from '@/lib/trpc';
-import { SkeletonDashboard } from '@/components/SkeletonDashboard';
 import { TrialCountdownNotice } from '@/components/TrialCountdownNotice';
 import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
 import { DeliveryFeeCard } from '@/components/DeliveryFeeCard';
 import { GetGpsCard } from '@/components/GetGpsCard';
+import { ScrollJumps } from '@/components/ScrollJumps';
+import { FoodImage } from '@/components/FoodImage';
 
 export default function DashboardScreen() {
   const pathname = usePathname();
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
-  const [headerHeight, setHeaderHeight] = useState<number>(0);
+  const [headerHeight, setHeaderHeight] = useState<number>(inAppHeaderBand.minHeight);
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
   const { activeOrdersCount, todayEarnings, weekEarnings, totalReviews, orders, refresh } = useOrders();
   const { user } = useAuth();
 
@@ -45,22 +45,27 @@ export default function DashboardScreen() {
   const dashboardStats = trpc.platemaker.getDashboardStats.useQuery(undefined, {
     enabled: user?.role === 'platemaker' && !!user?.id,
     refetchOnWindowFocus: false,
-    refetchOnMount: true,
+    refetchOnMount: false,
+    staleTime: 60_000,
   });
 
   // Get availability status
   const availabilityStatus = trpc.platemaker.getAvailability.useQuery(undefined, {
     enabled: user?.role === 'platemaker' && !!user?.id,
     refetchOnWindowFocus: false,
+    staleTime: 60_000,
   });
   const myMeals = trpc.meals.myMeals.useQuery(undefined, {
     enabled: user?.role === 'platemaker' && !!user?.id,
     refetchOnWindowFocus: false,
+    staleTime: 60_000,
   });
   const connect = trpc.payments.getConnectAccountStatus.useQuery(undefined, {
     enabled: user?.role === 'platemaker' && !!user?.id,
     retry: false,
     refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    staleTime: 5 * 60_000,
   });
 
   // Toggle availability mutation
@@ -88,16 +93,6 @@ export default function DashboardScreen() {
     },
   });
 
-  // Call hooks before any early returns
-  useFocusEffect(
-    useCallback(() => {
-      if (user?.role === 'platemaker') {
-        refresh().catch(err => console.error('[Dashboard] refresh on focus error', err));
-      }
-      return () => {};
-    }, [refresh, user?.role])
-  );
-
   // Use backend stats if available (take-home values), fallback to frontend calculations
   const stats = useMemo(() => {
     const todayTakeHome = dashboardStats.data?.todayTakeHome ?? todayEarnings;
@@ -122,6 +117,7 @@ export default function DashboardScreen() {
   const acceptingOrders = availabilityKnown ? availabilityStatus.data.available === true : false;
 
   const pickImage = async () => {
+    const ImagePicker = await import('expo-image-picker');
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -136,6 +132,7 @@ export default function DashboardScreen() {
   };
 
   const takePhoto = async () => {
+    const ImagePicker = await import('expo-image-picker');
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
       aspect: [4, 3],
@@ -174,6 +171,7 @@ export default function DashboardScreen() {
         </View>
 
         <ScrollView
+          ref={scrollRef}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + headerHeight + 12 }]}
         >
@@ -181,13 +179,6 @@ export default function DashboardScreen() {
           <TrialCountdownNotice daysLeft={user.trialCountdownDays} />
         )}
 
-        {/* Show skeleton while loading dashboard stats */}
-        {dashboardStats.isLoading && (
-          <SkeletonDashboard />
-        )}
-
-        {!dashboardStats.isLoading && (
-          <>
         {/* Availability Toggle */}
         <View style={styles.availabilityCard}>
           <View style={styles.availabilityHeader}>
@@ -420,7 +411,7 @@ export default function DashboardScreen() {
                 contentContainerStyle={styles.imageScroll}
               >
                 {uploadedImages.map((uri, index) => (
-                  <Image key={index} source={{ uri }} style={styles.previewImage} />
+                  <FoodImage key={index} source={{ uri }} style={styles.previewImage} />
                 ))}
               </ScrollView>
             </View>
@@ -474,7 +465,7 @@ export default function DashboardScreen() {
           <FoodHandlingNotice inset testID="dashboard-orders-food-handling" />
           {orders.filter(o => o.status !== 'completed').map(order => (
             <GlassPressable key={order.id} style={styles.orderCard} onPress={() => router.push(`/order/${order.id}` as Href)}>
-              <Image source={{ uri: order.mealImage }} style={styles.orderImage} />
+              <FoodImage source={{ uri: order.mealImage }} style={styles.orderImage} />
               <View style={styles.orderDetails}>
                 <Text style={styles.orderName}>{order.mealName}</Text>
                 <Text style={styles.orderQuantity}>Quantity: {order.quantity}</Text>
@@ -493,9 +484,8 @@ export default function DashboardScreen() {
             testID="create-new-meal"
           />
         </View>
-          </>
-        )}
         </ScrollView>
+        <ScrollJumps scrollRef={scrollRef} testID="dashboard" />
       </View>
     </SellerOnly>
   );

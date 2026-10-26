@@ -4,7 +4,6 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
-  Image,
   ActivityIndicator,
   Alert,
 } from 'react-native';
@@ -14,6 +13,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { SellerOnly } from '@/components/RoleGuard';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { BackCircle } from '@/components/BackCircle';
+import { FoodImage } from '@/components/FoodImage';
 import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { GradientButton } from '@/components/GradientButton';
 import { Colors, pagePastel } from '@/constants/colors';
@@ -194,7 +194,7 @@ export default function MealDetailsScreen() {
           </GlassPressable>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photos}>
             {photos.map((uri) => (
-              <Image key={uri} source={{ uri }} style={styles.photo} />
+              <FoodImage key={uri} source={{ uri }} style={styles.photo} />
             ))}
           </ScrollView>
 

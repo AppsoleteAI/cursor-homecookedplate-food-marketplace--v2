@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, TextInput, Alert } from 'react-native';
+import { FoodImage } from '@/components/FoodImage';
 import { titleCase } from '@/lib/title-case';
 import { useLocalSearchParams } from 'expo-router';
 import { Colors, monoGradients } from '@/constants/colors';
@@ -111,7 +112,7 @@ export default function ReviewsScreen() {
 
         {meal && (
           <View style={styles.mealCard}>
-            <Image source={{ uri: meal.images?.[0] }} style={styles.mealImage} />
+            <FoodImage source={{ uri: meal.images?.[0] }} style={styles.mealImage} />
             <View style={styles.mealInfo}>
               <Text style={styles.mealName} numberOfLines={1}>{titleCase(meal.name)}</Text>
               <Text style={styles.plateMaker} numberOfLines={1}>{meal.plateMakerName}</Text>

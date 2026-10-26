@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { FoodImage } from '@/components/FoodImage';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
@@ -37,7 +38,7 @@ export default function TruckItemScreen() {
 
   return (
     <FoodTruckScreen title={name} subtitle={truckName} testID="truck-item">
-      {catalog?.image || listing?.image ? <Image source={{ uri: catalog?.image || listing?.image }} style={styles.hero} /> : null}
+      {catalog?.image || listing?.image ? <FoodImage source={{ uri: catalog?.image || listing?.image }} style={styles.hero} /> : null}
       <Text style={styles.price}>${price.toFixed(2)}</Text>
       <Text style={[styles.status, open ? styles.open : styles.closed]}>{open ? 'Window open for order-ahead' : 'Window closed'}</Text>
       <Text style={styles.body}>{summary}</Text>

@@ -6,7 +6,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Image,
   TextInput,
   NativeSyntheticEvent,
   NativeScrollEvent,
@@ -32,6 +31,8 @@ import { useOrders } from '@/hooks/orders-context';
 import { trpc } from '@/lib/trpc';
 import type { Meal } from '@/types';
 import { SkeletonMealList } from '@/components/SkeletonMealList';
+import { ScrollJumps } from '@/components/ScrollJumps';
+import { FoodImage } from '@/components/FoodImage';
 import { BAKED_COTTAGE_LINK, BAKED_COTTAGE_NOTE, isCottageSearch } from '@/lib/baked-cottage';
 import { isVegetableLeatherSearch, VEGETABLE_LEATHER_ALSO, VEGETABLE_LEATHER_PARAGRAPHS, VEGETABLE_LEATHER_TITLE } from '@/lib/cottage-directory';
 export default function HomeScreen() {
@@ -201,10 +202,9 @@ export default function HomeScreen() {
 
             {currentMeal && (
               <Animated.View style={animatedImageStyle}>
-                <Image
+                <FoodImage
                   source={{ uri: currentMeal.images[0] }}
                   style={styles.heroImage}
-                  resizeMode="cover"
                 />
               </Animated.View>
             )}
@@ -288,7 +288,7 @@ export default function HomeScreen() {
                     onPress={() => router.push(`/meal/${order.mealId}` as const)}
                   >
                     {order.mealImage ? (
-                      <Image source={{ uri: order.mealImage }} style={styles.reorderImage} />
+                      <FoodImage source={{ uri: order.mealImage }} style={styles.reorderImage} />
                     ) : (
                       <View style={[styles.reorderImage, styles.reorderPlaceholder]} />
                     )}
@@ -311,7 +311,7 @@ export default function HomeScreen() {
                     onPress={() => router.push(`/meal/${meal.id}` as const)}
                   >
                     {meal.images[0] ? (
-                      <Image source={{ uri: meal.images[0] }} style={styles.cravingImage} />
+                      <FoodImage source={{ uri: meal.images[0] }} style={styles.cravingImage} />
                     ) : (
                       <View style={[styles.cravingImage, styles.reorderPlaceholder]} />
                     )}
@@ -464,6 +464,7 @@ export default function HomeScreen() {
             )}
           </View>
         </ScrollView>
+      <ScrollJumps scrollRef={scrollRef} testID="home" />
     </View>
   );
 }

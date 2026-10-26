@@ -1,5 +1,6 @@
 import React from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { FoodImage } from '@/components/FoodImage';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Colors } from '@/constants/colors';
 
@@ -24,7 +25,7 @@ export function PricedItemCard({
 }: PricedItemCardProps) {
   const body = (
     <>
-      {image ? <Image source={{ uri: image }} style={styles.image} /> : null}
+      {image ? <FoodImage source={{ uri: image }} style={styles.image} /> : null}
       <View style={styles.copy}>
         <Text style={styles.name}>{title}</Text>
         {meta ? <Text style={styles.meta}>{meta}</Text> : null}

@@ -10,7 +10,22 @@ A verified food influencer has ✅ immediately after `@screenname`. `@LoveTrash`
 
 The three-dot chip stays in the upper right of the clip. It opens the source page, reports the clip on this device, or hides the clip. Playback stays in the frame. A post that does not fill the 9:16 frame is centered, with the empty black split above and below.
 
-After 5 seconds without a scroll, a touch move, or device motion, the three-dot chip, the jump chevrons, and every back arrow fade out. Movement brings them back. Back arrows keep their honey or light color and use the same 33-by-17 size. Web, iOS, and Android share this. The website publish includes it. An installed app keeps the previous screen until the next store build.
+After 5 seconds without a scroll, a touch move, or device motion, the three-dot chip, the jump chevrons, and every back arrow fade out. Movement brings them back. Back arrows keep their honey or light color and use the same 33-by-17 size. Web, iOS, and Android share this. A push to main publishes this on the website. The iOS and Android store builds stay on the previous copy until a new build.
+
+## Footer tabs
+
+Signed out, the footer is not on screen. The app sends that person to sign-in.
+
+Signed in, every footer tab has the same up and down chips in the lower right. Up jumps to the top of that screen. Down jumps to the bottom. They use the same 5-second fade.
+
+| Footer | PlateMaker | PlateTaker |
+| --- | --- | --- |
+| Home | Up and down chips | Up and down chips |
+| Search | Up and down chips | Up and down chips |
+| Third tab | Create Meal | Cart, above the checkout bar |
+| Fourth tab | Dashboard | Orders |
+| Clips | Up and down chips | Up and down chips |
+| Profile | Up and down chips | Up and down chips |
 
 ## PlateMaker
 

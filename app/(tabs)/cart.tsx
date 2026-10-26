@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { BuyerOnly } from '@/components/RoleGuard';
 import {
@@ -6,7 +6,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Image,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,12 +20,15 @@ import { useCombinedBill } from '@/hooks/use-combined-bill';
 import { buyerFoodCharge } from '@/backend/lib/fees';
 import { DELIVERY_PLATFORM_RATE } from '@/lib/fees';
 import { useAuth } from '@/hooks/auth-context';
+import { ScrollJumps } from '@/components/ScrollJumps';
+import { FoodImage } from '@/components/FoodImage';
 
 export default function CartScreen() {
   const { items, totalPrice, updateQuantity, removeFromCart } = useCart();
   const { user } = useAuth();
   const { payInMainCart, preview, gathered } = useCombinedBill();
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
 
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount: totalPrice });
   const serviceFee = split.totalCaptured - totalPrice;
@@ -36,7 +38,7 @@ export default function CartScreen() {
     return (
       <BuyerOnly>
         <SafeAreaView style={styles.container}>
-          <View style={styles.emptyContainer}>
+          <ScrollView ref={scrollRef} contentContainerStyle={styles.emptyContainer} showsVerticalScrollIndicator={false}>
             <FoodHandlingNotice inset testID="cart-food-handling" />
             <Text style={styles.emptyTitle}>Your cart is empty</Text>
             <Text style={styles.emptyText}>Add some delicious meals to get started!</Text>
@@ -57,7 +59,8 @@ export default function CartScreen() {
               onPress={() => router.push('/(tabs)/(home)/home')}
               style={styles.browseButton}
             />
-          </View>
+          </ScrollView>
+          <ScrollJumps scrollRef={scrollRef} testID="cart" />
         </SafeAreaView>
       </BuyerOnly>
     );
@@ -91,14 +94,16 @@ export default function CartScreen() {
           </LinearGradient>
         </View>
 
+        <View style={styles.cartScroll}>
         <ScrollView
+          ref={scrollRef}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContentWithHeader}
         >
         <FoodHandlingNotice testID="cart-food-handling" />
         {items.map(item => (
           <View key={item.meal.id} style={styles.cartItem}>
-            <Image source={{ uri: item.meal.images[0] }} style={styles.itemImage} />
+            <FoodImage source={{ uri: item.meal.images[0] }} style={styles.itemImage} />
             <View style={styles.itemRight}>
               <View style={styles.itemDetails}>
                 <Text style={styles.itemName}>{item.meal.name}</Text>
@@ -179,6 +184,8 @@ export default function CartScreen() {
           </View>
         </View> : null}
       </ScrollView>
+        <ScrollJumps scrollRef={scrollRef} testID="cart" />
+        </View>
 
         <View style={styles.footer}>
           <View style={styles.warningBox} testID="checkout-warning">
@@ -218,6 +225,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: pagePastel.green,
   },
+  cartScroll: {
+    flex: 1,
+  },
   staticHeader: {
     position: 'absolute',
     top: 0,
@@ -256,7 +266,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   emptyContainer: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,

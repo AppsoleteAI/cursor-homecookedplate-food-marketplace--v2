@@ -4,9 +4,9 @@ import {
   View,
   Text,
   StyleSheet,
-  Image,
 } from 'react-native';
 import { GlassBadge, GlassPressable, glassSurface } from '@/components/glass-surface';
+import { FoodImage } from '@/components/FoodImage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Star, Clock, Tag, Percent, Gift } from 'lucide-react-native';
 import { Meal } from '@/types';
@@ -81,7 +81,7 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, onPress, sizeVariant =
     >
       <View style={styles.clip}>
       {meal.images && meal.images.length > 0 ? (
-        <Image source={{ uri: meal.images[0] }} style={[styles.image, sizeVariant === 'featured' ? styles.imageFeatured : styles.imageGrid]} />
+        <FoodImage source={{ uri: meal.images[0] }} style={[styles.image, sizeVariant === 'featured' ? styles.imageFeatured : styles.imageGrid]} />
       ) : (
         <View style={[styles.image, sizeVariant === 'featured' ? styles.imageFeatured : styles.imageGrid, styles.imagePlaceholder]}>
           <Text style={styles.imagePlaceholderText}>No Image</Text>

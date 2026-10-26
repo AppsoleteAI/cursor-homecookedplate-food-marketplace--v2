@@ -133,6 +133,46 @@ export async function writeLegalAgreement(record: LegalAgreementRecord): Promise
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(record));
 }
 
+export async function clearLegalAgreement(): Promise<void> {
+  await AsyncStorage.removeItem(STORAGE_KEY);
+}
+
+/** The acknowledgment was stored before this account existed, so it belongs to an earlier account. */
+export function agreementPredatesAccount(
+  record: { acknowledgedAt: string },
+  createdAt: Date,
+): boolean {
+  const at = Date.parse(record.acknowledgedAt);
+  if (Number.isNaN(at)) return true;
+  return at < createdAt.getTime();
+}
+
+export function chooseLegalForm(input: {
+  signedIn: boolean;
+  createdAt: Date | null;
+  account: CompletedLegalAgreement | null;
+  device: LegalAgreementRecord | null;
+  legalReady: boolean;
+  today: string;
+}): 'account' | 'device' | 'empty' {
+  const accountOk = Boolean(
+    input.signedIn &&
+    input.account &&
+    input.createdAt &&
+    !agreementPredatesAccount(input.account, input.createdAt),
+  );
+  if (accountOk) return 'account';
+
+  const deviceComplete = toCompletedLegalAgreement(input.device);
+  const deviceToday = Boolean(
+    deviceComplete &&
+    input.legalReady &&
+    deviceComplete.acknowledgedOn === input.today,
+  );
+  if (deviceToday) return 'device';
+  return 'empty';
+}
+
 /** Set when this device just finished the Legal & Safety page. An older saved copy does not count. */
 export async function markLegalReadyForSignIn(): Promise<void> {
   await AsyncStorage.setItem(READY_KEY, new Date().toISOString());

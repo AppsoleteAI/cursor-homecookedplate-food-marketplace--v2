@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import {
   View,
@@ -17,6 +17,7 @@ import { useAuth } from '@/hooks/auth-context';
 import type { Meal } from '@/types';
 import { useRouter } from 'expo-router';
 import { useConsumeBack } from '@/hooks/use-leave-screen';
+import { ScrollJumps } from '@/components/ScrollJumps';
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
@@ -26,6 +27,7 @@ export default function SearchScreen() {
   const [isInputFocused, setIsInputFocused] = useState<boolean>(false);
   const [isSearchActive, setIsSearchActive] = useState<boolean>(false);
   const [headerHeight, setHeaderHeight] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
 
   const doSearch = useCallback(() => {
     if (searchQuery.trim()) {
@@ -102,6 +104,7 @@ export default function SearchScreen() {
       </View>
 
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + headerHeight + 12 }]}
       >
@@ -155,6 +158,7 @@ export default function SearchScreen() {
           ))}
         </View>
       </ScrollView>
+      <ScrollJumps scrollRef={scrollRef} testID="search" />
     </View>
   );
 }
