@@ -5,6 +5,8 @@ const PUBLIC_PAGES = {
   "/terms/": "/legal/terms.html",
   "/support": "/legal/support.html",
   "/support/": "/legal/support.html",
+  "/information": "/legal/membership.html",
+  "/information/": "/legal/membership.html",
 };
 
 function isApiPath(pathname) {

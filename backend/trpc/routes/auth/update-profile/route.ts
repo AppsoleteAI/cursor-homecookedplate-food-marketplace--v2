@@ -30,6 +30,7 @@ export const updateProfileProcedure = protectedProcedure
             allergy_food_safety: z.literal(true),
             fee_structure: z.literal(true),
             account_termination: z.literal(true),
+            uploaded_content: z.literal(true),
           }),
           acknowledgedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
           acknowledgedAt: z.string().min(10),

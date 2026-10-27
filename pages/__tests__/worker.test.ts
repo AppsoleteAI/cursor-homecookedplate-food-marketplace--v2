@@ -17,6 +17,8 @@ describe('public pages routing', () => {
       '/legal/support.html': '<title>Support</title>',
       '/legal/privacy.html': '<title>Privacy</title>',
       '/legal/terms.html': '<title>Terms</title>',
+      '/legal/membership.html': '<title>Membership</title>',
+      '/information/screenshot-membership.jpg': 'membership-jpeg',
     }),
     API: { fetch: async () => new Response('api') },
   };
@@ -39,6 +41,28 @@ describe('public pages routing', () => {
     const response = await worker.fetch(new Request('https://homecookedplate.com/privacy'), looping);
     expect(response.status).toBe(404);
     expect(response.headers.get('location')).toBeNull();
+  });
+
+  it('serves /information and /information/ from the static page', async () => {
+    for (const path of ['/information', '/information/']) {
+      const response = await worker.fetch(new Request(`https://homecookedplate.com${path}`), env);
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain('Membership');
+    }
+  });
+
+  it('leaves /membership for the app screen', async () => {
+    const response = await worker.fetch(new Request('https://homecookedplate.com/membership'), env);
+    expect(await response.text()).not.toContain('Membership');
+  });
+
+  it('serves a membership jpeg beside the page', async () => {
+    const response = await worker.fetch(
+      new Request('https://homecookedplate.com/information/screenshot-membership.jpg'),
+      env,
+    );
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('membership-jpeg');
   });
 
   it('keeps /privacy and /terms on their static pages', async () => {

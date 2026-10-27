@@ -47,7 +47,7 @@ const DELIVERY_EXAMPLE = calculateDeliveryLevy(10);
 const DELIVERY_PERCENT = Math.round(DELIVERY_PLATFORM_RATE * 100);
 
 const FINAL_AGREEMENT =
-  'By entering today\'s date below, I acknowledge that I have read this Legal & Safety page in full. I confirm that I have checked each section above as my separate agreement to that section. I agree to be bound by the jurisdictional notices, delivery and safety rules, liability waivers, personal-information terms, allergy and food-safety disclaimers, fee terms, and account-termination rules stated on this page. I understand that the date I enter is my signed record of this agreement with HomeCookedPlate and its Appsolete affiliates, and that I may not use the app until this acknowledgment is complete.';
+  'By entering today\'s date below, I acknowledge that I have read this Legal & Safety page in full. I confirm that I have checked each section above as my separate agreement to that section. I agree to be bound by the jurisdictional notices, delivery and safety rules, liability waivers, personal-information terms, allergy and food-safety disclaimers, fee terms, account-termination rules, and uploaded-content terms stated on this page. I understand that the date I enter is my signed record of this agreement with HomeCookedPlate and its Appsolete affiliates, and that I may not use the app until this acknowledgment is complete.';
 
 export default function LegalScreen() {
   const leave = useLeaveScreen('/(auth)/login');
@@ -313,6 +313,21 @@ export default function LegalScreen() {
             <View style={styles.noticeBox}>
               <Text style={styles.noticeText}>
                 PlateTakers can be removed following multiple bans, chargebacks, or complaints. PlateMakers can be removed for multiple complaints, chargebacks, or failure to list ingredients, allergy information, or other health related information, accurately.
+              </Text>
+            </View>
+          </LegalSection>
+
+          <LegalSection id="uploaded_content" checked={sections.uploaded_content} onToggle={toggle}>
+            <Text style={[styles.sectionTitle, styles.sectionTitleGap]}>Uploaded content</Text>
+            <View style={styles.noticeBox}>
+              <Text style={styles.noticeText}>
+                What you upload must be original. Meal names, ingredient and allergen text, photos, and video files must be yours, or you must already have permission to upload them. A PlateMaker&apos;s listing and a PlateTaker&apos;s clip follow this same rule.
+              </Text>
+              <Text style={[styles.noticeText, styles.noticeFollow]}>
+                A YouTube, Facebook, TikTok, or Reddit link is not an upload of that video. Paste a link only when you have the right to share it. HomeCookedPlate does not own the linked video.
+              </Text>
+              <Text style={[styles.noticeText, styles.noticeFollow]}>
+                You keep ownership of what you upload. You give HomeCookedPlate and its Appsolete affiliates a worldwide license to host, store, copy, display, and use that uploaded content to run and promote the marketplace. HomeCookedPlate retains that license after you remove a listing or close the account, including copies kept for a backup, a safety review, or the record of an order.
               </Text>
             </View>
           </LegalSection>

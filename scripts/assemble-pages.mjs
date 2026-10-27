@@ -48,3 +48,26 @@ for (const name of ["privacy", "terms", "support"]) {
   mkdirSync(dir, { recursive: true });
   copyFileSync(file, join(dir, "index.html"));
 }
+
+const membershipPage = join(root, "pages", "legal", "membership.html");
+copyFileSync(membershipPage, join(legalDir, "membership.html"));
+const informationDir = join(dist, "information");
+mkdirSync(informationDir, { recursive: true });
+copyFileSync(membershipPage, join(informationDir, "index.html"));
+
+const membershipImages = [
+  "header-homemade-food.jpg",
+  "search-order-homemade-food.jpg",
+  "screenshot-sign-in.jpg",
+  "screenshot-meal-list.jpg",
+  "screenshot-one-meal.jpg",
+  "screenshot-checkout.jpg",
+  "screenshot-membership.jpg",
+  "screenshot-membership-platetaker.jpg",
+  "dynamic-tablets.png",
+  "dynamic-template.png",
+  "dynamic-windows.png",
+];
+for (const name of membershipImages) {
+  copyFileSync(join(root, "store-assets", name), join(informationDir, name));
+}

@@ -1,6 +1,7 @@
 /**
- * Public legal and support URLs. The pages are static files in pages/legal and
- * are copied to /privacy, /terms, and /support by the Cloudflare Pages build.
+ * Public legal, support, and membership URLs. The pages are static files in
+ * pages/legal and are copied to /privacy, /terms, /support, and /information
+ * by the Cloudflare Pages build.
  *
  * App Store Connect and Play Console must use these same URLs. They answer
  * only after homecookedplate.com points at the Cloudflare Pages project.
@@ -8,3 +9,4 @@
 export const PRIVACY_POLICY_URL = 'https://homecookedplate.com/privacy';
 export const TERMS_OF_SERVICE_URL = 'https://homecookedplate.com/terms';
 export const SUPPORT_URL = 'https://homecookedplate.com/support';
+export const MEMBERSHIP_MARKETING_URL = 'https://homecookedplate.com/information';

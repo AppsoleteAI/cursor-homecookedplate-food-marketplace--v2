@@ -8,6 +8,7 @@ export const LEGAL_SECTION_IDS = [
   'allergy_food_safety',
   'fee_structure',
   'account_termination',
+  'uploaded_content',
 ] as const;
 
 export type LegalSectionId = (typeof LEGAL_SECTION_IDS)[number];
@@ -53,6 +54,7 @@ export function emptyLegalSections(): Record<LegalSectionId, boolean> {
     allergy_food_safety: false,
     fee_structure: false,
     account_termination: false,
+    uploaded_content: false,
   };
 }
 

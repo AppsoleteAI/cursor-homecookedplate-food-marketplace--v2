@@ -8,6 +8,7 @@ const sections = {
   allergy_food_safety: true as const,
   fee_structure: true as const,
   account_termination: true as const,
+  uploaded_content: true as const,
 };
 
 function record(acknowledgedOn: string, acknowledgedAt: string): LegalAgreementRecord {

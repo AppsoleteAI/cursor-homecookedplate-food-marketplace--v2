@@ -65,6 +65,10 @@ Get GPS still reads the device and saves the metro. The free-entry words are the
 
 Device back on the Legal step returns to Your Account, the previous step. It does not jump to Welcome.
 
+## Public membership page
+
+`https://homecookedplate.com/information` is the Marketing URL on iOS version 1.0. Apple’s subscription screens have a display name and a description. Membership monthly is `Membership monthly` and `Premium membership for HomeCookedPlate.` Membership yearly uses that same description and the display name `Membership yearly`. The page is `pages/legal/membership.html`, served at `/information`. After Membership it shows the tablet row. After Who it is for it shows the headline and the PlateTaker card. After Price it shows sign-in for both roles, the herb chicken plate, and the PlateMaker card. The earlier eight pictures remain under In the app. It shows a PlateMaker card at $4.99 a month and $39.99 a year and a PlateTaker card at $7.99 a month and $75.99 a year. The PlateTaker card says the app is free. PlateTaker Premium cuts the service fee from 10% to 5% on orders of $20 or more. Early Bird stays in the app and is not on that page. Signed in and signed out see the same public page. The app membership screen stays at `/membership` for a PlateMaker and a PlateTaker, signed in and signed out. The website publish includes this page. An app already on a phone keeps the previous membership screen until the next store build. Web, iOS, and Android still share the app.
+
 ## Rule for later changes
 
 Read `role` before a price, a trial, or a checkout.
