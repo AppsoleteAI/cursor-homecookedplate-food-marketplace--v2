@@ -29,14 +29,11 @@ The only requirement is having Node.js & Bun installed - [install Node.js with n
 
 ### **Package Manager**
 
-This project uses **Bun** as the primary package manager. Both `bun.lock` and `package-lock.json` are present, but you should use Bun for consistency:
+This project uses **npm** for installs. `package-lock.json` is the only lockfile. `expo-doctor` stops when `bun.lock` is also present, and EAS then has two package managers to choose from.
 
-- **Install dependencies**: `bun i` (or `bun install`)
-- **Add a package**: `bun add <package-name>`
-- **Remove a package**: `bun remove <package-name>`
-- **Run scripts**: `bun run <script-name>`
-
-The `package-lock.json` file may be present for compatibility but should not be manually edited. Bun will manage `bun.lock` automatically.
+- **Install dependencies**: `npm install`
+- **Add a package**: `npx expo install <package-name>`
+- **Run scripts**: `npm run <script-name>`
 
 Follow these steps:
 
@@ -48,7 +45,7 @@ git clone https://github.com/AppsoleteAI/cursor-homecookedplate-food-marketplace
 cd cursor-homecookedplate-food-marketplace--v2
 
 # Step 3: Install the necessary dependencies.
-bun i
+npm install
 
 # Step 4: Start the instant web preview of your Rork app in your browser, with auto-reloading of your changes
 bun run start-web
@@ -321,7 +318,7 @@ For mobile apps, you'll configure your app's deep linking scheme in `app.json`.
 ### **Build failing?**
 
 1. Clear your cache: `bunx expo start --clear`
-2. Delete `node_modules` and reinstall: `rm -rf node_modules && bun install`
+2. Delete `node_modules` and reinstall: `rm -rf node_modules && npm install`
 3. Check [Expo's troubleshooting guide](https://docs.expo.dev/troubleshooting/build-errors/)
 
 ### **Need help with native features?**

@@ -2,42 +2,29 @@
 
 ## Package Manager
 
-This project uses **Bun** as the primary package manager.
+This project uses **npm** for installs. `package-lock.json` is the only lockfile.
 
-### Why Bun?
+### Installs
 
-- Faster installs and script execution
-- Built-in TypeScript support
-- Better compatibility with the Expo/React Native ecosystem
-- Native support for the project's backend (Bun runtime)
+npm is the installer for this repo, for EAS, and for `npm ci`. `dev:server` still launches the local API with the Bun runtime. That script does not keep a second lockfile.
 
 ### Usage
 
 ```bash
 # Install all dependencies
-bun install
-# or
-bun i
+npm install
 
-# Add a new dependency
-bun add <package-name>
-
-# Add a dev dependency
-bun add -d <package-name>
-
-# Remove a dependency
-bun remove <package-name>
+# Add an Expo or React Native package
+npx expo install <package-name>
 
 # Run scripts
-bun run <script-name>
+npm run <script-name>
 ```
 
 ### Lock Files
 
-- **`bun.lock`** - Primary lock file managed by Bun (DO NOT DELETE)
-- **`package-lock.json`** - May be present for compatibility but should not be manually edited
-
-If you need to use npm instead of Bun, you can, but Bun is recommended for consistency.
+- **`package-lock.json`** is the lockfile for npm, EAS, and `npm ci`.
+- Do not add `bun.lock`. Two lockfiles fail `expo-doctor`.
 
 ## Project Structure
 
@@ -71,7 +58,7 @@ The following conflicts have been resolved:
 
 Add to root `package.json`:
 ```bash
-bun add <package-name>
+npx expo install <package-name>
 ```
 
 ### Backend-Only Dependencies
@@ -98,13 +85,13 @@ For native modules (especially Expo packages), ensure they:
 
 ### "Module not found" errors
 
-1. Run `bun install` to ensure all dependencies are installed
-2. Clear Metro cache: `bun run start -- --clear`
+1. Run `npm install` to ensure all dependencies are installed
+2. Clear Metro cache: `npm run start -- --clear`
 3. Clear Expo cache: `expo start -c`
 
 ### Version conflicts
 
-1. Check `bun.lock` for resolved versions
+1. Check `package-lock.json` for resolved versions
 2. Ensure no duplicate dependencies in `backend/package.json`
 3. Verify React Native and Expo versions are compatible
 
