@@ -220,6 +220,9 @@ export default function OrdersScreen() {
                       Instructions: {order.specialInstructions}
                     </Text>
                   )}
+                  {order.instructionsStatus === 'pending' && !order.specialInstructions ? (
+                    <Text style={styles.instructionsText}>A moderator has not released the plate note.</Text>
+                  ) : null}
                   {order.allergies && order.allergies.length > 0 && (
                     <Text style={styles.allergiesText} numberOfLines={1}>
                       Allergies: {order.allergies.join(', ')}

@@ -4,7 +4,8 @@ import { z } from "zod";
 import { displayName, loadPublicProfiles } from "../../../../lib/public-profiles";
 import { countAreaMealsWithMedia, isSampleMealId, visibleSampleMeals } from "@/lib/sample-meals";
 import { loadActiveOffers } from "../../../../lib/active-offer";
-import { mealVisibleInMetro } from "../../../../lib/metro-menu";
+import { pickupGate } from "../../../../lib/kitchen-pin";
+import { buyerMetroCanOrder } from "../../../../lib/metro-menu";
 import { buyerPlateLinkOpens } from "@/lib/cart-line";
 
 export const getMealProcedure = publicProcedure
@@ -64,10 +65,14 @@ export const getMealProcedure = publicProcedure
       if (!buyerMetro) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'That plate is not on the menu.' });
       }
+      const gate = await pickupGate(ctx.supabaseAdmin, ctx.userId, [data.user_id]);
+      const inRange = gate.mode === 'distance'
+        ? gate.ok
+        : buyerMetroCanOrder(cook.data?.metro_area, buyerMetro);
       if (
         cook.error
         || !buyerPlateLinkOpens(cook.data?.is_paused, cook.data?.available_for_orders, false)
-        || !mealVisibleInMetro(cook.data?.metro_area, buyerMetro)
+        || !inRange
       ) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'That plate is not on the menu.' });
       }

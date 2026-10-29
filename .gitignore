@@ -8,6 +8,8 @@ supabase/functions/**/.env
 *.env
 supabase_key.txt
 service-role-key.json
+*-firebase-adminsdk-*.json
+homecookedplate-fcm*.json
 
 # Allow .env.example files (templates should be committed)
 !.env.example

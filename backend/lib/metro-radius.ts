@@ -52,6 +52,11 @@ export const METRO_CENTERS: { name: string; lat: number; lng: number }[] = [
   { name: 'Buffalo-Cheektowaga', lat: 42.8864, lng: -78.8784 },
   { name: 'Birmingham-Hoover', lat: 33.5207, lng: -86.8025 },
   { name: 'Rochester', lat: 43.1566, lng: -77.6088 },
+  { name: 'Anchorage', lat: 61.2181, lng: -149.9003 },
+  { name: 'Honolulu', lat: 21.3069, lng: -157.8583 },
+  { name: 'San Juan', lat: 18.4655, lng: -66.1057 },
+  { name: 'Mayagüez', lat: 18.2013, lng: -67.1396 },
+  { name: 'Charlotte Amalie', lat: 18.3419, lng: -64.9307 },
 ];
 
 export function distanceMeters(lat: number, lng: number, otherLat: number, otherLng: number): number {
@@ -69,7 +74,7 @@ export function isKnownMetro(name: string | null | undefined): boolean {
   return !!name && METRO_CENTERS.some((metro) => metro.name === name);
 }
 
-/** The closest downtown inside the shared radius, or null when the point is outside all 50. */
+/** The closest downtown inside the shared radius, or null when the point is outside every circle. */
 export function nearestMetro(lat: number, lng: number): { name: string; distanceMeters: number } | null {
   let best: { name: string; distanceMeters: number } | null = null;
   for (const metro of METRO_CENTERS) {

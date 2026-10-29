@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { mainAdminProcedure } from '../../../create-context';
-import { sanitizeTextField } from '../../../../lib/text-security';
+import { auditTextField } from '../../../../lib/text-audit';
 
 export const replyPayoutMessageProcedure = mainAdminProcedure
   .input(
@@ -11,7 +11,7 @@ export const replyPayoutMessageProcedure = mainAdminProcedure
     }),
   )
   .mutation(async ({ ctx, input }) => {
-    const scanned = sanitizeTextField(input.body.trim());
+    const scanned = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'payout_reply', input.body.trim());
     if (scanned.blocked || scanned.value.length === 0) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'That message cannot be sent' });
     }

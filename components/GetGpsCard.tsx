@@ -47,8 +47,8 @@ export function GetGpsCard() {
       await utils.auth.me.invalidate();
       const named = found.metroArea && found.metroArea !== 'Remote/Other' ? found.metroArea : city;
       if (named) setSeenMetro(named);
-      if (found.reason === 'outside' && !named) {
-        tell('That point is outside every 50-mile metro. The saved metro stays.');
+      if (found.reason === 'outside') {
+        tell('You are outside every metro. This account is Remote. You get 120 days at no charge, then a monthly or yearly plan. Plates are shown only to buyers within 20 miles of your kitchen.');
         return;
       }
       if (found.reason === 'paused') {
@@ -84,7 +84,7 @@ export function GetGpsCard() {
         <Text style={styles.gpsText}>{busy ? 'Checking this metro' : 'Get GPS'}</Text>
       </Pressable>
       <Text style={styles.body}>
-        {seenMetro || (user?.metroArea && user.metroArea !== 'Remote/Other' ? user.metroArea : null) || 'Not set'}. Each metro has a 50 mile radius. This tap saves the metro. A new metro takes 30 minutes to update location.
+        {seenMetro || (user?.metroArea && user.metroArea !== 'Remote/Other' ? user.metroArea : null) || (user?.metroArea === 'Remote/Other' ? 'Remote' : 'Not set')}. Each metro has a 50 mile radius. Plates are shown within 20 miles of this kitchen. This tap saves the metro. A new metro takes 30 minutes to update location.
       </Text>
     </View>
   );

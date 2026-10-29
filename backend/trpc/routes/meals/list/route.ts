@@ -2,6 +2,7 @@ import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
 import { countAreaMealsWithMedia, visibleSampleMeals } from "@/lib/sample-meals";
 import { displayName, loadPublicProfiles } from "../../../../lib/public-profiles";
+import { nearbyCookIds } from "../../../../lib/kitchen-pin";
 import { mealVisibleInMetro } from "../../../../lib/metro-menu";
 import { publicMenuKeepsPlate } from "@/lib/cart-line";
 import { loadActiveOffers } from "../../../../lib/active-offer";
@@ -29,7 +30,11 @@ export const listMealsProcedure = publicProcedure
         viewerMetro = saved || undefined;
       }
     }
-    const area = viewerMetro;
+    const nearby = !input?.userId && ctx.userId
+      ? await nearbyCookIds(ctx.supabaseAdmin, ctx.userId)
+      : { available: false, ids: [] as string[] };
+    if (nearby.available && nearby.ids.length === 0) return [];
+    const area = nearby.available ? undefined : viewerMetro;
     const base = () => {
       const select = area
         ? '*, cook:profiles!meals_user_id_fkey!inner(metro_area)'
@@ -43,7 +48,9 @@ export const listMealsProcedure = publicProcedure
       if (input?.cuisine) query = query.eq('cuisine', input.cuisine);
       if (input?.category) query = query.eq('category', input.category);
       if (input?.featured !== undefined) query = query.eq('featured', input.featured);
-      if (area === 'Remote/Other') {
+      if (nearby.available) {
+        query = query.in('user_id', nearby.ids);
+      } else if (area === 'Remote/Other') {
         query = query.or('metro_area.is.null,metro_area.eq.,metro_area.eq."Remote/Other"', { referencedTable: 'cook' });
       } else if (area) {
         query = query.eq('cook.metro_area', area);
@@ -98,6 +105,7 @@ export const listMealsProcedure = publicProcedure
       if (input?.userId) return true;
       const state = cookState.get(meal.user_id);
       if (!publicMenuKeepsPlate(state?.is_paused, state?.available_for_orders)) return false;
+      if (nearby.available) return nearby.ids.includes(meal.user_id);
       return mealVisibleInMetro(cookMetros.get(meal.user_id), viewerMetro);
     }).map((meal: any) => ({
       id: meal.id,
@@ -122,7 +130,7 @@ export const listMealsProcedure = publicProcedure
       promotionalOffer: offers.get(meal.id) ?? undefined,
     }));
 
-    if (input?.userId) return realMeals;
+    if (input?.userId || nearby.available) return realMeals;
 
     const realWithMedia = await countAreaMealsWithMedia(ctx.supabase, input?.metroArea);
     const realIds = new Set(realMeals.map((meal) => meal.id));

@@ -9,15 +9,15 @@
  *    Action: strip silently, add flag.
  *
  * 2. Unicode bidirectional override characters
- *    RTL override (U+202E) and related control chars visually reverse text so
- *    "UNSAFE" appears as "EFASNU" on screen while the raw string still reads
- *    "UNSAFE" to an AI. Also enables same-color-text attacks in web views.
- *    Action: strip, block submission.
+ *    RTL override (U+202E) and the other override/embedding characters visually
+ *    reverse text. Ordinary direction marks and isolates are stripped and the
+ *    message is still accepted, so Arabic and Hebrew text can be sent.
+ *    Action: strip overrides and block. Strip marks without blocking.
  *
  * 3. Control characters
  *    Null bytes, C0/C1 control codes outside of standard whitespace (TAB/LF/CR)
  *    can smuggle data past string comparisons.
- *    Action: strip silently, add flag.
+ *    Action: strip and block.
  *
  * 4. Prompt injection patterns
  *    Regex-matched LLM jailbreak / instruction-override phrases.
@@ -27,10 +27,12 @@
  *    A suspicious mix of Cyrillic and Latin characters where some Cyrillic
  *    glyphs are visually identical to Latin (е, а, о, р, с, х, у, …) but
  *    have different code points. Used to evade keyword filters.
- *    Action: flag only (strip is not possible without breaking legitimate bilingual text).
+ *    Action: fold lookalikes on a detection copy, then run the phrase check.
+ *    A bilingual name is stored when that copy does not match.
  *
- * Return value: sanitized string + blocked flag + audit flags.
- * Sanitization always runs. Blocking is reserved for high-risk patterns.
+ * The phrase check runs after hidden characters are removed and the copy is
+ * NFKC-normalized. The phrase list is a backstop. It does not stop every
+ * instruction, and it does not read words drawn in a picture.
  */
 
 export interface TextScanResult {
@@ -53,16 +55,12 @@ export interface TextScanResult {
 // U+00AD  Soft Hyphen (invisible unless line-break triggered)
 const ZERO_WIDTH_RE = /[\u200B\u200C\u200D\uFEFF\u2060\u180E\u00AD]/g;
 
-// Unicode bidirectional control characters
-// U+202E  Right-to-Left Override  ← most dangerous (visually reverses text)
-// U+202D  Left-to-Right Override
-// U+202C  Pop Directional Formatting
-// U+202B  Right-to-Left Embedding
-// U+202A  Left-to-Right Embedding
-// U+200F  Right-to-Left Mark
-// U+200E  Left-to-Right Mark
-// U+2066–U+2069  Isolates
-const BIDI_OVERRIDE_RE = /[\u202A\u202B\u202C\u202D\u202E\u200E\u200F\u2066\u2067\u2068\u2069]/g;
+// Override and embedding characters. These are refused.
+const BIDI_OVERRIDE_RE = /[\u202A\u202B\u202C\u202D\u202E]/g;
+
+// Direction marks and isolates. Stripped so they cannot hide a phrase.
+// A message that contains only these still sends when other words remain.
+const BIDI_MARK_RE = /[\u200E\u200F\u2066\u2067\u2068\u2069]/g;
 
 // Null bytes and C0/C1 control characters
 // Excluded (safe whitespace): U+0009 TAB, U+000A LF, U+000D CR
@@ -106,6 +104,37 @@ const INJECTION_PATTERNS: RegExp[] = [
 const CYRILLIC_RE = /[\u0400-\u04FF]/;
 const LATIN_RE = /[a-zA-Z]/;
 
+const CONFUSABLES = new Map<string, string>([
+  ['\u0430', 'a'], ['\u0410', 'A'],
+  ['\u0435', 'e'], ['\u0415', 'E'],
+  ['\u043e', 'o'], ['\u041e', 'O'],
+  ['\u0440', 'p'], ['\u0420', 'P'],
+  ['\u0441', 'c'], ['\u0421', 'C'],
+  ['\u0443', 'y'], ['\u0423', 'Y'],
+  ['\u0445', 'x'], ['\u0425', 'X'],
+  ['\u0456', 'i'], ['\u0406', 'I'],
+  ['\u0455', 's'], ['\u0405', 'S'],
+  ['\u0458', 'j'],
+  ['\u04bb', 'h'], ['\u04ba', 'H'],
+  ['\u0412', 'B'], ['\u041d', 'H'], ['\u041a', 'K'], ['\u041c', 'M'], ['\u0422', 'T'],
+  ['\u03b1', 'a'], ['\u0391', 'A'],
+  ['\u03bf', 'o'], ['\u039f', 'O'],
+  ['\u03c1', 'p'], ['\u03a1', 'P'],
+  ['\u03b5', 'e'], ['\u0395', 'E'],
+  ['\u03b9', 'i'], ['\u0399', 'I'],
+  ['\u03ba', 'k'], ['\u039a', 'K'],
+  ['\u03bd', 'v'], ['\u039d', 'N'],
+  ['\u03c4', 't'], ['\u03a4', 'T'],
+  ['\u03c5', 'u'], ['\u03a5', 'Y'],
+  ['\u03c7', 'x'], ['\u03a7', 'X'],
+]);
+
+function foldConfusables(text: string): string {
+  let out = '';
+  for (const char of text) out += CONFUSABLES.get(char) ?? char;
+  return out;
+}
+
 function hasMixedScript(text: string): boolean {
   const chars = [...text];
   const cyrCount = chars.filter((c) => CYRILLIC_RE.test(c)).length;
@@ -122,49 +151,53 @@ function hasMixedScript(text: string): boolean {
 // Public API
 // ---------------------------------------------------------------------------
 
+function saw(pattern: RegExp, input: string): boolean {
+  const found = pattern.test(input);
+  pattern.lastIndex = 0;
+  return found;
+}
+
 /**
  * Scans a single text string for security issues.
  *
- * - Always returns a sanitized version with invisible/control characters removed.
- * - Sets `blocked = true` for high-risk patterns (injection, bidi override).
- * - Lower-risk issues (zero-width chars, homoglyphs) are flagged but not blocked
- *   because legitimate content can occasionally trigger them.
+ * Hidden characters are removed before the phrase check. The stored string
+ * is the stripped, NFKC text. Lookalike letters are folded only on the
+ * detection copy.
+ *
+ * Refuses hidden characters, control characters, bidirectional overrides,
+ * and a phrase match. A direction mark does not refuse the text.
  */
 export function scanText(input: string): TextScanResult {
   const flags: string[] = [];
 
-  // Check before stripping so we can accurately flag presence
-  if (ZERO_WIDTH_RE.test(input)) flags.push('ZERO_WIDTH_CHARS');
-  ZERO_WIDTH_RE.lastIndex = 0;
+  if (saw(ZERO_WIDTH_RE, input)) flags.push('ZERO_WIDTH_CHARS');
+  if (saw(BIDI_OVERRIDE_RE, input)) flags.push('BIDI_OVERRIDE');
+  if (saw(CONTROL_RE, input)) flags.push('CONTROL_CHARS');
 
-  if (BIDI_OVERRIDE_RE.test(input)) flags.push('BIDI_OVERRIDE');
-  BIDI_OVERRIDE_RE.lastIndex = 0;
-
-  if (CONTROL_RE.test(input)) flags.push('CONTROL_CHARS');
-  CONTROL_RE.lastIndex = 0;
+  const stripped = input
+    .replace(ZERO_WIDTH_RE, '')
+    .replace(BIDI_OVERRIDE_RE, '')
+    .replace(BIDI_MARK_RE, '')
+    .replace(CONTROL_RE, '');
+  const normalized = stripped.normalize('NFKC').trim();
+  const detection = foldConfusables(normalized);
 
   for (const pattern of INJECTION_PATTERNS) {
-    if (pattern.test(input)) {
+    if (pattern.test(detection)) {
       flags.push('PROMPT_INJECTION');
       break;
     }
   }
 
-  if (hasMixedScript(input)) flags.push('MIXED_SCRIPT_HOMOGLYPHS');
+  if (hasMixedScript(normalized)) flags.push('MIXED_SCRIPT_HOMOGLYPHS');
 
-  // Strip all invisible and dangerous characters regardless of block decision
-  const sanitized = input
-    .replace(ZERO_WIDTH_RE, '')
-    .replace(BIDI_OVERRIDE_RE, '')
-    .replace(CONTROL_RE, '')
-    .trim();
-
-  // Block on high-risk patterns: prompt injection or bidi override
-  // Zero-width chars, control chars, and mixed script are stripped but allowed
   const blocked =
-    flags.includes('PROMPT_INJECTION') || flags.includes('BIDI_OVERRIDE');
+    flags.includes('PROMPT_INJECTION') ||
+    flags.includes('BIDI_OVERRIDE') ||
+    flags.includes('ZERO_WIDTH_CHARS') ||
+    flags.includes('CONTROL_CHARS');
 
-  return { sanitized, blocked, flags };
+  return { sanitized: normalized, blocked, flags };
 }
 
 /**

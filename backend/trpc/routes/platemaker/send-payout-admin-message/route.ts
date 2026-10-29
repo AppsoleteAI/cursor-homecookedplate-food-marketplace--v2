@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../../create-context';
-import { sanitizeTextField } from '../../../../lib/text-security';
+import { auditTextField } from '../../../../lib/text-audit';
 
 export const sendPayoutAdminMessageProcedure = protectedProcedure
   .input(z.object({ body: z.string().min(1).max(2000) }))
@@ -16,7 +16,7 @@ export const sendPayoutAdminMessageProcedure = protectedProcedure
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Only platemakers can message admins here' });
     }
 
-    const scanned = sanitizeTextField(input.body.trim());
+    const scanned = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'payout_message', input.body.trim());
     if (scanned.blocked || scanned.value.length === 0) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'That message cannot be sent' });
     }

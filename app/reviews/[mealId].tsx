@@ -131,7 +131,7 @@ export default function ReviewsScreen() {
                   <Text style={styles.user}>{r.authorName}</Text>
                   <StarRating value={r.rating} baseColor="yellow" size={14} disabled />
                 </View>
-                <Text style={styles.comment}>{r.comment}</Text>
+                <Text style={styles.comment}>{r.comment || (r.commentStatus === 'pending' ? 'A moderator has not released this comment.' : '')}</Text>
                 <ReviewCommentActions
                   reviewId={r.id}
                   authorId={r.authorId}

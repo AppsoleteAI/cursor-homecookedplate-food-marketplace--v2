@@ -58,6 +58,12 @@ export const METRO_POPULATION_2024: Record<string, number> = {
   'Buffalo-Cheektowaga': 1_160_172,
   'Birmingham-Hoover': 1_192_583,
   'Rochester': 1_057_218,
+  'Anchorage': 407_213,
+  'Honolulu': 998_747,
+  'San Juan': 2_035_484,
+  'Mayagüez': 207_205,
+  // Vintage 2024 metro tables omit the U.S. Virgin Islands. This is the 2020 Census count. The slot stays at the 200 floor.
+  'Charlotte Amalie': 87_146,
 };
 
 export function earlyBirdPlateMakerCap(population: number): number {

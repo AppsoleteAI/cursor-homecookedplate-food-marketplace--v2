@@ -65,7 +65,7 @@ export const uploadProfileImageProcedure = protectedProcedure
 
     const { data: uploadData, error: uploadError } = await ctx.supabase.storage
       .from('profile-images')
-      .upload(fileName, arrayBuffer, {
+      .upload(fileName, scanResult.cleanBytes ?? arrayBuffer, {
         contentType: scanResult.detectedMime ?? input.mimeType,
         upsert: true, // allow re-upload to same path (overwrite previous avatar)
       });

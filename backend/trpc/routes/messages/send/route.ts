@@ -2,8 +2,8 @@ import { z } from "zod";
 import { protectedProcedure } from "../../../create-context";
 import { TRPCError } from "@trpc/server";
 import { missingBuyerColumn, orderBuyerId } from "../../../../lib/order-row";
-import { notifyParty } from "../../../../lib/account-notice";
-import { sanitizeTextField } from "../../../../lib/text-security";
+import { auditTextField } from "../../../../lib/text-audit";
+import { missingColumn, notifyModerators } from "../../../../lib/content-moderation";
 
 export const sendMessageProcedure = protectedProcedure
   .input(
@@ -14,12 +14,12 @@ export const sendMessageProcedure = protectedProcedure
   )
   .mutation(async ({ ctx, input }) => {
     const { orderId } = input;
-    const scanned = sanitizeTextField(input.text);
+    const userId = ctx.userId;
+    const scanned = await auditTextField(ctx.supabaseAdmin, userId, 'order_message', input.text);
     if (scanned.blocked || !scanned.value.trim()) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'That message cannot be sent.' });
     }
     const text = scanned.value;
-    const userId = ctx.userId;
 
     const { data: profile } = await ctx.supabase
       .from("profiles")
@@ -53,18 +53,26 @@ export const sendMessageProcedure = protectedProcedure
       });
     }
 
-    const { data: message, error } = await ctx.supabase
+    const insertMessage = (held: boolean) => ctx.supabase
       .from("order_messages")
       .insert({
         order_id: orderId,
         sender_id: userId,
         sender_role: userRole,
         text,
+        ...(held ? { moderation_status: 'pending' } : {}),
       })
       .select()
       .single();
+    let { data: message, error } = await insertMessage(true);
+    if (error && missingColumn(error.message, 'moderation_status')) {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: 'A moderator queue is not on this kitchen yet. The message was not sent.',
+      });
+    }
 
-    if (error) {
+    if (error || !message) {
       console.error("Failed to send message:", error);
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
@@ -72,10 +80,9 @@ export const sendMessageProcedure = protectedProcedure
       });
     }
 
-    const otherId = buyerId === userId ? order.seller_id : buyerId;
-    await notifyParty(ctx.supabaseAdmin, otherId, 'newMessages', {
-      title: 'New message',
-      body: text.slice(0, 140),
+    await notifyModerators(ctx.supabaseAdmin, userId, {
+      title: 'Message waiting',
+      body: 'An order message is waiting for a moderator.',
     });
 
     return {
@@ -84,6 +91,7 @@ export const sendMessageProcedure = protectedProcedure
       senderId: message.sender_id,
       senderRole: message.sender_role,
       text: message.text,
+      moderationStatus: message.moderation_status || 'pending',
       createdAt: message.created_at,
     };
   });

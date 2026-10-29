@@ -1,7 +1,7 @@
 import { adminProcedure } from '../../../create-context';
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { sanitizeTextField } from '../../../../lib/text-security';
+import { auditTextField } from '../../../../lib/text-audit';
 import { notifyParty } from '../../../../lib/account-notice';
 
 function firstImage(value: unknown): string | null {
@@ -39,8 +39,8 @@ export const updateMonitorPlateProcedure = adminProcedure
     description: z.string().max(500),
   }))
   .mutation(async ({ ctx, input }) => {
-    const name = sanitizeTextField(input.name);
-    const description = sanitizeTextField(input.description);
+    const name = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'monitor_plate_name', input.name);
+    const description = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'monitor_plate_description', input.description);
     if (name.blocked || description.blocked || name.value.length === 0) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'That plate text was not accepted.' });
     }
@@ -91,7 +91,7 @@ export const updateScreenNameProcedure = adminProcedure
     username: z.string().min(3).max(40),
   }))
   .mutation(async ({ ctx, input }) => {
-    const username = sanitizeTextField(input.username);
+    const username = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'monitor_username', input.username);
     if (username.blocked || username.value.length < 3) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'That screen name was not accepted.' });
     }

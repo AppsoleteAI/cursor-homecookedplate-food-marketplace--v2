@@ -255,21 +255,22 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
   const syncMessages = useCallback(async (orderId: string) => {
     try {
       const data = await trpcProxyClient.messages.list.query({ orderId });
-      const messages = data.map((m: {
-        id: string;
-        orderId: string;
-        senderId: string;
-        senderRole: 'platemaker' | 'platetaker';
-        text: string;
-        createdAt: string;
-      }) => ({
-        id: m.id,
-        orderId: m.orderId,
-        senderId: m.senderId,
-        senderRole: m.senderRole,
-        text: m.text,
-        createdAt: new Date(m.createdAt),
-      }));
+      const messages: OrderMessage[] = data.map((m) => {
+        const status = m.moderationStatus;
+        const moderationStatus: OrderMessage['moderationStatus'] =
+          status === 'pending' || status === 'allowed' || status === 'removed'
+            ? status
+            : undefined;
+        return {
+          id: m.id,
+          orderId: m.orderId,
+          senderId: m.senderId,
+          senderRole: m.senderRole,
+          text: m.text,
+          moderationStatus,
+          createdAt: new Date(m.createdAt),
+        };
+      });
       messagesRef.current[orderId] = messages;
       setMessageTick((tick) => tick + 1);
       const persist = messages.map((m: OrderMessage) => ({ ...m, createdAt: m.createdAt.toISOString() }));
@@ -292,6 +293,7 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
         senderId: result.senderId,
         senderRole: result.senderRole as 'platemaker' | 'platetaker',
         text: result.text,
+        moderationStatus: result.moderationStatus,
         createdAt: new Date(result.createdAt),
       };
       

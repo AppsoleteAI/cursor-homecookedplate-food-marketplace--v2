@@ -5,6 +5,8 @@ import { notifyParty } from "../../../../lib/account-notice";
 import { missingBuyerColumn, orderBuyerId } from "../../../../lib/order-row";
 import { reviewAverage } from "../../../../lib/review-stars";
 import { screenReviewComment } from "../../../../lib/comment-language";
+import { missingColumn, notifyModerators } from "../../../../lib/content-moderation";
+import { auditTextField } from "../../../../lib/text-audit";
 
 /**
  * Create Review Procedure
@@ -27,6 +29,9 @@ export const createReviewProcedure = protectedProcedure
     })
   )
   .mutation(async ({ input, ctx }) => {
+    if (input.comment?.trim()) {
+      await auditTextField(ctx.supabaseAdmin, ctx.userId, 'review_comment', input.comment);
+    }
     const screened = screenReviewComment(input.comment);
     if (!screened.ok) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: screened.message });
@@ -58,17 +63,25 @@ export const createReviewProcedure = protectedProcedure
       throw new TRPCError({ code: 'FORBIDDEN', message: 'A cook cannot review their own plate.' });
     }
 
-    const { data, error } = await ctx.supabase
+    const held = Boolean(screened.value);
+    const insertReview = (withStatus: boolean) => ctx.supabase
       .from('reviews')
       .insert({
         meal_id: input.mealId,
-        order_id: input.orderId, // Required by RLS policy
+        order_id: input.orderId,
         author_id: ctx.userId,
         rating: input.rating,
         comment: screened.value,
+        ...(withStatus ? { comment_status: 'pending' } : {}),
       })
       .select()
       .single();
+    let { data, error } = await insertReview(held);
+    if (error && held && missingColumn(error.message, 'comment_status')) {
+      const retry = await insertReview(false);
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error || !data) {
       console.error('[CreateReview] Error:', error);
@@ -84,7 +97,12 @@ export const createReviewProcedure = protectedProcedure
       }).eq('id', input.mealId);
     }
 
-    if (meal.data.user_id !== ctx.userId) {
+    if (held && data.comment_status === 'pending') {
+      await notifyModerators(ctx.supabaseAdmin, ctx.userId, {
+        title: 'Review waiting',
+        body: 'A review comment is waiting for a moderator.',
+      });
+    } else if (meal.data.user_id !== ctx.userId) {
       await notifyParty(ctx.supabaseAdmin, meal.data.user_id, 'reviewsRatings', {
         title: 'New review',
         body: `${input.rating} stars on ${meal.data.name || 'your plate'}.`,

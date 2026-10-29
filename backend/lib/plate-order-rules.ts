@@ -7,8 +7,9 @@ import { assertBuyerCanOrder } from './buyer-order-access';
 import { salesVolumeBlock } from './stripe-marketplace';
 import { savedDeliveryFee } from './delivery-fee';
 import { cookTimeZoneFromTags, pickupFitsWindow, pickupWindowNeedsCookZone, portionRowHolds, portionsFromTags } from '@/lib/meal-publish';
+import { pickupGate } from './kitchen-pin';
 import { buyerMetroCanOrder } from './metro-menu';
-import { sanitizeTextField } from './text-security';
+import { auditTextField, auditTextList } from './text-audit';
 
 type Admin = SupabaseClient;
 
@@ -60,6 +61,8 @@ export type PreparedHomePlate = {
   pickupTimeZone: string | null;
   instructions: string;
   deliveryAddress: string | null;
+  cookingTemperature: string | null;
+  allergies: string[];
   portionCap: number;
 };
 
@@ -75,6 +78,8 @@ export async function prepareHomePlate(
     pickupTimeZone?: string | null;
     specialInstructions?: string | null;
     deliveryAddress?: string | null;
+    cookingTemperature?: string | null;
+    allergies?: string[] | null;
     reservePortions?: boolean;
   },
 ): Promise<PreparedHomePlate> {
@@ -105,18 +110,25 @@ export async function prepareHomePlate(
 
   await assertBuyerCanOrder(admin, input.buyerId, input.sellerId);
 
-  const buyerMetro = await admin.from('profiles').select('metro_area').eq('id', input.buyerId).maybeSingle();
-  if (buyerMetro.error) {
-    throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Your saved metro could not be checked. The order was not placed.' });
-  }
-  const buyerArea = typeof buyerMetro.data?.metro_area === 'string' ? buyerMetro.data.metro_area : '';
-  if (!buyerMetroCanOrder(sellerProfile.metro_area, buyerArea)) {
-    throw new TRPCError({
-      code: 'BAD_REQUEST',
-      message: buyerArea.trim()
-        ? 'This plate is outside your saved metro.'
-        : 'Save your metro before ordering a plate.',
-    });
+  const gate = await pickupGate(admin, input.buyerId, [input.sellerId]);
+  if (gate.mode === 'distance') {
+    if (!gate.ok) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: gate.message });
+    }
+  } else {
+    const buyerMetro = await admin.from('profiles').select('metro_area').eq('id', input.buyerId).maybeSingle();
+    if (buyerMetro.error) {
+      throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Your saved metro could not be checked. The order was not placed.' });
+    }
+    const buyerArea = typeof buyerMetro.data?.metro_area === 'string' ? buyerMetro.data.metro_area : '';
+    if (!buyerMetroCanOrder(sellerProfile.metro_area, buyerArea)) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: buyerArea.trim()
+          ? 'This plate is outside your saved metro.'
+          : 'Save your metro before ordering a plate.',
+      });
+    }
   }
 
   const { data: mealRow, error: mealError } = await admin
@@ -158,7 +170,14 @@ export async function prepareHomePlate(
     }
   }
 
-  const address = (input.deliveryAddress || '').trim();
+  let address = (input.deliveryAddress || '').trim();
+  if (address) {
+    const scannedAddress = await auditTextField(admin, input.buyerId, 'delivery_address', address);
+    if (scannedAddress.blocked) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'That delivery address cannot be saved.' });
+    }
+    address = scannedAddress.value;
+  }
   if (address && address.length < 8) {
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'Enter the delivery address.' });
   }
@@ -180,11 +199,27 @@ export async function prepareHomePlate(
     : '';
   let note = '';
   if (input.specialInstructions && input.specialInstructions.trim()) {
-    const scanned = sanitizeTextField(input.specialInstructions);
+    const scanned = await auditTextField(admin, input.buyerId, 'special_instructions', input.specialInstructions);
     if (scanned.blocked) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'That note cannot be saved.' });
     }
     note = scanned.value;
+  }
+  let cookingTemperature: string | null = null;
+  if (input.cookingTemperature && input.cookingTemperature.trim()) {
+    const scanned = await auditTextField(admin, input.buyerId, 'cooking_temperature', input.cookingTemperature);
+    if (scanned.blocked) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'That cooking note cannot be saved.' });
+    }
+    cookingTemperature = scanned.value || null;
+  }
+  let allergies: string[] = [];
+  if (input.allergies && input.allergies.length > 0) {
+    const scanned = await auditTextList(admin, input.buyerId, 'allergies', input.allergies);
+    if (scanned.blocked) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'That allergy note cannot be saved.' });
+    }
+    allergies = scanned.values.filter((item) => item.length > 0);
   }
   const volumeBlock = await salesVolumeBlock(admin, input.sellerId, chargedBase);
   if (volumeBlock) {
@@ -199,6 +234,8 @@ export async function prepareHomePlate(
     pickupTimeZone,
     instructions: [note, freeItem].filter(Boolean).join('\n'),
     deliveryAddress: address || null,
+    cookingTemperature,
+    allergies,
     portionCap,
   };
 }

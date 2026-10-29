@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { mainAdminProcedure } from '../../../create-context';
-import { sanitizeTextField } from '../../../../lib/text-security';
+import { auditTextField } from '../../../../lib/text-audit';
 import { recordResponsibilityEvent } from '../../../../lib/stripe-marketplace';
 
 export const recordResponsibilityProcedure = mainAdminProcedure
@@ -13,7 +13,7 @@ export const recordResponsibilityProcedure = mainAdminProcedure
     }),
   )
   .mutation(async ({ ctx, input }) => {
-    const scanned = sanitizeTextField(input.note.trim());
+    const scanned = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'responsibility_note', input.note.trim());
     if (scanned.blocked || scanned.value.length === 0) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'That note cannot be saved' });
     }

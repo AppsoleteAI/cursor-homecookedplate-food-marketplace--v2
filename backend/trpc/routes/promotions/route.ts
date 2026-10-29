@@ -3,7 +3,7 @@ import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../create-context';
 import { missingOffersTable, offerFromRow, type StoredOffer } from '../../../lib/active-offer';
 import { MAX_AMOUNT_OFF, MAX_PERCENT_OFF } from '../../../lib/fees';
-import { sanitizeTextField } from '../../../lib/text-security';
+import { auditTextField } from '../../../lib/text-audit';
 
 const offerInput = z.object({
   id: z.string().uuid().optional(),
@@ -56,9 +56,9 @@ export const listMyPromotionsProcedure = protectedProcedure.query(async ({ ctx }
 export const savePromotionProcedure = protectedProcedure
   .input(offerInput)
   .mutation(async ({ input, ctx }) => {
-    const title = sanitizeTextField(input.title);
-    const description = sanitizeTextField(input.description);
-    const freeItem = input.freeItemName ? sanitizeTextField(input.freeItemName) : null;
+    const title = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'promotion_title', input.title);
+    const description = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'promotion_description', input.description);
+    const freeItem = input.freeItemName ? await auditTextField(ctx.supabaseAdmin, ctx.userId, 'promotion_free_item', input.freeItemName) : null;
     if (title.blocked || description.blocked || freeItem?.blocked) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'That promotion text is not allowed.' });
     }

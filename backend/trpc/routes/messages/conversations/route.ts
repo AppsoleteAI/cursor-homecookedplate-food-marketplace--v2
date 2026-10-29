@@ -3,6 +3,7 @@ import { protectedProcedure } from "../../../create-context";
 import { TRPCError } from "@trpc/server";
 import { loadPublicProfiles } from "../../../../lib/public-profiles";
 import { missingBuyerColumn, orderBuyerId } from "../../../../lib/order-row";
+import { messageVisible, missingColumn } from "../../../../lib/content-moderation";
 
 export const listConversationsProcedure = protectedProcedure
   .input(z.object({ asBuyer: z.boolean().optional() }).optional())
@@ -56,11 +57,20 @@ export const listConversationsProcedure = protectedProcedure
 
     const orderIds = orders.map((o) => o.id);
 
-    const { data: messages, error: messagesError } = await ctx.supabase
+    let messagesResult = await ctx.supabase
       .from("order_messages")
-      .select("order_id, text, created_at, sender_id")
+      .select("order_id, text, created_at, sender_id, moderation_status")
       .in("order_id", orderIds)
       .order("created_at", { ascending: false });
+    if (messagesResult.error && missingColumn(messagesResult.error.message, 'moderation_status')) {
+      messagesResult = await ctx.supabase
+        .from("order_messages")
+        .select("order_id, text, created_at, sender_id")
+        .in("order_id", orderIds)
+        .order("created_at", { ascending: false }) as typeof messagesResult;
+    }
+    const messages = messagesResult.data;
+    const messagesError = messagesResult.error;
 
     if (messagesError) {
       console.error("Failed to fetch messages:", messagesError);
@@ -75,6 +85,7 @@ export const listConversationsProcedure = protectedProcedure
       { text: string; createdAt: string; senderId: string }
     > = {};
     for (const msg of messages || []) {
+      if (!messageVisible(msg.moderation_status, msg.sender_id, userId)) continue;
       if (!latestMessageByOrder[msg.order_id]) {
         latestMessageByOrder[msg.order_id] = {
           text: msg.text,

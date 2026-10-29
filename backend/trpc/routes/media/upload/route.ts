@@ -47,6 +47,7 @@ export const uploadMediaProcedure = protectedProcedure
     }
 
     const arrayBuffer = decode(input.base64Data);
+    let cleanBytes: Uint8Array | null = null;
 
     if (input.type === 'video') {
       const scanResult = await scanVideo(
@@ -126,15 +127,17 @@ export const uploadMediaProcedure = protectedProcedure
             })
         ).catch(() => {});
       }
+      cleanBytes = scanResult.cleanBytes ?? null;
     }
 
     const fileExt = input.mimeType.split('/')[1];
     const fileName = `${ctx.userId}/${input.mealId}/${Date.now()}.${fileExt}`;
     const bucketName = 'meal-media';
 
+    const storedBytes = cleanBytes ?? arrayBuffer;
     const { data: uploadData, error: uploadError } = await ctx.supabase.storage
       .from(bucketName)
-      .upload(fileName, arrayBuffer, {
+      .upload(fileName, storedBytes, {
         contentType: input.mimeType,
         upsert: false,
       });

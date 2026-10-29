@@ -240,6 +240,9 @@ export default function ActiveOrdersModal() {
                       Note: {order.specialInstructions}
                     </Text>
                   )}
+                  {order.instructionsStatus === 'pending' && !order.specialInstructions ? (
+                    <Text style={styles.instructions}>A moderator has not released the plate note.</Text>
+                  ) : null}
                 </View>
                 <View style={styles.actions}>
                   {(() => {

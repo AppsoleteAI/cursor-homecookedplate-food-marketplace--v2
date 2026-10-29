@@ -2,6 +2,8 @@ import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { prepareHomePlate, thisOrderExceedsPortions } from "@/backend/lib/plate-order-rules";
+import { missingColumn, noteForViewer } from "../../../../lib/content-moderation";
+import { orderBuyerId } from "../../../../lib/order-row";
 
 /**
  * Create Order Procedure
@@ -40,6 +42,8 @@ export const createOrderProcedure = protectedProcedure
       pickupTimeZone: input.pickupTimeZone,
       specialInstructions: input.specialInstructions,
       deliveryAddress: input.deliveryAddress,
+      cookingTemperature: input.cookingTemperature,
+      allergies: input.allergies,
     });
     const quantity = prepared.quantity;
     const chargedBase = prepared.chargedBase;
@@ -49,7 +53,8 @@ export const createOrderProcedure = protectedProcedure
 
     // Calculate fees based on the unit price provided (matches UI calculation)
     // SQL trigger will overwrite this if it's wrong, but we calculate here for consistency
-    const insertOrder = (withZone: boolean) => ctx.supabase
+    const noteHeld = Boolean(prepared.instructions && input.specialInstructions?.trim());
+    const insertOrder = (withZone: boolean, withNote: boolean) => ctx.supabase
       .from('orders')
       .insert({
         meal_id: input.mealId,
@@ -59,19 +64,29 @@ export const createOrderProcedure = protectedProcedure
         total_price: chargedBase,
         paid: false,
         special_instructions: instructions || null,
-        cooking_temperature: input.cookingTemperature,
-        allergies: input.allergies || [],
+        cooking_temperature: prepared.cookingTemperature,
+        allergies: prepared.allergies,
         delivery_address: prepared.deliveryAddress,
         pickup_time: prepared.pickupTime,
         ...(withZone && pickupTimeZone ? { pickup_timezone: pickupTimeZone } : {}),
+        ...(withNote ? { instructions_status: 'pending' } : {}),
         status: 'pending',
         payment_intent_id: input.paymentIntentId,
       })
       .select()
       .single();
-    let { data, error } = await insertOrder(true);
-    if (error && pickupTimeZone && /pickup_timezone/.test(error.message || '')) {
-      const retry = await insertOrder(false);
+    let withZone = true;
+    let withNote = noteHeld;
+    let { data, error } = await insertOrder(withZone, withNote);
+    if (error && withNote && missingColumn(error.message, 'instructions_status')) {
+      withNote = false;
+      const retry = await insertOrder(withZone, withNote);
+      data = retry.data;
+      error = retry.error;
+    }
+    if (error && withZone && pickupTimeZone && /pickup_timezone/.test(error.message || '')) {
+      withZone = false;
+      const retry = await insertOrder(withZone, withNote);
       data = retry.data;
       error = retry.error;
     }
@@ -104,7 +119,14 @@ export const createOrderProcedure = protectedProcedure
       quantity: data.quantity,
       totalPrice: parseFloat(data.total_price), // Final price from DB (after trigger)
       paid: data.paid,
-      specialInstructions: data.special_instructions,
+      specialInstructions: noteForViewer({
+        text: data.special_instructions,
+        status: data.instructions_status,
+        buyerId: orderBuyerId(data),
+        sellerId: data.seller_id,
+        viewerId: ctx.userId,
+      }).text ?? undefined,
+      instructionsStatus: data.instructions_status ?? null,
       cookingTemperature: data.cooking_temperature,
       allergies: data.allergies,
       deliveryAddress: data.delivery_address,

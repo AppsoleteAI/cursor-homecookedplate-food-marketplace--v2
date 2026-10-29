@@ -40,7 +40,7 @@ import { deletePromotionProcedure, listMyPromotionsProcedure, savePromotionProce
 import { deleteAreaOfferProcedure, listMyAreaOffersProcedure, listMyLaneItemsProcedure, offersForListingsProcedure, saveAreaOfferProcedure } from "./routes/area-offers/route";
 import { claimGiftProcedure, listMyGiftsProcedure, listOpenGiftsProcedure, saveGiftProcedure } from "./routes/charitable/route";
 import { listLaneListingsProcedure, saveLaneListingProcedure } from "./routes/lanes/route";
-import { listClipsProcedure, publishClipLinkProcedure, publishClipProcedure } from "./routes/clips/route";
+import { listClipsProcedure, publishClipLinkProcedure, publishClipProcedure, reportClipProcedure } from "./routes/clips/route";
 import { confirmPaymentProcedure } from "./routes/payments/confirm-payment/route";
 import { createConnectAccountProcedure } from "./routes/payments/create-connect-account/route";
 import { getConnectAccountStatusProcedure } from "./routes/payments/get-connect-account-status/route";
@@ -49,6 +49,7 @@ import { getPaymentMethodFromSetupProcedure } from "./routes/payments/get-paymen
 import { sendMessageProcedure } from "./routes/messages/send/route";
 import { listMessagesProcedure } from "./routes/messages/list/route";
 import { listConversationsProcedure } from "./routes/messages/conversations/route";
+import { reportMessageProcedure } from "./routes/messages/report/route";
 import { subscribeProcedure } from "./routes/membership/subscribe/route";
 import { claimEarlyBirdProcedure, earlyBirdOfferProcedure } from "./routes/membership/claim-early-bird/route";
 import { locateMembershipProcedure } from "./routes/membership/locate/route";
@@ -92,6 +93,7 @@ import { recordResponsibilityProcedure } from "./routes/admin/record-responsibil
 import { replyPayoutMessageProcedure } from "./routes/admin/reply-payout-message/route";
 import { restorePlatemakerSellingProcedure } from "./routes/admin/restore-platemaker-selling/route";
 import { listMonitorPlatesProcedure, listScreenNamesProcedure, updateMonitorPlateProcedure, updateScreenNameProcedure } from "./routes/admin/monitor/route";
+import { decideModerationProcedure, listModerationQueueProcedure, rescanStoredTextProcedure } from "./routes/admin/moderate/route";
 import { listNotificationsProcedure } from "./routes/notifications/list/route";
 
 export const appRouter = createTRPCRouter({
@@ -176,6 +178,7 @@ export const appRouter = createTRPCRouter({
     send: sendMessageProcedure,
     list: listMessagesProcedure,
     conversations: listConversationsProcedure,
+    report: reportMessageProcedure,
   }),
   membership: createTRPCRouter({
     subscribe: subscribeProcedure,
@@ -209,6 +212,9 @@ export const appRouter = createTRPCRouter({
     updateMonitorPlate: updateMonitorPlateProcedure,
     listScreenNames: listScreenNamesProcedure,
     updateScreenName: updateScreenNameProcedure,
+    listModerationQueue: listModerationQueueProcedure,
+    decideModeration: decideModerationProcedure,
+    rescanStoredText: rescanStoredTextProcedure,
   }),
   metro: createTRPCRouter({
     getAvailability: getMetroAvailabilityProcedure,
@@ -239,6 +245,7 @@ export const appRouter = createTRPCRouter({
     list: listClipsProcedure,
     publish: publishClipProcedure,
     publishLink: publishClipLinkProcedure,
+    report: reportClipProcedure,
   }),
   notifications: createTRPCRouter({
     list: listNotificationsProcedure,

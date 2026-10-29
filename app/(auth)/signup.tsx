@@ -210,7 +210,7 @@ export default function SignupScreen() {
                 <View style={styles.eligibilityMessage}>
                   <Ionicons name="information-circle" size={20} color={AuthColors.maroon} />
                   <Text style={styles.eligibilityTextNeutral}>
-                    {`PlateMaker membership is $${SUBSCRIPTION_PRICES.PLATEMAKER_MONTHLY.toFixed(2)} a month or $${SUBSCRIPTION_PRICES.PLATEMAKER_ANNUAL.toFixed(2)} a year. Early Bird is offered inside an active metro.`}
+                    {`PlateMaker membership is $${SUBSCRIPTION_PRICES.PLATEMAKER_MONTHLY.toFixed(2)} a month or $${SUBSCRIPTION_PRICES.PLATEMAKER_ANNUAL.toFixed(2)} a year. Early Bird is offered inside an active metro. Outside every metro, a Remote kitchen gets 120 days at no charge, then the same monthly or yearly plan. Buyers must be within 20 miles.`}
                   </Text>
                 </View>
               )}

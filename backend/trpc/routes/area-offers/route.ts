@@ -4,7 +4,7 @@ import { protectedProcedure } from '../../create-context';
 import { offerFromRow } from '../../../lib/active-offer';
 import { MAX_AMOUNT_OFF, MAX_PERCENT_OFF, type PromotionPrice } from '../../../lib/fees';
 import { OFFER_AREAS } from '../../../lib/gift-areas';
-import { sanitizeTextField } from '../../../lib/text-security';
+import { auditTextField } from '../../../lib/text-audit';
 
 const offerInput = z.object({
   id: z.string().uuid().optional(),
@@ -126,9 +126,9 @@ export const saveAreaOfferProcedure = protectedProcedure
     if (profile.data?.role !== 'platemaker') {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Only a PlateMaker can set an offer.' });
     }
-    const title = sanitizeTextField(input.title);
-    const description = sanitizeTextField(input.description);
-    const freeItem = input.freeItemName ? sanitizeTextField(input.freeItemName) : null;
+    const title = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'area_offer_title', input.title);
+    const description = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'area_offer_description', input.description);
+    const freeItem = input.freeItemName ? await auditTextField(ctx.supabaseAdmin, ctx.userId, 'area_offer_free_item', input.freeItemName) : null;
     if (title.blocked || description.blocked || freeItem?.blocked) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'That offer text is not allowed.' });
     }

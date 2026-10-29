@@ -50,11 +50,9 @@ import {
 import {
   readFoodReviewBookmarks,
   readFoodReviewClips,
-  readFoodReviewReports,
   readHiddenFoodReviewClips,
   writeFoodReviewBookmarks,
   writeFoodReviewClips,
-  writeFoodReviewReports,
   writeHiddenFoodReviewClips,
 } from '@/lib/food-review-clip-store';
 import { IdleChrome } from '@/components/IdleChrome';
@@ -385,15 +383,17 @@ export default function FoodReviewClips() {
     });
   }, []);
 
+  const reportClipMutation = trpc.clips.report.useMutation();
   const reportClip = useCallback((clipId: string) => {
     setMenuClipId(null);
-    readFoodReviewReports()
-      .then((current) => writeFoodReviewReports(current.includes(clipId) ? current : [clipId, ...current]))
-      .catch((error) => {
-        console.error('[FoodReviewClips] Failed to save a report', error);
-      });
-    Alert.alert('Clip reported', 'Thanks. This report stays on this device.');
-  }, []);
+    reportClipMutation.mutate({ clipId }, {
+      onSuccess: () => {
+        setHiddenIds((prev) => (prev.includes(clipId) ? prev : [clipId, ...prev]));
+        Alert.alert('Clip reported', 'A moderator has this clip. It is hidden until the moderator allows it.');
+      },
+      onError: (error) => Alert.alert('Clip report', error.message),
+    });
+  }, [reportClipMutation]);
 
   const pickOnWeb = useCallback(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;

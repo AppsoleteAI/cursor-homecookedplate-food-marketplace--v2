@@ -3,6 +3,7 @@ import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../../create-context';
 import { missingBuyerColumn, orderBuyerId } from '../../../../lib/order-row';
 import { notifyParty } from '../../../../lib/account-notice';
+import { notifyModerators } from '../../../../lib/content-moderation';
 
 export const blockCookProcedure = protectedProcedure
   .input(z.object({
@@ -80,6 +81,16 @@ export const blockCookProcedure = protectedProcedure
     if (saved.error) {
       throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'This report was not saved.' });
     }
+    await ctx.supabaseAdmin.from('content_reports').insert({
+      reporter_id: ctx.userId,
+      target_type: 'order',
+      target_id: input.orderId,
+      status: 'pending',
+    });
+    await notifyModerators(ctx.supabaseAdmin, ctx.userId, {
+      title: 'Order report',
+      body: 'A PlateTaker reported an order. It is waiting for a moderator.',
+    });
     try {
       await notifyParty(ctx.supabaseAdmin, cookId, 'orderUpdates', {
         title: 'Order report',

@@ -58,7 +58,12 @@ describe('Early Bird slots', () => {
   });
 
   it('covers every saved metro and stays inside the bounds', () => {
-    expect(Object.keys(METRO_POPULATION_2024)).toHaveLength(50);
+    expect(Object.keys(METRO_POPULATION_2024)).toHaveLength(55);
+    expect(earlyBirdCapForMetro('Anchorage')).toBe(200);
+    expect(earlyBirdCapForMetro('Honolulu')).toBe(200);
+    expect(earlyBirdCapForMetro('Mayagüez')).toBe(200);
+    expect(earlyBirdCapForMetro('Charlotte Amalie')).toBe(200);
+    expect(earlyBirdCapForMetro('San Juan')).toBe(203);
     for (const metro of METRO_CENTERS) {
       const cap = earlyBirdCapForMetro(metro.name);
       expect(cap).toBeGreaterThanOrEqual(EARLY_BIRD_MIN_PLATEMAKERS);
@@ -83,10 +88,10 @@ describe('Early Bird slots', () => {
 });
 
 describe('50-mile metro circles', () => {
-  it('covers all 50 downtowns with one radius', () => {
-    expect(METRO_CENTERS).toHaveLength(50);
+  it('covers every downtown with one radius', () => {
+    expect(METRO_CENTERS).toHaveLength(55);
     expect(METRO_RADIUS_METERS).toBe(80_000);
-    expect(new Set(METRO_CENTERS.map((metro) => metro.name)).size).toBe(50);
+    expect(new Set(METRO_CENTERS.map((metro) => metro.name)).size).toBe(55);
   });
 
   it('matches a Pittsburgh point and a Philadelphia point to their own downtowns', () => {
@@ -101,6 +106,16 @@ describe('50-mile metro circles', () => {
 
   it('leaves a point outside every circle unmatched', () => {
     expect(nearestMetro(0, 0)).toBeNull();
+  });
+
+  it('matches the five added downtowns and keeps San Juan apart from St. Croix', () => {
+    expect(nearestMetro(61.2181, -149.9003)?.name).toBe('Anchorage');
+    expect(nearestMetro(21.3069, -157.8583)?.name).toBe('Honolulu');
+    expect(nearestMetro(18.4655, -66.1057)?.name).toBe('San Juan');
+    expect(nearestMetro(18.2013, -67.1396)?.name).toBe('Mayagüez');
+    expect(nearestMetro(18.3419, -64.9307)?.name).toBe('Charlotte Amalie');
+    expect(nearestMetro(17.7466, -64.7032)?.name).toBe('Charlotte Amalie');
+    expect(nearestMetro(17.7466, -64.7032)?.name).not.toBe('San Juan');
   });
 });
 

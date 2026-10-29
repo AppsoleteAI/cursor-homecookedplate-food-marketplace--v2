@@ -1,7 +1,7 @@
 import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { sanitizeTextField } from "../../../../lib/text-security";
+import { auditTextField } from "../../../../lib/text-audit";
 
 /**
  * Update Profile Procedure
@@ -41,7 +41,7 @@ export const updateProfileProcedure = protectedProcedure
     const updateData: Record<string, string | boolean | object | null> = {};
 
     if (input.username) {
-      const r = sanitizeTextField(input.username);
+      const r = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'username', input.username);
       if (r.blocked) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Username contains disallowed content.' });
       }
@@ -61,10 +61,16 @@ export const updateProfileProcedure = protectedProcedure
       }
       updateData.email = input.email;
     }
-    if (input.phone !== undefined) updateData.phone = input.phone;
+    if (input.phone !== undefined) {
+      const phone = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'phone', input.phone);
+      if (phone.blocked) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'That phone number cannot be saved.' });
+      }
+      updateData.phone = phone.value;
+    }
 
     if (input.bio !== undefined) {
-      const r = sanitizeTextField(input.bio);
+      const r = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'bio', input.bio);
       if (r.blocked) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Bio contains disallowed content.' });
       }

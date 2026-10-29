@@ -321,7 +321,7 @@ export default function WelcomeScreen() {
                               PlateMakers get 90 days of Premium at no charge while their metro still has a spot. Choosing Early Bird does not open Stripe. The start date and the end date are saved, and Premium ends when those days run out. Monthly is $4.99 and yearly is $39.99 if they pay instead.
                             </Text>
                             <Text style={styles.earlyBody}>
-                              Outside an active metro, Early Bird is not available.
+                              Remote kitchens get 120 days at no charge. No card. The start date and the end date are saved. After those days, monthly is $4.99 and yearly is $39.99. Buyers must be within 20 miles of your kitchen.
                             </Text>
                           </>
                         ) : (

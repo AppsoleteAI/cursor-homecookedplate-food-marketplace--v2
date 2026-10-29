@@ -1,6 +1,7 @@
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
 import { loadPublicProfiles } from "../../../../lib/public-profiles";
+import { commentForViewer } from "../../../../lib/content-moderation";
 
 export const listReviewsProcedure = publicProcedure
   .input(
@@ -52,7 +53,7 @@ export const listReviewsProcedure = publicProcedure
       authorName: authors.get(review.author_id)?.username || 'Anonymous',
       authorImage: authors.get(review.author_id)?.profile_image,
       rating: review.rating,
-      comment: review.comment,
+      ...commentForViewer(review.comment, review.comment_status, review.author_id, ctx.userId),
       createdAt: new Date(review.created_at),
     }));
   });

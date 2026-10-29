@@ -32,7 +32,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#1A0F0A"
+        "backgroundColor": "#D89429"
       },
       "package": "com.rork.homecookedplate",
       "versionCode": 7,

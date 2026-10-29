@@ -2,6 +2,7 @@ import { z } from "zod";
 import { protectedProcedure } from "../../../create-context";
 import { TRPCError } from "@trpc/server";
 import { missingBuyerColumn, orderBuyerId } from "../../../../lib/order-row";
+import { messageVisible } from "../../../../lib/content-moderation";
 
 export const listMessagesProcedure = protectedProcedure
   .input(
@@ -55,12 +56,16 @@ export const listMessagesProcedure = protectedProcedure
       });
     }
 
-    return (messages || []).map((m) => ({
-      id: m.id,
-      orderId: m.order_id,
-      senderId: m.sender_id,
-      senderRole: m.sender_role as "platemaker" | "platetaker",
-      text: m.text,
-      createdAt: m.created_at,
-    }));
+    return (messages || []).flatMap((m) => {
+      if (!messageVisible(m.moderation_status, m.sender_id, userId)) return [];
+      return [{
+        id: m.id,
+        orderId: m.order_id,
+        senderId: m.sender_id,
+        senderRole: m.sender_role as "platemaker" | "platetaker",
+        text: m.text,
+        moderationStatus: (m.moderation_status as string | undefined) || 'allowed',
+        createdAt: m.created_at,
+      }];
+    });
   });

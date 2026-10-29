@@ -5,6 +5,7 @@
 
 import { earlyBirdCapForMetro } from './early-bird-cap';
 import { isKnownMetro } from './metro-radius';
+import { canStartRemoteKitchen } from './remote-kitchen';
 
 export function canClaimEarlyBird(input: {
   role: string | null;
@@ -39,6 +40,7 @@ export type EarlyBirdOffer = {
   trialDays: number;
   trialEndsAt: string | null;
   trialStartedAt: string | null;
+  remoteKitchen: boolean;
 };
 
 type ProfileRow = {
@@ -91,7 +93,18 @@ async function decideOffer(admin: Admin, profile: ProfileRow): Promise<EarlyBird
   );
 
   if (profile.role !== 'platemaker' || !profile.metro_area || profile.metro_area === 'Remote/Other') {
-    return { eligible: false, trialDays: 0, trialEndsAt, trialStartedAt };
+    return {
+      eligible: false,
+      trialDays: 0,
+      trialEndsAt,
+      trialStartedAt,
+      remoteKitchen: canStartRemoteKitchen({
+        role: profile.role,
+        metroArea: profile.metro_area,
+        paid,
+        trialEndsAt,
+      }),
+    };
   }
 
   const { data: geo } = await admin
@@ -120,5 +133,5 @@ async function decideOffer(admin: Admin, profile: ProfileRow): Promise<EarlyBird
     trialEndsAt,
   });
 
-  return { eligible, trialDays: eligible ? trialDays : 0, trialEndsAt, trialStartedAt };
+  return { eligible, trialDays: eligible ? trialDays : 0, trialEndsAt, trialStartedAt, remoteKitchen: false };
 }

@@ -2,7 +2,9 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { saveEarlyBirdClaim } from '../../../../lib/early-bird-claim';
 import { readEarlyBirdOffer } from '../../../../lib/early-bird';
+import { saveKitchenPin } from '../../../../lib/kitchen-pin';
 import { moveMetroHeadcount, namedMetro, undoMetroHeadcount } from '../../../../lib/metro-headcount';
+import { REMOTE_KITCHEN_DAYS } from '../../../../lib/remote-kitchen';
 import { nearestMetro } from '../../../../lib/metro-radius';
 import { stayClockRestarts, stayIsReady } from '../../../../lib/metro-stay';
 import { protectedProcedure } from '../../../create-context';
@@ -77,7 +79,17 @@ export const locateMembershipProcedure = protectedProcedure
     console.log(`[Locate] ${input.lat}, ${input.lng} -> ${metro?.metro_name || lookedUp.error || 'outside'}`);
 
     if (!metro) {
-      if (input.mode === 'visit' && !lookedUp.error) {
+      if (lookedUp.error) {
+        return {
+          metroArea: profile.metro_area || 'Remote/Other',
+          earlyBirdEligible: false,
+          trialDays: 0,
+          lat: input.lat,
+          lng: input.lng,
+          reason: 'lookup_failed' as const,
+        };
+      }
+      if (input.mode === 'visit') {
         const current = profile.metro_area || 'Remote/Other';
         const visited = await noteMetroVisit(
           ctx.supabaseAdmin,
@@ -87,24 +99,46 @@ export const locateMembershipProcedure = protectedProcedure
           current,
           'Remote/Other',
         );
+        if (visited.committed) await saveKitchenPin(ctx.supabaseAdmin, ctx.userId, input.lat, input.lng);
         const offer = await readEarlyBirdOffer(ctx.supabaseAdmin, ctx.userId);
         return {
           metroArea: visited.metroArea,
           earlyBirdEligible: offer.eligible,
-          trialDays: offer.eligible ? offer.trialDays : 0,
+          trialDays: offer.eligible ? offer.trialDays : offer.remoteKitchen ? REMOTE_KITCHEN_DAYS : 0,
           lat: input.lat,
           lng: input.lng,
-          reason: visited.committed ? 'in_metro' as const : 'waiting' as const,
+          reason: visited.committed ? 'outside' as const : 'waiting' as const,
           committed: visited.committed,
         };
       }
+      const current = profile.metro_area || 'Remote/Other';
+      if (current !== 'Remote/Other') {
+        try {
+          await moveMetroHeadcount(ctx.supabaseAdmin, profile.role, current, 'Remote/Other');
+        } catch (headcountError) {
+          console.error('[Locate] Headcount did not move off the named metro.', headcountError);
+        }
+        if (profile.trial_ends_at && namedMetro(current)) {
+          await saveEarlyBirdClaim(ctx.supabaseAdmin, ctx.userId, current);
+        }
+        const savedMetro = await ctx.supabaseAdmin
+          .from('profiles')
+          .update({ metro_area: 'Remote/Other' })
+          .eq('id', ctx.userId);
+        if (savedMetro.error) {
+          await undoMetroHeadcount(ctx.supabaseAdmin, profile.role, current, 'Remote/Other');
+          throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Could not save this metro.' });
+        }
+      }
+      await saveKitchenPin(ctx.supabaseAdmin, ctx.userId, input.lat, input.lng);
+      const offer = await readEarlyBirdOffer(ctx.supabaseAdmin, ctx.userId);
       return {
-        metroArea: profile.metro_area || 'Remote/Other',
+        metroArea: 'Remote/Other',
         earlyBirdEligible: false,
-        trialDays: 0,
+        trialDays: offer.remoteKitchen ? REMOTE_KITCHEN_DAYS : 0,
         lat: input.lat,
         lng: input.lng,
-        reason: lookedUp.error ? 'lookup_failed' as const : 'outside' as const,
+        reason: 'outside' as const,
       };
     }
 
@@ -130,6 +164,7 @@ export const locateMembershipProcedure = protectedProcedure
         metro.metro_name,
       );
       const offer = await readEarlyBirdOffer(ctx.supabaseAdmin, ctx.userId);
+      if (visited.committed) await saveKitchenPin(ctx.supabaseAdmin, ctx.userId, input.lat, input.lng);
       return {
         metroArea: visited.metroArea,
         earlyBirdEligible: offer.eligible,
@@ -162,6 +197,7 @@ export const locateMembershipProcedure = protectedProcedure
       }
     }
 
+    await saveKitchenPin(ctx.supabaseAdmin, ctx.userId, input.lat, input.lng);
     const offer = await readEarlyBirdOffer(ctx.supabaseAdmin, ctx.userId);
     return {
       metroArea: metro.metro_name,

@@ -53,6 +53,7 @@ export default function OnboardingScreen() {
   const {
     formData,
     setFormData,
+    userLocation,
     setUserLocation,
     isUsernameAvailable,
     isCheckingUsername,
@@ -202,7 +203,11 @@ export default function OnboardingScreen() {
             <Text style={styles.successText}>{mailLine}</Text>
             <Text style={styles.successText}>
               {maker
-                ? 'Choose Early Bird or a membership before the kitchen opens. Early Bird does not charge a card.'
+                ? !userLocation
+                  ? 'No location was saved. This account is Remote until Get GPS. You get 120 days at no charge, then a monthly or yearly plan. Plates are shown only to buyers within 20 miles of your kitchen.'
+                  : metroStatus === 'outside'
+                    ? 'You are outside every metro. This account is Remote. You get 120 days at no charge, then a monthly or yearly plan. Plates are shown only to buyers within 20 miles of your kitchen.'
+                    : 'Choose Early Bird or a membership before the kitchen opens. Early Bird does not charge a card.'
                 : `The app is free. Premium is optional: $${takerMonthly} a month or $${takerYearly} a year. It cuts the service fee from 10% to 5% on orders of $20 or more.`}
             </Text>
             <ResendConfirmation email={email} />
@@ -307,7 +312,7 @@ export default function OnboardingScreen() {
                         {metroStatus === 'outside' ? (
                           <Text style={[styles.metroResult, styles.locationHelp]}>
                             {role === 'platemaker'
-                              ? 'You are outside an active location. The account will be Remote, and Early Bird is not available here.'
+                              ? 'You are outside every metro. This account is Remote. You get 120 days at no charge, then a monthly or yearly plan. Plates are shown only to buyers within 20 miles of your kitchen.'
                               : 'You are outside an active location. The account will be Remote.'}
                           </Text>
                         ) : null}

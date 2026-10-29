@@ -217,6 +217,13 @@ export default function ProfileScreen() {
       onPress: () => openFromProfile('/settings'),
     },
     {
+      icon: 'checkmark-circle-outline',
+      title: 'Moderator',
+      subtitle: 'Messages, notes, comments, and reports',
+      disabled: !adminRole,
+      onPress: () => openFromProfile('/admin-moderator'),
+    },
+    {
       icon: 'shield-outline',
       title: 'Admin',
       subtitle: adminRole === 'main'

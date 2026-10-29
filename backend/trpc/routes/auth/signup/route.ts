@@ -4,6 +4,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { randomBytes } from "node:crypto";
 import { sendEmailConfirmation } from "@/backend/lib/email";
+import { saveKitchenPin } from "../../../../lib/kitchen-pin";
 import { nearestMetro } from "../../../../lib/metro-radius";
 // Use process.stdout.write directly for critical logs (bypasses Bun buffering)
 
@@ -31,8 +32,8 @@ const createSignupProcedure = () => {
         email: z.string().email("Invalid email format"),
         password: passwordSchema, // Apply the strict rules here
         role: z.enum(['platemaker', 'platetaker']).optional().default('platetaker'),
-        lat: z.number().optional(),
-        lng: z.number().optional(),
+        lat: z.number().nullish(),
+        lng: z.number().nullish(),
         foodSafetyAcknowledged: z.boolean().optional().default(false),
       })
     )
@@ -158,7 +159,7 @@ const createSignupProcedure = () => {
       let earlyBirdEligible = false;
       let offeredTrialDays = 0;
 
-      if (input.lat && input.lng) {
+      if (typeof input.lat === 'number' && typeof input.lng === 'number') {
         process.stdout.write(`[GEO_LOCK] Verifying location for user: ${input.username} at (${input.lat}, ${input.lng})\n`);
         
         // Consolidated RPC: Get metro settings by location (combines lookup + settings query)
@@ -310,6 +311,9 @@ const createSignupProcedure = () => {
       }
 
       console.log('[Signup] Profile created successfully with admin client');
+      if (typeof input.lat === 'number' && typeof input.lng === 'number') {
+        await saveKitchenPin(ctx.supabaseAdmin, authData.user.id, input.lat, input.lng);
+      }
 
       // Generate email confirmation token and send via Resend (production email service)
       // CRITICAL: Supabase emails are rate-limited and not suitable for production

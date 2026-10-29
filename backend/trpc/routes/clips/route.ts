@@ -3,9 +3,12 @@ import { TRPCError } from '@trpc/server';
 import { protectedProcedure, publicProcedure } from '../../create-context';
 import { decode } from 'base64-arraybuffer';
 import { mediaFrameSource, scanVideo } from '../../../lib/image-security';
+import { nearbyCookIds } from '../../../lib/kitchen-pin';
 import { mealVisibleInMetro } from '../../../lib/metro-menu';
 import { platemakerMayEnter } from '../../../lib/trial-access';
 import { foodReviewLinkClip } from '@/lib/food-review-clips';
+import { auditTextField } from '../../../lib/text-audit';
+import { missingColumn, notifyModerators } from '../../../lib/content-moderation';
 
 function missingTable(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
@@ -19,11 +22,25 @@ export const listClipsProcedure = publicProcedure
     ? await ctx.supabaseAdmin.from('profiles').select('metro_area').eq('id', ctx.userId).maybeSingle()
     : { data: null };
   const savedMetro = typeof profile.data?.metro_area === 'string' ? profile.data.metro_area.trim() : '';
-  const { data, error } = await ctx.supabaseAdmin
+  const nearby = ctx.userId ? await nearbyCookIds(ctx.supabaseAdmin, ctx.userId) : { available: false, ids: [] as string[] };
+  if (nearby.available && nearby.ids.length === 0) return [];
+  let clipQuery = ctx.supabaseAdmin
     .from('food_review_clips')
-    .select('id, user_id, meal_name, author, role, video_url, poster_url, duration_seconds, created_at')
+    .select('id, user_id, meal_name, author, role, video_url, poster_url, duration_seconds, created_at, hidden')
     .order('created_at', { ascending: false })
     .limit(50);
+  if (nearby.available) clipQuery = clipQuery.in('user_id', nearby.ids);
+  let listed = await clipQuery;
+  if (listed.error && missingColumn(listed.error.message, 'hidden')) {
+    let retry = ctx.supabaseAdmin
+      .from('food_review_clips')
+      .select('id, user_id, meal_name, author, role, video_url, poster_url, duration_seconds, created_at')
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (nearby.available) retry = retry.in('user_id', nearby.ids);
+    listed = await retry as typeof listed;
+  }
+  const { data, error } = listed;
   if (error) {
     if (missingTable(error)) return [];
     console.error('[Clips] List failed:', error.message);
@@ -46,8 +63,10 @@ export const listClipsProcedure = publicProcedure
     duration_seconds: number;
     created_at: string;
     user_id?: string;
+    hidden?: boolean;
   }) => {
-    if (!mealVisibleInMetro(cookMetros.get(row.user_id || ''), savedMetro || undefined)) return [];
+    if (row.hidden === true) return [];
+    if (!nearby.available && !mealVisibleInMetro(cookMetros.get(row.user_id || ''), savedMetro || undefined)) return [];
     return [{
     id: row.id,
     mealName: row.meal_name,
@@ -82,6 +101,10 @@ export const publishClipProcedure = protectedProcedure
     if (!profile || (!cookMayPost && !buyerMayPost)) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Posting a clip is for a premium membership.' });
     }
+    const mealNameScan = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'clip_meal_name', input.mealName);
+    if (mealNameScan.blocked || !mealNameScan.value) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'That meal name cannot be posted.' });
+    }
 
     const arrayBuffer = decode(input.base64Data);
     const scanResult = await scanVideo(
@@ -109,7 +132,7 @@ export const publishClipProcedure = protectedProcedure
     const { error } = await ctx.supabaseAdmin.from('food_review_clips').insert({
       id,
       user_id: ctx.userId,
-      meal_name: input.mealName.trim(),
+      meal_name: mealNameScan.value,
       author: profile.username || 'Cook',
       role,
       video_url: publicUrl,
@@ -124,7 +147,7 @@ export const publishClipProcedure = protectedProcedure
     }
     return {
       id,
-      mealName: input.mealName.trim(),
+      mealName: mealNameScan.value,
       author: profile.username || 'Cook',
       role,
       videoUri: publicUrl,
@@ -158,7 +181,11 @@ export const publishClipLinkProcedure = protectedProcedure
     }
     const id = `clip-${Date.now()}`;
     const role = profile.role === 'platemaker' ? 'platemaker' : 'platetaker';
-    const mealName = input.mealName.trim();
+    const mealNameScan = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'clip_meal_name', input.mealName);
+    if (mealNameScan.blocked || !mealNameScan.value) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'That meal name cannot be posted.' });
+    }
+    const mealName = mealNameScan.value;
     const { error } = await ctx.supabaseAdmin.from('food_review_clips').insert({
       id,
       user_id: ctx.userId,
@@ -188,4 +215,35 @@ export const publishClipLinkProcedure = protectedProcedure
       counts: { smile: 0, heart: 0, star: 0 },
       reactionsByUser: {},
     };
+  });
+
+export const reportClipProcedure = protectedProcedure
+  .input(z.object({ clipId: z.string().min(1).max(80) }))
+  .mutation(async ({ input, ctx }) => {
+    const clip = await ctx.supabaseAdmin
+      .from('food_review_clips')
+      .select('id, user_id, meal_name')
+      .eq('id', input.clipId)
+      .maybeSingle();
+    if (clip.error || !clip.data) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'That clip is not on the timeline.' });
+    }
+    if (clip.data.user_id === ctx.userId) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'You cannot report your own clip.' });
+    }
+    const saved = await ctx.supabaseAdmin.from('content_reports').insert({
+      reporter_id: ctx.userId,
+      target_type: 'clip',
+      target_id: input.clipId,
+      status: 'pending',
+    });
+    if (saved.error) {
+      throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'This report was not saved. The moderator queue is not on this kitchen yet.' });
+    }
+    await ctx.supabaseAdmin.from('food_review_clips').update({ hidden: true }).eq('id', input.clipId);
+    await notifyModerators(ctx.supabaseAdmin, ctx.userId, {
+      title: 'Clip report',
+      body: `A clip for ${clip.data.meal_name || 'a plate'} is waiting for a moderator.`,
+    });
+    return { reported: true };
   });

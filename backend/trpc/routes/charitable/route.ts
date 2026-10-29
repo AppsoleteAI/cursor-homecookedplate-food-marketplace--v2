@@ -3,8 +3,9 @@ import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../create-context';
 import { producedCost } from '../../../lib/fees';
 import { GIFT_AREAS, RECIPIENTS } from '../../../lib/gift-areas';
+import { nearbyCookIds } from '../../../lib/kitchen-pin';
 import { mealVisibleInMetro } from '../../../lib/metro-menu';
-import { sanitizeTextField } from '../../../lib/text-security';
+import { auditTextField } from '../../../lib/text-audit';
 
 const giftInput = z.object({
   area: z.enum(GIFT_AREAS),
@@ -72,11 +73,15 @@ async function cookNames(admin: { from: (table: string) => any }, ids: string[])
 export const listOpenGiftsProcedure = protectedProcedure.query(async ({ ctx }) => {
   const viewer = await ctx.supabaseAdmin.from('profiles').select('metro_area').eq('id', ctx.userId).maybeSingle();
   const metro = typeof viewer.data?.metro_area === 'string' ? viewer.data.metro_area : '';
-  const { data, error } = await ctx.supabaseAdmin
+  const nearby = await nearbyCookIds(ctx.supabaseAdmin, ctx.userId);
+  if (nearby.available && nearby.ids.length === 0) return [];
+  let giftQuery = ctx.supabaseAdmin
     .from('charitable_gifts')
     .select('*')
     .order('created_at', { ascending: false })
     .limit(100);
+  if (nearby.available) giftQuery = giftQuery.in('cook_id', nearby.ids);
+  const { data, error } = await giftQuery;
   if (error) {
     if (missingTable(error)) return [];
     throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Gifts could not be loaded.' });
@@ -85,7 +90,7 @@ export const listOpenGiftsProcedure = protectedProcedure.query(async ({ ctx }) =
   const names = await cookNames(ctx.supabaseAdmin, rows.map((row) => row.cook_id));
   return rows.flatMap((row) => {
     const cook = names.get(row.cook_id);
-    if (!mealVisibleInMetro(cook?.metro, metro || undefined)) return [];
+    if (!nearby.available && !mealVisibleInMetro(cook?.metro, metro || undefined)) return [];
     const gift = present(row, ctx.userId, cook?.name || 'Cook');
     if (gift.remaining < 1) return [];
     return [gift];
@@ -114,7 +119,7 @@ export const saveGiftProcedure = protectedProcedure
     if (profile.data?.role !== 'platemaker') {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Only a PlateMaker can set aside a gift.' });
     }
-    const item = sanitizeTextField(input.itemName);
+    const item = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'gift_item', input.itemName);
     if (item.blocked || !item.value) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Name the food.' });
     }

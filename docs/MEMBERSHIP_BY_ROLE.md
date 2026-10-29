@@ -57,9 +57,9 @@ Web, iOS, and Android use this same screen. The website publish includes this sc
 | Gold card words | Your Cook Path, white on honey gold | Where You Can Eat, white on honey gold |
 | Under the maroon button | No green sentence. The button is PlateMaker. | No green sentence. The button is PlateTaker. |
 | Green words above the prices | Hidden until Get GPS finishes and the location is inside a metro or outside every metro. | Hidden until that same check finishes. Then the green line says the app is free and Premium is optional. |
-| After Get GPS names a city, signed in | Early Bird at no charge, or a paid plan before the kitchen opens. Outside every metro, the kitchen opens without a charge. | The same alert says the app is free and to use the app. Premium stays optional. |
-| After Get GPS names a city, signed out | Click the maroon PlateMaker button to sign in. Early Bird is 90 days at no charge. | Click the maroon PlateTaker button to sign in, then use the app. The app is free. |
-| Free control on the screen | Early Bird, or Open the kitchen when the location is outside every metro | Use the app, above the $7.99 and $75.99 prices, when signed in. |
+| After Get GPS names a city, signed in | Early Bird at no charge, or a paid plan before the kitchen opens. Outside every metro, the screen offers 120 days at no charge, then $4.99 a month or $39.99 a year. | The same alert says the app is free and to use the app. Premium stays optional. A plate is shown only within 20 miles of the cook. |
+| After Get GPS names a city, signed out | Click the maroon PlateMaker button to sign in. Early Bird is 90 days at no charge. Outside every metro, the alert says the account is Remote and the 120 days start after sign-in. | Click the maroon PlateTaker button to sign in, then use the app. The app is free. |
+| Free control on the screen | Early Bird inside a metro. Outside every metro, Start 120 days free. | Use the app, above the $7.99 and $75.99 prices, when signed in. |
 
 Get GPS still reads the device and saves the metro. The free-entry words are the only addition on the buyer alerts.
 

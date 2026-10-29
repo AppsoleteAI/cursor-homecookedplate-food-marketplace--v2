@@ -45,7 +45,7 @@ function askedRole(value: string | string[] | undefined): 'platemaker' | 'platet
 
 export default function MembershipScreen() {
   const scrollRef = useRef<ScrollView>(null);
-  const { user, openKitchen } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
   const params = useLocalSearchParams<{ role?: string | string[] }>();
   const accountRole = user?.accountRole ?? user?.role;
@@ -86,6 +86,7 @@ export default function MembershipScreen() {
   const remoteMetro = !!user && (!userMetro || userMetro === 'Remote/Other');
   // PlateTakers join free. Early Bird is 90 days for a PlateMaker in an active metro that still has a spot.
   const offerDays = earlyBirdOffer.data?.eligible ? earlyBirdOffer.data.trialDays : 0;
+  const remoteKitchen = earlyBirdOffer.data?.remoteKitchen === true;
   const plans = isPlateTaker
     ? [
         { interval: 'month' as const, amount: SUBSCRIPTION_PRICES.PLATETAKER_MONTHLY, caption: 'Monthly' },
@@ -99,10 +100,6 @@ export default function MembershipScreen() {
     router.replace(isPlateTaker ? '/(tabs)/(home)/home' : '/(tabs)/dashboard');
   }, [isPlateTaker, router]);
 
-  const openTheKitchen = useCallback(async () => {
-    await openKitchen();
-    router.replace('/(tabs)/dashboard');
-  }, [openKitchen, router]);
 
   const tell = useCallback((title: string, message: string) => {
     if (Platform.OS === 'web') {
@@ -146,8 +143,8 @@ export default function MembershipScreen() {
               ? `You are in ${city}. ${plateTakerFreeEntry(false)}`
               : `You are in ${city}. Click the maroon PlateMaker button to sign in. Early Bird is 90 days at no charge.`
             : isPlateTaker
-              ? `That point is outside the 50-mile radius of all 50 metros. ${plateTakerFreeEntry(false)}`
-              : 'That point is outside the 50-mile radius of all 50 metros. The kitchen is open, and a paid plan is optional.',
+              ? `That point is outside every metro. ${plateTakerFreeEntry(false)}`
+              : 'That point is outside every metro. This account is Remote. You get 120 days at no charge, then a monthly or yearly plan. Plates are shown only to buyers within 20 miles of your kitchen.',
         );
         return;
       }
@@ -171,7 +168,7 @@ export default function MembershipScreen() {
       if (found.reason === 'paused') {
         setLocationVerdict('outside');
         setCheckedMetro(null);
-        tell('Location', isPlateTaker ? `That metro is paused. ${plateTakerFreeEntry(true)}` : 'That metro is paused. The kitchen stays open without a charge.');
+        tell('Location', isPlateTaker ? `That metro is paused. ${plateTakerFreeEntry(true)}` : 'That metro is paused. Choose Early Bird or a paid plan before the kitchen opens.');
         return;
       }
       if (!city) {
@@ -180,8 +177,8 @@ export default function MembershipScreen() {
         tell(
           'Location',
           isPlateTaker
-            ? `Checked ${point}. That point is outside the 50-mile radius of all 50 metros. ${plateTakerFreeEntry(true)}`
-            : `Checked ${point}. That point is outside the 50-mile radius of all 50 metros. The kitchen is open, and a paid plan is optional.`,
+            ? `Checked ${point}. That point is outside every metro. ${plateTakerFreeEntry(true)}`
+            : `Checked ${point}. You are outside every metro. This account is Remote. You get 120 days at no charge, then a monthly or yearly plan. Plates are shown only to buyers within 20 miles of your kitchen.`,
         );
         return;
       }
@@ -327,8 +324,10 @@ export default function MembershipScreen() {
       const started = result.trialStartedAt ? new Date(result.trialStartedAt).toLocaleDateString() : 'today';
       const ends = result.trialEndsAt ? new Date(result.trialEndsAt).toLocaleDateString() : '';
       Alert.alert(
-        'Early Bird started',
-        `Started ${started}. Premium runs until ${ends}. No card was charged.`,
+        result.remoteKitchen ? '120 days started' : 'Early Bird started',
+        result.remoteKitchen
+          ? `Started ${started}. The kitchen stays open until ${ends}. No card was charged. Buyers must be within 20 miles.`
+          : `Started ${started}. Premium runs until ${ends}. No card was charged.`,
         [{ text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }],
       );
     } catch (error: any) {
@@ -489,7 +488,7 @@ export default function MembershipScreen() {
                   : isPlateTaker
                   ? 'Get GPS reads this device and saves the nearest metro inside a 50 mile radius. Tap it again to refresh.'
                   : gpsCoordinates
-                    ? 'These coordinates are outside the 50 mile radius of all 50 metros.'
+                    ? 'These coordinates are outside every metro. This account is Remote. You get 120 days at no charge, then a monthly or yearly plan. Plates are shown only to buyers within 20 miles of your kitchen.'
                     : 'Get GPS checks this device against the saved metros. Each metro has a 50 mile radius. The kitchen stays closed until that check finishes.'}
               </Text>
             </View>
@@ -498,7 +497,7 @@ export default function MembershipScreen() {
           {/* Payment Setup Section */}
           {membershipTier === 'free' && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{isPlateTaker ? 'Choose one' : remoteMetro && !holdForGps && offerDays === 0 ? 'Paid plans' : 'Choose one'}</Text>
+              <Text style={styles.sectionTitle}>{isPlateTaker ? 'Choose one' : remoteKitchen ? 'Remote · 120 days free' : remoteMetro && !holdForGps && offerDays === 0 ? 'Paid plans' : 'Choose one'}</Text>
               <View style={styles.pricingCard}>
                 {isPlateTaker ? (
                   <>
@@ -593,10 +592,24 @@ export default function MembershipScreen() {
                     />
                   </View>
                 ))}
-                {!isPlateTaker && locationVerdict === 'outside' && remoteMetro ? (
-                  <GlassPressable onPress={openTheKitchen} style={styles.restoreButton} testID="membership-open-kitchen">
-                    <Text style={styles.restoreText}>Open the kitchen</Text>
-                  </GlassPressable>
+                {!isPlateTaker && remoteKitchen ? (
+                  <>
+                    <View style={styles.trialInfo}>
+                      <Ionicons name="gift" size={20} color={Colors.gradient.green} />
+                      <Text style={styles.trialText}>Remote · 120 days free</Text>
+                    </View>
+                    <Text style={[styles.trialText, styles.trialNote]}>
+                      No card. The start date and the end date are saved on your account. Buyers must be within 20 miles.
+                    </Text>
+                    <GradientButton
+                      title="Start 120 days free"
+                      onPress={handleEarlyBird}
+                      loading={processing}
+                      disabled={processing}
+                      style={styles.subscribeButton}
+                      baseColor="green"
+                    />
+                  </>
                 ) : null}
                 {IAP_REQUIRED && (
                   <GlassPressable
@@ -621,7 +634,7 @@ export default function MembershipScreen() {
                   : holdForGps
                     ? '• Get GPS runs before the kitchen opens\n• A saved metro is a 50-mile radius around downtown.\n• Early Bird is offered when this location is inside an active metro\n• Monthly is $4.99. Yearly is $39.99 if you choose a paid plan'
                     : remoteMetro
-                    ? '• This location is outside every saved metro\n• The kitchen is open without a charge\n• Monthly is $4.99. Yearly is $39.99 if you choose a paid plan'
+                    ? '• This location is outside every saved metro\n• Remote kitchens get 120 days at no charge. No card. The start date and the end date are saved\n• The kitchen closes when those days end until a paid plan\n• A plate is offered only inside 20 miles of the kitchen\n• Monthly is $4.99. Yearly is $39.99'
                     : '• The kitchen stays closed until you choose Early Bird or a paid plan\n• Early Bird is free and records the start and end dates\n• Monthly is $4.99. Yearly is $39.99\n• Outside an active metro, or when the metro cap is full, Early Bird is not offered'}
               </Text>
             </View>

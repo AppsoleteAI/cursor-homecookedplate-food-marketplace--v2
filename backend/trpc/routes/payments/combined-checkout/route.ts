@@ -22,10 +22,12 @@ import {
 } from '../../../../lib/combined-checkout';
 import { payoutReleaseAt } from '../../../../lib/payout-policy';
 import { assertBuyerCanOrder } from '../../../../lib/buyer-order-access';
+import { pickupGate } from '../../../../lib/kitchen-pin';
 import { buyerMetroCanOrder } from '../../../../lib/metro-menu';
 import { refundCookSale } from '../../../../lib/stripe-marketplace';
 import { notifyCookOfPayment, notifyParty } from '../../../../lib/account-notice';
 import { prepareHomePlate, thisOrderExceedsPortions } from '../../../../lib/plate-order-rules';
+import { missingColumn } from '../../../../lib/content-moderation';
 import { refundChargeCents } from '../../../../lib/refund-card';
 import {
   auditShopMatchesCombinedRefund,
@@ -169,6 +171,8 @@ async function priceHomeLines(
       pickupTimeZone: line.pickupTimeZone,
       specialInstructions: line.specialInstructions,
       deliveryAddress,
+      cookingTemperature: line.cookingTemperature,
+      allergies: line.allergies,
       reservePortions,
     });
     priced.push({
@@ -478,10 +482,13 @@ async function insertHomeOrders(
       pickupTimeZone: source?.pickupTimeZone,
       specialInstructions: source?.specialInstructions,
       deliveryAddress,
+      cookingTemperature: source?.cookingTemperature,
+      allergies: source?.allergies,
       reservePortions: false,
     });
     const chargedBase = Math.round(quotedLineAmount(line) * 100) / 100;
-    const insertOrder = (withZone: boolean) => admin.from('orders').insert({
+    const noteHeld = Boolean(prepared.instructions && source?.specialInstructions?.trim());
+    const insertOrder = (withZone: boolean, withNote: boolean) => admin.from('orders').insert({
       meal_id: line.productId,
       buyer_id: buyerId,
       seller_id: checkout.sellerId,
@@ -491,15 +498,23 @@ async function insertHomeOrders(
       status: 'pending',
       payment_intent_id: paymentIntentId,
       special_instructions: prepared.instructions || null,
-      cooking_temperature: source?.cookingTemperature || null,
-      allergies: source?.allergies || [],
+      cooking_temperature: prepared.cookingTemperature,
+      allergies: prepared.allergies,
       delivery_address: prepared.deliveryAddress,
       pickup_time: prepared.pickupTime,
       ...(withZone && prepared.pickupTimeZone ? { pickup_timezone: prepared.pickupTimeZone } : {}),
+      ...(withNote ? { instructions_status: 'pending' } : {}),
     }).select('id').single();
-    let inserted = await insertOrder(true);
-    if (inserted.error && prepared.pickupTimeZone && /pickup_timezone/.test(inserted.error.message || '')) {
-      inserted = await insertOrder(false);
+    let withZone = true;
+    let withNote = noteHeld;
+    let inserted = await insertOrder(withZone, withNote);
+    if (inserted.error && withNote && missingColumn(inserted.error.message, 'instructions_status')) {
+      withNote = false;
+      inserted = await insertOrder(withZone, withNote);
+    }
+    if (inserted.error && withZone && prepared.pickupTimeZone && /pickup_timezone/.test(inserted.error.message || '')) {
+      withZone = false;
+      inserted = await insertOrder(withZone, withNote);
     }
     if (inserted.error || !inserted.data) {
       console.error('[CombinedCheckout] Home order insert failed:', inserted.error);
@@ -648,20 +663,27 @@ export const createCombinedCheckoutProcedure = protectedProcedure
       checkout.area === 'home' && checkout.sellerId ? [checkout.sellerId] : []
     )))];
     if (homeSellerIds.length > 0) {
-      const buyerMetro = await ctx.supabaseAdmin.from('profiles').select('metro_area').eq('id', ctx.userId).maybeSingle();
-      const cooks = await ctx.supabaseAdmin.from('profiles').select('id, metro_area').in('id', homeSellerIds);
-      if (buyerMetro.error || cooks.error || (cooks.data || []).length !== homeSellerIds.length) {
-        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Your saved metro could not be checked. The order was not placed.' });
-      }
-      const buyerArea = typeof buyerMetro.data?.metro_area === 'string' ? buyerMetro.data.metro_area : '';
-      const outside = (cooks.data || []).some((cook) => !buyerMetroCanOrder(cook.metro_area, buyerArea));
-      if (outside) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: buyerArea.trim()
-            ? 'This plate is outside your saved metro.'
-            : 'Save your metro before ordering a plate.',
-        });
+      const gate = await pickupGate(ctx.supabaseAdmin, ctx.userId, homeSellerIds);
+      if (gate.mode === 'distance') {
+        if (!gate.ok) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: gate.message });
+        }
+      } else {
+        const buyerMetro = await ctx.supabaseAdmin.from('profiles').select('metro_area').eq('id', ctx.userId).maybeSingle();
+        const cooks = await ctx.supabaseAdmin.from('profiles').select('id, metro_area').in('id', homeSellerIds);
+        if (buyerMetro.error || cooks.error || (cooks.data || []).length !== homeSellerIds.length) {
+          throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Your saved metro could not be checked. The order was not placed.' });
+        }
+        const buyerArea = typeof buyerMetro.data?.metro_area === 'string' ? buyerMetro.data.metro_area : '';
+        const outside = (cooks.data || []).some((cook) => !buyerMetroCanOrder(cook.metro_area, buyerArea));
+        if (outside) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: buyerArea.trim()
+              ? 'This plate is outside your saved metro.'
+              : 'Save your metro before ordering a plate.',
+          });
+        }
       }
     }
 

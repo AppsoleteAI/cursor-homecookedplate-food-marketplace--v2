@@ -43,7 +43,7 @@ export default function ReviewsDashboardScreen() {
         user: review.authorName,
         rating: review.rating,
         mealName: review.mealName || '',
-        comment: review.comment || '',
+        comment: review.comment || (review.commentStatus === 'pending' ? 'A moderator has not released this comment.' : ''),
         date: review.createdAt,
       }));
   }, [isAdmin, reviewQuery.data, relevantMealIds, user?.role]);

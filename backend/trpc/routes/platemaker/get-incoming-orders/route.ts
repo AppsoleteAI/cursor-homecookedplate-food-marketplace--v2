@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { loadPublicProfiles } from "../../../../lib/public-profiles";
 import { orderBuyerId, orderTotal } from "../../../../lib/order-row";
 import { loadPickupConfirms } from "../../../../lib/pickup-confirm";
+import { noteForViewer } from "../../../../lib/content-moderation";
 
 /**
  * Get Incoming Orders Procedure
@@ -95,7 +96,14 @@ export const getIncomingOrdersProcedure = protectedProcedure
       totalPrice: orderTotal(order),
       paid: order.paid,
       paymentIntentId: order.payment_intent_id,
-      specialInstructions: order.special_instructions,
+      specialInstructions: noteForViewer({
+        text: order.special_instructions,
+        status: order.instructions_status,
+        buyerId: orderBuyerId(order),
+        sellerId: order.seller_id,
+        viewerId: ctx.userId,
+      }).text ?? undefined,
+      instructionsStatus: order.instructions_status ?? null,
       cookingTemperature: order.cooking_temperature,
       allergies: order.allergies || [],
       deliveryAddress: order.delivery_address,

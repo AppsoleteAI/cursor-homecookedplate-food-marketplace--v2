@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure, publicProcedure } from '../../create-context';
+import { nearbyCookIds } from '../../../lib/kitchen-pin';
 import { mealVisibleInMetro } from '../../../lib/metro-menu';
 
 const LANES = ['farm', 'meal_prep', 'food_truck', 'catering', 'sit_down'] as const;
@@ -17,12 +18,16 @@ export const listLaneListingsProcedure = publicProcedure
       ? await ctx.supabaseAdmin.from('profiles').select('metro_area').eq('id', ctx.userId).maybeSingle()
       : { data: null };
     const savedMetro = typeof profile.data?.metro_area === 'string' ? profile.data.metro_area.trim() : '';
-    const { data, error } = await ctx.supabaseAdmin
+    const nearby = ctx.userId ? await nearbyCookIds(ctx.supabaseAdmin, ctx.userId) : { available: false, ids: [] as string[] };
+    if (nearby.available && nearby.ids.length === 0) return [];
+    let laneQuery = ctx.supabaseAdmin
       .from('lane_listings')
       .select('id, seller_id, listing')
       .eq('lane', input.lane)
       .order('created_at', { ascending: false })
       .limit(100);
+    if (nearby.available) laneQuery = laneQuery.in('seller_id', nearby.ids);
+    const { data, error } = await laneQuery;
     if (error) {
       if (missingTable(error)) return [];
       console.error('[LaneListings] List failed:', error.message);
@@ -37,7 +42,7 @@ export const listLaneListingsProcedure = publicProcedure
     );
     return (data || []).flatMap((row: { id: string; seller_id: string; listing: unknown }) => {
       if (!row.listing || typeof row.listing !== 'object') return [];
-      if (!mealVisibleInMetro(cookMetros.get(row.seller_id), savedMetro || undefined)) return [];
+      if (!nearby.available && !mealVisibleInMetro(cookMetros.get(row.seller_id), savedMetro || undefined)) return [];
       return [{ ...(row.listing as Record<string, unknown>), id: row.id, sellerId: row.seller_id }];
     });
   });

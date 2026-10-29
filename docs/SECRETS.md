@@ -18,7 +18,7 @@ The deployed Worker reads them in `backend/hono.ts` from `c.env` first. `nodejs_
 
 A live secret does not go anywhere in this project. That includes source, markdown, SQL, tests, commit messages, examples, chat, and gitignored env files.
 
-Do not put a real value in a file for `RESEND_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, `METRO_WEBHOOK_SECRET`, `SUPABASE_ACCESS_TOKEN`, `DATABASE_URL`, `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`, `ASC_API_KEY_ID`, `ASC_API_ISSUER_ID`, `ASC_API_PRIVATE_KEY`, or any string that starts with `re_`, `sk_`, `rk_`, `whsec_`, or `sbp_`. A service-role JWT is included. A Play service-account JSON and an App Store Connect `.p8` are included. The public anon key is the exception above.
+Do not put a real value in a file for `RESEND_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, `METRO_WEBHOOK_SECRET`, `SUPABASE_ACCESS_TOKEN`, `DATABASE_URL`, `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`, `ASC_API_KEY_ID`, `ASC_API_ISSUER_ID`, `ASC_API_PRIVATE_KEY`, or any string that starts with `re_`, `sk_`, `rk_`, `whsec_`, or `sbp_`. A service-role JWT is included. A Play service-account JSON and an App Store Connect `.p8` are included. An FCM v1 service-account JSON is included. That JSON is uploaded once on the Expo Android credentials page. It is not a Worker secret and it does not go in this repo. The public anon key is the exception above.
 
 Older notes in `docs/PAYMENT_SECURITY_FIX.md` and `docs/STRIPE_MARKETPLACE_SETUP.md` that say to add a key to `backend/.env` are outdated. Use the Worker secret.
 

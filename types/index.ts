@@ -88,6 +88,7 @@ export interface Order {
   totalPrice: number;
   paid?: boolean;
   specialInstructions?: string;
+  instructionsStatus?: 'pending' | 'allowed' | 'removed' | null;
   cookingTemperature?: string;
   allergies?: string[];
   orderDate: Date;
@@ -133,6 +134,7 @@ export interface OrderMessage {
   senderId: string;
   senderRole: 'platemaker' | 'platetaker';
   text: string;
+  moderationStatus?: 'pending' | 'allowed' | 'removed';
   createdAt: Date;
 }
 

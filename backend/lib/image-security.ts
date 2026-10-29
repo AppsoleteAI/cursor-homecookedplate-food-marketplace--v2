@@ -8,8 +8,11 @@
  * - Trailing data appended after the image end marker (steganographic payload risk)
  * - NSFW content moderation via Cloudflare Workers AI (required; the upload is refused if it cannot be scanned)
  *
- * Designed for Cloudflare Workers — zero Node.js dependencies.
+ * Designed for Cloudflare Workers. zlib is available through nodejs_compat.
  */
+
+import { inflateSync } from 'node:zlib';
+import { scanText } from './text-security';
 
 export type ImageContext = 'meal' | 'profile';
 export type SupportedMime = 'image/jpeg' | 'image/png' | 'image/webp';
@@ -51,6 +54,8 @@ export interface ImageScanResult {
   detectedMime: SupportedMime | null;
   flags: string[];
   reason?: string;
+  /** Metadata removed. This is the buffer sent to the model and stored. */
+  cleanBytes?: Uint8Array;
 }
 
 // Stricter than Supabase bucket limits — enforced at the application layer first
@@ -88,23 +93,19 @@ function detectMime(buf: Uint8Array): SupportedMime | null {
 // Prompt injection pattern matching (applied to metadata strings)
 // ---------------------------------------------------------------------------
 
-const INJECTION_PATTERNS: RegExp[] = [
-  /ignore\s+(all\s+)?(previous|prior|above|earlier)\s+(instructions?|prompts?|commands?|rules?)/i,
-  /\bsystem\s*prompt\b/i,
-  /you\s+are\s+(now\s+)?(a|an|the)\s+\w/i,
-  /\bact\s+as\s+(a|an)\s+/i,
-  /forget\s+(all\s+)?(previous|prior|everything)/i,
-  /do\s+not\s+(moderate|review|flag|reject|filter|block)\s+this/i,
-  /approve\s+this\s+(listing|meal|image|content|post)/i,
-  /\bjailbreak\b/i,
-  /\bdeveloper\s+mode\b/i,
-  /<\|im_start\|>/,
-  /<\|endoftext\|>/,
-  /\[system\]/i,
-];
-
 function containsInjection(text: string): boolean {
-  return INJECTION_PATTERNS.some((p) => p.test(text));
+  const scanned = scanText(text);
+  // Binary metadata is full of null bytes. Those are removed before the model
+  // sees the file. A phrase, a zero-width character, or an override still refuses it.
+  return scanned.flags.includes('PROMPT_INJECTION')
+    || scanned.flags.includes('BIDI_OVERRIDE')
+    || scanned.flags.includes('ZERO_WIDTH_CHARS');
+}
+
+function exactVerdict(text: string): 'SAFE' | 'UNSAFE' | null {
+  const word = text.trim().toUpperCase();
+  if (word === 'SAFE' || word === 'UNSAFE') return word;
+  return null;
 }
 
 const AI_IMAGE_MARKERS: RegExp[] = [
@@ -190,14 +191,46 @@ function jpegHasTrailingData(buf: Uint8Array): boolean {
 // PNG text chunk extraction
 // ---------------------------------------------------------------------------
 
+function inflateText(data: Uint8Array): string | null {
+  try {
+    return new TextDecoder('utf-8', { fatal: false }).decode(inflateSync(data));
+  } catch {
+    return null;
+  }
+}
+
+function pngChunkText(type: string, chunk: Uint8Array): { text: string | null; unreadable: boolean } {
+  const dec = new TextDecoder('utf-8', { fatal: false });
+  if (type === 'tEXt') return { text: dec.decode(chunk), unreadable: false };
+  if (type === 'zTXt') {
+    const nul = chunk.indexOf(0);
+    if (nul < 0 || nul + 2 > chunk.length) return { text: null, unreadable: true };
+    const text = inflateText(chunk.subarray(nul + 2));
+    return text == null ? { text: null, unreadable: true } : { text, unreadable: false };
+  }
+  if (type === 'iTXt') {
+    const nul = chunk.indexOf(0);
+    if (nul < 0 || nul + 2 >= chunk.length) return { text: dec.decode(chunk), unreadable: false };
+    if (chunk[nul + 1] !== 1) return { text: dec.decode(chunk), unreadable: false };
+    let cursor = nul + 3;
+    const langEnd = chunk.indexOf(0, cursor);
+    if (langEnd < 0) return { text: null, unreadable: true };
+    const translatedEnd = chunk.indexOf(0, langEnd + 1);
+    if (translatedEnd < 0) return { text: null, unreadable: true };
+    const text = inflateText(chunk.subarray(translatedEnd + 1));
+    return text == null ? { text: null, unreadable: true } : { text, unreadable: false };
+  }
+  return { text: null, unreadable: false };
+}
+
 /**
  * Reads tEXt, iTXt, and zTXt chunk data from a PNG file.
- * These chunks can carry arbitrary text including injected prompts.
+ * Compressed chunks are inflated before the text is checked.
  */
-function readPngTextChunks(buf: Uint8Array): string[] {
-  const strings: string[] = [];
-  const dec = new TextDecoder('utf-8', { fatal: false });
-  let i = 8; // skip 8-byte PNG signature
+function readPngTextChunks(buf: Uint8Array): { texts: string[]; unreadable: boolean } {
+  const texts: string[] = [];
+  let unreadable = false;
+  let i = 8;
 
   while (i + 12 <= buf.length) {
     const length =
@@ -205,16 +238,131 @@ function readPngTextChunks(buf: Uint8Array): string[] {
     const type = String.fromCharCode(buf[i + 4], buf[i + 5], buf[i + 6], buf[i + 7]);
 
     if (type === 'IEND') break;
-    if (length > buf.length) break; // corrupt file guard
+    if (length > buf.length || i + 12 + length > buf.length) break;
 
     if (type === 'tEXt' || type === 'iTXt' || type === 'zTXt') {
-      strings.push(dec.decode(buf.slice(i + 8, i + 8 + length)));
+      const read = pngChunkText(type, buf.slice(i + 8, i + 8 + length));
+      if (read.unreadable) unreadable = true;
+      if (read.text) texts.push(read.text);
     }
 
-    i += 12 + length; // 4 (length) + 4 (type) + length (data) + 4 (CRC)
+    i += 12 + length;
   }
 
-  return strings;
+  return { texts, unreadable };
+}
+
+function stripJpegMetadata(buf: Uint8Array): Uint8Array | null {
+  if (buf.length < 4 || buf[0] !== 0xff || buf[1] !== 0xd8) return null;
+  const out: number[] = [0xff, 0xd8];
+  let i = 2;
+  while (i + 1 < buf.length) {
+    if (buf[i] !== 0xff) return null;
+    while (i < buf.length && buf[i] === 0xff) i += 1;
+    if (i >= buf.length) return null;
+    const marker = buf[i];
+    i += 1;
+    if (marker === 0xd9) {
+      out.push(0xff, marker);
+      return Uint8Array.from(out);
+    }
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+      out.push(0xff, marker);
+      continue;
+    }
+    if (i + 1 >= buf.length) return null;
+    const segLen = (buf[i] << 8) | buf[i + 1];
+    if (segLen < 2 || i + segLen > buf.length) return null;
+    const meta = marker === 0xfe || (marker >= 0xe0 && marker <= 0xef);
+    if (marker === 0xda) {
+      if (!meta) {
+        out.push(0xff, marker);
+        for (let j = 0; j < segLen; j += 1) out.push(buf[i + j]);
+      }
+      i += segLen;
+      let end = buf.length;
+      for (let k = i; k + 1 < buf.length; k += 1) {
+        if (buf[k] === 0xff && buf[k + 1] === 0xd9) {
+          end = k + 2;
+          break;
+        }
+      }
+      for (let k = i; k < end; k += 1) out.push(buf[k]);
+      return Uint8Array.from(out);
+    }
+    if (!meta) {
+      out.push(0xff, marker);
+      for (let j = 0; j < segLen; j += 1) out.push(buf[i + j]);
+    }
+    i += segLen;
+  }
+  return Uint8Array.from(out);
+}
+
+function stripPngText(buf: Uint8Array): Uint8Array | null {
+  if (buf.length < 8) return null;
+  const parts: Uint8Array[] = [buf.subarray(0, 8)];
+  let i = 8;
+  while (i + 12 <= buf.length) {
+    const length =
+      ((buf[i] << 24) | (buf[i + 1] << 16) | (buf[i + 2] << 8) | buf[i + 3]) >>> 0;
+    const type = String.fromCharCode(buf[i + 4], buf[i + 5], buf[i + 6], buf[i + 7]);
+    if (length > buf.length || i + 12 + length > buf.length) return null;
+    const chunkEnd = i + 12 + length;
+    if (type !== 'tEXt' && type !== 'iTXt' && type !== 'zTXt') {
+      parts.push(buf.subarray(i, chunkEnd));
+    }
+    if (type === 'IEND') break;
+    i = chunkEnd;
+  }
+  const size = parts.reduce((sum, part) => sum + part.length, 0);
+  const out = new Uint8Array(size);
+  let at = 0;
+  for (const part of parts) {
+    out.set(part, at);
+    at += part.length;
+  }
+  return out;
+}
+
+function readWebpText(buf: Uint8Array): { texts: string[]; clean: Uint8Array | null } {
+  if (buf.length < 12) return { texts: [], clean: null };
+  const texts: string[] = [];
+  const kept: Uint8Array[] = [];
+  let i = 12;
+  while (i + 8 <= buf.length) {
+    const type = String.fromCharCode(buf[i], buf[i + 1], buf[i + 2], buf[i + 3]);
+    const size = (buf[i + 4] | (buf[i + 5] << 8) | (buf[i + 6] << 16) | (buf[i + 7] << 24)) >>> 0;
+    const dataEnd = i + 8 + size;
+    if (dataEnd > buf.length) return { texts, clean: null };
+    const chunkEnd = dataEnd + (size % 2);
+    if (type === 'EXIF' || type === 'XMP ') {
+      texts.push(new TextDecoder('utf-8', { fatal: false }).decode(buf.subarray(i + 8, dataEnd)));
+    } else {
+      kept.push(buf.subarray(i, Math.min(chunkEnd, buf.length)));
+    }
+    i = chunkEnd;
+  }
+  const payload = kept.reduce((sum, part) => sum + part.length, 0);
+  const out = new Uint8Array(12 + payload);
+  out.set(buf.subarray(0, 12), 0);
+  const fileSize = 4 + payload;
+  out[4] = fileSize & 255;
+  out[5] = (fileSize >>> 8) & 255;
+  out[6] = (fileSize >>> 16) & 255;
+  out[7] = (fileSize >>> 24) & 255;
+  let at = 12;
+  for (const part of kept) {
+    out.set(part, at);
+    at += part.length;
+  }
+  return { texts, clean: out };
+}
+
+function cleanImageBytes(mime: SupportedMime, buf: Uint8Array): Uint8Array | null {
+  if (mime === 'image/jpeg') return stripJpegMetadata(buf);
+  if (mime === 'image/png') return stripPngText(buf);
+  return readWebpText(buf).clean;
 }
 
 // ---------------------------------------------------------------------------
@@ -267,8 +415,9 @@ export async function scanImage(
     flags.push('MIME_MISMATCH');
   }
 
-  // 3. Metadata injection scan
+  // 3. Metadata injection scan. Compressed PNG text is inflated first.
   const metaStrings: string[] = [];
+  let metadataUnreadable = false;
 
   if (detectedMime === 'image/jpeg') {
     metaStrings.push(...readJpegMetadataStrings(buf));
@@ -282,7 +431,20 @@ export async function scanImage(
       };
     }
   } else if (detectedMime === 'image/png') {
-    metaStrings.push(...readPngTextChunks(buf));
+    const pngText = readPngTextChunks(buf);
+    metaStrings.push(...pngText.texts);
+    metadataUnreadable = pngText.unreadable;
+  } else {
+    metaStrings.push(...readWebpText(buf).texts);
+  }
+
+  if (metadataUnreadable) {
+    return {
+      allowed: false,
+      detectedMime,
+      flags: [...flags, 'METADATA_UNREADABLE'],
+      reason: 'Image metadata could not be read',
+    };
   }
 
   for (const text of metaStrings) {
@@ -326,22 +488,31 @@ export async function scanImage(
       reason: 'Image is over 4 MB and was not scanned',
     };
   }
+  const cleanBytes = cleanImageBytes(detectedMime, buf);
+  if (!cleanBytes) {
+    return {
+      allowed: false,
+      detectedMime,
+      flags: [...flags, 'METADATA_UNREADABLE'],
+      reason: 'Image metadata could not be removed',
+    };
+  }
   try {
-    const verdict = await nsfwVerdict(ai, buf);
-    if (!verdict) {
-      return {
-        allowed: false,
-        detectedMime,
-        flags: [...flags, 'NSFW_SCAN_UNAVAILABLE'],
-        reason: 'Image could not be scanned',
-      };
-    }
-    if (verdict.startsWith('UNSAFE')) {
+    const verdict = exactVerdict(await nsfwVerdict(ai, cleanBytes));
+    if (verdict === 'UNSAFE') {
       return {
         allowed: false,
         detectedMime,
         flags: [...flags, 'NSFW_DETECTED'],
         reason: 'Image was flagged as inappropriate by content moderation',
+      };
+    }
+    if (verdict !== 'SAFE') {
+      return {
+        allowed: false,
+        detectedMime,
+        flags: [...flags, 'NSFW_VERDICT_UNCLEAR'],
+        reason: 'The image check did not return a clear result',
       };
     }
     flags.push('NSFW_SCANNED_SAFE');
@@ -354,7 +525,7 @@ export async function scanImage(
     };
   }
 
-  return { allowed: true, detectedMime, flags };
+  return { allowed: true, detectedMime, flags, cleanBytes };
 }
 
 const MP4_BRANDS = new Set(['mp42', 'isom', 'iso2', 'avc1', 'mp41', 'M4V ', 'MSNV']);
@@ -579,19 +750,27 @@ export async function scanVideo(
 
   try {
     for (const frame of frames) {
-      const verdict = await nsfwVerdict(ai, frame);
-      if (!verdict) {
+      const cleanFrame = stripJpegMetadata(frame);
+      if (!cleanFrame) {
         return {
           allowed: false,
-          flags: ['NSFW_SCAN_UNAVAILABLE'],
-          reason: 'Video could not be scanned',
+          flags: ['METADATA_UNREADABLE'],
+          reason: 'A video frame could not be checked',
         };
       }
-      if (verdict.startsWith('UNSAFE')) {
+      const verdict = exactVerdict(await nsfwVerdict(ai, cleanFrame));
+      if (verdict === 'UNSAFE') {
         return {
           allowed: false,
           flags: ['NSFW_DETECTED'],
           reason: 'Video was flagged as inappropriate by content moderation',
+        };
+      }
+      if (verdict !== 'SAFE') {
+        return {
+          allowed: false,
+          flags: ['NSFW_VERDICT_UNCLEAR'],
+          reason: 'The video check did not return a clear result',
         };
       }
     }

@@ -22,6 +22,7 @@ export default function OrderDetailsPage() {
   const { getOrder, setOrderStatus, addMessage, getMessages, syncMessages, refresh } = useOrders();
   const { user } = useAuth();
   const blockCook = trpc.orders.blockCook.useMutation();
+  const reportMessage = trpc.messages.report.useMutation();
   const order = getOrder(String(id));
   useFocusEffect(useCallback(() => {
     refresh().catch(() => undefined);
@@ -230,7 +231,9 @@ export default function OrderDetailsPage() {
             {orderReview ? (
               <>
                 <StarRating value={orderReview.rating} baseColor="yellow" size={16} disabled />
-                {orderReview.comment ? <Text style={styles.value}>{orderReview.comment}</Text> : (
+                {orderReview.comment ? <Text style={styles.value}>{orderReview.comment}</Text> : orderReview.commentStatus === 'pending' ? (
+                  <Text style={styles.value}>A moderator has not released this comment.</Text>
+                ) : (
                   <Text style={styles.value}>Stars only. This review has no comment.</Text>
                 )}
                 <ReviewCommentActions
@@ -261,6 +264,16 @@ export default function OrderDetailsPage() {
         <View style={styles.section}>
           <Text style={styles.title}>Preparation Instructions</Text>
           <Text style={styles.value}>{order.specialInstructions ?? '—'}</Text>
+          {order.instructionsStatus === 'pending' ? (
+            <Text style={styles.value}>
+              {isCook
+                ? 'A moderator has not released this note.'
+                : 'A moderator has not released this note to the cook.'}
+            </Text>
+          ) : null}
+          {order.instructionsStatus === 'removed' ? (
+            <Text style={styles.value}>A moderator removed this note.</Text>
+          ) : null}
         </View>
 
         <View style={styles.section}>
@@ -274,6 +287,27 @@ export default function OrderDetailsPage() {
                 return (
                   <View key={m.id} style={styles.messageItem}>
                     <Text style={styles.messageLine} accessibilityLabel={`message-${m.id}`}>{`${label}: ${m.text}`}</Text>
+                    {m.moderationStatus === 'pending' ? (
+                      <Text style={styles.emptyMsg}>Waiting for a moderator. The other person has not been told.</Text>
+                    ) : null}
+                    {m.senderId !== user?.id ? (
+                      <GlassPressable
+                        onPress={() => {
+                          reportMessage.mutate({ messageId: m.id }, {
+                            onSuccess: () => {
+                              syncMessages(order.id).catch(() => undefined);
+                              Alert.alert('Report', 'A moderator has this message. The other person cannot see it until it is allowed.');
+                            },
+                            onError: (error) => Alert.alert('Report', error.message),
+                          });
+                        }}
+                        testID={`report-message-${m.id}`}
+                      >
+                        <Text style={styles.completeBtnText}>
+                          {m.senderRole === 'platemaker' ? 'Report this cook message' : 'Report this buyer message'}
+                        </Text>
+                      </GlassPressable>
+                    ) : null}
                   </View>
                 );
               })

@@ -2,8 +2,10 @@ import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { calculateOrderBreakdown, calculateOrderSplit } from "@/backend/lib/fees";
+import { hasMapPin } from "@/backend/lib/pickup-radius";
 import { platemakerMayEnter } from "@/backend/lib/trial-access";
-import { sanitizeTextField, sanitizeTextArray } from "../../../../lib/text-security";
+import { missingKitchenPinColumn } from "../../../../lib/kitchen-pin";
+import { auditTextField, auditTextList } from "../../../../lib/text-audit";
 import { portionTag, timeZoneTag } from "@/lib/meal-publish";
 
 export const createMealProcedure = protectedProcedure
@@ -27,11 +29,23 @@ export const createMealProcedure = protectedProcedure
   )
   .mutation(async ({ input, ctx }) => {
     // Check if user is a platemaker and has acknowledged food safety requirements
-    const { data: profile, error: profileError } = await ctx.supabaseAdmin
+    const profileSelect = 'role, food_safety_acknowledged, membership_tier, trial_ends_at, stripe_subscription_id, apple_original_transaction_id, google_purchase_token, metro_area, stripe_account_id, kitchen_lat, kitchen_lng';
+    let profileResult = await ctx.supabaseAdmin
       .from('profiles')
-      .select('role, food_safety_acknowledged, membership_tier, trial_ends_at, stripe_subscription_id, apple_original_transaction_id, google_purchase_token, metro_area, stripe_account_id')
+      .select(profileSelect)
       .eq('id', ctx.userId)
       .single();
+    let pinsReady = true;
+    if (missingKitchenPinColumn(profileResult.error)) {
+      pinsReady = false;
+      profileResult = await ctx.supabaseAdmin
+        .from('profiles')
+        .select('role, food_safety_acknowledged, membership_tier, trial_ends_at, stripe_subscription_id, apple_original_transaction_id, google_purchase_token, metro_area, stripe_account_id')
+        .eq('id', ctx.userId)
+        .single();
+    }
+    const profile = profileResult.data;
+    const profileError = profileResult.error;
 
     if (profileError || !profile) {
       throw new TRPCError({
@@ -49,10 +63,18 @@ export const createMealProcedure = protectedProcedure
 
     if (profile.role === 'platemaker') {
       const remote = !profile.metro_area || profile.metro_area === 'Remote/Other';
-      if (!remote && !platemakerMayEnter(profile)) {
+      if (!platemakerMayEnter(profile)) {
         throw new TRPCError({
           code: 'FORBIDDEN',
-          message: 'Choose Early Bird or a paid plan before a plate goes on the menu.',
+          message: remote
+            ? 'Start the 120 days or choose a paid plan before a plate goes on the menu.'
+            : 'Choose Early Bird or a paid plan before a plate goes on the menu.',
+        });
+      }
+      if (pinsReady && !hasMapPin({ lat: profile.kitchen_lat, lng: profile.kitchen_lng })) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Get GPS before a plate goes on the menu. Buyers only see a kitchen within 20 miles.',
         });
       }
       if (!profile.stripe_account_id) {
@@ -65,36 +87,25 @@ export const createMealProcedure = protectedProcedure
 
     // Sanitize and validate all user-supplied text fields for prompt injection,
     // invisible characters, and bidirectional overrides before storing.
-    const nameResult = sanitizeTextField(input.name);
-    const descResult = sanitizeTextField(input.description);
-    const cuisineResult = sanitizeTextField(input.cuisine);
-    const ingredientsResult = sanitizeTextArray(input.ingredients);
-    const tagsResult = input.tags ? sanitizeTextArray(input.tags) : { values: [], blocked: false, flags: [] };
+    const nameResult = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'meal_name', input.name);
+    const descResult = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'meal_description', input.description);
+    const cuisineResult = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'meal_cuisine', input.cuisine);
+    const ingredientsResult = await auditTextList(ctx.supabaseAdmin, ctx.userId, 'meal_ingredients', input.ingredients);
+    const tagsResult = input.tags
+      ? await auditTextList(ctx.supabaseAdmin, ctx.userId, 'meal_tags', input.tags)
+      : { values: [] as string[], blocked: false, flags: [] as string[] };
+    const dietaryResult = input.dietaryOptions
+      ? await auditTextList(ctx.supabaseAdmin, ctx.userId, 'meal_dietary_options', input.dietaryOptions)
+      : { values: [] as string[], blocked: false, flags: [] as string[] };
 
-    const textBlocked =
+    if (
       nameResult.blocked ||
       descResult.blocked ||
       cuisineResult.blocked ||
       ingredientsResult.blocked ||
-      tagsResult.blocked;
-
-    if (textBlocked) {
-      const allFlags = [
-        ...nameResult.flags,
-        ...descResult.flags,
-        ...cuisineResult.flags,
-        ...ingredientsResult.flags,
-        ...tagsResult.flags,
-      ];
-      await Promise.resolve(
-        ctx.supabaseAdmin
-          .from('audit_logs')
-          .insert({
-            action: 'MEAL_TEXT_BLOCKED',
-            user_id: ctx.userId,
-            new_data: { flags: [...new Set(allFlags)] },
-          })
-      ).catch(() => {});
+      tagsResult.blocked ||
+      dietaryResult.blocked
+    ) {
       throw new TRPCError({
         code: 'BAD_REQUEST',
         message: 'Meal content contains disallowed text. Please review your submission.',
@@ -112,7 +123,7 @@ export const createMealProcedure = protectedProcedure
         ingredients: ingredientsResult.values,
         cuisine: cuisineResult.value,
         category: input.category,
-        dietary_options: input.dietaryOptions || [],
+        dietary_options: dietaryResult.values,
         preparation_time: input.preparationTime,
         tags: [
           ...tagsResult.values.filter((tag) => !/^portions:\d+$/.test(tag) && !tag.startsWith('tz:')),
