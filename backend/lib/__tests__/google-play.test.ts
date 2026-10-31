@@ -1,7 +1,7 @@
 import { generateKeyPairSync } from 'node:crypto';
 import { GOOGLE_PLAY_PACKAGE, readActiveGoogleSubscription } from '../google-play';
 
-const MONTHLY = 'com.rork.homecookedplate.membership.monthly';
+const MONTHLY = 'com.rork.hcp.membership.monthly';
 const TOKEN = 'purchase-token-value-1234567890';
 const USER = '11111111-1111-1111-1111-111111111111';
 

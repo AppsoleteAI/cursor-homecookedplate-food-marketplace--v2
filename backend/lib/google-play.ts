@@ -2,9 +2,10 @@ import { createSign } from 'node:crypto';
 
 export const GOOGLE_PLAY_PACKAGE = 'com.rork.homecookedplate';
 
+// Play product ids are capped at 40 characters. Apple keeps the longer ids in apple-transaction.ts.
 export const GOOGLE_MEMBERSHIP_PRODUCT_IDS = [
-  'com.rork.homecookedplate.membership.monthly',
-  'com.rork.homecookedplate.membership.annual',
+  'com.rork.hcp.membership.monthly',
+  'com.rork.hcp.membership.annual',
 ] as const;
 
 export type GoogleMembershipProductId = (typeof GOOGLE_MEMBERSHIP_PRODUCT_IDS)[number];

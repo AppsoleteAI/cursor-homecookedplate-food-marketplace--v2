@@ -11,8 +11,9 @@ import {
   type Purchase,
 } from 'expo-iap';
 
-export const MEMBERSHIP_MONTHLY_PRODUCT_ID = 'com.rork.homecookedplate.membership.monthly' as const;
-export const MEMBERSHIP_ANNUAL_PRODUCT_ID = 'com.rork.homecookedplate.membership.annual' as const;
+// Play product ids are capped at 40 characters. Apple keeps the longer ids in iap.ios.ts.
+export const MEMBERSHIP_MONTHLY_PRODUCT_ID = 'com.rork.hcp.membership.monthly' as const;
+export const MEMBERSHIP_ANNUAL_PRODUCT_ID = 'com.rork.hcp.membership.annual' as const;
 
 export type IAPProductId = typeof MEMBERSHIP_MONTHLY_PRODUCT_ID | typeof MEMBERSHIP_ANNUAL_PRODUCT_ID;
 
