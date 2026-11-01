@@ -5,6 +5,7 @@ import { readEarlyBirdOffer } from '../../../../lib/early-bird';
 import { saveKitchenPin } from '../../../../lib/kitchen-pin';
 import { moveMetroHeadcount, namedMetro, undoMetroHeadcount } from '../../../../lib/metro-headcount';
 import { REMOTE_KITCHEN_DAYS } from '../../../../lib/remote-kitchen';
+import { readGeofenceSettings } from '../../../../lib/metro-geofence';
 import { nearestMetro } from '../../../../lib/metro-radius';
 import { stayClockRestarts, stayIsReady } from '../../../../lib/metro-stay';
 import { protectedProcedure } from '../../../create-context';
@@ -20,40 +21,14 @@ type Admin = {
   rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message?: string } | null }>;
 };
 
-function metroNameFrom(data: unknown): string | null {
-  if (typeof data === 'string' && data.trim()) return data.trim();
-  const row = Array.isArray(data) ? data[0] : data;
-  if (!row || typeof row !== 'object') return null;
-  const record = row as Record<string, unknown>;
-  const name = record.metro_name ?? record.metroName;
-  return typeof name === 'string' && name.trim() ? name.trim() : null;
-}
-
-function settingsFrom(data: unknown): MetroSettings | null {
-  const row = Array.isArray(data) ? data[0] : data;
-  const name = metroNameFrom(row);
-  if (!name || !row || typeof row !== 'object') return null;
-  const record = row as Record<string, unknown>;
-  return {
-    metro_name: name,
-    is_active: typeof record.is_active === 'boolean' ? record.is_active : undefined,
-    trial_days: typeof record.trial_days === 'number' ? record.trial_days : undefined,
-  };
-}
-
 async function lookupMetro(admin: Admin, lat: number, lng: number): Promise<{ settings: MetroSettings | null; error: string | null }> {
   const nearest = nearestMetro(lat, lng);
   if (!nearest) return { settings: null, error: null };
-  const { data, error } = await admin
-    .from('metro_geofences')
-    .select('metro_name, is_active, trial_days')
-    .eq('metro_name', nearest.name)
-    .maybeSingle();
-  const saved = error ? null : settingsFrom(data);
-  if (error) {
+  const read = await readGeofenceSettings(admin, nearest.name);
+  if (read.error) {
     console.error(`[Locate] Metro settings for ${nearest.name} could not be read. Using the 50-mile match.`);
   }
-  if (saved) return { settings: saved, error: null };
+  if (read.settings) return { settings: read.settings, error: null };
   return { settings: { metro_name: nearest.name, is_active: true, trial_days: 90 }, error: null };
 }
 

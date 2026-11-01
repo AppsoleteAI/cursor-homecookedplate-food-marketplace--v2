@@ -4,6 +4,7 @@
  */
 
 import { earlyBirdCapForMetro } from './early-bird-cap';
+import { readGeofenceSettings } from './metro-geofence';
 import { isKnownMetro } from './metro-radius';
 import { canStartRemoteKitchen } from './remote-kitchen';
 
@@ -107,11 +108,8 @@ async function decideOffer(admin: Admin, profile: ProfileRow): Promise<EarlyBird
     };
   }
 
-  const { data: geo } = await admin
-    .from('metro_geofences')
-    .select('is_active, trial_days')
-    .eq('metro_name', profile.metro_area)
-    .maybeSingle();
+  const geoRead = await readGeofenceSettings(admin, profile.metro_area);
+  const geo = geoRead.error ? null : geoRead.settings;
 
   const { count } = await admin
     .from('profiles')

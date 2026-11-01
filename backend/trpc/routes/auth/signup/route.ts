@@ -5,6 +5,7 @@ import { TRPCError } from "@trpc/server";
 import { randomBytes } from "node:crypto";
 import { sendEmailConfirmation } from "@/backend/lib/email";
 import { saveKitchenPin } from "../../../../lib/kitchen-pin";
+import { readGeofenceSettings } from "../../../../lib/metro-geofence";
 import { nearestMetro } from "../../../../lib/metro-radius";
 // Use process.stdout.write directly for critical logs (bypasses Bun buffering)
 
@@ -166,18 +167,11 @@ const createSignupProcedure = () => {
         // Returns metro_name, is_active, and trial_days if metro found, otherwise returns no rows
         // Use ctx.supabaseAdmin (service role) for system operations during signup
         const nearest = nearestMetro(input.lat, input.lng);
-        const settingsRead = nearest
-          ? await ctx.supabaseAdmin
-            .from('metro_geofences')
-            .select('metro_name, is_active, trial_days')
-            .eq('metro_name', nearest.name)
-            .maybeSingle()
-          : null;
-        const metroError = settingsRead?.error ?? null;
-        if (metroError) {
-          process.stdout.write(`[GEO_LOCK] Could not read metro settings: ${metroError.message || JSON.stringify(metroError)}. Using the nearest 50-mile metro.\n`);
+        const settingsRead = nearest ? await readGeofenceSettings(ctx.supabaseAdmin, nearest.name) : null;
+        if (settingsRead?.error) {
+          process.stdout.write(`[GEO_LOCK] Could not read metro settings: ${settingsRead.error}. Using the nearest 50-mile metro.\n`);
         }
-        const saved = settingsRead?.data ?? null;
+        const saved = settingsRead?.settings ?? null;
         const metro = nearest
           ? {
             metro_name: nearest.name,

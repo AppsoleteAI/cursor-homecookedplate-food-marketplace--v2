@@ -1,6 +1,6 @@
 # 20-mile pickup and the Remote kitchen
 
-Web, iOS, and Android use this same source. The website publish on `main` includes this UI on https://homecookedplate.com and https://homecookedplate.pages.dev. The 20-mile pickup check and Remote kitchen days need the Worker update plus `backend/sql/add_kitchen_pin.sql` and `backend/sql/add_five_metros.sql` in the Supabase SQL editor.
+Web, iOS, and Android use this same source. The website publish on `main` includes this UI on https://homecookedplate.com and https://homecookedplate.pages.dev. The 20-mile pickup check and Remote kitchen days need the Worker update plus `backend/sql/add_kitchen_pin.sql` and `backend/sql/add_five_metros.sql` in the Supabase SQL editor. The live geofence table stores the city in `name`. The five-metro script uses that column.
 
 The 50-mile circle is the membership market. The 20-mile circle is pickup, centered on the cook's saved pin. The same pin rule applies in a named metro and in Remote/Other.
 

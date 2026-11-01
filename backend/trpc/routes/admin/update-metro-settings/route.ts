@@ -1,5 +1,6 @@
 import { mainAdminProcedure } from "../../../create-context";
 import { z } from "zod";
+import { updateGeofenceSettings } from "../../../../lib/metro-geofence";
 
 export const updateMetroSettingsProcedure = mainAdminProcedure
   .input(
@@ -27,13 +28,7 @@ export const updateMetroSettingsProcedure = mainAdminProcedure
       updateData.trial_days = input.trial_days;
     }
 
-    // Update metro settings in metro_geofences (source of truth for city-level settings)
-    const { data: updated, error } = await ctx.supabase
-      .from('metro_geofences')
-      .update(updateData)
-      .eq('metro_name', input.name)
-      .select('metro_name, is_active, trial_days, updated_at')
-      .single();
+    const { data: updated, error } = await updateGeofenceSettings(ctx.supabase, input.name, updateData);
 
     if (error) {
       throw new Error(`Failed to update metro settings: ${error.message}`);

@@ -14,6 +14,8 @@ Every metro uses the same circle: **80,000 meters, about 50 miles, around downto
 
 Get GPS checks a saved PostGIS shape first. When that lookup misses, the app uses this 50-mile circle and saves the metro name on the account.
 
+The live `metro_geofences` table stores the city in `name`. `backend/sql/add_five_metros.sql` writes Anchorage, Honolulu, San Juan, Mayagüez, and Charlotte Amalie into that column, with an 80,000-meter circle when the table has one. Signup, Get GPS, and Early Bird read `name` when `metro_name` is not on the table. A paused city stays paused for a PlateMaker and for a PlateTaker. The website publish on `main` includes this source. The live API still needs the Worker update and the SQL in the Supabase SQL editor. Web, iOS, and Android use the same source.
+
 ## Early Bird slots
 
 One PlateMaker per 10,000 people. The app takes the whole number from that division, then keeps it between **200 and 1,000**.
