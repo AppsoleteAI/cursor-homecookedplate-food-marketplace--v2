@@ -38,6 +38,8 @@ export default function MealDetailsScreen() {
     { enabled: mealId.length > 0 },
   );
   const updateDetails = trpc.meals.updateDetails.useMutation();
+  const kitchenPermit = trpc.meals.kitchenPermit.useQuery();
+  const permitSaved = kitchenPermit.data?.saved === true;
   const { updateMealDetails } = useMeals();
   const [cuisine, setCuisine] = useState('');
   const [ingredients, setIngredients] = useState('');
@@ -93,6 +95,10 @@ export default function MealDetailsScreen() {
       setErrorText('Use dates as YYYY-MM-DD.');
       return;
     }
+    if (!permitSaved) {
+      setErrorText('Save the home-kitchen agreement before a cooked plate goes on the menu.');
+      return;
+    }
     setErrorText('');
     try {
       await updateDetails.mutateAsync({
@@ -127,7 +133,8 @@ export default function MealDetailsScreen() {
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <BackCircle tone="honey" onPress={leave} testID="meal-details-back" />
           <Text style={styles.title}>Category, ingredients, and freshness</Text>
-          <Text style={styles.subtitle}>Save a category, the ingredients, and a date. The plate stays off the menu until this is saved.</Text>
+          <Text style={styles.subtitle}>Save a category, the ingredients, and a date. The plate stays off the menu until this is saved, and until the home-kitchen agreement is on the account.</Text>
+          <Text style={styles.subtitle} onPress={() => router.push('/kitchen-permit' as Href)}>Open the home-kitchen agreement</Text>
 
           {mealQuery.isLoading ? <ActivityIndicator color={Colors.gradient.green} /> : null}
           {mealQuery.error ? <Text style={styles.error}>This plate could not be opened.</Text> : null}
@@ -202,7 +209,7 @@ export default function MealDetailsScreen() {
           <GradientButton
             title={updateDetails.isPending ? 'Saving…' : 'Save details'}
             onPress={save}
-            disabled={updateDetails.isPending || mealId.length === 0}
+            disabled={updateDetails.isPending || mealId.length === 0 || !permitSaved}
             loading={updateDetails.isPending}
             baseColor="red"
             testID="detail-save"

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router , type Href } from 'expo-router';
@@ -9,7 +9,7 @@ import { PricedItemCard } from '@/components/PricedItemCard';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useFarmBasket } from '@/hooks/farm-basket-store';
-import { evaluateListing, stateName, trackLabel } from '@/lib/cottage-food';
+import { evaluateListing, trackLabel } from '@/lib/cottage-food';
 import { BAKED_COTTAGE_LINK, highlightBakedCottage } from '@/lib/baked-cottage';
 import { calculateOrderSplit } from '@/lib/fees';
 import { AreaStoreSwitch } from '@/components/AreaStoreSwitch';
@@ -32,7 +32,6 @@ export default function FarmSellerScreen() {
 
   return (
     <FarmScreen title="Seller stand" subtitle="Farm payouts stay separate from plate earnings." testID="farm-seller">
-      {compliance?.image ? <Image source={{ uri: compliance.image }} style={styles.placePhoto} /> : null}
       <View style={styles.card}>
         <Text style={styles.label}>Farm goods sold</Text>
         <Text style={styles.value}>${baseAmount.toFixed(2)}</Text>
@@ -40,22 +39,19 @@ export default function FarmSellerScreen() {
         <Text style={styles.meta}>{orders.length} farm order{orders.length === 1 ? '' : 's'}</Text>
       </View>
       <View style={styles.card}>
-        <Text style={styles.label}>Local compliance</Text>
-        {compliance ? (
-          <Text style={styles.meta}>
-            {compliance.farmName} · {compliance.county} County, {stateName(compliance.stateCode)} · {trackLabel(compliance.track)}
-          </Text>
+        <Text style={styles.label}>Farm agreement</Text>
+        {complianceCheck.ok ? (
+          <Text style={styles.ok}>Agreement saved. The food rules for these goods are yours.</Text>
         ) : (
-          <Text style={styles.meta}>No state record yet. Listing stays closed until you save one.</Text>
+          <Text style={styles.block}>{complianceCheck.blocks[0]}</Text>
         )}
-        {!complianceCheck.ok ? <Text style={styles.block}>{complianceCheck.blocks[0]}</Text> : <Text style={styles.ok}>Record is complete for this product type.</Text>}
         <View style={styles.activeRow}>
           <Text style={styles.label}>Farm stand is {standOpen ? 'open' : 'closed'}</Text>
           <AreaStoreSwitch area="farm" value={standOpen} onValueChange={setStandOpen} disabled={!complianceCheck.ok} trackColor={{ true: '#166534', false: Colors.gray[300] }} />
         </View>
       </View>
       <GlassPressable style={styles.button} onPress={() => router.push(openFromStand('/farm-grown-basket/cottage-law'))} testID="seller-cottage-law">
-        <Text style={styles.buttonText}>State, Test, and Permit Fee</Text>
+        <Text style={styles.buttonText}>Farm agreement</Text>
       </GlassPressable>
       <GlassPressable style={styles.secondary} onPress={() => router.push(openFromStand('/farm-grown-basket/directory'))} testID="seller-cottage-directory">
         <Text style={styles.secondaryText}>State-by-state cottage directory</Text>

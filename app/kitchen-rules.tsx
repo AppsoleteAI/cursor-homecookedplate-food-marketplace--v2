@@ -59,8 +59,11 @@ export default function KitchenRulesScreen() {
             Hot meals, soups, meat, dairy, and other foods that need temperature control sit under a different rule. Depending on the state, that rule is a microenterprise home kitchen permit, a food-freedom statute, or a requirement to cook in a licensed commercial or shared kitchen. County and city rules can be stricter than the state, and a state law can be written so that each county must opt in before anyone may use it.
           </Text>
           <Text style={styles.body}>
-            You are responsible for the kitchen, the permit, the temperature, and the label. The temperatures, glove rules, and container notes are on Food handling. Publishing a meal on this app does not create a cottage exemption and does not replace a health permit. If your state does not allow that food from a residence, the lawful path is a commercially licensed retail kitchen or a permitted shared kitchen, with the agreement and receipts your inspector asks for.
+            You are responsible for learning the rule where you cook. Some places require no license, some a limited license, and some a stricter permit. HomeCookedPlate does not decide which one applies and does not enforce that matrix. The temperatures, glove rules, and container notes are on Food handling. Publishing a meal on this app does not create an exemption and does not replace a license your city, county, or state requires. If that place does not allow the food from a residence, the lawful path is the kitchen that place allows.
           </Text>
+          <GlassPressable onPress={() => router.push('/kitchen-permit' as Href)} testID="kitchen-rules-permit">
+            <Text style={styles.body}>Save the home-kitchen agreement</Text>
+          </GlassPressable>
           <GlassPressable onPress={() => openFoodHandling(pathname)} testID="kitchen-rules-food-handling">
             <Text style={styles.body}>Open food handling temperatures</Text>
           </GlassPressable>
@@ -177,10 +180,10 @@ export default function KitchenRulesScreen() {
             Those summaries name the states below as places where a mobile food unit, catering business, or ghost kitchen is expected to hold a commissary agreement before a retail food license is issued. This app has not verified each statute. California is on the list for trucks and caterers, with the separate county MEHKO permit as the published home-kitchen exception. Indiana is on the list for commercial catering and trucks even where home perishable sales are expanding.
           </Text>
           <GlassPressable onPress={() => router.push('/food-truck-popup/permit' as Href)} testID="kitchen-rules-food-truck">
-            <Text style={styles.body}>Food trucks sell through FoodTruckPopup. The menu stays closed until the mobile permit, commissary answer, and fee are recorded.</Text>
+            <Text style={styles.body}>Food trucks sell through FoodTruckPopup. The menu stays closed until the truck agreement is saved. HomeCookedPlate does not collect a permit, a commissary answer, or a fee.</Text>
           </GlassPressable>
           <GlassPressable onPress={() => router.push('/sit-down-delicious/license' as Href)} testID="kitchen-rules-sit-down">
-            <Text style={styles.body}>A sit-down or takeout restaurant sells through SitDownDelicious. The license is the retail food permit for that street address. Cottage food law and a mobile-unit permit do not authorize it.</Text>
+            <Text style={styles.body}>A sit-down or takeout restaurant sells through SitDownDelicious. The menu stays closed until the restaurant agreement is saved. The food rules for that kitchen belong to the cook.</Text>
           </GlassPressable>
           <Text style={styles.states}>{COMMISSARY_REQUIRED_STATES.join(' · ')}</Text>
           <Text style={styles.body}>

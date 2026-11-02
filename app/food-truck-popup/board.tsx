@@ -35,9 +35,9 @@ export default function TruckBoardScreen() {
       <Text style={styles.note}>This board is the truck’s own Active switch and posted lot. It is not a live GPS feed from the vehicle.</Text>
       {isMaker && permit ? (
         <GlassPressable style={styles.card} onPress={() => router.push('/food-truck-popup/seller' as Href)}>
-          <Text style={styles.name}>{permit.truckName}</Text>
+          <Text style={styles.name}>Your truck</Text>
           <Text style={[styles.status, ownerActive ? styles.open : styles.closed]}>{ownerActive ? 'Active' : 'Window closed'}</Text>
-          <Text style={styles.meta}>{permit.city}, {stateName(permit.stateCode)} · {listings.length} menu item{listings.length === 1 ? '' : 's'}</Text>
+          <Text style={styles.meta}>{listings.length} menu item{listings.length === 1 ? '' : 's'}</Text>
         </GlassPressable>
       ) : null}
       <Text style={styles.section}>{searching ? 'Trucks in this ZIP area' : 'On the board'}</Text>

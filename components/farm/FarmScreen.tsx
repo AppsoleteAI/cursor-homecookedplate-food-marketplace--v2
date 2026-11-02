@@ -59,7 +59,7 @@ export function FarmScreen({ title, subtitle, children, footer, testID, showBask
         {children}
         <Text style={styles.legal}>
           {isMaker
-            ? 'FarmGrownBasket does not inspect kitchens, issue permits, or confirm that a listing meets your cottage, food-freedom, or farm-stand law. Confirm the statute, the test, and the fee with your state and county before you sell.'
+            ? 'The cook follows the food rules of the city, county, and state. HomeCookedPlate does not verify them. All responsibility for the food is on the PlateMaker.'
             : 'Ingredients are listed on each item. Pick the food up from the farm or the place named on your order.'}
         </Text>
       </ScrollView>

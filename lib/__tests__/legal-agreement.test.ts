@@ -1,4 +1,4 @@
-import { agreementPredatesAccount, chooseLegalForm, type LegalAgreementRecord } from '../legal-agreement';
+import { agreementPredatesAccount, chooseLegalForm, emptyLegalSections, needsAppleLicenseRecheck, priorAgreementFromUnknown, type LegalAgreementRecord } from '../legal-agreement';
 
 const sections = {
   jurisdictional_law: true as const,
@@ -9,6 +9,7 @@ const sections = {
   fee_structure: true as const,
   account_termination: true as const,
   uploaded_content: true as const,
+  apple_eula: true as const,
 };
 
 function record(acknowledgedOn: string, acknowledgedAt: string): LegalAgreementRecord {
@@ -82,5 +83,32 @@ describe('chooseLegalForm', () => {
       legalReady: true,
       today: '2026-10-25',
     })).toBe('device');
+  });
+});
+
+describe('Apple app license re-check', () => {
+  const created = new Date('2026-10-01T12:00:00.000Z');
+  const older = {
+    sections: { ...sections, apple_eula: false as const },
+    acknowledgedOn: '2026-10-18',
+    acknowledgedAt: '2026-10-18T15:00:00.000Z',
+  };
+
+  it('keeps the older sections and leaves the Apple app license unchecked', () => {
+    expect(emptyLegalSections().apple_eula).toBe(false);
+    const prior = priorAgreementFromUnknown(older);
+    expect(prior?.sections.apple_eula).toBe(false);
+    expect(prior?.sections.uploaded_content).toBe(true);
+    expect(needsAppleLicenseRecheck(older, created)).toBe(true);
+  });
+
+  it('does not ask again once the Apple app license is already checked', () => {
+    const done = { ...older, sections };
+    expect(needsAppleLicenseRecheck(done, created)).toBe(false);
+    expect(needsAppleLicenseRecheck(null, created)).toBe(false);
+  });
+
+  it('does not treat a deleted account copy as the re-check', () => {
+    expect(needsAppleLicenseRecheck(older, new Date('2026-11-02T18:00:00.000Z'))).toBe(false);
   });
 });

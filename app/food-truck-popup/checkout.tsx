@@ -20,7 +20,7 @@ import { useCombinedBill } from '@/hooks/use-combined-bill';
 
 export default function TruckCheckoutScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
-  const { items, listings, permit, ownerActive, placeOrder } = useFoodTruck();
+  const { items, listings, ownerActive, placeOrder } = useFoodTruck();
   const { chargeShop, charging } = useShopCardPayment();
   const { payInMainCart } = useCombinedBill();
   const [slot, setSlot] = useState<PickupSlot>('Next 15 minutes');
@@ -46,7 +46,7 @@ export default function TruckCheckoutScreen() {
   const offer = useAreaOfferTotal('food_truck', lines.map((line) => ({ id: line.itemId, unitPrice: line.unitPrice, quantity: line.quantity })));
   const truckId = items[0]?.truckId ?? '';
   const catalogTruck = getTruck(truckId);
-  const truckName = truckId === 'owner-truck' ? permit?.truckName ?? 'Your truck' : catalogTruck?.name ?? 'Truck';
+  const truckName = truckId === 'owner-truck' ? 'Your truck' : catalogTruck?.name ?? 'Truck';
   const windowOpen = truckId === 'owner-truck' ? ownerActive : Boolean(catalogTruck?.active);
   const baseAmount = offer.baseAmount;
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });

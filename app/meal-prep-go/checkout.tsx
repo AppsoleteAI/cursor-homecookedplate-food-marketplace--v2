@@ -22,7 +22,7 @@ import { useCombinedBill } from '@/hooks/use-combined-bill';
 
 export default function MealPrepCheckoutScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
-  const { items, listings, kitchen, accepting, placeOrder } = useMealPrep();
+  const { items, listings, accepting, placeOrder } = useMealPrep();
   const { chargeShop, charging } = useShopCardPayment();
   const { payInMainCart } = useCombinedBill();
   const [handoff, setHandoff] = useState<'pickup' | 'dropoff'>('pickup');
@@ -60,7 +60,7 @@ export default function MealPrepCheckoutScreen() {
   const offer = useAreaOfferTotal('meal_prep', lines.map((line) => ({ id: line.itemId, unitPrice: line.unitPrice, quantity: line.quantity })));
   const cookId = items[0]?.cookId ?? '';
   const catalogCook = getPrepCook(cookId);
-  const cookName = catalogCook?.name ?? (cookId === 'owner-kitchen' ? kitchen?.cookName ?? 'Your kitchen' : '');
+  const cookName = catalogCook?.name ?? (cookId === 'owner-kitchen' ? 'Your kitchen' : '');
   const windows = catalogCook?.windows ?? [];
   const readyCount = lines.filter((line) => line.lane === 'ready').reduce((sum, line) => sum + line.quantity, 0);
   const cookCount = lines.filter((line) => line.lane === 'cook').reduce((sum, line) => sum + line.quantity, 0);
@@ -108,7 +108,7 @@ export default function MealPrepCheckoutScreen() {
         cookName,
         handoff,
         windowLabel: chosenWindow,
-        address: handoff === 'dropoff' ? address.trim() : catalogCook?.handoffNote ?? kitchen?.handoffNote ?? '',
+        address: handoff === 'dropoff' ? address.trim() : catalogCook?.handoffNote ?? '',
         mix,
       }, sellerAccount);
       if (!paid) return;
@@ -118,7 +118,7 @@ export default function MealPrepCheckoutScreen() {
         cookName,
         handoff,
         windowLabel: chosenWindow,
-        address: handoff === 'dropoff' ? address.trim() : catalogCook?.handoffNote ?? kitchen?.handoffNote ?? '',
+        address: handoff === 'dropoff' ? address.trim() : catalogCook?.handoffNote ?? '',
         mix,
         lines,
         baseAmount,

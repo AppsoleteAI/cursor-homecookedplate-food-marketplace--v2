@@ -1,4 +1,4 @@
-import { platemakerMayEnter, platemakerTrialCountdownDays, trialCloseoutKeepsKitchen, unpaidPlatemakerTrialEnded, userNeedsMembership } from '../trial-access';
+import { appleMembershipCovers, platemakerMayEnter, platemakerTrialCountdownDays, resolvedMembershipTier, trialCloseoutKeepsKitchen, unpaidPlatemakerTrialEnded, userNeedsMembership } from '../trial-access';
 
 const now = new Date('2026-10-16T12:00:00.000Z');
 
@@ -36,6 +36,38 @@ describe('unpaid PlateMaker trial end', () => {
       ...ended,
       google_purchase_token: 'play-token',
     }, now)).toBe(false);
+  });
+
+  it('ends Premium when the App Store subscription is expired or refunded', () => {
+    expect(appleMembershipCovers({
+      ...ended,
+      apple_original_transaction_id: 'apple-1',
+      apple_expires_at: '2026-10-01T12:00:00.000Z',
+    }, now)).toBe(false);
+    expect(resolvedMembershipTier({
+      ...ended,
+      role: 'platetaker',
+      apple_original_transaction_id: 'apple-1',
+      apple_expires_at: '2026-10-01T12:00:00.000Z',
+    }, now)).toBe('free');
+    expect(resolvedMembershipTier({
+      ...ended,
+      role: 'platetaker',
+      apple_original_transaction_id: 'apple-1',
+      apple_expires_at: '2026-11-01T12:00:00.000Z',
+      apple_revoked_at: '2026-10-02T12:00:00.000Z',
+    }, now)).toBe('free');
+    expect(platemakerMayEnter({
+      ...ended,
+      apple_original_transaction_id: 'apple-1',
+      apple_expires_at: '2026-10-01T12:00:00.000Z',
+    }, now)).toBe(false);
+    expect(resolvedMembershipTier({
+      ...ended,
+      trial_ends_at: '2026-11-16T12:00:00.000Z',
+      apple_original_transaction_id: 'apple-1',
+      apple_expires_at: '2026-10-01T12:00:00.000Z',
+    }, now)).toBe('premium');
   });
 
   it('does not apply the trial end to a PlateTaker', () => {

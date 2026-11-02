@@ -19,7 +19,7 @@ const LINKS: { title: string; detail: string; href: string; icon: keyof typeof I
   { title: 'Your week', detail: 'Ready meals, cook kits, and add-ons from one cook', href: '/meal-prep-go/week', icon: 'calendar-outline' },
   { title: 'Prep orders', detail: 'Weekly plans, separate from single plates', href: '/meal-prep-go/orders', icon: 'receipt-outline' },
   { title: 'Your kitchen', detail: 'Open the week and see the payout', href: '/meal-prep-go/seller', icon: 'storefront-outline', seller: true },
-  { title: 'Kitchen record', detail: 'Where the week is prepared, held, and handed off', href: '/meal-prep-go/kitchen', icon: 'document-text-outline', seller: true },
+  { title: 'Weekly kitchen agreement', detail: 'Six acknowledgements before a weekly item is listed', href: '/meal-prep-go/kitchen', icon: 'document-text-outline', seller: true },
 ];
 
 export default function MealPrepGoHome() {

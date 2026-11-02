@@ -24,7 +24,7 @@ describe('phase 10', () => {
     expect(openSignInCanEmailNewCode('That sign-in code does not match.')).toBe(false);
   });
 
-  it('keeps a lifetime account when this device token differs', () => {
+  it('saves a new token when the same lifetime account re-downloads the app', () => {
     expect(lifetimeShouldSaveDevice(null, 'device-b')).toBe(false);
     expect(lifetimeShouldSaveDevice('device-a', 'device-a')).toBe(false);
     expect(lifetimeShouldSaveDevice('device-a', 'device-b')).toBe(true);

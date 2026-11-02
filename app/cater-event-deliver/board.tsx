@@ -35,9 +35,9 @@ export default function CaterBoardScreen() {
       <Text style={styles.note}>This board is the company’s own switch. It is not a live truck map, and a posted calendar does not by itself accept an order.</Text>
       {isMaker && license ? (
         <GlassPressable style={styles.card} onPress={() => router.push('/cater-event-deliver/seller' as Href)}>
-          <Text style={styles.name}>{license.companyName}</Text>
+          <Text style={styles.name}>Your company</Text>
           <Text style={[styles.status, accepting ? styles.open : styles.closed]}>{accepting ? 'Accepting drop-offs' : 'Not accepting'}</Text>
-          <Text style={styles.meta}>{license.city}, {stateName(license.stateCode)} · {listings.length} package{listings.length === 1 ? '' : 's'}</Text>
+          <Text style={styles.meta}>{listings.length} package{listings.length === 1 ? '' : 's'}</Text>
         </GlassPressable>
       ) : null}
       <Text style={styles.section}>{searching ? 'Companies in this ZIP area' : 'On the board'}</Text>

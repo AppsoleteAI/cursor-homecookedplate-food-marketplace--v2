@@ -37,6 +37,7 @@ export default function PublishPlateScreen() {
   const { user } = useAuth();
   const { addMeal } = useMeals();
   const createMeal = trpc.meals.create.useMutation();
+  const kitchenPermit = trpc.meals.kitchenPermit.useQuery();
   const uploadMedia = trpc.media.upload.useMutation();
   const [draft, setDraft] = useState<PlateDraft>(EMPTY);
   const [foodSafetyAcknowledged, setFoodSafetyAcknowledged] = useState(false);
@@ -65,6 +66,7 @@ export default function PublishPlateScreen() {
     return Number.isFinite(value) ? value : 0;
   }, [draft.preparationMinutes]);
 
+  const permitSaved = kitchenPermit.data?.saved === true;
   const isValid = useMemo(
     () => canPublishMeal({
       name: draft.name,
@@ -72,8 +74,8 @@ export default function PublishPlateScreen() {
       photoCount,
       preparationMinutes,
       foodSafetyAcknowledged,
-    }),
-    [draft.name, priceNumber, photoCount, preparationMinutes, foodSafetyAcknowledged],
+    }) && permitSaved,
+    [draft.name, priceNumber, photoCount, preparationMinutes, foodSafetyAcknowledged, permitSaved],
   );
 
   const missing = useMemo(() => {
@@ -85,8 +87,9 @@ export default function PublishPlateScreen() {
       items.push('Prep time in whole minutes, from 1 to 600, on Create Meal');
     }
     if (!foodSafetyAcknowledged) items.push('The food-safety acknowledgment on this page');
+    if (kitchenPermit.isFetched && !permitSaved) items.push('The home-kitchen agreement');
     return items;
-  }, [draft.name, priceNumber, photoCount, preparationMinutes, foodSafetyAcknowledged]);
+  }, [draft.name, priceNumber, photoCount, preparationMinutes, foodSafetyAcknowledged, kitchenPermit.isFetched, permitSaved]);
 
   const saveMeal = useCallback(async () => {
     if (!isValid || saving) return;
@@ -196,16 +199,19 @@ export default function PublishPlateScreen() {
                   HomeCookedPlate is not affiliated or in partnership with cottagefoodlaws.com.
                 </Text>
                 <Text style={[styles.foodSafetyInfoText, { marginTop: 8 }]}>
-                  Cottage food laws cover shelf-stable, non-TCS foods only. A cooked plate that needs refrigeration or hot-holding is not a cottage food. Produce, CSA shares, and cottage goods are listed in FarmGrownBasket, and that listing stays closed until you record your state rule, testing protocol, and permit fee.
+                  Produce, CSA shares, and cottage goods are listed in FarmGrownBasket. That listing stays closed until the farm agreement is saved.
                 </Text>
                 <Text style={styles.foodSafetyLink} onPress={() => router.push('/farm-grown-basket/cottage-law' as Href)}>
-                  Open the cottage food checklist
+                  Open the farm agreement
                 </Text>
                 <Text style={[styles.foodSafetyLink, { marginTop: 8 }]} onPress={() => router.push('/food-truck-popup/permit' as Href)}>
-                  Food trucks list in FoodTruckPopup and need a mobile-unit permit
+                  Food trucks list in FoodTruckPopup after the truck agreement is saved
                 </Text>
                 <Text style={[styles.foodSafetyLink, { marginTop: 8 }]} onPress={() => router.push('/sit-down-delicious/license' as Href)}>
-                  Independent restaurants and ghost kitchens list in SitDownDelicious and need a retail food license
+                  Independent restaurants and ghost kitchens list in SitDownDelicious after the restaurant agreement is saved
+                </Text>
+                <Text style={[styles.foodSafetyLink, { marginTop: 8 }]} onPress={() => router.push('/kitchen-permit' as Href)}>
+                  Save the home-kitchen agreement before this plate can be listed
                 </Text>
                 <Text style={[styles.foodSafetyLink, { marginTop: 8 }]} onPress={() => router.push('/kitchen-rules' as Href)}>
                   Kitchen rules for cooked plates and commissary kitchens

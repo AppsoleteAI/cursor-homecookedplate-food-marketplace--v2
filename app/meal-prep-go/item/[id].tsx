@@ -19,7 +19,7 @@ export default function MealPrepItemScreen() {
   const item = catalog ?? listing ?? null;
   const cook = catalog ? getPrepCook(catalog.cookId) : null;
   const cookId = catalog?.cookId ?? listing?.cookId ?? '';
-  const cookName = cook?.name ?? kitchen?.cookName ?? 'Your kitchen';
+  const cookName = cook?.name ?? (kitchen ? 'Your kitchen' : 'One cook');
   const openForOrders = cook ? cook.accepting : accepting;
   const current = items.find((line) => line.itemId === itemId)?.quantity ?? 0;
   const [error, setError] = useState<string | null>(null);

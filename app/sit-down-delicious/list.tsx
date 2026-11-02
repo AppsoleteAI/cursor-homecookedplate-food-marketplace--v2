@@ -47,9 +47,9 @@ export default function ListSitItemScreen() {
   return (
     <SitDownScreen title="Add a menu item" subtitle="From a licensed restaurant. Not a cottage listing." testID="sit-list">
       {license && licenseCheck.ok ? (
-        <Text style={styles.meta}>Listing on {license.placeName}. The item appears only while you mark the dining room open.</Text>
+        <Text style={styles.meta}>{licenseCheck.ok ? 'The restaurant agreement is saved. This item can be listed.' : licenseCheck.blocks[0]}</Text>
       ) : (
-        <Text style={styles.block}>Save the retail food license before a menu item can go up.</Text>
+        <Text style={styles.block}>Save the restaurant agreement before a menu item can go up.</Text>
       )}
       <ListingPhotoField food label="Photo of this menu item" value={image} onChange={setImage} testID="sit-list-photo" />
       <TextInput value={name} onChangeText={setName} placeholder="Item name" placeholderTextColor={Colors.gray[400]} style={styles.input} testID="sit-list-name" />
@@ -64,7 +64,7 @@ export default function ListSitItemScreen() {
         <Text style={styles.buttonText}>Publish on the Menu</Text>
       </GlassPressable>
       <GlassPressable onPress={() => router.push('/sit-down-delicious/license' as Href)}>
-        <Text style={styles.link}>Edit the License Record</Text>
+        <Text style={styles.link}>Edit the restaurant agreement</Text>
       </GlassPressable>
     </SitDownScreen>
   );

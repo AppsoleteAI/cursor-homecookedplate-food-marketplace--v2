@@ -38,5 +38,7 @@ export async function restoreIAPPurchases(): Promise<IAPPurchaseResult[]> {
 
 export async function finishIAP(_transactionId: string): Promise<void> {}
 
+export async function openStoreSubscriptions(): Promise<void> {}
+
 /** False on web — Stripe is used instead. */
 export const IAP_REQUIRED = false;

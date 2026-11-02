@@ -10,6 +10,8 @@ import { logAdminAlert } from "./lib/alerts";
 import { sendExpoPushNotification } from "./lib/expo-push-notifications";
 import { recordPlatePayment } from "./lib/record-paid-order";
 import { handleChargeDispute, handleLostDispute, releaseDuePayouts } from "./lib/stripe-marketplace";
+import { readAppleServerNotification } from "./lib/apple-transaction";
+import { applyAppleNotification } from "./lib/store-membership";
 import type { MediaFrameBinding } from "./lib/image-security";
 
 type Bindings = {
@@ -26,6 +28,9 @@ type Bindings = {
   // Still frames from uploaded meal videos
   MEDIA?: MediaFrameBinding;
   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON?: string;
+  ASC_API_KEY_ID?: string;
+  ASC_API_ISSUER_ID?: string;
+  ASC_API_PRIVATE_KEY?: string;
 };
 
 export const app = new Hono<{ Bindings: Bindings }>();
@@ -491,6 +496,37 @@ app.post("/webhook/stripe", async (c) => {
   return c.json({ received: true });
 });
 
+app.post("/webhook/apple", async (c) => {
+  const supabaseUrl = c.env?.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseServiceKey = c.env?.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.error('[Apple Webhook] Missing environment variables');
+    return c.json({ error: 'Server configuration error' }, 500);
+  }
+  let signedPayload = '';
+  try {
+    const body = await c.req.json() as { signedPayload?: unknown };
+    signedPayload = typeof body.signedPayload === 'string' ? body.signedPayload : '';
+  } catch {
+    return c.json({ error: 'App Store notification could not be read' }, 400);
+  }
+  if (signedPayload.length < 40) {
+    return c.json({ error: 'App Store notification could not be read' }, 400);
+  }
+  try {
+    const note = readAppleServerNotification(signedPayload);
+    const supabaseAdmin = createSupabaseAdmin({
+      SUPABASE_URL: supabaseUrl,
+      SUPABASE_SERVICE_ROLE_KEY: supabaseServiceKey,
+    });
+    await applyAppleNotification(supabaseAdmin, note);
+  } catch (error) {
+    console.error('[Apple Webhook] Notification was not applied.', error instanceof Error ? error.message : error);
+    return c.json({ error: 'App Store notification was not applied' }, 400);
+  }
+  return c.json({ received: true });
+});
+
 // Database webhook endpoint for metro cap reached notifications
 // Triggered by Supabase Database Webhooks when metro_area_counts.platemaker_count or platetaker_count hits max_cap
 app.post("/webhook/metro-cap-reached", async (c) => {
@@ -596,6 +632,9 @@ app.use(
         AI: c.env?.AI,
         MEDIA: c.env?.MEDIA,
         GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: c.env?.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON,
+        ASC_API_KEY_ID: c.env?.ASC_API_KEY_ID || process.env.ASC_API_KEY_ID,
+        ASC_API_ISSUER_ID: c.env?.ASC_API_ISSUER_ID || process.env.ASC_API_ISSUER_ID,
+        ASC_API_PRIVATE_KEY: c.env?.ASC_API_PRIVATE_KEY || process.env.ASC_API_PRIVATE_KEY,
         STRIPE_SECRET_KEY: c.env?.STRIPE_SECRET_KEY ?? process.env.STRIPE_SECRET_KEY,
         RESEND_API_KEY: c.env?.RESEND_API_KEY ?? process.env.RESEND_API_KEY,
       };

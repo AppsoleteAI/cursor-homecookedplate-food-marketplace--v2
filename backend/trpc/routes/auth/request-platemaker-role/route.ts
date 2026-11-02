@@ -1,4 +1,5 @@
 import { TRPCError } from "@trpc/server";
+import { resolvedMembershipTier } from "../../../../lib/trial-access";
 import { protectedProcedure } from "../../../create-context";
 
 /**
@@ -16,11 +17,20 @@ import { protectedProcedure } from "../../../create-context";
 export const requestPlatemakerRoleProcedure = protectedProcedure
   .mutation(async ({ ctx }) => {
     // Get current user profile
-    const { data: currentProfile, error: fetchError } = await ctx.supabase
+    let profileRead = await ctx.supabase
       .from('profiles')
-      .select('role, id, food_safety_acknowledged, membership_tier, trial_ends_at, stripe_subscription_id, apple_original_transaction_id, google_purchase_token')
+      .select('role, id, food_safety_acknowledged, membership_tier, trial_ends_at, stripe_subscription_id, apple_original_transaction_id, apple_expires_at, apple_revoked_at, google_purchase_token, google_expires_at')
       .eq('id', ctx.userId)
       .single();
+    if (profileRead.error && /apple_expires_at|apple_revoked_at|google_expires_at/.test(profileRead.error.message || '')) {
+      profileRead = await ctx.supabase
+        .from('profiles')
+        .select('role, id, food_safety_acknowledged, membership_tier, trial_ends_at, stripe_subscription_id, apple_original_transaction_id, google_purchase_token')
+        .eq('id', ctx.userId)
+        .single();
+    }
+    const currentProfile = profileRead.data;
+    const fetchError = profileRead.error;
 
     if (fetchError || !currentProfile) {
       throw new Error('Failed to fetch user profile');
@@ -64,14 +74,7 @@ export const requestPlatemakerRoleProcedure = protectedProcedure
         message: 'Acknowledge food safety before becoming a PlateMaker.',
       });
     }
-    const trialEnds = currentProfile.trial_ends_at ? Date.parse(currentProfile.trial_ends_at) : NaN;
-    const hasPlan = Boolean(
-      currentProfile.stripe_subscription_id
-      || currentProfile.apple_original_transaction_id
-      || currentProfile.google_purchase_token
-      || currentProfile.membership_tier === 'lifetime'
-      || (currentProfile.membership_tier === 'premium' && trialEnds > Date.now()),
-    );
+    const hasPlan = resolvedMembershipTier({ ...currentProfile, role: 'platemaker' }) !== 'free';
     if (!hasPlan) {
       throw new TRPCError({
         code: 'FORBIDDEN',

@@ -284,6 +284,13 @@ export default function ProfileScreen() {
             </GlassPressable>
           </View>
           <Text style={styles.name}>{screenName(user?.username)}</Text>
+          {accountRole === 'platemaker' ? (
+            <Text style={styles.email} testID="profile-business-name">
+              {user?.businessName?.trim()
+                ? user.businessName.trim()
+                : 'Payment sheet uses your username until a business name is saved.'}
+            </Text>
+          ) : null}
           <Text style={styles.email}>{user?.email || 'guest@example.com'}</Text>
           <View style={[styles.roleTag, { 
             backgroundColor: accountRole === 'platemaker' ? Colors.gradient.green : Colors.gradient.yellow,

@@ -240,6 +240,7 @@ export const loginProcedure = publicProcedure
       user: {
         id: profile.id,
         username: profile.username,
+        businessName: typeof profile.business_name === 'string' ? profile.business_name : '',
         email: profile.email,
         role: profile.role as 'platemaker' | 'platetaker',
         isAdmin: profile.is_admin || false,

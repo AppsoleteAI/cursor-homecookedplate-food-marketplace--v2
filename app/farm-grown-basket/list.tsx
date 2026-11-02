@@ -1,21 +1,24 @@
 import React, { useState } from 'react';
-import { Text, StyleSheet, TextInput } from 'react-native';
+import { Text, StyleSheet, TextInput, View } from 'react-native';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router , type Href } from 'expo-router';
 import { FarmScreen } from '@/components/farm/FarmScreen';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useFarmBasket } from '@/hooks/farm-basket-store';
-import { evaluateListing, trackLabel } from '@/lib/cottage-food';
+import { evaluateListing, trackLabel, type RegulatoryTrack } from '@/lib/cottage-food';
 import { ListingPhotoField } from '@/components/ListingPhotoField';
 
 export default function ListFarmGoodScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const { compliance, publishListing } = useFarmBasket();
-  const [name, setName] = useState(compliance?.labelName ?? '');
+  const [name, setName] = useState('');
   const [priceText, setPriceText] = useState('');
   const [unit, setUnit] = useState('');
   const [summary, setSummary] = useState('');
+  const [track, setTrack] = useState<RegulatoryTrack>('whole_produce');
+  const [ingredients, setIngredients] = useState('');
+  const [allergens, setAllergens] = useState('');
   const [image, setImage] = useState('');
   const [blocks, setBlocks] = useState<string[]>([]);
   const check = evaluateListing(compliance);
@@ -38,7 +41,7 @@ export default function ListFarmGoodScreen() {
       setBlocks(nextBlocks);
       return;
     }
-    const result = publishListing({ name, price, unit, summary, image });
+    const result = publishListing({ name, price, unit, summary, track, ingredients, allergens, image });
     if (!result.ok) {
       setBlocks(result.blocks);
       return;
@@ -48,16 +51,26 @@ export default function ListFarmGoodScreen() {
 
   return (
     <FarmScreen title="List a farm good" subtitle="Cooked plates are created on the meal screen, not here." testID="farm-list">
-      {compliance ? (
-        <Text style={styles.meta}>Listing as {trackLabel(compliance.track)} from {compliance.county} County.</Text>
+      {check.ok ? (
+        <Text style={styles.meta}>The farm agreement is saved. This good can be listed.</Text>
       ) : (
-        <Text style={styles.block}>Save the cottage food record before you can list.</Text>
+        <Text style={styles.block}>{check.blocks[0]}</Text>
       )}
+      <Text style={styles.meta}>What kind of good is this?</Text>
+      <View style={styles.tracks}>
+        {(['whole_produce', 'csa_share', 'cottage_non_tcs', 'shell_eggs', 'temperature_control'] as const).map((option) => (
+          <GlassPressable key={option} style={[styles.chip, track === option && styles.chipOn]} onPress={() => setTrack(option)}>
+            <Text style={[styles.chipText, track === option && styles.chipTextOn]}>{trackLabel(option)}</Text>
+          </GlassPressable>
+        ))}
+      </View>
       <ListingPhotoField food label="Photo of this good" value={image} onChange={setImage} testID="farm-list-photo" />
       <TextInput value={name} onChangeText={setName} placeholder="Product name" placeholderTextColor={Colors.gray[400]} style={styles.input} testID="farm-list-name" />
       <TextInput value={priceText} onChangeText={setPriceText} placeholder="Price" placeholderTextColor={Colors.gray[400]} keyboardType="decimal-pad" style={styles.input} testID="farm-list-price" />
       <TextInput value={unit} onChangeText={setUnit} placeholder="Unit (jar, dozen, pound)" placeholderTextColor={Colors.gray[400]} style={styles.input} />
       <TextInput value={summary} onChangeText={setSummary} placeholder="What the buyer receives" placeholderTextColor={Colors.gray[400]} style={[styles.input, styles.area]} multiline />
+      <TextInput value={ingredients} onChangeText={setIngredients} placeholder="Ingredients" placeholderTextColor={Colors.gray[400]} style={[styles.input, styles.area]} multiline />
+      <TextInput value={allergens} onChangeText={setAllergens} placeholder="Major allergens, or none of the major allergens" placeholderTextColor={Colors.gray[400]} style={styles.input} />
       {blocks.map((block) => (
         <Text key={block} style={styles.block}>{block}</Text>
       ))}
@@ -65,7 +78,7 @@ export default function ListFarmGoodScreen() {
         <Text style={styles.buttonText}>Publish to FarmGrownBasket</Text>
       </GlassPressable>
       <GlassPressable onPress={() => router.push('/farm-grown-basket/cottage-law' as Href)}>
-        <Text style={styles.link}>Edit State, Test, and Permit Fee</Text>
+        <Text style={styles.link}>Edit the farm agreement</Text>
       </GlassPressable>
       <GlassPressable onPress={() => router.push('/farm-grown-basket/directory' as Href)} testID="farm-list-directory">
         <Text style={styles.link}>State-by-state cottage directory</Text>
@@ -90,4 +103,9 @@ const styles = StyleSheet.create({
   button: { ...glassSurface, marginTop: 8, backgroundColor: '#166534', borderRadius: 14, paddingVertical: 14, alignItems: 'center'  },
   buttonText: { color: Colors.white, fontWeight: '700' },
   link: { marginTop: 12, color: '#166534', fontWeight: '700' },
+  tracks: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  chip: { ...glassSurface, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  chipOn: { backgroundColor: '#166534' },
+  chipText: { color: Colors.gray[800], fontWeight: '600' },
+  chipTextOn: { color: Colors.white },
 });

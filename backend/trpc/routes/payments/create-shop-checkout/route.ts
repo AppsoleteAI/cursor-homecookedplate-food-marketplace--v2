@@ -3,6 +3,8 @@ import { TRPCError } from '@trpc/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { protectedProcedure } from '../../../create-context';
 import { buyerServiceFeePercent, calculateDeliveryLevy, calculateFees, orderTotalWithDelivery, sellerRefundAmount } from '../../../../lib/fees';
+import { applePayMerchantName, profilePayeeName } from '../../../../lib/payee-name';
+import { resolvedMembershipTier } from '../../../../lib/trial-access';
 import { nextShopStatus, shopCloseoutNotice, shopRefundIsFull } from '../../../../lib/shop-order-status';
 import { payoutReleaseAt } from '../../../../lib/payout-policy';
 import { fulfillmentIsDelivery, savedDeliveryFee } from '../../../../lib/delivery-fee';
@@ -276,14 +278,17 @@ export const createShopCheckoutProcedure = protectedProcedure
       if (volumeBlock) throw new TRPCError({ code: 'FORBIDDEN', message: volumeBlock });
     }
 
-    const { data: buyerProfile } = await ctx.supabaseAdmin
+    const buyerRead = await ctx.supabaseAdmin
       .from('profiles')
-      .select('role, membership_tier')
+      .select('role, membership_tier, trial_ends_at, stripe_subscription_id, apple_original_transaction_id, apple_expires_at, apple_revoked_at, google_purchase_token, google_expires_at')
       .eq('id', ctx.userId)
       .maybeSingle();
+    const buyerProfile = buyerRead.error && /apple_expires_at|google_expires_at|apple_revoked_at/.test(buyerRead.error.message || '')
+      ? (await ctx.supabaseAdmin.from('profiles').select('role, membership_tier, trial_ends_at, stripe_subscription_id, apple_original_transaction_id, google_purchase_token').eq('id', ctx.userId).maybeSingle()).data
+      : buyerRead.data;
     const buyerPercent = buyerServiceFeePercent({
       role: buyerProfile?.role,
-      membershipTier: buyerProfile?.membership_tier,
+      membershipTier: buyerProfile ? resolvedMembershipTier(buyerProfile) : 'free',
       baseAmount: quote.baseAmount,
     });
     const fees = calculateFees(quote.baseAmount, buyerPercent, 10);
@@ -291,6 +296,16 @@ export const createShopCheckoutProcedure = protectedProcedure
       ? calculateDeliveryLevy(await savedDeliveryFee(ctx.supabaseAdmin, input.sellerId))
       : calculateDeliveryLevy(0);
     const totalCharge = money(orderTotalWithDelivery(fees.totalCharge, fees.sellerPayout, levy.deliveryFee).buyerPays);
+    let sellerPayee = '';
+    if (input.sellerId) {
+      const seller = await ctx.supabaseAdmin
+        .from('profiles')
+        .select('username, business_name')
+        .eq('id', input.sellerId)
+        .maybeSingle();
+      sellerPayee = profilePayeeName(seller.data);
+    }
+    const merchantDisplayName = applePayMerchantName([sellerPayee]);
     const record = await insertShopRecord(
       ctx.supabaseAdmin,
       ctx.userId,
@@ -308,7 +323,7 @@ export const createShopCheckoutProcedure = protectedProcedure
       const checkout = await openStripeCheckout({
         secretKey: stripeSecretKey,
         amountCents: Math.round(totalCharge * 100),
-        productName: 'HomeCookedPlate shop order',
+        productName: merchantDisplayName,
         successUrl: `${origin}${path}?webpay=success&session_id={CHECKOUT_SESSION_ID}`,
         cancelUrl: `${origin}${path}?webpay=cancel`,
         metadata: {
@@ -329,6 +344,7 @@ export const createShopCheckoutProcedure = protectedProcedure
         paymentIntentId: checkout.paymentIntentId,
         baseAmount: quote.baseAmount,
         totalCharge,
+        merchantDisplayName,
       };
     }
 
@@ -369,6 +385,7 @@ export const createShopCheckoutProcedure = protectedProcedure
       paymentIntentId: paymentIntent.id,
       baseAmount: quote.baseAmount,
       totalCharge,
+      merchantDisplayName,
     };
   });
 

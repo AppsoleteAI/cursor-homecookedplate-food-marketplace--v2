@@ -31,6 +31,8 @@ export const AuthColors = {
   /** Face of the pre-app gold action buttons. */
   gold: '#E8B016',
   maroon: '#48101E',
+  /** Username available. Dark enough to read on the gold account card. */
+  available: '#146C43',
   /** Apple and Google buttons, a step darker than the maroon used elsewhere. */
   maroonDeep: '#3A0D18',
   ink: '#14100C',

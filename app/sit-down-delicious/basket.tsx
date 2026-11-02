@@ -14,7 +14,7 @@ import { buyerFoodCharge } from '@/backend/lib/fees';
 import { useAuth } from '@/hooks/auth-context';
 
 export default function SitBasketScreen() {
-  const { items, listings, license, setQuantity, clearItems } = useSitDown();
+  const { items, listings, setQuantity, clearItems } = useSitDown();
   const { user } = useAuth();
   const { payInMainCart } = useCombinedBill();
   const lines = useMemo(() => {
@@ -29,7 +29,7 @@ export default function SitBasketScreen() {
   }, [items, listings]);
 
   const placeId = lines[0]?.placeId;
-  const placeName = placeId === 'owner-place' ? license?.placeName ?? 'Your restaurant' : getPlace(placeId ?? '')?.name ?? 'Restaurant';
+  const placeName = placeId === 'owner-place' ? 'Your restaurant' : getPlace(placeId ?? '')?.name ?? 'Restaurant';
   const baseAmount = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 

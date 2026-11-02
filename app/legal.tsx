@@ -22,6 +22,7 @@ import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
 import { GlassTop } from '@/components/glass-surface';
 import { ScrollJumps } from '@/components/ScrollJumps';
+import { appleLicenseParagraphs } from '@/lib/apple-eula';
 import {
   agreementFromUnknown,
   agreementPredatesAccount,
@@ -33,6 +34,7 @@ import {
   isLegalReadyForSignIn,
   parseEnteredDate,
   markLegalReadyForSignIn,
+  priorAgreementFromUnknown,
   readLegalAgreement,
   todayDisplay,
   todayStamp,
@@ -47,7 +49,7 @@ const DELIVERY_EXAMPLE = calculateDeliveryLevy(10);
 const DELIVERY_PERCENT = Math.round(DELIVERY_PLATFORM_RATE * 100);
 
 const FINAL_AGREEMENT =
-  'By entering today\'s date below, I acknowledge that I have read this Legal & Safety page in full. I confirm that I have checked each section above as my separate agreement to that section. I agree to be bound by the jurisdictional notices, delivery and safety rules, liability waivers, personal-information terms, allergy and food-safety disclaimers, fee terms, account-termination rules, and uploaded-content terms stated on this page. I understand that the date I enter is my signed record of this agreement with HomeCookedPlate and its Appsolete affiliates, and that I may not use the app until this acknowledgment is complete.';
+  'By entering today\'s date below, I acknowledge that I have read this Legal & Safety page in full. I confirm that I have checked each section above as my separate agreement to that section. I agree to be bound by the jurisdictional notices, delivery and safety rules, liability waivers, personal-information terms, allergy and food-safety disclaimers, fee terms, account-termination rules, uploaded-content terms, and the Apple app license stated on this page. I understand that the date I enter is my signed record of this agreement with HomeCookedPlate and its Appsolete affiliates, and that I may not use the app until this acknowledgment is complete.';
 
 export default function LegalScreen() {
   const leave = useLeaveScreen('/(auth)/login');
@@ -116,6 +118,20 @@ export default function LegalScreen() {
         applyRecord(record);
         return;
       }
+      const prior = priorAgreementFromUnknown(accountAgreement.data?.legalSafetyAgreement);
+      if (
+        session &&
+        prior &&
+        !prior.sections.apple_eula &&
+        createdAt &&
+        !agreementPredatesAccount(prior, createdAt)
+      ) {
+        setSections(prior.sections);
+        setDateText('');
+        setRecordedOn(null);
+        setNotice('Check Apple app license and enter today\'s date.');
+        return;
+      }
       try {
         await clearLegalAgreement();
         await clearLegalReadyForSignIn();
@@ -168,10 +184,10 @@ export default function LegalScreen() {
     if (session) {
       try {
         await saveAgreement.mutateAsync({ legalSafetyAgreement: record });
-        setNotice('Your acknowledgment is recorded on your account. Returning to sign in.');
+        setNotice('Your acknowledgment is recorded on your account.');
       } catch (error) {
         console.error('[Legal] Failed to store agreement', error);
-        setNotice('Your acknowledgment is saved on this device. Returning to sign in.');
+        setNotice('Your acknowledgment is saved on this device. It was not stored on the account.');
       }
     } else {
       setNotice('Your acknowledgment is saved on this device. Returning to sign in.');
@@ -329,6 +345,15 @@ export default function LegalScreen() {
               <Text style={[styles.noticeText, styles.noticeFollow]}>
                 You keep ownership of what you upload. You give HomeCookedPlate and its Appsolete affiliates a worldwide license to host, store, copy, display, and use that uploaded content to run and promote the marketplace. HomeCookedPlate retains that license after you remove a listing or close the account, including copies kept for a backup, a safety review, or the record of an order.
               </Text>
+            </View>
+          </LegalSection>
+
+          <LegalSection id="apple_eula" checked={sections.apple_eula} onToggle={toggle}>
+            <Text style={[styles.sectionTitle, styles.sectionTitleGap]}>Apple app license</Text>
+            <View style={styles.noticeBox}>
+              {appleLicenseParagraphs().map((paragraph) => (
+                <Text key={paragraph.slice(0, 24)} style={styles.noticeText}>{paragraph}</Text>
+              ))}
             </View>
           </LegalSection>
 

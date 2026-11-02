@@ -1,7 +1,11 @@
 import type { PrepDiet, PrepLane } from '@/constants/meal-prep-go';
+import { evaluateSectionAgreement, type SectionAgreement } from '@/lib/section-agreement';
 
 export const MEAL_PREP_RULE =
-  'MealPrepGo is a weekly plan from one local cook. Ready meals are finished and reheated. Cook kits are portioned ingredients with a recipe. Add-ons ride with that week. This app does not inspect the kitchen or book a driver. The service fee is 10%. A Premium PlateTaker pays 5% on an order of $20 or more.';
+  'MealPrepGo is a weekly plan from one local cook. Ready meals are finished and reheated. Cook kits are portioned ingredients with a recipe. Add-ons ride with that week. This app does not book a driver. The service fee is 10%. A Premium PlateTaker pays 5% on an order of $20 or more. The food rules for that kitchen belong to the cook.';
+
+export const PREP_AGREEMENT_BLOCK =
+  'Save the weekly-kitchen agreement before a weekly item goes on the menu.';
 
 export const PREP_LANES: PrepLane[] = ['ready', 'cook', 'addon'];
 
@@ -57,44 +61,10 @@ export function weekMix(readyCount: number, cookCount: number): string {
   return 'Half and half';
 }
 
-export type PrepKitchenRecord = {
-  cookName: string;
-  stateCode: string;
-  city: string;
-  county: string;
-  kitchenNote: string;
-  readyHoldNote: string;
-  kitNote: string;
-  handoffNote: string;
-  handlerCard: string;
-  regulationsConfirmed: boolean;
-  weekIsSeparate: boolean;
-  image?: string;
-  updatedAt: string;
-};
+export type PrepKitchenRecord = SectionAgreement;
 
 export function evaluatePrepKitchen(record: PrepKitchenRecord | null): { ok: boolean; blocks: string[] } {
-  if (!record) {
-    return { ok: false, blocks: ['Save the kitchen record before listing a weekly item.'] };
-  }
-
-  const blocks: string[] = [];
-  if (record.cookName.trim().length < 2) blocks.push('Name the cook or the weekly kitchen.');
-  if (!/^[A-Za-z]{2}$/.test(record.stateCode.trim())) blocks.push('Enter the two-letter state code where the food is prepared.');
-  if (record.city.trim().length < 2) blocks.push('Enter the city.');
-  if (record.county.trim().length < 2) blocks.push('Enter the county. A city rule can be stricter than the state.');
-  if (record.kitchenNote.trim().length < 8) blocks.push('Write where the weekly food is prepared.');
-  if (record.readyHoldNote.trim().length < 8) blocks.push('Write how finished meals are cooled and held before pickup.');
-  if (record.kitNote.trim().length < 8) blocks.push('Write how cook-kit ingredients are portioned and kept cold.');
-  if (record.handoffNote.trim().length < 8) blocks.push('Write the pickup place, or who drops the week off. This app does not book a driver.');
-  if (record.handlerCard.trim().length < 4) blocks.push('Record the food-handler card, or the agency statement that none is required.');
-  if (!record.regulationsConfirmed) blocks.push('Confirm that you read the current food rule. The app has not verified it.');
-  if (!record.weekIsSeparate) blocks.push('Confirm that a MealPrepGo week is separate from a single plate, a farm good, a truck order, catering, and a restaurant ticket.');
-  if (ALCOHOL.test(`${record.cookName} ${record.kitchenNote} ${record.kitNote}`)) {
-    blocks.push('Alcohol cannot be sold on HomeCookedPlate.');
-  }
-
-  return { ok: blocks.length === 0, blocks };
+  return evaluateSectionAgreement(record, PREP_AGREEMENT_BLOCK);
 }
 
 export function evaluatePrepItem(

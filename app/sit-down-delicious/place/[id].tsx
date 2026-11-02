@@ -40,11 +40,11 @@ export default function PlaceScreen() {
         <Text style={styles.followText}>{follows.includes(place.id) ? 'On Your Neighborhood List' : 'Keep This Shop on Your List'}</Text>
       </GlassPressable>
       <View style={styles.panel}>
-        <Text style={styles.panelTitle}>Licensed at this address</Text>
-        <Text style={styles.body}>The retail food permit belongs to this street. Cottage food law and a food-truck permit do not authorize this kitchen. Rank on this list is not for sale.</Text>
+        <Text style={styles.panelTitle}>Food rules for this kitchen</Text>
+        <Text style={styles.body}>The cook follows the food rules of this city, county, and state. HomeCookedPlate does not verify them. Rank on this list is not for sale.</Text>
         {isMaker ? (
           <GlassPressable onPress={() => router.push('/sit-down-delicious/license' as Href)}>
-            <Text style={styles.link}>Retail Food License Checklist</Text>
+            <Text style={styles.link}>Restaurant agreement</Text>
           </GlassPressable>
         ) : null}
       </View>

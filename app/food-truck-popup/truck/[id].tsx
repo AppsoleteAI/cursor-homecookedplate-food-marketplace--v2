@@ -10,7 +10,6 @@ import { getTruck, menuForTruck } from '@/constants/food-truck-popup';
 import { useFoodTruck } from '@/hooks/food-truck-store';
 import { useAuth } from '@/hooks/auth-context';
 import { stateName } from '@/lib/cottage-food';
-import { commissaryExpected } from '@/lib/food-truck-permit';
 
 export default function TruckProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -44,16 +43,9 @@ export default function TruckProfileScreen() {
           <Text key={`${stop.day}-${stop.place}`} style={styles.body}>{stop.day} · {stop.hours} · {stop.place} ({stop.lot})</Text>
         ))}
         {isMaker ? (
-          <>
-            <Text style={styles.body}>
-              {commissaryExpected(truck.stateCode)
-                ? 'Published summaries expect a commissary agreement in this state before a mobile food license.'
-                : 'Confirm the commissary rule with the health department that covers this lot.'}
-            </Text>
-            <GlassPressable onPress={() => router.push('/food-truck-popup/permit' as Href)}>
-              <Text style={styles.link}>Mobile Permit Checklist</Text>
-            </GlassPressable>
-          </>
+          <GlassPressable onPress={() => router.push('/food-truck-popup/permit' as Href)}>
+            <Text style={styles.link}>Truck agreement</Text>
+          </GlassPressable>
         ) : null}
       </View>
       <Text style={styles.section}>Menu</Text>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router } from 'expo-router';
@@ -10,7 +10,6 @@ import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useFoodTruck } from '@/hooks/food-truck-store';
 import { evaluateTruckPermit } from '@/lib/food-truck-permit';
-import { stateName } from '@/lib/cottage-food';
 import { calculateOrderSplit } from '@/lib/fees';
 import { AreaStoreSwitch } from '@/components/AreaStoreSwitch';
 
@@ -32,7 +31,6 @@ export default function TruckSellerScreen() {
 
   return (
     <FoodTruckScreen title="Truck owner" subtitle="Window payouts stay separate from plate earnings." testID="truck-seller">
-      {permit?.image ? <Image source={{ uri: permit.image }} style={styles.placePhoto} /> : null}
       <View style={styles.card}>
         <Text style={styles.label}>Truck food sold</Text>
         <Text style={styles.value}>${baseAmount.toFixed(2)}</Text>
@@ -63,16 +61,15 @@ export default function TruckSellerScreen() {
         </View>
       </View>
       <View style={styles.card}>
-        <Text style={styles.label}>Mobile permit</Text>
-        {permit ? (
-          <Text style={styles.meta}>{permit.truckName} · {permit.city}, {stateName(permit.stateCode)}</Text>
+        <Text style={styles.label}>Truck agreement</Text>
+        {permitCheck.ok ? (
+          <Text style={styles.ok}>Agreement saved. The food rules for this window are yours.</Text>
         ) : (
-          <Text style={styles.meta}>No permit record yet. The menu stays closed until you save one.</Text>
+          <Text style={styles.block}>{permitCheck.blocks[0]}</Text>
         )}
-        {!permitCheck.ok ? <Text style={styles.block}>{permitCheck.blocks[0]}</Text> : <Text style={styles.ok}>Permit record is complete enough to list.</Text>}
       </View>
       <GlassPressable style={styles.button} onPress={() => router.push(openFromStand('/food-truck-popup/permit'))} testID="seller-permit">
-        <Text style={styles.buttonText}>Permit, Commissary, and Fee</Text>
+        <Text style={styles.buttonText}>Truck agreement</Text>
       </GlassPressable>
       <GlassPressable style={styles.secondary} onPress={() => router.push(openFromStand('/food-truck-popup/list'))} testID="seller-list">
         <Text style={styles.secondaryText}>Add a Menu Item</Text>

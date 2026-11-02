@@ -58,7 +58,7 @@ export function CaterEventScreen({ title, subtitle, children, testID, showOrder 
         {children}
         <Text style={styles.legal}>
           {isMaker
-            ? 'CaterEventDeliver does not inspect kitchens, issue catering licenses, or book a driver. The catering company drops off the food and sets it up. Confirm the commercial license and the fee for the city where the food is prepared.'
+            ? 'The cook follows the food rules of the city, county, and state. HomeCookedPlate does not verify them. The catering company drops off the food and sets it up. All responsibility for the food is on the PlateMaker.'
             : 'The catering company drops off the food and sets it up.'}
         </Text>
       </ScrollView>

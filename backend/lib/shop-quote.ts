@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { offerFromRow } from './active-offer';
 import { promotionalBase, type PromotionPrice } from './fees';
+import { CATER_MINIMUM_HEADCOUNT } from '@/lib/cater-event-license';
 import { catalogItem, listingMenuPrice, type ShopName, type ShopQuoteLine } from './shop-catalog';
 
 export type PricedShopLine = ShopQuoteLine & { lineTotal: number };
@@ -76,6 +77,9 @@ export async function priceShopOrder(
       name = menu.name;
       unitPrice = menu.unitPrice;
       minimum = menu.minimum;
+    }
+    if (shop === 'catering') {
+      minimum = Math.max(minimum, CATER_MINIMUM_HEADCOUNT);
     }
     if (quantity < minimum) {
       throw new Error(`${name} needs at least ${minimum}.`);

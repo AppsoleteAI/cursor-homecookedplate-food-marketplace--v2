@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router } from 'expo-router';
@@ -10,7 +10,6 @@ import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useCaterEvent } from '@/hooks/cater-event-store';
 import { evaluateCaterLicense } from '@/lib/cater-event-license';
-import { stateName } from '@/lib/cottage-food';
 import { calculateOrderSplit } from '@/lib/fees';
 import { AreaStoreSwitch } from '@/components/AreaStoreSwitch';
 
@@ -31,7 +30,6 @@ export default function CaterSellerScreen() {
 
   return (
     <CaterEventScreen title="Catering company" subtitle="Drop-off payouts stay separate from plate earnings." testID="cater-seller">
-      {license?.image ? <Image source={{ uri: license.image }} style={styles.placePhoto} /> : null}
       <View style={styles.card}>
         <Text style={styles.label}>Catering food sold</Text>
         <Text style={styles.value}>${baseAmount.toFixed(2)}</Text>
@@ -46,16 +44,15 @@ export default function CaterSellerScreen() {
         <Text style={styles.meta}>Accepting puts your packages on the board. A closed company can still show a calendar, and it cannot take an order.</Text>
       </View>
       <View style={styles.card}>
-        <Text style={styles.label}>Catering license</Text>
-        {license ? (
-          <Text style={styles.meta}>{license.companyName} · {license.city}, {stateName(license.stateCode)}</Text>
+        <Text style={styles.label}>Catering agreement</Text>
+        {licenseCheck.ok ? (
+          <Text style={styles.ok}>Agreement saved. The food rules for this kitchen are yours.</Text>
         ) : (
-          <Text style={styles.meta}>No license record yet. Packages stay closed until you save one.</Text>
+          <Text style={styles.block}>{licenseCheck.blocks[0]}</Text>
         )}
-        {!licenseCheck.ok ? <Text style={styles.block}>{licenseCheck.blocks[0]}</Text> : <Text style={styles.ok}>License record is complete enough to list.</Text>}
       </View>
       <GlassPressable style={styles.button} onPress={() => router.push(openFromStand('/cater-event-deliver/license'))} testID="seller-license">
-        <Text style={styles.buttonText}>License, Kitchen, and Fee</Text>
+        <Text style={styles.buttonText}>Catering agreement</Text>
       </GlassPressable>
       <GlassPressable style={styles.secondary} onPress={() => router.push(openFromStand('/cater-event-deliver/list'))} testID="seller-list">
         <Text style={styles.secondaryText}>Add a Per-person Package</Text>

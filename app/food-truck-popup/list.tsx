@@ -47,9 +47,9 @@ export default function ListTruckItemScreen() {
   return (
     <FoodTruckScreen title="Add a menu item" subtitle="Hot food from a licensed truck. Not a cottage listing." testID="truck-list">
       {permit && permitCheck.ok ? (
-        <Text style={styles.meta}>Listing on {permit.truckName}. The item appears for order-ahead only while you mark the window open.</Text>
+        <Text style={styles.meta}>{permitCheck.ok ? 'The truck agreement is saved. This item can be listed.' : permitCheck.blocks[0]}</Text>
       ) : (
-        <Text style={styles.block}>Save the mobile permit before a menu item can go up.</Text>
+        <Text style={styles.block}>Save the truck agreement before a menu item can go up.</Text>
       )}
       <ListingPhotoField food label="Photo of this menu item" value={image} onChange={setImage} testID="truck-list-photo" />
       <TextInput value={name} onChangeText={setName} placeholder="Item name" placeholderTextColor={Colors.gray[400]} style={styles.input} testID="truck-list-name" />
@@ -64,7 +64,7 @@ export default function ListTruckItemScreen() {
         <Text style={styles.buttonText}>Publish on the Truck</Text>
       </GlassPressable>
       <GlassPressable onPress={() => router.push('/food-truck-popup/permit' as Href)}>
-        <Text style={styles.link}>Edit the Permit Record</Text>
+        <Text style={styles.link}>Edit the truck agreement</Text>
       </GlassPressable>
     </FoodTruckScreen>
   );

@@ -9,6 +9,7 @@ import { Colors } from '@/constants/colors';
 import { getCompany, getPackage } from '@/constants/cater-event-deliver';
 import { useCaterEvent } from '@/hooks/cater-event-store';
 import { buyerFoodCharge } from '@/backend/lib/fees';
+import { CATER_MINIMUM_HEADCOUNT } from '@/lib/cater-event-license';
 import { useAuth } from '@/hooks/auth-context';
 
 export default function CaterPackageScreen() {
@@ -18,7 +19,7 @@ export default function CaterPackageScreen() {
   const { user } = useAuth();
   const catalog = packageId ? getPackage(packageId) : undefined;
   const listing = listings.find((item) => item.id === packageId);
-  const minimum = catalog?.minimumHeadcount ?? listing?.minimumHeadcount ?? 8;
+  const minimum = catalog?.minimumHeadcount ?? listing?.minimumHeadcount ?? CATER_MINIMUM_HEADCOUNT;
   const [headcount, setHeadcount] = useState(minimum);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -38,7 +39,7 @@ export default function CaterPackageScreen() {
   const ingredients = catalog?.ingredients ?? listing!.ingredients;
   const allergens = catalog?.allergens ?? listing!.allergens;
   const companyId = catalog?.companyId ?? 'owner-company';
-  const companyName = company?.name ?? license?.companyName ?? 'Your company';
+  const companyName = company?.name ?? (license ? 'Your company' : 'Catering company');
   const people = Math.max(minimum, headcount);
   const baseAmount = pricePerPerson * people;
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });

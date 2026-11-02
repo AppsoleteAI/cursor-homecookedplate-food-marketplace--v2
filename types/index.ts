@@ -31,6 +31,8 @@ export interface User {
   trialCountdownDays?: number | null;
   foodSafetyAcknowledged?: boolean;
   orderingRemoved?: boolean;
+  /** Shown on a buyer's payment sheet. Empty uses the username. */
+  businessName?: string;
 }
 
 export interface PlateMaker extends User {

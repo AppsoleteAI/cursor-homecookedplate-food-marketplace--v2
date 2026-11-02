@@ -28,21 +28,18 @@ export default function HardwareMismatchScreen() {
 
         <View style={styles.sheet}>
           <View style={styles.panel}>
-            <Text style={styles.title}>Hardware Mismatch</Text>
-            <Text style={styles.subtitle}>This device does not match the one locked to the membership.</Text>
+            <Text style={styles.title}>Sign in on this install</Text>
+            <Text style={styles.subtitle}>A lifetime membership stays on the account. A new install can save a new token after you sign in.</Text>
           </View>
 
           <Card title="What happened?">
-            Your lifetime membership is device-locked and non-transferable. The device you are using does not match the device registered at signup.
+            This install does not yet have the token saved on the lifetime account. Deleting the app and downloading it again from the App Store creates a new token.
           </Card>
-          <Card title="Why this happens">
-            Lifetime memberships stay on one device so a promotional slot cannot be moved to someone else.
+          <Card title="What to do">
+            Return to sign in and use the same account. The lifetime membership stays on that account, and this install is saved. It is not moved to a different account.
           </Card>
-          <Card title="What you can do">
-            If this looks wrong, write to support@homecookedplate.com. Support can check the account and the registered device.
-          </Card>
-          <Card title="Emulator testing">
-            An Android emulator lock follows that emulator&apos;s Android ID. Use the same emulator instance that created the account.
+          <Card title="If sign-in does not restore it">
+            Write to support@homecookedplate.com. Support can check the account. The token is a random id for this install. It is not the phone&apos;s hardware id.
           </Card>
 
           <AuthGoldButton

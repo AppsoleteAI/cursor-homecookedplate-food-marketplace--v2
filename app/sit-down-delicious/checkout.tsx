@@ -22,7 +22,7 @@ const PARTY = [1, 2, 3, 4, 5, 6, 8, 10, 12];
 
 export default function SitCheckoutScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
-  const { items, listings, license, ownerOpen, placeOrder } = useSitDown();
+  const { items, listings, ownerOpen, placeOrder } = useSitDown();
   const { chargeShop, charging } = useShopCardPayment();
   const { payInMainCart } = useCombinedBill();
   const [service, setService] = useState<DiningService>('sit_down');
@@ -49,13 +49,10 @@ export default function SitCheckoutScreen() {
   const offer = useAreaOfferTotal('sit_down', lines.map((line) => ({ id: line.itemId, unitPrice: line.unitPrice, quantity: line.quantity })));
   const placeId = items[0]?.placeId ?? '';
   const catalogPlace = getPlace(placeId);
-  const placeName = placeId === 'owner-place' ? license?.placeName ?? 'Your restaurant' : catalogPlace?.name ?? 'Restaurant';
+  const placeName = placeId === 'owner-place' ? 'Your restaurant' : catalogPlace?.name ?? 'Restaurant';
   const open = placeId === 'owner-place' ? ownerOpen : Boolean(catalogPlace?.openNow);
   const services: DiningService[] = placeId === 'owner-place'
-    ? [
-        ...(license?.offersSitDown ? (['sit_down'] as const) : []),
-        ...(license?.offersTakeout ? (['takeout'] as const) : []),
-      ]
+    ? ['sit_down', 'takeout']
     : catalogPlace?.services ?? [];
   const chosen = services.includes(service) ? service : services[0] ?? 'takeout';
   const baseAmount = offer.baseAmount;

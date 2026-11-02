@@ -7,6 +7,7 @@ import { earlyBirdCapForMetro } from './early-bird-cap';
 import { readGeofenceSettings } from './metro-geofence';
 import { isKnownMetro } from './metro-radius';
 import { canStartRemoteKitchen } from './remote-kitchen';
+import { storeMembershipCovers } from './trial-access';
 
 export function canClaimEarlyBird(input: {
   role: string | null;
@@ -60,11 +61,11 @@ type ProfileRow = {
 export async function readEarlyBirdOffer(admin: Admin, userId: string): Promise<EarlyBirdOffer> {
   const { data: profile, error } = await admin
     .from('profiles')
-    .select('id, role, metro_area, created_at, membership_tier, trial_ends_at, trial_started_at, stripe_subscription_id, apple_original_transaction_id, google_purchase_token')
+    .select('id, role, metro_area, created_at, membership_tier, trial_ends_at, trial_started_at, stripe_subscription_id, apple_original_transaction_id, apple_expires_at, apple_revoked_at, google_purchase_token, google_expires_at')
     .eq('id', userId)
     .single();
 
-  if (error?.code === 'PGRST204' || /trial_started_at/.test(error?.message || '')) {
+  if (error?.code === 'PGRST204' || /trial_started_at|apple_expires_at|apple_revoked_at|google_expires_at/.test(error?.message || '')) {
     const retry = await admin
       .from('profiles')
       .select('id, role, metro_area, created_at, membership_tier, trial_ends_at, stripe_subscription_id, apple_original_transaction_id, google_purchase_token')
@@ -86,12 +87,7 @@ export async function readEarlyBirdOffer(admin: Admin, userId: string): Promise<
 async function decideOffer(admin: Admin, profile: ProfileRow): Promise<EarlyBirdOffer> {
   const trialEndsAt = profile.trial_ends_at || null;
   const trialStartedAt = profile.trial_started_at || null;
-  const paid = Boolean(
-    profile.stripe_subscription_id
-    || profile.apple_original_transaction_id
-    || profile.google_purchase_token
-    || profile.membership_tier === 'lifetime',
-  );
+  const paid = storeMembershipCovers(profile) || profile.membership_tier === 'lifetime';
 
   if (profile.role !== 'platemaker' || !profile.metro_area || profile.metro_area === 'Remote/Other') {
     return {

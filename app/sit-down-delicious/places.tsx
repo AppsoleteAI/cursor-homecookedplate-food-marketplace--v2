@@ -56,8 +56,8 @@ export default function PlacesScreen() {
       {isMaker && ownerReady && kind === 'all' && !searching ? (
         <GlassPressable style={styles.card} onPress={() => router.push('/sit-down-delicious/seller' as Href)} testID="owner-place-card">
           <View style={styles.copy}>
-            <Text style={styles.name}>{license?.placeName}</Text>
-            <Text style={styles.meta}>{license?.city}, {stateName(license?.stateCode ?? '')}</Text>
+            <Text style={styles.name}>Your restaurant</Text>
+            <Text style={styles.meta}>Your menu</Text>
             <Text style={styles.meta}>Open · your menu · {listings.length} item{listings.length === 1 ? '' : 's'}</Text>
           </View>
         </GlassPressable>

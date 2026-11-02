@@ -44,10 +44,10 @@ export default function FarmProductScreen() {
   const needsHomemade = track === 'cottage_non_tcs' || track === 'shell_eggs' || track === 'temperature_control';
 
   return (
-    <FarmScreen title={name} subtitle={farm ? farm.name : listing!.farmName} testID="farm-product">
+    <FarmScreen title={name} subtitle={farm ? farm.name : listing!.farmName || 'Your farm'} testID="farm-product">
       {catalog?.image || listing?.image ? <FoodImage source={{ uri: catalog?.image || listing?.image }} style={styles.hero} /> : null}
       <Text style={styles.price}>${price.toFixed(2)} / {unit}</Text>
-      <Text style={styles.track}>{trackLabel(track)} · {stateName(stateCode)}</Text>
+      <Text style={styles.track}>{stateCode ? `${trackLabel(track)} · ${stateName(stateCode)}` : trackLabel(track)}</Text>
       {cottageDirectoryRow(stateCode) ? (
         <GlassPressable onPress={() => router.push('/farm-grown-basket/directory' as Href)} testID="product-cottage-directory">
           <Text style={styles.link}>

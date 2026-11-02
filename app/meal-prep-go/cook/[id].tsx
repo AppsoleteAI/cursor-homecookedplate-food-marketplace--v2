@@ -28,13 +28,13 @@ export default function MealPrepCookScreen() {
 
   const cook = catalogCook ?? (isOwner && kitchen
     ? {
-        name: kitchen.cookName,
-        city: kitchen.city,
-        stateCode: kitchen.stateCode,
-        summary: kitchen.handoffNote,
+        name: 'Your kitchen',
+        city: '',
+        stateCode: '',
+        summary: '',
         accepting,
         weekLabel: 'Your week',
-        handoffNote: kitchen.handoffNote,
+        handoffNote: '',
       }
     : null);
 

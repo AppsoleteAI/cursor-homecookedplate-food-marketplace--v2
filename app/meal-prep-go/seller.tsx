@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, StyleSheet, View, Image } from 'react-native';
+import { Text, StyleSheet, View } from 'react-native';
 import { AreaStoreSwitch } from '@/components/AreaStoreSwitch';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
@@ -28,8 +28,7 @@ export default function MealPrepSellerScreen() {
 
   return (
     <MealPrepScreen title="Your kitchen" subtitle="A weekly menu, separate from single plates." testID="prep-seller">
-      {kitchen?.image ? <Image source={{ uri: kitchen.image }} style={styles.placePhoto} /> : null}
-      <Text style={styles.meta}>{kitchen ? kitchen.cookName : 'Kitchen record not saved yet.'}</Text>
+      <Text style={styles.meta}>{check.ok ? 'Agreement saved. The food rules for this week are yours.' : check.blocks[0]}</Text>
       {check.ok ? (
         <View style={styles.row}>
           <Text style={styles.name}>Accepting this week</Text>
@@ -48,7 +47,7 @@ export default function MealPrepSellerScreen() {
         <Text style={styles.link}>Charitable gifts</Text>
       </GlassPressable>
       <GlassPressable onPress={() => router.push(openFromStand('/meal-prep-go/kitchen'))}>
-        <Text style={styles.link}>Edit the Kitchen Record</Text>
+        <Text style={styles.link}>Edit the weekly kitchen agreement</Text>
       </GlassPressable>
       <Text style={styles.section}>On your menu</Text>
       {listings.length === 0 ? <Text style={styles.meta}>No weekly item yet.</Text> : null}

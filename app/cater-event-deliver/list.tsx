@@ -6,7 +6,7 @@ import { CaterEventScreen } from '@/components/cater-event/CaterEventScreen';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useCaterEvent } from '@/hooks/cater-event-store';
-import { evaluateCaterLicense, evaluateCaterPackage } from '@/lib/cater-event-license';
+import { CATER_MINIMUM_HEADCOUNT, evaluateCaterLicense, evaluateCaterPackage } from '@/lib/cater-event-license';
 import { ListingPhotoField } from '@/components/ListingPhotoField';
 
 export default function ListCaterPackageScreen() {
@@ -55,14 +55,14 @@ export default function ListCaterPackageScreen() {
   return (
     <CaterEventScreen title="Add a package" subtitle="Fixed price per person. Not a cottage listing." testID="cater-list">
       {license && licenseCheck.ok ? (
-        <Text style={styles.meta}>Listing on {license.companyName}. The package appears for order only while you are accepting drop-offs.</Text>
+        <Text style={styles.meta}>{licenseCheck.ok ? 'The catering agreement is saved. This package can be listed.' : licenseCheck.blocks[0]}</Text>
       ) : (
-        <Text style={styles.block}>Save the catering license before a package can go up.</Text>
+        <Text style={styles.block}>Save the catering agreement before a package can go up.</Text>
       )}
       <ListingPhotoField food label="Photo of this package" value={image} onChange={setImage} testID="cater-list-photo" />
       <TextInput value={name} onChangeText={setName} placeholder="Package name" placeholderTextColor={Colors.gray[400]} style={styles.input} testID="cater-list-name" />
       <TextInput value={priceText} onChangeText={setPriceText} placeholder="Price per person" placeholderTextColor={Colors.gray[400]} keyboardType="decimal-pad" style={styles.input} testID="cater-list-price" />
-      <TextInput value={headcountText} onChangeText={setHeadcountText} placeholder="Minimum headcount" placeholderTextColor={Colors.gray[400]} keyboardType="number-pad" style={styles.input} testID="cater-list-headcount" />
+      <TextInput value={headcountText} onChangeText={setHeadcountText} placeholder={`Minimum people, at least ${CATER_MINIMUM_HEADCOUNT}`} placeholderTextColor={Colors.gray[400]} keyboardType="number-pad" style={styles.input} testID="cater-list-headcount" />
       <TextInput value={summary} onChangeText={setSummary} placeholder="What arrives at the drop-off" placeholderTextColor={Colors.gray[400]} style={[styles.input, styles.area]} multiline />
       <TextInput value={ingredients} onChangeText={setIngredients} placeholder="Ingredients" placeholderTextColor={Colors.gray[400]} style={[styles.input, styles.area]} multiline />
       <TextInput value={allergens} onChangeText={setAllergens} placeholder="Major allergens" placeholderTextColor={Colors.gray[400]} style={styles.input} />
@@ -73,7 +73,7 @@ export default function ListCaterPackageScreen() {
         <Text style={styles.buttonText}>Publish the Package</Text>
       </GlassPressable>
       <GlassPressable onPress={() => router.push('/cater-event-deliver/license' as Href)}>
-        <Text style={styles.link}>Edit the License Record</Text>
+        <Text style={styles.link}>Edit the catering agreement</Text>
       </GlassPressable>
     </CaterEventScreen>
   );

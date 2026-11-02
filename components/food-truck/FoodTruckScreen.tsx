@@ -58,7 +58,7 @@ export function FoodTruckScreen({ title, subtitle, children, testID, showBasket 
         {children}
         <Text style={styles.legal}>
           {isMaker
-            ? 'FoodTruckPopup does not inspect trucks, issue mobile-unit permits, or confirm a commissary agreement. Pickup is at the service window. Confirm the health rule and the fee for the city where the window is open.'
+            ? 'The cook follows the food rules of the city, county, and state. HomeCookedPlate does not verify them. Pickup is at the service window. All responsibility for the food is on the PlateMaker.'
             : 'Order ahead, then pick the food up at the service window.'}
         </Text>
       </ScrollView>

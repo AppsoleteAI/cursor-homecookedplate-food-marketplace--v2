@@ -53,5 +53,9 @@ export async function finishIAP(_transactionId: string): Promise<void> {
   );
 }
 
+export async function openStoreSubscriptions(): Promise<void> {
+  throw new Error('[IAP] Store subscriptions are managed on the phone.');
+}
+
 /** True when the resolved module requires StoreKit. Platform files override this. */
 export const IAP_REQUIRED: boolean = true;

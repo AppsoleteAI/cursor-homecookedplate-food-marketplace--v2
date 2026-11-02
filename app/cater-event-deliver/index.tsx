@@ -20,7 +20,7 @@ const LINKS: { title: string; detail: string; href: string; icon: keyof typeof I
   { title: 'Group order', detail: 'One company. Price is per person.', href: '/cater-event-deliver/basket', icon: 'people-outline' },
   { title: 'Catering orders', detail: 'Spend by organization, separate from plates', href: '/cater-event-deliver/orders', icon: 'receipt-outline' },
   { title: 'Catering company', detail: 'Accept orders and see the payout', href: '/cater-event-deliver/seller', icon: 'storefront-outline', seller: true },
-  { title: 'Catering license', detail: 'Commercial kitchen, service area, and the fee', href: '/cater-event-deliver/license', icon: 'document-text-outline', seller: true },
+  { title: 'Catering agreement', detail: 'Six acknowledgements before a package is listed', href: '/cater-event-deliver/license', icon: 'document-text-outline', seller: true },
 ];
 
 export default function CaterEventDeliverHome() {
@@ -63,7 +63,7 @@ export default function CaterEventDeliverHome() {
         </LinearGradient>
 
         <View style={styles.models}>
-          <Text style={styles.model}>Packages are priced per person, with a minimum headcount</Text>
+          <Text style={styles.model}>Packages are priced per person, with a minimum of 6</Text>
           <Text style={styles.model}>Accepting means the company will take a drop-off today</Text>
           <Text style={styles.model}>The service fee is 10%. A Premium PlateTaker pays 5% on an order of $20 or more. No 15% to 25% marketplace commission.</Text>
         </View>

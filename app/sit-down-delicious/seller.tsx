@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Redirect, router } from 'expo-router';
@@ -10,7 +10,6 @@ import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useSitDown } from '@/hooks/sit-down-store';
 import { evaluateSitDownLicense } from '@/lib/sit-down-license';
-import { stateName } from '@/lib/cottage-food';
 import { calculateOrderSplit } from '@/lib/fees';
 import { AreaStoreSwitch } from '@/components/AreaStoreSwitch';
 
@@ -32,7 +31,6 @@ export default function SitSellerScreen() {
 
   return (
     <SitDownScreen title="Shop owner" subtitle="Restaurant payouts stay separate from plate earnings." testID="sit-seller">
-      {license?.image ? <Image source={{ uri: license.image }} style={styles.placePhoto} /> : null}
       <View style={styles.card}>
         <Text style={styles.label}>Restaurant food sold</Text>
         <Text style={styles.value}>${baseAmount.toFixed(2)}</Text>
@@ -63,16 +61,15 @@ export default function SitSellerScreen() {
         </View>
       </View>
       <View style={styles.card}>
-        <Text style={styles.label}>Retail food license</Text>
-        {license ? (
-          <Text style={styles.meta}>{license.placeName} · {license.street}, {license.city}, {stateName(license.stateCode)}</Text>
+        <Text style={styles.label}>Restaurant agreement</Text>
+        {licenseCheck.ok ? (
+          <Text style={styles.ok}>Agreement saved. The food rules for this kitchen are yours.</Text>
         ) : (
-          <Text style={styles.meta}>No license record yet. The menu stays closed until you save one.</Text>
+          <Text style={styles.block}>{licenseCheck.blocks[0]}</Text>
         )}
-        {!licenseCheck.ok ? <Text style={styles.block}>{licenseCheck.blocks[0]}</Text> : <Text style={styles.ok}>License record is complete enough to list.</Text>}
       </View>
       <GlassPressable style={styles.button} onPress={() => router.push(openFromStand('/sit-down-delicious/license'))} testID="seller-license">
-        <Text style={styles.buttonText}>License, Address, and Fee</Text>
+        <Text style={styles.buttonText}>Restaurant agreement</Text>
       </GlassPressable>
       <GlassPressable style={styles.secondary} onPress={() => router.push(openFromStand('/sit-down-delicious/list'))} testID="seller-list">
         <Text style={styles.secondaryText}>Add a Menu Item</Text>

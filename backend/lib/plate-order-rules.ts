@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { promotionalBase } from './fees';
 import { loadActiveOffers } from './active-offer';
 import { isSampleMealId } from '@/lib/sample-meals';
+import { cookPermitIsSaved } from './kitchen-permit';
 import { assertBuyerCanOrder } from './buyer-order-access';
 import { salesVolumeBlock } from './stripe-marketplace';
 import { savedDeliveryFee } from './delivery-fee';
@@ -106,6 +107,9 @@ export async function prepareHomePlate(
   }
   if (sellerProfile.selling_removed) {
     throw new TRPCError({ code: 'FORBIDDEN', message: 'This cook is not allowed to take new orders' });
+  }
+  if (!(await cookPermitIsSaved(admin, input.sellerId))) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'That plate is not on the menu.' });
   }
 
   await assertBuyerCanOrder(admin, input.buyerId, input.sellerId);

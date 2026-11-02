@@ -36,9 +36,9 @@ export default function MealPrepBoardScreen() {
       <Text style={styles.note}>A cook who is not accepting is still listed under Cooks. This board is only the weeks that can be ordered now.</Text>
       {isMaker && kitchen ? (
         <GlassPressable style={styles.card} onPress={() => router.push('/meal-prep-go/cook/owner-kitchen' as Href)}>
-          <Text style={styles.name}>{kitchen.cookName}</Text>
+          <Text style={styles.name}>Your kitchen</Text>
           <Text style={[styles.status, accepting ? styles.open : styles.closed]}>{accepting ? 'Accepting this week' : 'Not accepting'}</Text>
-          <Text style={styles.meta}>{kitchen.city}, {stateName(kitchen.stateCode)} · {listings.length} item{listings.length === 1 ? '' : 's'}</Text>
+          <Text style={styles.meta}>{listings.length} item{listings.length === 1 ? '' : 's'}</Text>
         </GlassPressable>
       ) : null}
       <Text style={styles.section}>{searching ? 'Open cooks in this ZIP area' : 'On the board'}</Text>

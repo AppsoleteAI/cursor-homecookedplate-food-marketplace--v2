@@ -1,11 +1,12 @@
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
-import { countAreaMealsWithMedia, visibleSampleMeals } from "@/lib/sample-meals";
+import { visibleSampleMeals } from "@/lib/sample-meals";
 import { displayName, loadPublicProfiles } from "../../../../lib/public-profiles";
 import { nearbyCookIds } from "../../../../lib/kitchen-pin";
 import { mealVisibleInMetro } from "../../../../lib/metro-menu";
 import { publicMenuKeepsPlate } from "@/lib/cart-line";
 import { loadActiveOffers } from "../../../../lib/active-offer";
+import { countPermittedMealsWithMedia, permittedCookIds } from "../../../../lib/kitchen-permit";
 
 export const listMealsProcedure = publicProcedure
   .input(
@@ -96,12 +97,15 @@ export const listMealsProcedure = publicProcedure
     const cookState = new Map<string, { is_paused?: boolean; available_for_orders?: boolean | null }>(
       (metroRows || []).map((row: { id: string; is_paused?: boolean; available_for_orders?: boolean | null }) => [row.id, row])
     );
+    const permitted = await permittedCookIds(ctx.supabaseAdmin, cookIds);
+    const ownList = Boolean(ctx.userId && input?.userId === ctx.userId);
     const offers = await loadActiveOffers(
       ctx.supabaseAdmin,
       (data || []).map((meal: { id: string }) => meal.id)
     );
 
     const realMeals = (data || []).filter((meal: { user_id: string }) => {
+      if (!ownList && !permitted.has(meal.user_id)) return false;
       if (input?.userId) return true;
       const state = cookState.get(meal.user_id);
       if (!publicMenuKeepsPlate(state?.is_paused, state?.available_for_orders)) return false;
@@ -132,7 +136,7 @@ export const listMealsProcedure = publicProcedure
 
     if (input?.userId || nearby.available) return realMeals;
 
-    const realWithMedia = await countAreaMealsWithMedia(ctx.supabase, input?.metroArea);
+    const realWithMedia = await countPermittedMealsWithMedia(ctx.supabaseAdmin, input?.metroArea);
     const realIds = new Set(realMeals.map((meal) => meal.id));
     const samples = visibleSampleMeals(realWithMedia).filter((meal) => {
       if (realIds.has(meal.id)) return false;

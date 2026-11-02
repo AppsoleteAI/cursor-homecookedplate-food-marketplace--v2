@@ -36,6 +36,7 @@ import { CombinedCartLock } from '@/components/CombinedCartLock';
 import { buyerCardCharge, DELIVERY_PLATFORM_RATE, orderTotalWithDelivery, promotionalBase } from '@/lib/fees';
 import { buyerServiceFeePercent, calculateFees } from '@/backend/lib/fees';
 import { accountAccessCopy } from '@/backend/lib/sign-in-messages';
+import { applePayMerchantName } from '@/backend/lib/payee-name';
 import { deviceTimeZone } from '@/lib/pickup-time';
 import { plateCheckoutBlock } from '@/lib/plate-checkout-block';
 import { DeliveryLevyLines, useDeliveryQuote } from '@/components/DeliveryFeeCard';
@@ -524,7 +525,7 @@ export default function CheckoutScreen() {
 
       const { error: initError } = await initPaymentSheet({
         paymentIntentClientSecret: paymentIntentResult.clientSecret,
-        merchantDisplayName: 'HomeCookedPlate',
+        merchantDisplayName: applePayMerchantName([paymentIntentResult.merchantDisplayName]),
         applePay: { merchantCountryCode: 'US' },
         returnURL: 'homecookedplate://checkout',
       });

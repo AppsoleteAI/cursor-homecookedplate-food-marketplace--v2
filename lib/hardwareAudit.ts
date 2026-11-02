@@ -11,9 +11,8 @@
  *  - Created exactly once when a Lifetime membership is first activated
  *  - Treated as an account-level credential, not a device fingerprint
  *
- * The binding prevents a single Lifetime purchase from being shared across
- * multiple devices by comparing the stored token against the value held in
- * the user's profile row (written on first activation).
+ * The token stays on the account. A re-download creates a new token, and that
+ * account replaces the saved one. Another account cannot take the token.
  */
 
 import * as SecureStore from '@/lib/expo-secure-store';

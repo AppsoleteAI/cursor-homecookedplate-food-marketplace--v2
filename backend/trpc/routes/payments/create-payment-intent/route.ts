@@ -7,6 +7,8 @@ import { PAYOUT_HOLD_DAYS } from '../../../../lib/payout-policy';
 import { salesVolumeBlock } from '../../../../lib/stripe-marketplace';
 import { browserOrigin, openStripeCheckout } from '../../../../lib/stripe-checkout';
 import { orderBuyerId, orderTotal } from '../../../../lib/order-row';
+import { applePayMerchantName, profilePayeeName } from '../../../../lib/payee-name';
+import { resolvedMembershipTier } from '../../../../lib/trial-access';
 
 const inputSchema = z.object({
   amount: z.number().min(0),
@@ -85,7 +87,7 @@ export const createPaymentIntentProcedure = protectedProcedure
 
     const { data: sellerProfile, error } = await ctx.supabaseAdmin
       .from('profiles')
-      .select('stripe_account_id, role, selling_removed')
+      .select('stripe_account_id, role, selling_removed, username, business_name')
       .eq('id', input.sellerId)
       .single();
 
@@ -113,14 +115,17 @@ export const createPaymentIntentProcedure = protectedProcedure
       throw new Error('Seller has not completed Stripe onboarding');
     }
 
-    const { data: buyerProfile } = await ctx.supabaseAdmin
+    const buyerRead = await ctx.supabaseAdmin
       .from('profiles')
-      .select('role, membership_tier')
+      .select('role, membership_tier, trial_ends_at, stripe_subscription_id, apple_original_transaction_id, apple_expires_at, apple_revoked_at, google_purchase_token, google_expires_at')
       .eq('id', ctx.userId)
       .maybeSingle();
+    const buyerProfile = buyerRead.error && /apple_expires_at|google_expires_at|apple_revoked_at/.test(buyerRead.error.message || '')
+      ? (await ctx.supabaseAdmin.from('profiles').select('role, membership_tier, trial_ends_at, stripe_subscription_id, apple_original_transaction_id, google_purchase_token').eq('id', ctx.userId).maybeSingle()).data
+      : buyerRead.data;
     const buyerPercent = buyerServiceFeePercent({
       role: buyerProfile?.role,
-      membershipTier: buyerProfile?.membership_tier,
+      membershipTier: buyerProfile ? resolvedMembershipTier(buyerProfile) : 'free',
       baseAmount: serverBaseAmount,
     });
     const fees = calculateFees(serverBaseAmount, buyerPercent, 10);
@@ -135,6 +140,7 @@ export const createPaymentIntentProcedure = protectedProcedure
     const withDelivery = orderTotalWithDelivery(fees.totalCharge, fees.sellerPayout, levy.deliveryFee);
     const card = buyerCardCharge(withDelivery.buyerPays);
     const totalChargeInCents = Math.round(card.cardCharge * 100);
+    const merchantDisplayName = applePayMerchantName([profilePayeeName(sellerProfile)]);
 
     // Charge stays on the platform for PAYOUT_HOLD_DAYS. A later Transfer
     // pays the cook's connected account their seller share directly.
@@ -143,7 +149,7 @@ export const createPaymentIntentProcedure = protectedProcedure
       const checkout = await openStripeCheckout({
         secretKey: stripeSecretKey,
         amountCents: totalChargeInCents,
-        productName: 'HomeCookedPlate order',
+        productName: merchantDisplayName,
         successUrl: `${origin}/checkout?webpay=success&session_id={CHECKOUT_SESSION_ID}`,
         cancelUrl: `${origin}/checkout?webpay=cancel`,
         metadata: {
@@ -171,6 +177,7 @@ export const createPaymentIntentProcedure = protectedProcedure
         deliveryFee: levy.deliveryFee,
         deliveryPlatformFee: levy.platformFee,
         deliveryBuyerPays: levy.buyerPays,
+        merchantDisplayName,
       };
     }
 
@@ -213,6 +220,7 @@ export const createPaymentIntentProcedure = protectedProcedure
       clientSecret: paymentIntent.client_secret,
       checkoutUrl: null,
       paymentIntentId: paymentIntent.id,
+      merchantDisplayName,
       platformFee: fees.appTotalRevenue,
       buyerFee: fees.buyerFee,
       sellerFee: fees.sellerFee,

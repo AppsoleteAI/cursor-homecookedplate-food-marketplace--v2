@@ -20,6 +20,7 @@ export const updateProfileProcedure = protectedProcedure
         phone: z.string().optional(),
         bio: z.string().optional(),
         profileImage: z.string().optional(),
+        businessName: z.string().max(80).optional(),
         foodSafetyAcknowledged: z.boolean().optional(),
         legalSafetyAgreement: z.object({
           sections: z.object({
@@ -31,6 +32,7 @@ export const updateProfileProcedure = protectedProcedure
             fee_structure: z.literal(true),
             account_termination: z.literal(true),
             uploaded_content: z.literal(true),
+            apple_eula: z.literal(true),
           }),
           acknowledgedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
           acknowledgedAt: z.string().min(10),
@@ -89,6 +91,17 @@ export const updateProfileProcedure = protectedProcedure
       updateData.profile_image = trimmed;
     }
 
+    if (input.businessName !== undefined) {
+      const role = await ctx.supabaseAdmin.from('profiles').select('role').eq('id', ctx.userId).maybeSingle();
+      if (role.data?.role === 'platemaker') {
+        const business = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'business_name', input.businessName);
+        if (business.blocked) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'That business name cannot be saved.' });
+        }
+        updateData.business_name = business.value.trim() || null;
+      }
+    }
+
     if (input.foodSafetyAcknowledged !== undefined) updateData.food_safety_acknowledged = input.foodSafetyAcknowledged;
     if (input.legalSafetyAgreement !== undefined) updateData.legal_safety_agreement = input.legalSafetyAgreement;
 
@@ -106,6 +119,7 @@ export const updateProfileProcedure = protectedProcedure
     return {
       id: profile.id,
       username: profile.username,
+      businessName: typeof profile.business_name === 'string' ? profile.business_name : '',
       email: profile.email,
       role: profile.role as 'platemaker' | 'platetaker',
       phone: profile.phone,

@@ -283,12 +283,23 @@ export default function DashboardScreen() {
 
         <GlassPressable
           style={styles.farmStandCard}
+          onPress={() => openDashboardSection('/kitchen-permit')}
+          testID="dashboard-kitchen-permit"
+        >
+          <Text style={styles.farmStandTitle}>Home kitchen agreement</Text>
+          <Text style={styles.farmStandText}>
+            A cooked plate stays off the menu until the home-kitchen agreement is saved, including the commissary acknowledgement.
+          </Text>
+        </GlassPressable>
+
+        <GlassPressable
+          style={styles.farmStandCard}
           onPress={() => openDashboardSection('/farm-grown-basket/seller')}
           testID="dashboard-farm-stand"
         >
           <Text style={styles.farmStandTitle}>FarmGrownBasket stand</Text>
           <Text style={styles.farmStandText}>
-            List produce, CSA shares, and cottage foods. Farm checkout is separate from cooked plates. Confirm your state rule, test, and permit fee before a farm good goes live.
+            List produce, CSA shares, and cottage foods. Farm checkout is separate from cooked plates. Save the farm agreement before a farm good goes live.
           </Text>
         </GlassPressable>
 
@@ -299,7 +310,7 @@ export default function DashboardScreen() {
         >
           <Text style={styles.farmStandTitle}>FoodTruckPopup</Text>
           <Text style={styles.farmStandText}>
-            Mark the service window open, list the truck menu, and take order-ahead pickup. A mobile-unit permit and commissary answer are required before an item goes live.
+            Mark the service window open, list the truck menu, and take order-ahead pickup. Save the truck agreement before an item goes live.
           </Text>
         </GlassPressable>
 
@@ -310,7 +321,7 @@ export default function DashboardScreen() {
         >
           <Text style={styles.farmStandTitle}>CaterEventDeliver</Text>
           <Text style={styles.farmStandText}>
-            List per-person packages, accept group drop-offs, and see catering payouts. A commercial catering license is required before a package goes live.
+            List per-person packages, accept group drop-offs, and see catering payouts. Save the catering agreement before a package goes live.
           </Text>
         </GlassPressable>
 
@@ -343,7 +354,7 @@ export default function DashboardScreen() {
         >
           <Text style={styles.farmStandTitle}>SitDownDelicious</Text>
           <Text style={styles.farmStandText}>
-            Open the dining room or a ghost kitchen, list the menu, and take sit-down or takeout orders. A ghost kitchen is pickup or takeout and has no dining room. A retail food license for that street address is required before an item goes live.
+            Open the dining room or a ghost kitchen, list the menu, and take sit-down or takeout orders. A ghost kitchen is pickup or takeout and has no dining room. Save the restaurant agreement before an item goes live.
           </Text>
         </GlassPressable>
 
@@ -354,7 +365,7 @@ export default function DashboardScreen() {
         >
           <Text style={styles.farmStandTitle}>MealPrepGo</Text>
           <Text style={styles.farmStandText}>
-            List a weekly menu of heat-and-eat meals, cook-at-home kits, and add-ons. Save the kitchen record before an item goes live. These orders are separate from single plates.
+            List a weekly menu of heat-and-eat meals, cook-at-home kits, and add-ons. Save the weekly kitchen agreement before an item goes live. These orders are separate from single plates.
           </Text>
         </GlassPressable>
 

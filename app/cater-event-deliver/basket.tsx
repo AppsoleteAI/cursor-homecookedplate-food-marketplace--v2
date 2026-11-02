@@ -14,7 +14,7 @@ import { buyerFoodCharge } from '@/backend/lib/fees';
 import { useAuth } from '@/hooks/auth-context';
 
 export default function CaterBasketScreen() {
-  const { items, listings, license, setHeadcount, clearItems } = useCaterEvent();
+  const { items, listings, setHeadcount, clearItems } = useCaterEvent();
   const { user } = useAuth();
   const { payInMainCart } = useCombinedBill();
   const lines = useMemo(() => {
@@ -30,7 +30,7 @@ export default function CaterBasketScreen() {
   }, [items, listings]);
 
   const companyId = lines[0]?.companyId;
-  const companyName = companyId === 'owner-company' ? license?.companyName ?? 'Your company' : getCompany(companyId ?? '')?.name ?? 'Catering company';
+  const companyName = companyId === 'owner-company' ? 'Your company' : getCompany(companyId ?? '')?.name ?? 'Catering company';
   const baseAmount = lines.reduce((sum, line) => sum + line.pricePerPerson * line.headcount, 0);
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 

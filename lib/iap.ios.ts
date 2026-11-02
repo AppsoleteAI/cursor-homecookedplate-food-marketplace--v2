@@ -3,6 +3,7 @@
  * Product ids must exist in App Store Connect before a purchase sheet can open.
  */
 import {
+  deepLinkToSubscriptions,
   fetchProducts,
   finishTransaction,
   getAvailablePurchases,
@@ -126,6 +127,11 @@ export async function finishIAP(transactionId: string): Promise<void> {
   await initConnection();
   await finishTransaction({ purchase, isConsumable: false });
   pending.delete(transactionId);
+}
+
+export async function openStoreSubscriptions(): Promise<void> {
+  await initConnection();
+  await deepLinkToSubscriptions({});
 }
 
 export const IAP_REQUIRED = true;

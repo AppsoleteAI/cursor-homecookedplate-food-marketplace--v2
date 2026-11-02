@@ -372,7 +372,7 @@ export default function OnboardingScreen() {
                       testID="onboarding-username"
                     />
                     {username.length >= 3 ? (
-                      <Text style={styles.hint}>
+                      <Text style={[styles.hint, isUsernameAvailable === true && !isCheckingUsername && !usernameError ? styles.hintAvailable : null]}>
                         {isCheckingUsername
                           ? 'Checking username...'
                           : usernameError
@@ -745,6 +745,9 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     marginTop: -6,
     marginBottom: 10,
+  },
+  hintAvailable: {
+    color: AuthColors.available,
   },
   checkRow: {
     flexDirection: 'row',

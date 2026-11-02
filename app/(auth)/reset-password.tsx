@@ -8,10 +8,12 @@ import {
   Platform,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/auth-context';
 import { AuthColors } from '@/constants/auth-palette';
@@ -19,6 +21,39 @@ import { AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/Aut
 import { BackCircle } from '@/components/BackCircle';
 import { useReplaceBack } from '@/hooks/use-leave-screen';
 import { GlassPressable } from '@/components/glass-surface';
+import { recoveryFromLink, markRecoveryScreen, type RecoveryLink } from '@/lib/verification-link';
+
+const INVALID_LINK = 'This password reset link is invalid or has expired. Please request a new one.';
+
+function one(value: string | string[] | undefined): string | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return raw && raw.length > 0 ? raw : null;
+}
+
+function linkFromParams(params: {
+  access_token?: string | string[];
+  refresh_token?: string | string[];
+  type?: string | string[];
+  code?: string | string[];
+  token_hash?: string | string[];
+  error_description?: string | string[];
+}): string | null {
+  const query = new URLSearchParams();
+  const accessToken = one(params.access_token);
+  const refreshToken = one(params.refresh_token);
+  const type = one(params.type);
+  const code = one(params.code);
+  const tokenHash = one(params.token_hash);
+  const errorDescription = one(params.error_description);
+  if (accessToken) query.set('access_token', accessToken);
+  if (refreshToken) query.set('refresh_token', refreshToken);
+  if (type) query.set('type', type);
+  if (code) query.set('code', code);
+  if (tokenHash) query.set('token_hash', tokenHash);
+  if (errorDescription) query.set('error_description', errorDescription);
+  const text = query.toString();
+  return text ? `?${text}` : null;
+}
 
 function validatePassword(password: string): { valid: boolean; message?: string } {
   if (password.length < 8) {
@@ -27,41 +62,90 @@ function validatePassword(password: string): { valid: boolean; message?: string 
   return { valid: true };
 }
 
+async function acceptRecovery(recovery: RecoveryLink): Promise<'ready' | 'invalid' | 'continue'> {
+  if (recovery.errorDescription) return 'invalid';
+  const recoveryTokens = recovery.accessToken && recovery.refreshToken
+    && (recovery.type === 'recovery' || recovery.type == null);
+  if (recoveryTokens && recovery.accessToken && recovery.refreshToken) {
+    const { error } = await supabase.auth.setSession({
+      access_token: recovery.accessToken,
+      refresh_token: recovery.refreshToken,
+    });
+    return error ? 'invalid' : 'ready';
+  }
+  if (recovery.tokenHash && (recovery.type === 'recovery' || recovery.type == null)) {
+    const { error } = await supabase.auth.verifyOtp({
+      token_hash: recovery.tokenHash,
+      type: 'recovery',
+    });
+    return error ? 'invalid' : 'ready';
+  }
+  if (recovery.code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(recovery.code);
+    return error ? 'invalid' : 'ready';
+  }
+  return 'continue';
+}
+
 export default function ResetPasswordScreen() {
-  const params = useLocalSearchParams<{ access_token?: string; type?: string }>();
+  const params = useLocalSearchParams<{
+    access_token?: string | string[];
+    refresh_token?: string | string[];
+    type?: string | string[];
+    code?: string | string[];
+    token_hash?: string | string[];
+    error_description?: string | string[];
+  }>();
   const { session } = useAuth();
+  const linkedUrl = Linking.useURL();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [hasValidSession, setHasValidSession] = useState(false);
+  const [phase, setPhase] = useState<'checking' | 'ready' | 'invalid'>('checking');
   const backToSignIn = useReplaceBack('/(auth)/login');
+  const paramLink = linkFromParams(params);
+  markRecoveryScreen(true);
 
   useEffect(() => {
-    if (params.access_token && params.type === 'recovery') {
-      supabase.auth.setSession({
-        access_token: params.access_token,
-        refresh_token: '',
-      }).then(({ error }) => {
-        if (error) {
-          Alert.alert(
-            'Invalid Link',
-            'This password reset link is invalid or has expired. Please request a new one.',
-            [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
-          );
-        } else {
-          setHasValidSession(true);
-        }
-      });
-    } else if (session) {
-      setHasValidSession(true);
-    } else {
-      Alert.alert(
-        'Invalid Link',
-        'This password reset link is invalid or has expired. Please request a new one.',
-        [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
-      );
-    }
-  }, [params, session]);
+    return () => markRecoveryScreen(false);
+  }, []);
+
+  useEffect(() => {
+    let live = true;
+    let wait: ReturnType<typeof setTimeout> | null = null;
+    (async () => {
+      const opened = await Linking.getInitialURL().catch(() => null);
+      if (!live) return;
+      const webHref = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.href : null;
+      const recovery = recoveryFromLink(webHref, linkedUrl, opened, paramLink);
+      const { data } = await supabase.auth.getSession();
+      if (!live) return;
+      if (data.session) {
+        setPhase('ready');
+        return;
+      }
+      const accepted = await acceptRecovery(recovery);
+      if (!live) return;
+      if (accepted === 'ready') {
+        setPhase('ready');
+        return;
+      }
+      const hasLink = Boolean(opened || linkedUrl || paramLink || recovery.errorDescription);
+      if (!hasLink && Platform.OS !== 'web') {
+        wait = setTimeout(() => {
+          if (live) setPhase((current) => (current === 'checking' ? 'invalid' : current));
+        }, 2000);
+        return;
+      }
+      setPhase((current) => (current === 'ready' ? current : 'invalid'));
+    })().catch(() => {
+      if (live) setPhase((current) => (current === 'ready' ? current : 'invalid'));
+    });
+    return () => {
+      live = false;
+      if (wait) clearTimeout(wait);
+    };
+  }, [linkedUrl, paramLink]);
 
   const handleResetPassword = async () => {
     if (!password || !confirmPassword) {
@@ -80,8 +164,8 @@ export default function ResetPasswordScreen() {
       return;
     }
 
-    if (!hasValidSession && !session) {
-      Alert.alert('Error', 'Invalid reset token. Please request a new password reset link.');
+    if (phase !== 'ready' && !session) {
+      Alert.alert('Invalid Link', INVALID_LINK);
       return;
     }
 
@@ -132,7 +216,25 @@ export default function ResetPasswordScreen() {
             <AuthBrand />
             <View style={styles.sheet}>
               <View style={styles.panel}>
-                <Text style={styles.panelTitle}>New Password</Text>
+                <Text style={styles.panelTitle}>{phase === 'invalid' ? 'Invalid Link' : 'New Password'}</Text>
+                {phase === 'checking' ? (
+                  <>
+                    <ActivityIndicator color={AuthColors.maroon} style={styles.spinner} />
+                    <Text style={styles.help}>Checking your reset link.</Text>
+                  </>
+                ) : null}
+                {phase === 'invalid' ? (
+                  <>
+                    <Text style={styles.help}>{INVALID_LINK}</Text>
+                    <AuthGoldButton
+                      title="Request a new link"
+                      onPress={() => router.replace('/(auth)/recover')}
+                      testID="reset-request-new"
+                    />
+                  </>
+                ) : null}
+                {phase === 'ready' ? (
+                <>
                 <Text style={styles.help}>Choose a password with at least 8 characters.</Text>
                 <View style={styles.field}>
                   <Ionicons name="lock-closed-outline" size={18} color={AuthColors.maroon} />
@@ -166,6 +268,8 @@ export default function ResetPasswordScreen() {
                   loading={loading}
                   testID="reset-submit"
                 />
+                </>
+                ) : null}
                 <GlassPressable onPress={() => router.replace('/(auth)/login')} style={styles.loginLink}>
                   <Text style={styles.loginLinkText}>Back to sign in</Text>
                 </GlassPressable>
@@ -218,6 +322,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 18,
     paddingBottom: 16,
+  },
+  spinner: {
+    marginTop: 8,
+    marginBottom: 8,
   },
   panelTitle: {
     color: AuthColors.ink,

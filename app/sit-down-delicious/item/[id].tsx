@@ -34,7 +34,7 @@ export default function SitItemScreen() {
   const ingredients = catalog?.ingredients ?? listing!.ingredients;
   const allergens = catalog?.allergens ?? listing!.allergens;
   const placeId = catalog?.placeId ?? 'owner-place';
-  const placeName = place?.name ?? license?.placeName ?? 'Your restaurant';
+  const placeName = place?.name ?? (license ? 'Your restaurant' : 'Restaurant');
 
   return (
     <SitDownScreen title={name} subtitle={placeName} testID="sit-item">

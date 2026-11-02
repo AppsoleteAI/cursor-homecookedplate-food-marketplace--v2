@@ -5,10 +5,22 @@ import { decode } from 'base64-arraybuffer';
 import { mediaFrameSource, scanVideo } from '../../../lib/image-security';
 import { nearbyCookIds } from '../../../lib/kitchen-pin';
 import { mealVisibleInMetro } from '../../../lib/metro-menu';
-import { platemakerMayEnter } from '../../../lib/trial-access';
+import { buyerPremiumCovers, platemakerMayEnter } from '../../../lib/trial-access';
 import { foodReviewLinkClip } from '@/lib/food-review-clips';
 import { auditTextField } from '../../../lib/text-audit';
 import { missingColumn, notifyModerators } from '../../../lib/content-moderation';
+
+async function membershipProfile(admin: { from: (table: string) => any }, userId: string) {
+  const withDates = 'username, role, membership_tier, trial_ends_at, stripe_subscription_id, apple_original_transaction_id, apple_expires_at, apple_revoked_at, google_purchase_token, google_expires_at';
+  const first = await admin.from('profiles').select(withDates).eq('id', userId).maybeSingle();
+  if (first.error && /apple_expires_at|apple_revoked_at|google_expires_at/.test(first.error.message || '')) {
+    return admin.from('profiles')
+      .select('username, role, membership_tier, trial_ends_at, stripe_subscription_id, apple_original_transaction_id, google_purchase_token')
+      .eq('id', userId)
+      .maybeSingle();
+  }
+  return first;
+}
 
 function missingTable(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
@@ -91,13 +103,9 @@ export const publishClipProcedure = protectedProcedure
     posterUri: z.string().max(500).optional(),
   }))
   .mutation(async ({ input, ctx }) => {
-    const { data: profile } = await ctx.supabaseAdmin
-      .from('profiles')
-      .select('username, role, membership_tier, trial_ends_at, stripe_subscription_id, apple_original_transaction_id, google_purchase_token')
-      .eq('id', ctx.userId)
-      .maybeSingle();
+    const { data: profile } = await membershipProfile(ctx.supabaseAdmin, ctx.userId);
     const cookMayPost = profile?.role === 'platemaker' && platemakerMayEnter(profile);
-    const buyerMayPost = profile?.role === 'platetaker' && profile.membership_tier === 'premium';
+    const buyerMayPost = Boolean(profile && buyerPremiumCovers(profile));
     if (!profile || (!cookMayPost && !buyerMayPost)) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Posting a clip is for a premium membership.' });
     }
@@ -169,13 +177,9 @@ export const publishClipLinkProcedure = protectedProcedure
     if (!link) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Paste a YouTube, Facebook, TikTok, or Reddit link.' });
     }
-    const { data: profile } = await ctx.supabaseAdmin
-      .from('profiles')
-      .select('username, role, membership_tier, trial_ends_at, stripe_subscription_id, apple_original_transaction_id, google_purchase_token')
-      .eq('id', ctx.userId)
-      .maybeSingle();
+    const { data: profile } = await membershipProfile(ctx.supabaseAdmin, ctx.userId);
     const cookMayPost = profile?.role === 'platemaker' && platemakerMayEnter(profile);
-    const buyerMayPost = profile?.role === 'platetaker' && profile.membership_tier === 'premium';
+    const buyerMayPost = Boolean(profile && buyerPremiumCovers(profile));
     if (!profile || (!cookMayPost && !buyerMayPost)) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Posting a clip is for a premium membership.' });
     }

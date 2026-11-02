@@ -3,6 +3,7 @@
  * Product ids must exist in Play Console before a purchase sheet can open.
  */
 import {
+  deepLinkToSubscriptions,
   fetchProducts,
   finishTransaction,
   getAvailablePurchases,
@@ -175,6 +176,16 @@ export async function finishIAP(transactionId: string): Promise<void> {
   await initConnection();
   await finishTransaction({ purchase, isConsumable: false });
   pending.delete(transactionId);
+}
+
+export async function openStoreSubscriptions(): Promise<void> {
+  await initConnection();
+  const purchases = await getAvailablePurchases().catch(() => []);
+  const owned = (purchases ?? []).find((purchase) => MEMBERSHIP_IDS.has(purchase.productId));
+  await deepLinkToSubscriptions({
+    packageNameAndroid: 'com.rork.homecookedplate',
+    ...(owned ? { skuAndroid: owned.productId } : {}),
+  });
 }
 
 export const IAP_REQUIRED = true;

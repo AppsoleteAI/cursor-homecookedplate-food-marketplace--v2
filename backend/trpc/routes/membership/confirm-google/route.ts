@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { readActiveGoogleSubscription } from '../../../../lib/google-play';
+import { missingStoreDateColumn } from '../../../../lib/store-membership';
 import { protectedProcedure } from '../../../create-context';
 
 export const confirmGoogleProcedure = protectedProcedure
@@ -52,14 +53,27 @@ export const confirmGoogleProcedure = protectedProcedure
       });
     }
 
-    const { error: updateError } = await ctx.supabaseAdmin
+    let update = await ctx.supabaseAdmin
       .from('profiles')
       .update({
         membership_tier: 'premium',
         google_purchase_token: subscription.purchaseToken,
+        google_expires_at: subscription.expiresAt,
+        google_checked_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq('id', ctx.userId);
+    if (missingStoreDateColumn(update.error)) {
+      update = await ctx.supabaseAdmin
+        .from('profiles')
+        .update({
+          membership_tier: 'premium',
+          google_purchase_token: subscription.purchaseToken,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', ctx.userId);
+    }
+    const updateError = update.error;
 
     if (updateError) {
       if (updateError.code === '23505') {

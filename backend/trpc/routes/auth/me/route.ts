@@ -1,5 +1,6 @@
 import { readAdminRole } from "../../../../lib/admin-role";
 import { earlyBirdCoversThisMetro, readEarlyBirdClaim } from "../../../../lib/early-bird-claim";
+import { refreshAppleMembership, refreshGoogleMembership, writeResolvedTier } from "../../../../lib/store-membership";
 import { platemakerMayEnter, platemakerTrialCountdownDays, trialCloseoutKeepsKitchen, unpaidPlatemakerTrialEnded } from "../../../../lib/trial-access";
 import { protectedProcedure } from "../../../create-context";
 
@@ -15,19 +16,11 @@ export const meProcedure = protectedProcedure
       throw new Error('Profile not found');
     }
 
-    const trialExpired = unpaidPlatemakerTrialEnded(profile);
-    let membershipTier = (profile.membership_tier as 'free' | 'premium') || 'free';
-    if (trialExpired && profile.membership_tier === 'premium') {
-      const { error: expireError } = await ctx.supabaseAdmin
-        .from('profiles')
-        .update({ membership_tier: 'free' })
-        .eq('id', profile.id)
-        .eq('role', 'platemaker');
-      if (expireError) {
-        console.error('[auth.me] Could not end PlateMaker trial:', expireError.message);
-      }
-      membershipTier = 'free';
-    }
+    let current = profile;
+    current = await refreshAppleMembership(ctx.supabaseAdmin, current, ctx.appleApi);
+    current = await refreshGoogleMembership(ctx.supabaseAdmin, current, ctx.googlePlayServiceAccountJson);
+    const membershipTier = await writeResolvedTier(ctx.supabaseAdmin, current);
+    const trialExpired = unpaidPlatemakerTrialEnded({ ...current, membership_tier: membershipTier });
 
     const claimMetro = await readEarlyBirdClaim(ctx.supabaseAdmin, profile.id);
     const openOrders = await ctx.supabaseAdmin
@@ -53,6 +46,7 @@ export const meProcedure = protectedProcedure
     return {
       id: profile.id,
       username: profile.username,
+      businessName: typeof profile.business_name === 'string' ? profile.business_name : '',
       email: profile.email,
       role: profile.role as 'platemaker' | 'platetaker',
       isAdmin: profile.is_admin || false,
@@ -66,10 +60,10 @@ export const meProcedure = protectedProcedure
       membershipTier,
       needsMembership: profile.role === 'platemaker'
         && !keepKitchen
-        && !platemakerMayEnter({ ...profile, membership_tier: membershipTier }, new Date(), trialApplies),
+        && !platemakerMayEnter({ ...current, membership_tier: membershipTier }, new Date(), trialApplies),
       closeoutKeepsKitchen: keepKitchen,
       trialExpired,
-      trialCountdownDays: platemakerTrialCountdownDays(profile),
+      trialCountdownDays: platemakerTrialCountdownDays({ ...current, membership_tier: membershipTier }),
       stripeCustomerId: profile.stripe_customer_id || undefined,
       stripeSubscriptionId: profile.stripe_subscription_id || undefined,
       metroArea: profile.metro_area || null,

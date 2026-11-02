@@ -7,6 +7,7 @@ import { platemakerMayEnter } from "@/backend/lib/trial-access";
 import { missingKitchenPinColumn } from "../../../../lib/kitchen-pin";
 import { auditTextField, auditTextList } from "../../../../lib/text-audit";
 import { portionTag, timeZoneTag } from "@/lib/meal-publish";
+import { cookPermitIsSaved } from "../../../../lib/kitchen-permit";
 
 export const createMealProcedure = protectedProcedure
   .input(
@@ -51,6 +52,21 @@ export const createMealProcedure = protectedProcedure
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Failed to verify profile',
+      });
+    }
+    if (profile.apple_original_transaction_id || profile.google_purchase_token) {
+      const dates = await ctx.supabaseAdmin
+        .from('profiles')
+        .select('apple_expires_at, apple_revoked_at, google_expires_at')
+        .eq('id', ctx.userId)
+        .maybeSingle();
+      if (!dates.error && dates.data) Object.assign(profile, dates.data);
+    }
+
+    if (profile.role === 'platemaker' && !(await cookPermitIsSaved(ctx.supabaseAdmin, ctx.userId))) {
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'Save the home-kitchen agreement before a cooked plate goes on the menu.',
       });
     }
 

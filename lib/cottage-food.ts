@@ -1,3 +1,5 @@
+import { evaluateSectionAgreement, type SectionAgreement } from '@/lib/section-agreement';
+
 export type StateFramework =
   | 'traditional_cottage'
   | 'food_freedom'
@@ -18,34 +20,13 @@ export type FarmChannel =
   | 'hand_delivery'
   | 'hub_delivery';
 
-export type ComplianceRecord = {
-  farmName: string;
-  stateCode: string;
-  county: string;
-  track: RegulatoryTrack;
-  sellsDirectToConsumer: boolean;
-  sellsWholesale: boolean;
-  regulationsConfirmed: boolean;
-  agencyName: string;
-  statuteNote: string;
-  testingProtocol: string;
-  testingLab: string;
-  testingDate: string;
-  permitFee: string;
-  permitNumber: string;
-  commercialLicense: boolean;
-  labelName: string;
-  netWeight: string;
-  ingredients: string;
-  allergens: string;
-  disclaimerAccepted: boolean;
-  honeyInfantWarning: boolean;
-  image?: string;
-  updatedAt: string;
-};
+export type ComplianceRecord = SectionAgreement;
+
+export const FARM_AGREEMENT_BLOCK =
+  'Save the farm agreement before a farm good goes on the menu.';
 
 export const PLATFORM_COTTAGE_RULE =
-  'Cottage food laws cover homemade, non-TCS, shelf-stable foods sold by the maker directly to the consumer. They do not authorize cooked plates that must be kept hot or cold, and they do not replace farm-stand, egg, meat, or dairy rules. FarmGrownBasket lists farm, garden, and co-op goods apart from cooked plates. The app does not know your county rule, your required test, or your permit fee. Confirm those three with your own agency before you sell.';
+  'FarmGrownBasket lists farm, garden, and co-op goods apart from cooked plates. The food rules for those goods belong to the cook. HomeCookedPlate does not decide which rule applies and does not enforce that matrix.';
 
 export const HOMEMADE_DISCLAIMER =
   'This product is homemade and is not prepared in an inspected food establishment.';
@@ -241,72 +222,6 @@ export function channelWarning(track: RegulatoryTrack, channel: FarmChannel): st
   return null;
 }
 
-const ALCOHOL = /\b(wine|beer|liquor|whiskey|whisky|vodka|rum|cider|alcohol)\b/i;
-const TCS_HINT = /\b(chicken|beef|pork|fish|seafood|meat|milk|cheese|cream|custard|cheesecake)\b/i;
-const FRUIT_BUTTER = /\b(apple|fruit|nut|seed|pear|pumpkin|peach|plum) butter\b/i;
-
 export function evaluateListing(record: ComplianceRecord | null): { ok: boolean; blocks: string[] } {
-  if (!record) {
-    return { ok: false, blocks: ['Save your state, county, test, and permit fee before listing.'] };
-  }
-
-  const blocks: string[] = [];
-  const framework = frameworkForState(record.stateCode);
-  const labelBlob = `${record.labelName} ${record.ingredients} ${record.farmName}`;
-
-  if (!record.stateCode) blocks.push('Choose the state where the food is made.');
-  if (record.county.trim().length < 2) blocks.push('Enter the county. County rules can be stricter than the state.');
-  if (record.farmName.trim().length < 2) blocks.push('Name the farm or home kitchen.');
-  if (!record.sellsDirectToConsumer) {
-    blocks.push('FarmGrownBasket checkout is direct-to-consumer. Confirm that you are selling to the end consumer.');
-  }
-  if (record.sellsWholesale && framework !== 'limited_food_establishment') {
-    blocks.push('Wholesale to shops or restaurants is outside most cottage laws. Pennsylvania’s Limited Food Establishment framework is the exception named here, and even then you confirm it with the department. Uncheck wholesale, or list only a direct-to-consumer offer.');
-  }
-  if (!record.regulationsConfirmed) {
-    blocks.push('Confirm that you read the current local rule for this product. The app has not verified it.');
-  }
-  if (record.agencyName.trim().length < 2) blocks.push('Name the agency you confirmed with.');
-  if (record.statuteNote.trim().length < 12) {
-    blocks.push('Write what the rule actually says for this product, in your own words.');
-  }
-  if (record.testingProtocol.trim().length < 12) {
-    blocks.push('Record the testing protocol, or write why the agency said no lab test is required.');
-  }
-  if (record.permitFee.trim().length < 1) blocks.push('Record the permit fee from the agency. Use 0 only if they confirmed there is no fee.');
-  if (record.permitNumber.trim().length < 2) {
-    blocks.push('Record the permit number, or the agency statement that no number is issued.');
-  }
-
-  if (ALCOHOL.test(labelBlob) && !/\b(apple|sweet) cider\b/i.test(labelBlob)) {
-    blocks.push('Alcohol cannot be listed on HomeCookedPlate or FarmGrownBasket.');
-  }
-
-  const dairyButter = /\bbutter\b/i.test(labelBlob) && !FRUIT_BUTTER.test(labelBlob);
-  if (record.track === 'cottage_non_tcs' && (TCS_HINT.test(labelBlob) || dairyButter)) {
-    blocks.push('Those ingredients are generally time or temperature controlled. They do not belong on a non-TCS cottage listing.');
-  }
-
-  if (record.track === 'temperature_control' && framework !== 'food_freedom' && !record.commercialLicense) {
-    blocks.push('Refrigerated or hot food needs a commercial or commissary license outside food-freedom states. Cottage rules do not cover it.');
-  }
-
-  if (record.track === 'temperature_control' && framework === 'food_freedom' && !record.disclaimerAccepted && !record.commercialLicense) {
-    blocks.push('Food-freedom sales still need the explicit homemade label, unless you hold a commercial license.');
-  }
-
-  const needsLabel = record.track === 'cottage_non_tcs' || record.track === 'shell_eggs' || record.track === 'temperature_control';
-  if (needsLabel) {
-    if (record.labelName.trim().length < 2) blocks.push('Put the product name on the label.');
-    if (record.netWeight.trim().length < 2) blocks.push('Put the net weight or count on the label.');
-    if (record.ingredients.trim().length < 2) blocks.push('List ingredients in descending order by weight.');
-    if (record.allergens.trim().length < 2) blocks.push('Declare major allergens, or write “none of the major allergens.”');
-    if (!record.disclaimerAccepted) blocks.push(`Accept the homemade disclaimer: “${HOMEMADE_DISCLAIMER}”`);
-  }
-
-  if (/honey/i.test(labelBlob) && !record.honeyInfantWarning) {
-    blocks.push('Honey needs a label warning that it must not be fed to infants under one year.');
-  }
-
-  return { ok: blocks.length === 0, blocks };
+  return evaluateSectionAgreement(record, FARM_AGREEMENT_BLOCK);
 }

@@ -17,6 +17,7 @@ import { readDeviceCoordinates } from '@/lib/device-coordinates';
 import { nearestMetro } from '@/backend/lib/metro-radius';
 import { SUBSCRIPTION_PRICES } from '@/backend/lib/fees';
 import { Colors, monoGradients } from '@/constants/colors';
+import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '@/constants/urls';
 import { GradientButton } from '@/components/GradientButton';
 import { MembershipPromoBanner } from '@/components/MembershipPromoBanner';
 import { finishIAP, IAP_REQUIRED, MEMBERSHIP_ANNUAL_PRODUCT_ID, MEMBERSHIP_MONTHLY_PRODUCT_ID, purchaseIAP, restoreIAPPurchases } from '@/lib/iap';
@@ -637,6 +638,25 @@ export default function MembershipScreen() {
                     ? '• This location is outside every saved metro\n• Remote kitchens get 120 days at no charge. No card. The start date and the end date are saved\n• The kitchen closes when those days end until a paid plan\n• A plate is offered only inside 20 miles of the kitchen\n• Monthly is $4.99. Yearly is $39.99'
                     : '• The kitchen stays closed until you choose Early Bird or a paid plan\n• Early Bird is free and records the start and end dates\n• Monthly is $4.99. Yearly is $39.99\n• Outside an active metro, or when the metro cap is full, Early Bird is not offered'}
               </Text>
+              <Text style={styles.legalNote}>
+                A paid membership renews until you cancel it. On iPhone, cancel in Settings, Apple ID, Subscriptions. On Android, cancel in Google Play subscriptions. The membership stays on this account. It is not shared with another account.
+              </Text>
+              <GlassPressable
+                onPress={() => { WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL).catch(() => undefined); }}
+                accessibilityRole="link"
+                testID="membership-privacy-policy"
+                style={styles.legalLinkRow}
+              >
+                <Text style={styles.legalLink}>Privacy Policy</Text>
+              </GlassPressable>
+              <GlassPressable
+                onPress={() => { WebBrowser.openBrowserAsync(TERMS_OF_SERVICE_URL).catch(() => undefined); }}
+                accessibilityRole="link"
+                testID="membership-terms-of-use"
+                style={styles.legalLinkRow}
+              >
+                <Text style={styles.legalLink}>Terms of Use</Text>
+              </GlassPressable>
             </View>
           </View>
         </View>
@@ -835,5 +855,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.gray[700],
     lineHeight: 22,
+  },
+  legalNote: {
+    fontSize: 14,
+    color: Colors.gray[700],
+    lineHeight: 22,
+    marginTop: 12,
+  },
+  legalLinkRow: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
+  },
+  legalLink: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.gradient.green,
+    textDecorationLine: 'underline',
   },
 });

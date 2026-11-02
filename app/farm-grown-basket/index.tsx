@@ -19,7 +19,7 @@ const LINKS: { title: string; detail: string; href: '/farm-grown-basket/market' 
   { title: 'CSA shares', detail: 'A weekly produce box from one farm. Pay for this box, then pause or keep the season with that farm.', href: '/farm-grown-basket/csa', icon: 'cube-outline' },
   { title: 'Pickup and delivery', detail: 'Farm pickup, neighborhood handoff, or hub', href: '/farm-grown-basket/logistics', icon: 'bicycle-outline' },
   { title: 'Cottage food directory', detail: 'State-by-state map summary and outside pages. Not a permit.', href: '/farm-grown-basket/directory', icon: 'map-outline' },
-  { title: 'Cottage food rules', detail: 'Your state, your test, your permit fee', href: '/farm-grown-basket/cottage-law', icon: 'document-text-outline', seller: true },
+  { title: 'Farm agreement', detail: 'Six acknowledgements before a farm good is listed', href: '/farm-grown-basket/cottage-law', icon: 'document-text-outline', seller: true },
   { title: 'Seller stand', detail: 'List goods and see farm payouts', href: '/farm-grown-basket/seller', icon: 'storefront-outline', seller: true },
   { title: 'Farm basket', detail: 'The cart for produce, eggs, honey, and homemade goods you add on this page.', href: '/farm-grown-basket/basket', icon: 'basket-outline' },
   { title: 'Farm orders', detail: 'Opens your buyer dashboard after checkout', href: '/farm-grown-basket/orders', icon: 'receipt-outline' },

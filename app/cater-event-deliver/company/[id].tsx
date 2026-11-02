@@ -47,7 +47,7 @@ export default function CaterCompanyScreen() {
         <Text style={styles.body}>A window on the calendar is a plan. The order goes through only while the company is accepting drop-offs.</Text>
         {isMaker ? (
           <GlassPressable onPress={() => router.push('/cater-event-deliver/license' as Href)}>
-            <Text style={styles.link}>Catering License Checklist</Text>
+            <Text style={styles.link}>Catering agreement</Text>
           </GlassPressable>
         ) : null}
       </View>

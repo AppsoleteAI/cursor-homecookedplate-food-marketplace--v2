@@ -18,6 +18,9 @@ type EnvBindings = {
   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON?: string;
   STRIPE_SECRET_KEY?: string;
   RESEND_API_KEY?: string;
+  ASC_API_KEY_ID?: string;
+  ASC_API_ISSUER_ID?: string;
+  ASC_API_PRIVATE_KEY?: string;
 };
 
 /**
@@ -87,6 +90,11 @@ export const createContext = async (opts: FetchCreateContextFnOptions, env?: Env
     media: env?.MEDIA,
     googlePlayServiceAccountJson: env?.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON,
     stripeSecretKey: env?.STRIPE_SECRET_KEY,
+    appleApi: {
+      keyId: env?.ASC_API_KEY_ID,
+      issuerId: env?.ASC_API_ISSUER_ID,
+      privateKey: env?.ASC_API_PRIVATE_KEY,
+    },
   };
 };
 

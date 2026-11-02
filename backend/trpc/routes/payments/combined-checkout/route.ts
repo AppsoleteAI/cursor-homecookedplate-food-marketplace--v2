@@ -7,6 +7,8 @@ import { priceShopOrder } from '../../../../lib/shop-quote';
 import { checkoutAreaShop, shopFulfillmentSchema, type ShopFulfillment } from '../../../../lib/shop-fulfillment';
 import { fulfillmentIsDelivery, savedDeliveryFee } from '../../../../lib/delivery-fee';
 import { appRevenueWithDelivery, orderTotalWithDelivery, sharedChargeRefundCents } from '../../../../lib/fees';
+import { applePayMerchantName, profilePayeeName } from '../../../../lib/payee-name';
+import { resolvedMembershipTier } from '../../../../lib/trial-access';
 import { assertShopHandoff } from '@/lib/combined-handoff';
 import {
   CHECKOUT_AREAS,
@@ -233,11 +235,14 @@ async function priceCheckout(
 }
 
 async function loadBuyerFeeProfile(admin: SupabaseClient, userId: string) {
-  const { data } = await admin.from('profiles').select('role, membership_tier').eq('id', userId).maybeSingle();
+  const first = await admin.from('profiles').select('role, membership_tier, trial_ends_at, stripe_subscription_id, apple_original_transaction_id, apple_expires_at, apple_revoked_at, google_purchase_token, google_expires_at').eq('id', userId).maybeSingle();
+  const data = first.error && /apple_expires_at|google_expires_at|apple_revoked_at/.test(first.error.message || '')
+    ? (await admin.from('profiles').select('role, membership_tier, trial_ends_at, stripe_subscription_id, apple_original_transaction_id, google_purchase_token').eq('id', userId).maybeSingle()).data
+    : first.data;
   return {
     buyerId: userId,
     buyerRole: data?.role as string | null | undefined,
-    buyerMembershipTier: data?.membership_tier as string | null | undefined,
+    buyerMembershipTier: data ? resolvedMembershipTier(data) : 'free',
   };
 }
 
@@ -693,6 +698,11 @@ export const createCombinedCheckoutProcedure = protectedProcedure
     if (receipt.combinedBuyerPays <= 0) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'This checkout has nothing to charge.' });
     }
+    const payees = sellerIds.length === 0
+      ? { data: [] as { id?: string; username?: string | null; business_name?: string | null; stripe_account_id?: string | null }[] }
+      : await ctx.supabaseAdmin.from('profiles').select('id, username, business_name, stripe_account_id').in('id', sellerIds);
+    const payeeById = new Map((payees.data ?? []).map((row) => [row.id, profilePayeeName(row)]));
+    const merchantDisplayName = applePayMerchantName(sellerIds.map((id) => payeeById.get(id)));
 
     if (input.webOrigin) {
       const origin = browserOrigin(input.webOrigin);
@@ -702,7 +712,7 @@ export const createCombinedCheckoutProcedure = protectedProcedure
       const checkout = await openStripeCheckout({
         secretKey: stripeSecretKey,
         amountCents: Math.round(receipt.combinedBuyerPays * 100),
-        productName: 'HomeCookedPlate combined order',
+        productName: merchantDisplayName,
         successUrl: `${origin}${path}?webpay=success&session_id={CHECKOUT_SESSION_ID}`,
         cancelUrl: `${origin}${path}?webpay=cancel`,
         metadata: {
@@ -716,6 +726,7 @@ export const createCombinedCheckoutProcedure = protectedProcedure
         clientSecret: '',
         checkoutUrl: checkout.url,
         receipt,
+        merchantDisplayName,
       };
     }
 
@@ -747,6 +758,7 @@ export const createCombinedCheckoutProcedure = protectedProcedure
       clientSecret: paymentIntent.client_secret,
       checkoutUrl: null,
       receipt,
+      merchantDisplayName,
     };
   });
 

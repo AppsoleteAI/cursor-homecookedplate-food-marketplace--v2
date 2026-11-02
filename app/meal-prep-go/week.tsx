@@ -15,7 +15,7 @@ import { buyerFoodCharge } from '@/backend/lib/fees';
 import { useAuth } from '@/hooks/auth-context';
 
 export default function MealPrepWeekScreen() {
-  const { items, listings, kitchen, setQuantity, clearWeek } = useMealPrep();
+  const { items, listings, setQuantity, clearWeek } = useMealPrep();
   const { user } = useAuth();
   const { payInMainCart } = useCombinedBill();
 
@@ -37,7 +37,7 @@ export default function MealPrepWeekScreen() {
   const mealCount = readyCount + cookCount;
   const mix = weekMix(readyCount, cookCount);
   const cookId = items[0]?.cookId;
-  const cookName = (cookId && getPrepCook(cookId)?.name) || (cookId === 'owner-kitchen' ? kitchen?.cookName : '') || 'One cook';
+  const cookName = (cookId && getPrepCook(cookId)?.name) || (cookId === 'owner-kitchen' ? 'Your kitchen' : '') || 'One cook';
   const baseAmount = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 

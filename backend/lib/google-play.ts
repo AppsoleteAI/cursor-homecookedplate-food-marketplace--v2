@@ -161,3 +161,29 @@ export async function readActiveGoogleSubscription(
     orderId,
   };
 }
+
+export async function cancelGoogleSubscription(
+  purchaseToken: string,
+  options: { serviceAccountJson: string; fetchImpl?: typeof fetch; now?: number },
+): Promise<void> {
+  const token = purchaseToken.trim();
+  if (token.length < 20) {
+    throw new Error('The Google Play subscription could not be cancelled.');
+  }
+  const account = parseAccount(options.serviceAccountJson);
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const bearer = await accessToken(account, fetchImpl, options.now ?? Date.now());
+  const endpoint = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${GOOGLE_PLAY_PACKAGE}/purchases/subscriptionsv2/tokens/${encodeURIComponent(token)}:cancel`;
+  const response = await fetchImpl(endpoint, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${bearer}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ cancellationType: 'USER_REQUESTED_STOP_RENEWALS' }),
+  });
+  if (response.ok) return;
+  const text = await response.text();
+  if (response.status === 404 || /expired|already|not found|cancel/i.test(text)) return;
+  throw new Error('The Google Play subscription could not be cancelled.');
+}

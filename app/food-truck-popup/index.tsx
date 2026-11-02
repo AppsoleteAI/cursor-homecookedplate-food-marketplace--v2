@@ -20,7 +20,7 @@ const LINKS: { title: string; detail: string; href: string; icon: keyof typeof I
   { title: 'Window order', detail: 'One truck at a time. Pickup at the window.', href: '/food-truck-popup/basket', icon: 'receipt-outline' },
   { title: 'Truck orders', detail: 'Separate from plates and farm goods', href: '/food-truck-popup/orders', icon: 'list-outline' },
   { title: 'Truck owner', detail: 'Mark the window open and see the payout', href: '/food-truck-popup/seller', icon: 'storefront-outline', seller: true },
-  { title: 'Mobile permit', detail: 'Health permit, commissary, and the fee', href: '/food-truck-popup/permit', icon: 'document-text-outline', seller: true },
+  { title: 'Truck agreement', detail: 'Six acknowledgements before a menu item is listed', href: '/food-truck-popup/permit', icon: 'document-text-outline', seller: true },
 ];
 
 export default function FoodTruckPopupHome() {

@@ -54,7 +54,7 @@ export function MealPrepScreen({ title, subtitle, children, testID, showWeek = t
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {children}
         <Text style={styles.legal}>
-          A MealPrepGo week is heat-and-eat meals, cook-at-home kits, or a mix, from one local cook. Add-ons ride with that week. Pickup or a household drop-off. This is separate from a single plate.
+          A MealPrepGo week is heat-and-eat meals, cook-at-home kits, or a mix, from one local cook. Add-ons ride with that week. Pickup or a household drop-off. This is separate from a single plate. The cook follows the food rules of the city, county, and state. HomeCookedPlate does not verify them. All responsibility for the food is on the PlateMaker.
         </Text>
       </ScrollView>
     </SafeAreaView>

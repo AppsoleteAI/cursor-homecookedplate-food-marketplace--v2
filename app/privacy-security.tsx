@@ -22,6 +22,7 @@ import { GlassPressable } from '@/components/glass-surface';
 import { ScreenBack } from '@/components/BackCircle';
 import { ScrollJumps } from '@/components/ScrollJumps';
 import { useConsumeBack } from '@/hooks/use-leave-screen';
+import { openStoreSubscriptions } from '@/lib/iap';
 
 
 export default function PrivacySecurityScreen() {
@@ -161,9 +162,22 @@ export default function PrivacySecurityScreen() {
     } else if (confirmationStep === 2) {
       setConfirmationStep(3);
     } else if (confirmationStep === 3) {
-      await deleteAccount();
-      setDeleteModalVisible(false);
-      router.replace('/(auth)/login');
+      try {
+        await deleteAccount();
+        setDeleteModalVisible(false);
+        router.replace('/(auth)/login');
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'This account was not deleted.';
+        if (/App Store subscription/i.test(message) || /Google Play subscription/i.test(message)) {
+          try {
+            await openStoreSubscriptions();
+          } catch {
+            // Web has no store sheet. The message names where the renewal is cancelled.
+          }
+        }
+        if (Platform.OS === 'web') window.alert(message);
+        else Alert.alert('Account', message);
+      }
     }
   }, [confirmationStep, deleteAccount, router]);
 

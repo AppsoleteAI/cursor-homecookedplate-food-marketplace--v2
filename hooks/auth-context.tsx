@@ -1,7 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { agreementFromUnknown, agreementPredatesAccount, chooseLegalForm, clearLegalAgreement, clearLegalReadyForSignIn, clearLoginLegalBox, isLegalReadyForSignIn, LEGAL_SIGN_IN_MESSAGE, readLegalAgreement, setLoginLegalBoxChecked, todayStamp, toCompletedLegalAgreement, writeLegalAgreement } from '@/lib/legal-agreement';
+import { agreementFromUnknown, agreementPredatesAccount, chooseLegalForm, clearLegalAgreement, clearLegalReadyForSignIn, clearLoginLegalBox, isLegalReadyForSignIn, LEGAL_SIGN_IN_MESSAGE, needsAppleLicenseRecheck, readLegalAgreement, setLoginLegalBoxChecked, todayStamp, toCompletedLegalAgreement, writeLegalAgreement } from '@/lib/legal-agreement';
 // Import expo-secure-store with platform-specific shim for web compatibility
 // Metro will automatically resolve to lib/expo-secure-store.web.ts on web platform
 import * as SecureStore from '@/lib/expo-secure-store';
@@ -14,6 +14,7 @@ import { runHardwareAudit } from '@/lib/hardwareAudit';
 import { router } from 'expo-router';
 import { Alert, Platform } from 'react-native';
 import { navLogger } from '@/lib/nav-logger';
+import { recoveryScreenIsOpen } from '@/lib/verification-link';
 import { SESSION_RESTORE_MS, settleWithin } from '@/lib/settle-within';
 
 interface AuthState {
@@ -24,7 +25,7 @@ interface AuthState {
   login: (username: string, password: string, code?: string) => Promise<{ needsTwoFactor: true; codeReused: boolean } | { needsTwoFactor: false }>;
   signup: (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }, foodSafetyAcknowledged?: boolean) => Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean; chooseMembership?: boolean; needsEmailConfirmation?: boolean; confirmationEmailSent?: boolean }>;
   logout: () => Promise<void>;
-  updateProfile: (updates: Partial<Pick<User, 'username' | 'email' | 'phone' | 'bio' | 'profileImage'>>) => Promise<void>;
+  updateProfile: (updates: Partial<Pick<User, 'username' | 'email' | 'phone' | 'bio' | 'profileImage' | 'businessName'>>) => Promise<void>;
   requestPlatemakerRole: () => Promise<void>;
   pauseAccount: () => Promise<void>;
   unpauseAccount: () => Promise<void>;
@@ -317,8 +318,11 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
           await persistUser(null);
           setSentryUser(null);
           addBreadcrumb('Supabase auth SIGNED_OUT', 'auth');
-          // Navigate to login on sign out
-          router.replace('/(auth)/login');
+          // A failed reset link signs the session out. Stay on that screen so the
+          // person can request a new link. Other sign-outs still return to sign-in.
+          if (!recoveryScreenIsOpen()) {
+            router.replace('/(auth)/login');
+          }
         }
       } catch (e) {
         console.error('[Auth Listener] Error handling event:', event, e);
@@ -447,7 +451,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         legalReady,
         today: todayStamp(),
       }) === 'device';
-      if (!accountOk && !localOk) {
+      const appleRecheck = needsAppleLicenseRecheck(result.legalSafetyAgreement, createdAt);
+      if (!accountOk && !localOk && !appleRecheck) {
         if (localAgreement) {
           await clearLegalAgreement();
           await clearLegalReadyForSignIn();
@@ -550,7 +555,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     addBreadcrumb('User logged out', 'auth');
   }, [logoutMutation, persistUser, persistSession]);
 
-  const updateProfile = useCallback(async (updates: Partial<Pick<User, 'username' | 'email' | 'phone' | 'bio' | 'profileImage'>>) => {
+  const updateProfile = useCallback(async (updates: Partial<Pick<User, 'username' | 'email' | 'phone' | 'bio' | 'profileImage' | 'businessName'>>) => {
     if (!mountedRef.current || !user) return;
     try {
       await updateProfileMutation.mutateAsync(updates);
@@ -685,7 +690,10 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   const resetPassword = useCallback(async (email: string) => {
     try {
-      await resetPasswordMutation.mutateAsync({ email });
+      await resetPasswordMutation.mutateAsync({
+        email,
+        platform: Platform.OS === 'web' ? 'web' : 'mobile',
+      });
       addBreadcrumb('Password reset requested', 'auth');
       // The mutation always returns success for security (doesn't reveal if email exists)
       // We can show the message to the user

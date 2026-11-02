@@ -173,23 +173,28 @@ export function publishFarmListing(input: {
   price: number;
   unit: string;
   summary: string;
+  track: RegulatoryTrack;
+  ingredients: string;
+  allergens: string;
   image?: string;
 }): { ok: true } | { ok: false; blocks: string[] } {
   const check = evaluateListing(state.compliance);
   if (!check.ok || !state.compliance) return { ok: false, blocks: check.blocks };
   if (!input.image) return { ok: false, blocks: ['Add a photo of this good.'] };
+  if (input.ingredients.trim().length < 2) return { ok: false, blocks: ['List the ingredients.'] };
+  if (input.allergens.trim().length < 2) return { ok: false, blocks: ['Declare major allergens, or write “none of the major allergens.”'] };
   const listing: FarmListing = {
     id: `listing-${Date.now()}`,
     name: input.name.trim(),
     price: input.price,
     unit: input.unit.trim(),
     summary: input.summary.trim(),
-    track: state.compliance.track,
-    farmName: state.compliance.farmName.trim(),
-    stateCode: state.compliance.stateCode,
-    county: state.compliance.county.trim(),
-    ingredients: state.compliance.ingredients.trim(),
-    allergens: state.compliance.allergens.trim(),
+    track: input.track,
+    farmName: 'Your farm',
+    stateCode: '',
+    county: '',
+    ingredients: input.ingredients.trim(),
+    allergens: input.allergens.trim(),
     image: input.image,
   };
   state = { ...state, listings: [listing, ...state.listings] };

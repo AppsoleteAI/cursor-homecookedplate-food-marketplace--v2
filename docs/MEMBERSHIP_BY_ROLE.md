@@ -73,6 +73,42 @@ Device back on the Legal step returns to Your Account, the previous step. It doe
 
 iPhone Build 8 buys `com.rork.homecookedplate.membership.monthly` and `com.rork.homecookedplate.membership.annual` for both roles. Those Apple products are $4.99 and $39.99. The PlateTaker screen still shows $7.99 and $75.99. Android build 8 does the same with `com.rork.hcp.membership.monthly` and `com.rork.hcp.membership.annual`. Web checkout charges the role price from `membershipPriceCents()`. Do not add PlateTaker Apple products for the Build 8 submit. A new product id would be rejected by `confirmApple`. Charging a PlateTaker $7.99 or $75.99 on the store needs a new build. The iPhone screenshot for the buyer prices is `store-assets/screenshot-membership-platetaker-1320.png`.
 
+## Privacy Policy and Terms of Use
+
+Web, iOS, and Android use the same Membership screen. The website publish on `main` includes this screen and `pages/legal/terms.html`. An installed app keeps the previous Membership screen until the next store build.
+
+The Terms block on Membership has a Privacy Policy link and a Terms of Use link. Both open in the browser. Privacy Policy is `https://homecookedplate.com/privacy`. Terms of Use is `https://homecookedplate.com/terms`. The terms page states that those terms are the Terms of Use, and it states the membership prices, renewal, and cancel paths.
+
+| | PlateMaker | PlateTaker |
+| --- | --- | --- |
+| Signed in | The links sit under the cook terms. Monthly is $4.99. Yearly is $39.99. Early Bird and the Remote 120 days stay on this screen. | The links sit under the buyer terms. The app stays free. Premium is $7.99 a month or $75.99 a year. |
+| Signed out | The same links are on the screen. Purchase still waits for sign-in. | The same links are on the screen. Purchase still waits for sign-in. |
+
+A paid membership renews until it is canceled. On iPhone, cancel in Settings, Apple ID, Subscriptions. On Android, cancel in Google Play subscriptions. The membership stays on that HomeCookedPlate account. It is not shared with another account.
+
+## Lifetime membership after a re-download
+
+A lifetime membership is not an App Store product. Monthly and yearly are the App Store products. Lifetime stays on the account. Deleting the app and downloading it again creates a new binding token. Sign-in on that same account saves the new token. The account is not sent to the hardware-mismatch screen. Another account cannot take the token, because `profiles.device_id` is unique.
+
+The live database still has the old function until `backend/sql/allow_lifetime_device_rebind.sql` is run in the SQL editor. Until that run, the app allows the re-download and the database refuses to store the new token.
+
+A PlateMaker and a PlateTaker use the same sign-in check. A lifetime tier is what starts it. Signed out, the check does not run.
+
+## App Store expiry, refund, and account deletion
+
+Web, iOS, and Android share this source. The date columns are in `backend/sql/add_store_subscription_and_kitchen_permit.sql`. Until that SQL is run, a saved App Store or Play id with no expiry date still counts as Premium, so a current subscriber is not stripped before the dates can be stored. After a date is stored, a past expiry or a refund does not count as Premium.
+
+The Worker `plate-marketplace-api` was deployed on 2 November 2026. Current Version ID `9fc0f7ef-d3bc-49e9-8dae-29bfb512e778`. `POST /webhook/apple` is on that Worker. The App Store Server Notifications URL is `https://plate-marketplace-api.appsolete.workers.dev/webhook/apple` for production and for sandbox. Production and Sandbox were saved on 2 November 2026 with that address. The App information page does not print a version. A URL saved from that dialog is Version 2. A browser open is a GET and shows 404. Apple sends a POST. An empty POST returns 400 and the route is live. Sign-in also refreshes a stale, missing, revoked, or past Apple or Play membership and writes the tier. The check uses an In-App Purchase key on the Worker, names `ASC_API_KEY_ID`, `ASC_API_ISSUER_ID`, and `ASC_API_PRIVATE_KEY`. The key’s name on the Generate screen is `HomeCookedPlate Server`. That name is a label only. It is the same key for a PlateMaker and a PlateTaker. When that check finds no entitlement and no end date, it stores an end date in the past so Premium does not stay on. The store subscriptions sheet is in the next iOS and Android build. Until that build, Privacy & Security shows the message and the renewal is turned off in the store. On that build, a signed-in PlateMaker and a signed-in PlateTaker reach the sheet from the last delete confirmation when renewal is still on. iPhone opens Apple’s subscriptions page. Android opens the membership already on that phone, monthly or yearly. A phone with no Play membership opens that app’s subscription list. Signed out, delete is not on the screen.
+
+Apple cannot be cancelled by the server. Privacy & Security refuses to delete the account while App Store renewal is still on, or while the App Store key is missing and the membership still covers. The phone then opens the store subscriptions sheet. After renewal is off, delete can run again. An already expired or refunded App Store membership can be deleted. Google Play is cancelled on delete when the Play service account is present. Stripe was already cancelled on delete.
+
+A PlateMaker whose Early Bird date is still ahead stays on Premium after an App Store expiry. A PlateTaker has no Early Bird. Another still-valid Stripe id, Play membership, or lifetime tier also keeps the account. Lifetime is not the 5% buyer fee.
+
+| | PlateMaker, signed in | PlateTaker, signed in | Signed out |
+| --- | --- | --- | --- |
+| App Store expiry or refund | Premium ends unless Early Bird is still ahead, or Stripe, Play, or lifetime still covers. The kitchen follows that result. | Premium ends unless Stripe, Play, or lifetime still covers. The buyer fee returns to 10%. | No membership is shown. |
+| Delete account | Delete waits until App Store renewal is off. Play renewal is cancelled when the service account is set. | The same billing check. The buyer account is what is deleted. | Delete is not available. |
+
 ## Rule for later changes
 
 Read `role` before a price, a trial, or a checkout.

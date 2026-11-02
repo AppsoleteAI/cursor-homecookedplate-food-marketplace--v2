@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CHECKOUT_AREA_LABEL, quoteCard } from '@/backend/lib/combined-checkout';
 import { calculateDeliveryLevy, promotionalBase } from '@/backend/lib/fees';
@@ -29,6 +29,7 @@ import { useSitDown } from '@/hooks/sit-down-store';
 import { clearPaidLaneBaskets } from '@/lib/clear-paid-lane-baskets';
 import { combinedChargeKey, gatherCombinedCheckouts, payableCheckouts } from '@/lib/gather-combined-checkouts';
 import { useStripe } from '@/lib/stripe';
+import { applePayMerchantName } from '@/backend/lib/payee-name';
 import { trpc } from '@/lib/trpc';
 
 function previewLine(area: string, productId: string, quantity: number) {
@@ -133,7 +134,7 @@ function HomePlateSection({
 }
 
 export default function CombinedCheckoutScreen() {
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const cart = useCart();
   const farm = useFarmBasket();
   const prep = useMealPrep();
@@ -319,7 +320,7 @@ export default function CombinedCheckoutScreen() {
       }
       const { error: initError } = await initPaymentSheet({
         paymentIntentClientSecret: created.clientSecret,
-        merchantDisplayName: 'HomeCookedPlate',
+        merchantDisplayName: applePayMerchantName([created.merchantDisplayName]),
         applePay: { merchantCountryCode: 'US' },
         returnURL: 'homecookedplate://combined-checkout',
       });
@@ -379,6 +380,10 @@ export default function CombinedCheckoutScreen() {
       finishedWeb.current = false;
     });
   }, [cart, confirmCheckout, webReturn.data]);
+
+  if (!isLoading && !isAuthenticated) {
+    return <Redirect href="/(auth)/login" />;
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>

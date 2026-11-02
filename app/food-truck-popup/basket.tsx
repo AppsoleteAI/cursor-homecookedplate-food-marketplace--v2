@@ -14,7 +14,7 @@ import { buyerFoodCharge } from '@/backend/lib/fees';
 import { useAuth } from '@/hooks/auth-context';
 
 export default function TruckBasketScreen() {
-  const { items, listings, permit, setQuantity, clearItems } = useFoodTruck();
+  const { items, listings, setQuantity, clearItems } = useFoodTruck();
   const { user } = useAuth();
   const { payInMainCart } = useCombinedBill();
   const lines = useMemo(() => {
@@ -29,7 +29,7 @@ export default function TruckBasketScreen() {
   }, [items, listings]);
 
   const truckId = lines[0]?.truckId;
-  const truckName = truckId === 'owner-truck' ? permit?.truckName ?? 'Your truck' : getTruck(truckId ?? '')?.name ?? 'Truck';
+  const truckName = truckId === 'owner-truck' ? 'Your truck' : getTruck(truckId ?? '')?.name ?? 'Truck';
   const baseAmount = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 

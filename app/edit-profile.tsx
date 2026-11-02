@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -20,12 +20,21 @@ import { ScreenBack } from '@/components/BackCircle';
 
 export default function EditProfileScreen() {
   const { user, updateProfile } = useAuth();
+  const isCook = (user?.accountRole ?? user?.role) === 'platemaker';
   const [username, setUsername] = useState<string>(user?.username || '');
+  const [businessName, setBusinessName] = useState<string>(user?.businessName || '');
+  const businessTouched = useRef(false);
   const [email, setEmail] = useState<string>(user?.email || '');
   const [phone, setPhone] = useState<string>(user?.phone ?? '');
   const [bio, setBio] = useState<string>(user?.bio ?? '');
   const [profileImage, setProfileImage] = useState<string>(user?.profileImage ?? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400');
   const [saving, setSaving] = useState<boolean>(false);
+
+  useEffect(() => {
+    const saved = user?.businessName?.trim();
+    if (!saved || businessTouched.current) return;
+    setBusinessName(saved);
+  }, [user?.businessName]);
 
   const handlePickImage = async () => {
     try {
@@ -101,7 +110,14 @@ export default function EditProfileScreen() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      await updateProfile({ username, email, phone, bio, profileImage });
+      await updateProfile({
+        username,
+        email,
+        phone,
+        bio,
+        profileImage,
+        ...(isCook ? { businessName } : {}),
+      });
       const msg = 'Profile updated successfully!';
       if (Platform.OS === 'web') {
         window.alert(msg);
@@ -154,6 +170,25 @@ export default function EditProfileScreen() {
                 placeholderTextColor={Colors.gray[400]}
               />
             </View>
+
+            {isCook ? (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Business name</Text>
+                <TextInput
+                  testID="input-business-name"
+                  style={styles.input}
+                  value={businessName}
+                  onChangeText={(value) => {
+                    businessTouched.current = true;
+                    setBusinessName(value);
+                  }}
+                  placeholder="Name on the buyer's payment sheet"
+                  placeholderTextColor={Colors.gray[400]}
+                  maxLength={80}
+                />
+                <Text style={styles.hint}>This is the cook on the phone payment sheet and on website checkout. Leave it empty to use your username.</Text>
+              </View>
+            ) : null}
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Email</Text>
@@ -248,6 +283,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: Colors.gray[700],
+  },
+  hint: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: Colors.gray[600],
   },
   input: {
     backgroundColor: Colors.gray[50],

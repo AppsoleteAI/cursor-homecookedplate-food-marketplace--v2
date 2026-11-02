@@ -34,7 +34,7 @@ export default function TruckItemScreen() {
   const ingredients = catalog?.ingredients ?? listing!.ingredients;
   const allergens = catalog?.allergens ?? listing!.allergens;
   const truckId = catalog?.truckId ?? 'owner-truck';
-  const truckName = truck?.name ?? permit?.truckName ?? 'Your truck';
+  const truckName = truck?.name ?? (permit ? 'Your truck' : 'Truck');
 
   return (
     <FoodTruckScreen title={name} subtitle={truckName} testID="truck-item">

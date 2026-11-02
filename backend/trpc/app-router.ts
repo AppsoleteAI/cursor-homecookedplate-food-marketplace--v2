@@ -16,6 +16,7 @@ import { reactivateAccountProcedure } from "./routes/auth/reactivate-account/rou
 import { verifyEmailProcedure } from "./routes/auth/verify-email/route";
 import { resendVerificationEmailProcedure } from "./routes/auth/resend-verification-email/route";
 import { createMealProcedure } from "./routes/meals/create/route";
+import { kitchenPermitProcedure, saveKitchenPermitProcedure } from "./routes/meals/kitchen-permit/route";
 import { updateMealDetailsProcedure } from "./routes/meals/update-details/route";
 import { listMealsProcedure } from "./routes/meals/list/route";
 import { getMealProcedure } from "./routes/meals/get/route";
@@ -131,6 +132,8 @@ export const appRouter = createTRPCRouter({
   meals: createTRPCRouter({
     create: createMealProcedure,
     updateDetails: updateMealDetailsProcedure,
+    kitchenPermit: kitchenPermitProcedure,
+    saveKitchenPermit: saveKitchenPermitProcedure,
     list: listMealsProcedure,
     get: getMealProcedure,
     myMeals: myMealsProcedure,

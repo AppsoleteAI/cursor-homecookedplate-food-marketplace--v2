@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { auditTextField, auditTextList } from '../../../../lib/text-audit';
 import { cuisineToMealCategory, portionTag, timeZoneTag } from '@/lib/meal-publish';
+import { cookPermitIsSaved } from '../../../../lib/kitchen-permit';
 
 const dateField = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional();
 
@@ -21,6 +22,12 @@ export const updateMealDetailsProcedure = protectedProcedure
     }),
   )
   .mutation(async ({ input, ctx }) => {
+    if (!(await cookPermitIsSaved(ctx.supabaseAdmin, ctx.userId))) {
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'Save the home-kitchen agreement before a cooked plate goes on the menu.',
+      });
+    }
     const cuisineResult = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'meal_cuisine', input.cuisine);
     const ingredientsResult = await auditTextList(ctx.supabaseAdmin, ctx.userId, 'meal_ingredients', input.ingredients);
     if (cuisineResult.blocked || ingredientsResult.blocked || cuisineResult.value.length === 0) {

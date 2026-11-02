@@ -8,7 +8,7 @@ import { Colors } from '@/constants/colors';
 import { getCompany, getPackage } from '@/constants/cater-event-deliver';
 import { useAuth } from '@/hooks/auth-context';
 import { forgetPaidCaterItems, useCaterEvent, type CaterOrderLine } from '@/hooks/cater-event-store';
-import { DROP_OFF_WINDOWS, type DropOffWindow } from '@/lib/cater-event-license';
+import { CATER_MINIMUM_HEADCOUNT, DROP_OFF_WINDOWS, type DropOffWindow } from '@/lib/cater-event-license';
 import { buyerFoodCharge } from '@/backend/lib/fees';
 import { accountAccessCopy } from '@/backend/lib/sign-in-messages';
 import { orderTotalWithDelivery } from '@/lib/fees';
@@ -22,7 +22,7 @@ import { useCombinedBill } from '@/hooks/use-combined-bill';
 
 export default function CaterCheckoutScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
-  const { items, listings, license, accepting, placeOrder } = useCaterEvent();
+  const { items, listings, accepting, placeOrder } = useCaterEvent();
   const { chargeShop, charging } = useShopCardPayment();
   const { payInMainCart } = useCombinedBill();
   const [dropoffWindow, setDropoffWindow] = useState<DropOffWindow>('Weekday lunch, 11:00–1:00');
@@ -42,7 +42,7 @@ export default function CaterCheckoutScreen() {
       const listing = listings.find((entry) => entry.id === item.packageId);
       const name = catalog?.name ?? listing?.name;
       const pricePerPerson = catalog?.pricePerPerson ?? listing?.pricePerPerson;
-      const minimum = catalog?.minimumHeadcount ?? listing?.minimumHeadcount ?? 8;
+      const minimum = catalog?.minimumHeadcount ?? listing?.minimumHeadcount ?? CATER_MINIMUM_HEADCOUNT;
       if (!name || pricePerPerson === undefined) return [];
       const line: CaterOrderLine & { minimum: number } = {
         packageId: item.packageId,
@@ -58,7 +58,7 @@ export default function CaterCheckoutScreen() {
   const offer = useAreaOfferTotal('catering', lines.map((line) => ({ id: line.packageId, unitPrice: line.pricePerPerson, quantity: line.headcount })));
   const companyId = items[0]?.companyId ?? '';
   const catalogCompany = getCompany(companyId);
-  const companyName = companyId === 'owner-company' ? license?.companyName ?? 'Your company' : catalogCompany?.name ?? 'Catering company';
+  const companyName = companyId === 'owner-company' ? 'Your company' : catalogCompany?.name ?? 'Catering company';
   const open = companyId === 'owner-company' ? accepting : Boolean(catalogCompany?.accepting);
   const baseAmount = offer.baseAmount;
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });

@@ -58,7 +58,7 @@ export function SitDownScreen({ title, subtitle, children, testID, showBasket = 
         {children}
         <Text style={styles.legal}>
           {isMaker
-            ? 'SitDownDelicious does not inspect restaurants or issue retail food licenses. Chains and franchises are not listed. Confirm the health permit and the fee for the street address before you sell.'
+            ? 'The cook follows the food rules of the city, county, and state. HomeCookedPlate does not verify them. Chains and franchises are not listed. All responsibility for the food is on the PlateMaker.'
             : 'Sit at a table or pick the food up at the counter. Chains are not listed.'}
         </Text>
       </ScrollView>

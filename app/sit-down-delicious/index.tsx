@@ -18,7 +18,7 @@ const LINKS: { title: string; detail: string; href: string; icon: keyof typeof I
   { title: 'Table or takeout', detail: 'One restaurant per order. No courier.', href: '/sit-down-delicious/basket', icon: 'cafe-outline' },
   { title: 'Restaurant orders', detail: 'Separate from plates, farms, trucks, and catering', href: '/sit-down-delicious/orders', icon: 'list-outline' },
   { title: 'Shop owner', detail: 'Open the dining room and see the payout', href: '/sit-down-delicious/seller', icon: 'restaurant-outline', seller: true },
-  { title: 'Retail food license', detail: 'Fixed address, independence, and the permit fee', href: '/sit-down-delicious/license', icon: 'document-text-outline', seller: true },
+  { title: 'Restaurant agreement', detail: 'Six acknowledgements before a menu item is listed', href: '/sit-down-delicious/license', icon: 'document-text-outline', seller: true },
 ];
 
 export default function SitDownDeliciousHome() {
@@ -37,7 +37,7 @@ export default function SitDownDeliciousHome() {
           <Text style={styles.kicker}>Independent restaurants and ghost kitchens.</Text>
           <Text style={styles.title}>SitDownDelicious</Text>
           <Text style={styles.lead}>
-            Coffee, yogurt, ice cream, diners, small cafes, and independent ghost kitchens. A ghost kitchen is pickup or takeout from a licensed commercial kitchen. Chains are not listed.
+            Coffee, yogurt, ice cream, diners, small cafes, and independent ghost kitchens. A ghost kitchen is pickup or takeout and has no dining room. Chains are not listed.
           </Text>
           <View style={styles.zipRow}>
             <TextInput

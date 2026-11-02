@@ -31,6 +31,10 @@ The back control on Membership follows the signed-in row for the role on the scr
 
 Your Cook Path and Where You Can Eat use the honey gold from the home screens: `#F6CC3E`, `#E8B016`, and `#D39A08`. The words on that gold card are white, the same white Home Kitchens uses on its gold header. Other membership text stays dark.
 
+## Username line
+
+On Your Account, a signed-out PlateMaker and a signed-out PlateTaker see the same line under the username. "Username available" is green. "Username taken" stays maroon. "Checking username..." and a failed lookup stay maroon. A signed-in PlateMaker and a signed-in PlateTaker do not see this form. Web, iOS, and Android use the same source. The website publish on `main` includes this copy. The store builds stay on the previous copy until a new build.
+
 ## A new account
 
 Legal & Safety checks live on the account. The browser also kept a copy, so a deleted account's checks and date stayed on the phone after a refresh.

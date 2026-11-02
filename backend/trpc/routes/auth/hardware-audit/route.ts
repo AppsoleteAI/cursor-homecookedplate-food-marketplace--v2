@@ -10,7 +10,8 @@ import { lifetimeShouldSaveDevice } from "../../../../lib/lifetime-device";
  * - Non-lifetime users: always allowed
  * - Lifetime users with no device_id: allowed (first-time setup)
  * - Lifetime users with matching device_id: allowed
- * - Lifetime users with a different device_id: this signed-in device is saved and allowed
+ * - Lifetime users with a different device_id: this install is saved and allowed.
+ *   An App Store re-download is this case. The membership stays on this account.
  */
 export const hardwareAuditProcedure = protectedProcedure
   .input(

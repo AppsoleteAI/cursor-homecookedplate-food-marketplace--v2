@@ -248,9 +248,9 @@ export default function SignupScreen() {
                       {usernameError}
                     </Text>
                   ) : isUsernameAvailable === true ? (
-                    <Text style={{ fontSize: 12, color: AuthColors.brand }}>✓ Username available</Text>
+                    <Text style={{ fontSize: 12, color: AuthColors.available }}>✓ Username available</Text>
                   ) : isUsernameAvailable === false ? (
-                    <Text style={{ fontSize: 12, color: AuthColors.error }}>✗ Username taken</Text>
+                    <Text style={{ fontSize: 12, color: AuthColors.maroon }}>✗ Username taken</Text>
                   ) : null}
                 </View>
               )}

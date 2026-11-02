@@ -5,6 +5,7 @@ import { trpc } from '@/lib/trpc';
 import { useStripe } from '@/lib/stripe';
 import type { ShopName } from '@/backend/lib/shop-catalog';
 import { fulfillmentIsDelivery } from '@/backend/lib/delivery-fee';
+import { applePayMerchantName } from '@/backend/lib/payee-name';
 import type { ShopFulfillment } from '@/backend/lib/shop-fulfillment';
 
 type ShopLine = { productId: string; quantity: number };
@@ -57,7 +58,7 @@ export function useShopCardPayment() {
       }
       const { error: initError } = await initPaymentSheet({
         paymentIntentClientSecret: created.clientSecret,
-        merchantDisplayName: 'HomeCookedPlate',
+        merchantDisplayName: applePayMerchantName([created.merchantDisplayName]),
         applePay: { merchantCountryCode: 'US' },
         returnURL: 'homecookedplate://checkout',
       });

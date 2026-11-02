@@ -2,11 +2,12 @@ import { TRPCError } from "@trpc/server";
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
 import { displayName, loadPublicProfiles } from "../../../../lib/public-profiles";
-import { countAreaMealsWithMedia, isSampleMealId, visibleSampleMeals } from "@/lib/sample-meals";
+import { isSampleMealId, visibleSampleMeals } from "@/lib/sample-meals";
 import { loadActiveOffers } from "../../../../lib/active-offer";
 import { pickupGate } from "../../../../lib/kitchen-pin";
 import { buyerMetroCanOrder } from "../../../../lib/metro-menu";
 import { buyerPlateLinkOpens } from "@/lib/cart-line";
+import { cookPermitIsSaved, countPermittedMealsWithMedia } from "../../../../lib/kitchen-permit";
 
 export const getMealProcedure = publicProcedure
   .input(z.object({ id: z.string(), metroArea: z.string().optional() }))
@@ -17,6 +18,10 @@ export const getMealProcedure = publicProcedure
       .eq('id', input.id)
       .maybeSingle();
 
+    if (data && data.user_id !== ctx.userId && !(await cookPermitIsSaved(ctx.supabaseAdmin, data.user_id))) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'That plate is not on the menu.' });
+    }
+
     if (data && data.published === false && data.user_id !== ctx.userId) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'That plate is not on the menu.' });
     }
@@ -25,7 +30,7 @@ export const getMealProcedure = publicProcedure
       if (!isSampleMealId(input.id)) {
         throw new Error(error?.message || 'Meal not found');
       }
-      const realWithMedia = await countAreaMealsWithMedia(ctx.supabase, input.metroArea);
+      const realWithMedia = await countPermittedMealsWithMedia(ctx.supabaseAdmin, input.metroArea);
       const sample = visibleSampleMeals(realWithMedia).find((meal) => meal.id === input.id);
       if (!sample) throw new Error('Meal not found');
       return {

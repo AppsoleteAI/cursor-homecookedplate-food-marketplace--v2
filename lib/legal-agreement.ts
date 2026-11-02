@@ -9,6 +9,7 @@ export const LEGAL_SECTION_IDS = [
   'fee_structure',
   'account_termination',
   'uploaded_content',
+  'apple_eula',
 ] as const;
 
 export type LegalSectionId = (typeof LEGAL_SECTION_IDS)[number];
@@ -55,7 +56,37 @@ export function emptyLegalSections(): Record<LegalSectionId, boolean> {
     fee_structure: false,
     account_termination: false,
     uploaded_content: false,
+    apple_eula: false,
   };
+}
+
+/** An older agreement that already has every section except the Apple app license. */
+export function priorAgreementFromUnknown(value: unknown): LegalAgreementRecord | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Partial<LegalAgreementRecord>;
+  if (!raw.sections || typeof raw.acknowledgedOn !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(raw.acknowledgedOn)) {
+    return null;
+  }
+  if (typeof raw.acknowledgedAt !== 'string' || raw.acknowledgedAt.length < 10) return null;
+  const sections = emptyLegalSections();
+  for (const id of LEGAL_SECTION_IDS) {
+    if (id === 'apple_eula') continue;
+    if (raw.sections[id] !== true) return null;
+    sections[id] = true;
+  }
+  sections.apple_eula = raw.sections.apple_eula === true;
+  return {
+    sections,
+    acknowledgedOn: raw.acknowledgedOn,
+    acknowledgedAt: raw.acknowledgedAt,
+  };
+}
+
+/** Sign-in stays open. The Apple app license is checked on Legal & Safety after sign-in. */
+export function needsAppleLicenseRecheck(value: unknown, createdAt: Date): boolean {
+  const prior = priorAgreementFromUnknown(value);
+  if (!prior || prior.sections.apple_eula) return false;
+  return !agreementPredatesAccount(prior, createdAt);
 }
 
 export function todayStamp(): string {

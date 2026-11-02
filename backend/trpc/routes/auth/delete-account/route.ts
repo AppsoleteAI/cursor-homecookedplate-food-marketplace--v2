@@ -4,6 +4,10 @@ import { missingBuyerColumn } from '../../../../lib/order-row';
 import { refundOpenCharge } from '../../../../lib/refund-card';
 import { moveMetroHeadcount, undoMetroHeadcount } from '../../../../lib/metro-headcount';
 import { unpackShopLines } from '../../../../lib/shop-fulfillment';
+import { readAppleRenewalStatus } from '../../../../lib/apple-server';
+import { cancelGoogleSubscription } from '../../../../lib/google-play';
+import { missingStoreDateColumn } from '../../../../lib/store-membership';
+import { appleMembershipCovers, googleMembershipCovers } from '../../../../lib/trial-access';
 
 /**
  * Server-Side Account Deletion
@@ -22,11 +26,21 @@ export const deleteAccountProcedure = protectedProcedure
     const userId = ctx.userId;
 
     // ── 1. Fetch profile to obtain Stripe IDs and media references ──────────
-    const { data: profile } = await ctx.supabase
+    const profileColumns = 'stripe_subscription_id, stripe_customer_id, profile_image, role, metro_area, membership_tier, trial_ends_at, apple_original_transaction_id, apple_expires_at, apple_revoked_at, google_purchase_token, google_expires_at';
+    let profileResult = await ctx.supabaseAdmin
       .from('profiles')
-      .select('stripe_subscription_id, stripe_customer_id, profile_image, role, metro_area')
+      .select(profileColumns)
       .eq('id', userId)
       .single();
+    if (missingStoreDateColumn(profileResult.error)) {
+      profileResult = await ctx.supabaseAdmin
+        .from('profiles')
+        .select('stripe_subscription_id, stripe_customer_id, profile_image, role, metro_area, membership_tier, trial_ends_at, apple_original_transaction_id, google_purchase_token')
+        .eq('id', userId)
+        .single();
+    }
+    const profile = profileResult.data;
+    await assertStoreBillingWillStop(profile, ctx);
 
     // ── 2. Refund and close open paid orders before anything is removed ────
     await closeOpenOrders(ctx.supabaseAdmin, userId, ctx.stripeSecretKey);
@@ -156,6 +170,72 @@ export const deleteAccountProcedure = protectedProcedure
 
     return { success: true };
   });
+
+async function assertStoreBillingWillStop(
+  profile: {
+    apple_original_transaction_id?: string | null;
+    apple_expires_at?: string | null;
+    apple_revoked_at?: string | null;
+    google_purchase_token?: string | null;
+    google_expires_at?: string | null;
+    membership_tier?: string | null;
+    role?: string | null;
+    trial_ends_at?: string | null;
+    stripe_subscription_id?: string | null;
+  } | null,
+  ctx: {
+    appleApi: { keyId?: string; issuerId?: string; privateKey?: string };
+    googlePlayServiceAccountJson?: string;
+  },
+): Promise<void> {
+  if (profile?.apple_original_transaction_id) {
+    let status;
+    try {
+      status = await readAppleRenewalStatus(profile.apple_original_transaction_id, ctx.appleApi);
+    } catch {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: 'The App Store subscription could not be checked. This account was not deleted.',
+      });
+    }
+    if (!status.configured && appleMembershipCovers(profile)) {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: 'Cancel the App Store subscription before this account can be deleted. HomeCookedPlate could not confirm that Apple has stopped renewal.',
+      });
+    }
+    if (status.renewing) {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: 'Cancel the App Store subscription in Apple subscriptions, then delete the account again. Apple keeps billing until that renewal is off.',
+      });
+    }
+  }
+
+  if (profile?.google_purchase_token) {
+    if (!ctx.googlePlayServiceAccountJson) {
+      if (googleMembershipCovers(profile)) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'Cancel the Google Play subscription before this account can be deleted. HomeCookedPlate could not confirm that Google has stopped renewal.',
+        });
+      }
+      return;
+    }
+    try {
+      await cancelGoogleSubscription(profile.google_purchase_token, {
+        serviceAccountJson: ctx.googlePlayServiceAccountJson,
+      });
+    } catch (error) {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: error instanceof Error && /Google Play subscription/i.test(error.message)
+          ? `${error.message} This account was not deleted.`
+          : 'The Google Play subscription could not be cancelled. This account was not deleted.',
+      });
+    }
+  }
+}
 
 const OPEN_STATUSES = ['pending', 'accepted', 'preparing', 'ready'];
 
