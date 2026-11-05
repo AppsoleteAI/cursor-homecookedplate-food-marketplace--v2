@@ -1,4 +1,9 @@
-export type ShopCloseoutAction = 'accept' | 'refund' | 'complete';
+export type ShopCloseoutAction = 'accept' | 'refund' | 'complete' | 'acknowledge';
+
+/** The cook can clear a paid shop order only after the buyer has acknowledged receipt. */
+export function shopClearAllowed(buyerAcknowledged: boolean): boolean {
+  return buyerAcknowledged === true;
+}
 
 export function nextShopStatus(current: string, action: ShopCloseoutAction): 'accepted' | 'cancelled' | 'completed' | null {
   if (action === 'accept' && current === 'pending') return 'accepted';

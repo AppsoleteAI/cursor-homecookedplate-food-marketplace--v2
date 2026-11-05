@@ -5,7 +5,8 @@ import { protectedProcedure } from '../../../create-context';
 import { buyerServiceFeePercent, calculateDeliveryLevy, calculateFees, orderTotalWithDelivery, sellerRefundAmount } from '../../../../lib/fees';
 import { applePayMerchantName, profilePayeeName } from '../../../../lib/payee-name';
 import { resolvedMembershipTier } from '../../../../lib/trial-access';
-import { nextShopStatus, shopCloseoutNotice, shopRefundIsFull } from '../../../../lib/shop-order-status';
+import { nextShopStatus, shopClearAllowed, shopCloseoutNotice, shopRefundIsFull } from '../../../../lib/shop-order-status';
+import { loadPickupConfirms } from '../../../../lib/pickup-confirm';
 import { payoutReleaseAt } from '../../../../lib/payout-policy';
 import { fulfillmentIsDelivery, savedDeliveryFee } from '../../../../lib/delivery-fee';
 import { assertBuyerCanOrder } from '../../../../lib/buyer-order-access';
@@ -546,7 +547,7 @@ async function refundShopCard(
 export const updateShopOrderProcedure = protectedProcedure
   .input(z.object({
     orderId: z.string().uuid(),
-    action: z.enum(['accept', 'refund', 'complete']),
+    action: z.enum(['accept', 'refund', 'complete', 'acknowledge']),
   }))
   .mutation(async ({ input, ctx }) => {
     const { data, error } = await ctx.supabaseAdmin
@@ -558,11 +559,71 @@ export const updateShopOrderProcedure = protectedProcedure
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Shop order not found' });
     }
     const packed = unpackShopLines(data.lines);
-    if (packed.sellerId !== ctx.userId) {
+    const isCook = packed.sellerId === ctx.userId;
+    const isBuyer = data.buyer_id === ctx.userId;
+    if (!isCook && !isBuyer) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Only the cook or the PlateTaker on this order can update it.' });
+    }
+    if (data.paid !== true || !data.payment_intent_id) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Stripe has not confirmed this payment.' });
+    }
+    if (input.action === 'acknowledge') {
+      if (data.buyer_id !== ctx.userId) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Only the PlateTaker on this order can acknowledge receipt.' });
+      }
+      if (packed.status !== 'accepted') {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'This order is not ready to acknowledge.' });
+      }
+      const prior = await loadPickupConfirms(ctx.supabaseAdmin, [data.id], 'RECEIPT_ACK');
+      const roles = prior.get(data.id) ?? [];
+      if (!roles.includes('buyer')) {
+        const saved = await ctx.supabaseAdmin.from('audit_logs').insert({
+          user_id: ctx.userId,
+          action: 'RECEIPT_ACK',
+          table_name: 'shop_orders',
+          record_id: data.id,
+          new_data: { role: 'buyer' },
+        });
+        if (saved.error) {
+          throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Receipt could not be acknowledged. This order is still open.' });
+        }
+      }
+      if (packed.sellerId) {
+        try {
+          await notifyParty(ctx.supabaseAdmin, packed.sellerId, 'orderUpdates', {
+            title: 'Receipt',
+            body: 'The PlateTaker acknowledged that the food was paid for and received. You can clear this order.',
+          });
+        } catch (noticeError) {
+          console.error('[ShopOrder] Receipt notice was not sent:', noticeError);
+        }
+      }
+      return { id: data.id as string, status: packed.status, acknowledged: true };
+    }
+    if (!isCook) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Only the cook on this order can update it.' });
     }
-    if (data.paid !== true) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'This order is not paid.' });
+    if (input.action === 'complete') {
+      const prior = await loadPickupConfirms(ctx.supabaseAdmin, [data.id], 'RECEIPT_ACK');
+      const roles = prior.get(data.id) ?? [];
+      if (!shopClearAllowed(roles.includes('buyer'))) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'The PlateTaker has to acknowledge that the food was paid for and received before this order can be cleared.',
+        });
+      }
+      if (!roles.includes('seller')) {
+        const saved = await ctx.supabaseAdmin.from('audit_logs').insert({
+          user_id: ctx.userId,
+          action: 'RECEIPT_ACK',
+          table_name: 'shop_orders',
+          record_id: data.id,
+          new_data: { role: 'seller' },
+        });
+        if (saved.error) {
+          throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Receipt could not be acknowledged. This order is still open.' });
+        }
+      }
     }
     const next = nextShopStatus(packed.status, input.action);
     if (!next) {
@@ -625,6 +686,24 @@ export const updateShopOrderProcedure = protectedProcedure
     }
 
     return { id: data.id as string, status: next };
+  });
+
+export const shopReceiptProcedure = protectedProcedure
+  .input(z.object({ orderId: z.string().uuid() }))
+  .query(async ({ input, ctx }) => {
+    const { data, error } = await ctx.supabaseAdmin
+      .from('shop_orders')
+      .select('id, buyer_id, lines, paid')
+      .eq('id', input.orderId)
+      .maybeSingle();
+    if (error || !data) return { roles: [] as ('buyer' | 'seller')[] };
+    const packed = unpackShopLines(data.lines);
+    if (data.buyer_id !== ctx.userId && packed.sellerId !== ctx.userId) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'You cannot view this receipt.' });
+    }
+    if (data.paid !== true) return { roles: [] as ('buyer' | 'seller')[] };
+    const prior = await loadPickupConfirms(ctx.supabaseAdmin, [data.id], 'RECEIPT_ACK');
+    return { roles: prior.get(data.id) ?? [] };
   });
 
 export const abandonShopOrderProcedure = protectedProcedure

@@ -61,7 +61,7 @@ export const createCheckoutSessionProcedure = protectedProcedure
       customerId = customer.id;
 
       // Save customer ID to profile
-      await ctx.supabase
+      await ctx.supabaseAdmin
         .from('profiles')
         .update({ stripe_customer_id: customerId })
         .eq('id', profile.id);

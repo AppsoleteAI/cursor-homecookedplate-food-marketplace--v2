@@ -1,4 +1,4 @@
-import { appRevenueWithDelivery, buyerServiceFeePercent, calculateFees, orderTotalWithDelivery, sharedChargeRefundCents } from './fees';
+import { appRevenueWithDelivery, buyerCardCharge, buyerServiceFeePercent, calculateFees, orderTotalWithDelivery, sharedChargeRefundCents } from './fees';
 import { orderBuyerId, orderTotal } from './order-row';
 import { notifyCookOfPayment, notifyParty } from './account-notice';
 import { portionRowHolds, portionsFromTags } from '@/lib/meal-publish';
@@ -7,6 +7,60 @@ import { refundChargeCents } from './refund-card';
 /** A lost portion closes only after that charge is refunded. */
 export function lostPortionOrderCloses(refundSucceeded: boolean): boolean {
   return refundSucceeded === true;
+}
+
+export function listedPlateMetadata(metadata: { order_ids?: string; base_cents?: string } | null | undefined): {
+  listedOrderIds: string[] | null;
+  listedBaseCents: number | null;
+} {
+  const listedOrderIds = typeof metadata?.order_ids === 'string'
+    ? metadata.order_ids.split(',').map((id) => id.trim()).filter(Boolean)
+    : null;
+  const base = Number(metadata?.base_cents);
+  return {
+    listedOrderIds,
+    listedBaseCents: Number.isInteger(base) ? base : null,
+  };
+}
+
+/** The Stripe charge matches the cook's plate prices on these orders, including the service fee and delivery. */
+export function platePaymentCovers(input: {
+  orderIds: string[];
+  bases: number[];
+  deliveryFee: number;
+  amountCents: number;
+  buyerRole: string | null | undefined;
+  buyerTier: string | null | undefined;
+  listedOrderIds?: string[] | null;
+  listedBaseCents?: number | null;
+}): boolean {
+  if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) return false;
+  const ids = [...input.orderIds].sort();
+  if (input.listedOrderIds) {
+    const listed = [...input.listedOrderIds].filter(Boolean).sort();
+    if (listed.length !== ids.length || listed.some((id, index) => id !== ids[index])) return false;
+  }
+  const base = input.bases.reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0);
+  const baseCents = Math.round(base * 100);
+  if (!(baseCents > 0)) return false;
+  if (input.listedBaseCents != null && input.listedBaseCents !== baseCents) return false;
+  const percents = new Set<number>([
+    buyerServiceFeePercent({
+      role: input.buyerRole,
+      membershipTier: input.buyerTier,
+      baseAmount: base,
+    }),
+    buyerServiceFeePercent({ role: 'platetaker', membershipTier: 'premium', baseAmount: base }),
+    10,
+  ]);
+  const deliveryFee = Number.isFinite(input.deliveryFee) && input.deliveryFee > 0 ? input.deliveryFee : 0;
+  for (const percent of percents) {
+    const fees = calculateFees(base, percent, 10);
+    const withDelivery = orderTotalWithDelivery(fees.totalCharge, fees.sellerPayout, deliveryFee);
+    const card = buyerCardCharge(withDelivery.buyerPays);
+    if (Math.round(card.cardCharge * 100) === input.amountCents) return true;
+  }
+  return false;
 }
 
 type Admin = {
@@ -37,6 +91,9 @@ export async function recordPlatePayment(
     applicationFeeId?: string | null;
     currency?: string | null;
     deliveryFee?: number;
+    amountCents?: number | null;
+    listedOrderIds?: string[] | null;
+    listedBaseCents?: number | null;
     stripeSecretKey?: string | null;
   },
 ): Promise<number> {
@@ -49,6 +106,25 @@ export async function recordPlatePayment(
     throw new Error(error.message || 'Could not mark the order paid');
   }
   if (!existing || existing.length === 0) return 0;
+
+  const buyerIdForFee = orderBuyerId(existing[0] || {});
+  const { data: feeProfile } = buyerIdForFee
+    ? await admin.from('profiles').select('role, membership_tier').eq('id', buyerIdForFee).maybeSingle()
+    : { data: null };
+  const covers = platePaymentCovers({
+    orderIds: existing.map((order: { id: string }) => order.id),
+    bases: existing.map((order: PaidOrderRow) => orderTotal(order)),
+    deliveryFee: Number(input.deliveryFee ?? 0),
+    amountCents: input.amountCents ?? 0,
+    buyerRole: feeProfile?.role,
+    buyerTier: feeProfile?.membership_tier,
+    listedOrderIds: input.listedOrderIds,
+    listedBaseCents: input.listedBaseCents,
+  });
+  if (!covers) {
+    console.error('[PaidOrder] Stripe amount does not match these plate prices:', input.paymentIntentId);
+    return 0;
+  }
 
   const pending = [...existing].sort((a: { created_at?: string; id: string }, b: { created_at?: string; id: string }) => {
     const byTime = String(a.created_at || '').localeCompare(String(b.created_at || ''));
@@ -63,6 +139,7 @@ export async function recordPlatePayment(
   const rejected: typeof pending = [];
 
   for (const order of pending) {
+    if (order.status === 'cancelled') continue;
     if (order.paid === true && order.status !== 'cancelled') {
       accepted.push(order);
       continue;

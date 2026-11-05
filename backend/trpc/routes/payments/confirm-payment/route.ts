@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../../create-context';
 import { orderBuyerId } from '../../../../lib/order-row';
-import { recordPlatePayment } from '../../../../lib/record-paid-order';
+import { listedPlateMetadata, recordPlatePayment } from '../../../../lib/record-paid-order';
 
 const inputSchema = z.object({
   paymentIntentId: z.string(),
@@ -11,7 +11,7 @@ const inputSchema = z.object({
 export const confirmPaymentProcedure = protectedProcedure
   .input(inputSchema)
   .mutation(async ({ input, ctx }) => {
-    const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+    const stripeSecretKey = ctx.stripeSecretKey || process.env.STRIPE_SECRET_KEY;
 
     if (!stripeSecretKey) {
       throw new Error('Stripe secret key not configured');
@@ -60,13 +60,23 @@ export const confirmPaymentProcedure = protectedProcedure
     console.log('[Stripe] Payment status:', paymentIntent.status);
 
     if (paymentIntent.status === 'succeeded') {
-      await recordPlatePayment(ctx.supabaseAdmin, {
+      const listed = listedPlateMetadata(paymentIntent.metadata);
+      const recorded = await recordPlatePayment(ctx.supabaseAdmin, {
         paymentIntentId: input.paymentIntentId,
         chargeId: paymentIntent.latest_charge || null,
         currency: paymentIntent.currency,
         deliveryFee: Number(paymentIntent.metadata?.delivery_fee ?? 0),
+        amountCents: paymentIntent.amount,
+        listedOrderIds: listed.listedOrderIds,
+        listedBaseCents: listed.listedBaseCents,
         stripeSecretKey,
       });
+      if (recorded === 0) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'Stripe has not confirmed this payment for these plate prices.',
+        });
+      }
     }
 
     return {

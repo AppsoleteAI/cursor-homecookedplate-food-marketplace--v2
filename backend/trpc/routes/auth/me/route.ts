@@ -1,6 +1,6 @@
 import { readAdminRole } from "../../../../lib/admin-role";
 import { earlyBirdCoversThisMetro, readEarlyBirdClaim } from "../../../../lib/early-bird-claim";
-import { refreshAppleMembership, refreshGoogleMembership, writeResolvedTier } from "../../../../lib/store-membership";
+import { refreshAppleMembership, refreshGoogleMembership, refreshStripeMembership, writeResolvedTier } from "../../../../lib/store-membership";
 import { platemakerMayEnter, platemakerTrialCountdownDays, trialCloseoutKeepsKitchen, unpaidPlatemakerTrialEnded } from "../../../../lib/trial-access";
 import { protectedProcedure } from "../../../create-context";
 
@@ -17,6 +17,7 @@ export const meProcedure = protectedProcedure
     }
 
     let current = profile;
+    current = await refreshStripeMembership(ctx.supabaseAdmin, current, ctx.stripeSecretKey);
     current = await refreshAppleMembership(ctx.supabaseAdmin, current, ctx.appleApi);
     current = await refreshGoogleMembership(ctx.supabaseAdmin, current, ctx.googlePlayServiceAccountJson);
     const membershipTier = await writeResolvedTier(ctx.supabaseAdmin, current);

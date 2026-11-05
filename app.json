@@ -17,6 +17,7 @@
       "supportsTablet": true,
       "buildNumber": "9",
       "bundleIdentifier": "app.rork.homecookedplate-dynamic-gradient-food-marketplace-v1-1",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "HomeCookedPlate uses your photo library so you can choose a profile picture, meal photos, and food review clips.",
         "NSCameraUsageDescription": "HomeCookedPlate uses the camera so you can take a profile picture, meal photos, and food review clips.",
@@ -150,7 +151,8 @@
           "url": "https://sentry.io/"
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true

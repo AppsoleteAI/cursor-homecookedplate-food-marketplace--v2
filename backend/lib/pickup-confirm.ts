@@ -4,13 +4,14 @@ type Admin = { from: (table: string) => any };
 export async function loadPickupConfirms(
   admin: Admin,
   orderIds: string[],
+  action = 'PICKUP_CONFIRM',
 ): Promise<Map<string, ('buyer' | 'seller')[]>> {
   const confirms = new Map<string, ('buyer' | 'seller')[]>();
   if (orderIds.length === 0) return confirms;
   const { data, error } = await admin
     .from('audit_logs')
     .select('record_id, new_data')
-    .eq('action', 'PICKUP_CONFIRM')
+    .eq('action', action)
     .in('record_id', orderIds);
   if (error || !data) return confirms;
   for (const row of data as { record_id?: string; new_data?: { role?: string } }[]) {

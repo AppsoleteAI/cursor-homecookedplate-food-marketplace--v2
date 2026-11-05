@@ -8,6 +8,18 @@ Web, iOS, and Android use this same Expo project. Membership, the cook-path card
 | Membership, the role pills, and leaving that screen | `app/membership.tsx` |
 | Your Cook Path and Where You Can Eat | `components/MembershipPromoBanner.tsx` |
 
+## Apple and Google sign-in
+
+Email sign-in stays available. Sign in with Apple and Sign in with Google start that provider. `lib/provider-sign-in.ts` calls `signInWithIdToken` for the iPhone Apple sheet and `signInWithOAuth` for Google, and for Apple on the website and on Android. The libraries are `expo-apple-authentication` and `expo-auth-session`. The Apple and Google values already stored for membership stay membership records.
+
+Signed out, a PlateMaker and a PlateTaker use those same two buttons. After the provider returns, an account that is already a PlateMaker opens the kitchen dashboard, and an account that is already a PlateTaker opens home. Email confirmation and Legal & Safety stay required. A provider identity with no account is asked to create an account. An account that uses a sign-in code uses email for that code.
+
+Build 8 and build 9 do not include this call. Apple will not replace a released version with a higher build number, so the phones get it in a later build. The website publish on `main` includes this screen on https://homecookedplate.com and https://homecookedplate.pages.dev. The provider return uses `homecookedplate://login` on the phone and `https://homecookedplate.com/login` on the website. Both addresses are on the Supabase Auth redirect list for project `tsrjtiunqbocmjgozeew`. Web, iOS, and Android use the same source.
+
+On 3 November 2026, an internal check ran three times, 9 tests each time, all passing. It used the review-account columns already in the suite and did not read, write, or delete a live account. Apple’s start returned to `appleid.apple.com` and Google’s start returned to `accounts.google.com`, for the website address and for the phone address. A signed-out PlateMaker and a signed-out PlateTaker share that start. A confirmed PlateMaker is sent to the kitchen dashboard. A confirmed PlateTaker is sent home. A finished Apple or Google session was not opened, because that would sign in a live person.
+
+On 3 November 2026, Apple and Google were turned on for that project. Google’s audience is In production and External, so any Google account can finish that sign-in. Apple’s private-relay mail sources `homecookedplate.com` and `send.homecookedplate.com` both passed the SPF check. The Apple secret lasts six months from 3 November 2026. Generate the next one from the same `.p8` before it expires. Signed out, a PlateMaker and a PlateTaker on the public site and on builds 8 and 9 still see the old button. Signed in, neither role uses these buttons.
+
 ## After a successful sign-in
 
 Email verification and Legal & Safety stay required. After that sign-in succeeds, the next screen is the app.
@@ -44,6 +56,16 @@ Signed out, a PlateMaker and a PlateTaker see those checks only after confirming
 Signed in, each role sees the acknowledgment stored on that account. It counts only when it was saved after that account existed. A copy from a deleted account, including one made earlier the same day, is removed. That person checks each section again and enters today's date. The phone keeps one pending confirmation for the next sign-in. Sign-in stamps that confirmation on the account, then the pending copy is cleared. Sign-out clears it too. Each phone does this for itself, so the number of people using the app does not bring the old checks back.
 
 A push to main publishes this on the website. The iOS and Android store builds stay on the previous copy until a new build.
+
+## Request timed out
+
+Signed out, email sign-in for a PlateMaker and a PlateTaker reads the saved session before the request is sent. That read waits on the Supabase auth lock, and the lock does not time out. A token refresh that never returns holds the lock, the sign-in request never starts, and the card shows "Request timed out. Check your connection and try again." after 10 seconds. Apple and Google sign-in wait on that same lock after the provider returns.
+
+The request now starts with the token already saved for this app when that read does not finish. Email sign-in, account creation, and later kitchen and home calls use that same wait. A finished email sign-in keeps the token from the answer, so a stuck lock does not hold the card after the account has already answered. Sign-out clears that saved token for both roles.
+
+Signed in, a PlateMaker's kitchen calls and a PlateTaker's home calls send the saved token when the lock is busy. They do not wait out the 10 seconds. An empty late read does not erase a token that is still in use.
+
+Web, iOS, and Android use the same source. The website publish on `main` includes this fix. A new iOS build and a new Android build are still required on the phones.
 
 ## Website sign-in on the phone
 

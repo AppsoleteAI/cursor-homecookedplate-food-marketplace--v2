@@ -29,7 +29,6 @@ export const createOrderProcedure = protectedProcedure
       deliveryAddress: z.string().optional(),
       pickupTime: z.string().min(1),
       pickupTimeZone: z.string().min(1).max(80).optional(),
-      paymentIntentId: z.string().optional(),
     })
   )
   .mutation(async ({ input, ctx }) => {
@@ -71,7 +70,7 @@ export const createOrderProcedure = protectedProcedure
         ...(withZone && pickupTimeZone ? { pickup_timezone: pickupTimeZone } : {}),
         ...(withNote ? { instructions_status: 'pending' } : {}),
         status: 'pending',
-        payment_intent_id: input.paymentIntentId,
+        payment_intent_id: null,
       })
       .select()
       .single();

@@ -68,7 +68,7 @@ export const createConnectAccountProcedure = protectedProcedure
       const created = await accountResponse.json();
       accountId = created.id;
 
-      const { error: updateError } = await ctx.supabase
+      const { error: updateError } = await ctx.supabaseAdmin
         .from('profiles')
         .update({ stripe_account_id: accountId })
         .eq('id', ctx.userId)

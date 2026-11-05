@@ -32,6 +32,10 @@ export const listOrdersProcedure = protectedProcedure
         query = query.or(`${buyerColumn}.eq.${ctx.userId},seller_id.eq.${ctx.userId}`);
       }
 
+      if (input?.role === 'seller') {
+        query = query.eq('paid', true);
+      }
+
       if (input?.status) {
         query = query.eq('status', input.status);
       }
@@ -68,7 +72,12 @@ export const listOrdersProcedure = protectedProcedure
       (blocks.error ? [] : blocks.data || []).map((row: { platemaker_id?: string }) => row.platemaker_id).filter(Boolean)
     );
 
-    return (data || []).map((order: any) => ({
+    const visible = (data || []).filter((order: { seller_id?: string; paid?: boolean; buyer_id?: string | null; platetaker_id?: string | null }) => {
+      if (order.seller_id === ctx.userId && orderBuyerId(order) !== ctx.userId && order.paid !== true) return false;
+      return true;
+    });
+
+    return visible.map((order: any) => ({
       id: order.id,
       mealId: order.meal_id,
       mealName: order.meal?.name || 'Unknown Meal',

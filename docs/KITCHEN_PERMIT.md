@@ -6,7 +6,7 @@ The plate stays off the public menu until the PlateMaker saves the home-kitchen 
 
 An older record that stored a kitchen name, permit number, or fee does not count. A saved agreement that is missing the commissary acknowledgement does not count either. The cook saves the agreement again.
 
-The record is `profiles.kitchen_permit`. Only the service role can write it. The column is in `backend/sql/add_store_subscription_and_kitchen_permit.sql`. Until that SQL is run in the Supabase SQL editor, a save says the agreement could not be saved yet, and a cooked plate is not listed.
+The record is `profiles.kitchen_permit`. Only the service role can write it. The column was added 1 November 2026 from `backend/sql/add_store_subscription_and_kitchen_permit.sql`. The SQL editor returned Success with no rows. Do not run that file again. A cooked plate stays off the menu until this account saves the six acknowledgements.
 
 Publish stays closed until that save. Save details, which is the step that lists the plate, stays closed until the same save.
 
@@ -14,7 +14,7 @@ Farm, food truck, sit-down, catering, and meal prep use the same six acknowledge
 
 A catering package is priced per person. The cook’s minimum is at least 6. A PlateTaker cannot place that package for fewer people than the minimum on the package. Sample catering packages keep the higher minimums already printed on them.
 
-Web, iOS, and Android use the same source. The website publish on `main` includes this UI on https://homecookedplate.com and https://homecookedplate.pages.dev. Saving the agreement still needs `backend/sql/add_store_subscription_and_kitchen_permit.sql` in the Supabase SQL editor. The next store build picks up the same source on iOS and Android.
+Web, iOS, and Android use the same source. The website publish on `main` includes this UI on https://homecookedplate.com and https://homecookedplate.pages.dev. The column is already on the live table. Build 9 includes this screen. The public reviews are still build 8, which does not. A signed-in PlateMaker on build 8 saves the agreement on the website. A signed-in PlateTaker on build 8 orders after that save. Signed out, both roles use the public site.
 
 ## PlateMaker
 

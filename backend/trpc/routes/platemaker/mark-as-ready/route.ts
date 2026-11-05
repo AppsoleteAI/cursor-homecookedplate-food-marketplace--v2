@@ -18,7 +18,7 @@ export const markAsReadyProcedure = protectedProcedure
     // First, verify the order exists and the user is the seller
     const { data: order, error: checkError } = await ctx.supabase
       .from('orders')
-      .select('id, seller_id, status, buyer_id')
+      .select('id, seller_id, status, buyer_id, paid')
       .eq('id', input.orderId)
       .single();
 
@@ -39,6 +39,13 @@ export const markAsReadyProcedure = protectedProcedure
 
     // Verify the order is in a valid state to be marked as ready
     // Orders should be in 'accepted' or 'preparing' status before being marked 'ready'
+    if (order.paid !== true) {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: 'Stripe has not confirmed this payment.',
+      });
+    }
+
     if (order.status !== 'accepted' && order.status !== 'preparing') {
       throw new TRPCError({
         code: 'BAD_REQUEST',

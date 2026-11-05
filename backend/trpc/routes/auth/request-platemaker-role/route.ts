@@ -82,13 +82,11 @@ export const requestPlatemakerRoleProcedure = protectedProcedure
       });
     }
 
-    const { data: updatedProfile, error: updateError } = await ctx.supabase
+    const { data: updatedProfile, error: updateError } = await ctx.supabaseAdmin
       .from('profiles')
       .update({ 
         role: 'platemaker',
         updated_at: new Date().toISOString(),
-        // PRODUCTION: Add this instead:
-        // role_upgrade_status: 'pending',
       })
       .eq('id', ctx.userId)
       .select()

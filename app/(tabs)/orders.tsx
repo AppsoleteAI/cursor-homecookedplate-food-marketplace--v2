@@ -19,6 +19,7 @@ import { useAuth } from '@/hooks/auth-context';
 import { useCart } from '@/hooks/cart-context';
 import { useFavorites } from '@/hooks/favorites-context';
 import { formatPickupTime, reorderPickup } from '@/lib/pickup-time';
+import { RECEIPT_ACK_COPY } from '@/lib/order-closeout';
 import { useRouter } from 'expo-router';
 import { SkeletonOrdersList } from '@/components/SkeletonOrdersList';
 import { FoodHandlingNotice } from '@/components/FoodHandlingNotice';
@@ -228,6 +229,11 @@ export default function OrdersScreen() {
                       Allergies: {order.allergies.join(', ')}
                     </Text>
                   )}
+                  {order.status === 'ready' && order.paid ? (
+                    <GlassPressable onPress={() => router.push(`/order/${order.id}`)} testID={`receipt-order-${order.id}`}>
+                      <Text style={styles.instructionsText}>{RECEIPT_ACK_COPY} Open this order to acknowledge it.</Text>
+                    </GlassPressable>
+                  ) : null}
                   <View style={styles.actionButtons}>
                     <GlassPressable
                       onPress={() => handleToggleFavorite(order)}

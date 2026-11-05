@@ -86,6 +86,10 @@ The Terms block on Membership has a Privacy Policy link and a Terms of Use link.
 
 A paid membership renews until it is canceled. On iPhone, cancel in Settings, Apple ID, Subscriptions. On Android, cancel in Google Play subscriptions. The membership stays on that HomeCookedPlate account. It is not shared with another account.
 
+## App review accounts
+
+The Apple review demo account and the Google review demo account are the only Premium exceptions, and only for those app approvals. No other account can use that exception. The payment note is `docs/PAYMENT_AND_RECEIPT.md`.
+
 ## Lifetime membership after a re-download
 
 A lifetime membership is not an App Store product. Monthly and yearly are the App Store products. Lifetime stays on the account. Deleting the app and downloading it again creates a new binding token. Sign-in on that same account saves the new token. The account is not sent to the hardware-mismatch screen. Another account cannot take the token, because `profiles.device_id` is unique.

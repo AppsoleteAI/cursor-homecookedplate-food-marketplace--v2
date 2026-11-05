@@ -49,7 +49,8 @@ export const getDashboardStatsProcedure = protectedProcedure
         .from('orders')
         .select('total_price.sum(),id.count()')
         .eq('seller_id', ctx.userId)
-        .eq('status', 'completed');
+        .eq('status', 'completed')
+        .eq('paid', true);
       if (since) aggregate = aggregate.gte('created_at', since);
       const summed = await aggregate;
       const row = (Array.isArray(summed.data) ? summed.data[0] : summed.data) as { sum?: number | string | null; count?: number | string | null } | null;
@@ -66,7 +67,8 @@ export const getDashboardStatsProcedure = protectedProcedure
         .from('orders')
         .select('total_price')
         .eq('seller_id', ctx.userId)
-        .eq('status', 'completed');
+        .eq('status', 'completed')
+        .eq('paid', true);
       if (since) listed = listed.gte('created_at', since);
       const { data, error } = await listed;
       if (error) {

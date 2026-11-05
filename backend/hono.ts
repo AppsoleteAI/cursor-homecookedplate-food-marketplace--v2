@@ -8,10 +8,10 @@ import { createContext } from "./trpc/create-context";
 import { createSupabaseAdmin } from "./lib/supabase";
 import { logAdminAlert } from "./lib/alerts";
 import { sendExpoPushNotification } from "./lib/expo-push-notifications";
-import { recordPlatePayment } from "./lib/record-paid-order";
+import { listedPlateMetadata, recordPlatePayment } from "./lib/record-paid-order";
 import { handleChargeDispute, handleLostDispute, releaseDuePayouts } from "./lib/stripe-marketplace";
 import { readAppleServerNotification } from "./lib/apple-transaction";
-import { applyAppleNotification } from "./lib/store-membership";
+import { applyAppleNotification, writeResolvedTier } from "./lib/store-membership";
 import type { MediaFrameBinding } from "./lib/image-security";
 
 type Bindings = {
@@ -222,6 +222,37 @@ app.use("/api/trpc/*", async (c, next) => {
 
 app.use("/api/auth/*", credentialLimit);
 
+async function syncStripeMembership(
+  admin: ReturnType<typeof createSupabaseAdmin>,
+  customerId: string,
+  subscriptionId: string | null,
+): Promise<'ok' | 'missing' | 'error'> {
+  const { data: profile, error } = await admin
+    .from('profiles')
+    .select('id, role, membership_tier, trial_ends_at, stripe_subscription_id, apple_original_transaction_id, apple_expires_at, apple_revoked_at, google_purchase_token, google_expires_at')
+    .eq('stripe_customer_id', customerId)
+    .maybeSingle();
+  if (error) {
+    console.error('[Stripe Webhook] Could not read the membership profile:', error.message);
+    return 'error';
+  }
+  if (!profile) {
+    console.warn('[Stripe Webhook] No profile found for customer:', customerId);
+    return 'missing';
+  }
+  const next = { ...profile, stripe_subscription_id: subscriptionId };
+  const saved = await admin.from('profiles').update({
+    stripe_subscription_id: subscriptionId,
+    updated_at: new Date().toISOString(),
+  }).eq('id', profile.id);
+  if (saved.error) {
+    console.error('[Stripe Webhook] Could not save the Stripe subscription:', saved.error.message);
+    return 'error';
+  }
+  await writeResolvedTier(admin, next);
+  return 'ok';
+}
+
 app.post("/webhook/stripe", async (c) => {
   const webhookSecret = c.env?.STRIPE_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET;
   const supabaseUrl = c.env?.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -301,6 +332,7 @@ app.post("/webhook/stripe", async (c) => {
     // Use centralized admin client (supabaseAdmin) which uses Service Role Key
     // Perform a single atomic update for all orders with this payment_intent_id
     try {
+      const listed = listedPlateMetadata(paymentIntent.metadata);
       const updated = await recordPlatePayment(supabaseAdmin, {
         paymentIntentId,
         chargeId: paymentIntent.latest_charge || paymentIntent.charges?.data?.[0]?.id || null,
@@ -308,10 +340,13 @@ app.post("/webhook/stripe", async (c) => {
         applicationFeeId: paymentIntent.charges?.data?.[0]?.application_fee?.id || null,
         currency: paymentIntent.currency || 'usd',
         deliveryFee: Number(paymentIntent.metadata?.delivery_fee ?? 0),
+        amountCents: paymentIntent.amount,
+        listedOrderIds: listed.listedOrderIds,
+        listedBaseCents: listed.listedBaseCents,
         stripeSecretKey: c.env?.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY,
       });
       if (updated === 0) {
-        console.warn('[Stripe Webhook] No orders found for payment intent:', paymentIntentId);
+        console.warn('[Stripe Webhook] Payment was not applied to a plate order:', paymentIntentId);
       } else {
         console.log('[Stripe Webhook] Marked', updated, 'order(s) paid. The cook still accepts.');
       }
@@ -322,97 +357,14 @@ app.post("/webhook/stripe", async (c) => {
   }
 
   // Handle subscription events for membership management
-  if (event.type === 'customer.subscription.created') {
-    const subscription = event.data.object;
-    const customerId = subscription.customer;
-
-    console.log('[Stripe Webhook] Subscription created:', subscription.id, 'for customer:', customerId);
-
-    // Update profile to premium tier when subscription is created (even if trial)
-    const { data: updatedProfile, error: updateError } = await supabaseAdmin
-      .from('profiles')
-      .update({
-        membership_tier: 'premium',
-        stripe_subscription_id: subscription.id,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('stripe_customer_id', customerId)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error('[Stripe Webhook] Error updating profile for subscription.created:', updateError);
-      return c.json({ error: 'Database error' }, 500);
-    }
-
-    if (!updatedProfile) {
-      console.warn('[Stripe Webhook] No profile found for customer:', customerId);
-    } else {
-      console.log('[Stripe Webhook] Updated profile to premium for subscription:', subscription.id);
-    }
-  }
-
-  if (event.type === 'customer.subscription.updated') {
+  if (event.type === 'customer.subscription.created' || event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
     const subscription = event.data.object;
     const customerId = subscription.customer;
     const status = subscription.status;
-
-    console.log('[Stripe Webhook] Subscription updated:', subscription.id, 'status:', status);
-
-    // Update membership tier based on subscription status
-    const membershipTier = (status === 'active' || status === 'trialing') ? 'premium' : 'free';
-
-    const { data: updatedProfile, error: updateError } = await supabaseAdmin
-      .from('profiles')
-      .update({
-        membership_tier: membershipTier,
-        stripe_subscription_id: status === 'active' || status === 'trialing' ? subscription.id : null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('stripe_customer_id', customerId)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error('[Stripe Webhook] Error updating profile for subscription.updated:', updateError);
-      return c.json({ error: 'Database error' }, 500);
-    }
-
-    if (!updatedProfile) {
-      console.warn('[Stripe Webhook] No profile found for customer:', customerId);
-    } else {
-      console.log('[Stripe Webhook] Updated profile membership_tier to', membershipTier, 'for subscription:', subscription.id);
-    }
-  }
-
-  if (event.type === 'customer.subscription.deleted') {
-    const subscription = event.data.object;
-    const customerId = subscription.customer;
-
-    console.log('[Stripe Webhook] Subscription deleted:', subscription.id, 'for customer:', customerId);
-
-    // Set membership back to free when subscription is deleted
-    const { data: updatedProfile, error: updateError } = await supabaseAdmin
-      .from('profiles')
-      .update({
-        membership_tier: 'free',
-        stripe_subscription_id: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('stripe_customer_id', customerId)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error('[Stripe Webhook] Error updating profile for subscription.deleted:', updateError);
-      return c.json({ error: 'Database error' }, 500);
-    }
-
-    if (!updatedProfile) {
-      console.warn('[Stripe Webhook] No profile found for customer:', customerId);
-    } else {
-      console.log('[Stripe Webhook] Updated profile to free tier after subscription deletion:', subscription.id);
-    }
+    const active = event.type !== 'customer.subscription.deleted' && (status === 'active' || status === 'trialing');
+    console.log('[Stripe Webhook] Subscription', event.type, subscription.id, 'status:', status);
+    const synced = await syncStripeMembership(supabaseAdmin, customerId, active ? subscription.id : null);
+    if (synced === 'error') return c.json({ error: 'Database error' }, 500);
   }
 
   if (event.type === 'customer.subscription.trial_will_end') {

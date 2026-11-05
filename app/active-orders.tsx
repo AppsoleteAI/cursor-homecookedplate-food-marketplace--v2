@@ -23,7 +23,8 @@ import { SkeletonOrdersList } from '@/components/SkeletonOrdersList';
 import { GlassPressable } from '@/components/glass-surface';
 import { BackCircle } from '@/components/BackCircle';
 import { useLeaveScreen } from '@/hooks/use-leave-screen';
-import { orderCloseout } from '@/lib/order-closeout';
+import { orderCloseout, RECEIPT_ACK_COPY } from '@/lib/order-closeout';
+import { ReceiptAck } from '@/components/ReceiptAck';
 import { GetGpsCard } from '@/components/GetGpsCard';
 
 /**
@@ -247,9 +248,22 @@ export default function ActiveOrdersModal() {
                 <View style={styles.actions}>
                   {(() => {
                     const alreadyConfirmed = (order.pickupConfirmedBy ?? []).includes('seller');
-                    const closeout = orderCloseout('platemaker', order.status, alreadyConfirmed);
+                    const buyerAccepted = (order.pickupConfirmedBy ?? []).includes('buyer');
+                    const closeout = order.paid ? orderCloseout('platemaker', order.status, alreadyConfirmed, buyerAccepted) : null;
+                    if (order.status === 'ready' && order.paid && !buyerAccepted) {
+                      return <Text style={styles.instructions}>{RECEIPT_ACK_COPY} Waiting for the PlateTaker to acknowledge receipt.</Text>;
+                    }
                     if (!closeout && alreadyConfirmed) {
-                      return <Text style={styles.instructions}>You confirmed pickup. Waiting for the other person.</Text>;
+                      return <Text style={styles.instructions}>You acknowledged receipt. Waiting for the PlateTaker.</Text>;
+                    }
+                    if (closeout?.next === 'completed') {
+                      return (
+                        <ReceiptAck
+                          role="platemaker"
+                          busy={updateStatusMutation.isPending}
+                          onSend={() => updateStatusMutation.mutate({ orderId: order.id, status: 'completed' })}
+                        />
+                      );
                     }
                     if (!closeout) return null;
                     return (

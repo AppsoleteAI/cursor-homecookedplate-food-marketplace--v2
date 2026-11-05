@@ -118,6 +118,34 @@ export async function refreshGoogleMembership(
   }
 }
 
+/** A Stripe subscription id covers Premium only while Stripe still reports it active or trialing. A missing key leaves the saved id in place. */
+export async function refreshStripeMembership(
+  admin: Admin,
+  profile: TrialAccessProfile & { id: string },
+  stripeSecretKey: string | undefined,
+  now = new Date(),
+): Promise<TrialAccessProfile & { id: string }> {
+  if (!profile.stripe_subscription_id || !stripeSecretKey) return profile;
+  try {
+    const response = await fetch(`https://api.stripe.com/v1/subscriptions/${profile.stripe_subscription_id}`, {
+      headers: { Authorization: `Bearer ${stripeSecretKey}` },
+    });
+    if (!response.ok && response.status !== 404) return profile;
+    const subscription = response.ok ? await response.json() as { status?: string } : { status: 'canceled' };
+    const active = subscription.status === 'active' || subscription.status === 'trialing';
+    if (active) return profile;
+    const next = { ...profile, stripe_subscription_id: null };
+    await admin.from('profiles').update({
+      stripe_subscription_id: null,
+      updated_at: now.toISOString(),
+    }).eq('id', profile.id);
+    return next;
+  } catch (error) {
+    console.error('[Membership] Stripe status was not checked.', error instanceof Error ? error.message : error);
+    return profile;
+  }
+}
+
 export async function applyAppleTransaction(
   admin: Admin,
   originalTransactionId: string,

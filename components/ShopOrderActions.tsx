@@ -1,8 +1,10 @@
 import React from 'react';
 import { Alert, Text, StyleSheet } from 'react-native';
 import { GlassPressable } from '@/components/glass-surface';
+import { ReceiptAck } from '@/components/ReceiptAck';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
+import { RECEIPT_ACK_COPY } from '@/lib/order-closeout';
 import { trpc } from '@/lib/trpc';
 import type { ShopName } from '@/backend/lib/shop-catalog';
 
@@ -17,9 +19,18 @@ type Props = {
 export function ShopOrderActions({ orderId, shop, orderStatus, sellerId, paid }: Props) {
   const { user } = useAuth();
   const utils = trpc.useUtils();
+  const receipt = trpc.payments.shopReceipt.useQuery(
+    { orderId },
+    { enabled: paid === true && Boolean(orderId) },
+  );
   const updateOrder = trpc.payments.updateShopOrder.useMutation({
     onSuccess: (result) => {
       utils.payments.listShopOrders.invalidate({ shop }).catch(() => undefined);
+      receipt.refetch().catch(() => undefined);
+      if ('acknowledged' in result && result.acknowledged) {
+        Alert.alert('Receipt', 'The PlateMaker can clear this order after this acknowledgment.');
+        return;
+      }
       Alert.alert('Order', result.status === 'cancelled' ? 'The refund was sent.' : `This order is ${result.status}.`);
     },
     onError: (error) => {
@@ -30,7 +41,10 @@ export function ShopOrderActions({ orderId, shop, orderStatus, sellerId, paid }:
   if (!orderStatus) return null;
   const status = orderStatus;
   const mine = Boolean(user && sellerId && user.id === sellerId && paid);
-  const run = (action: 'accept' | 'refund' | 'complete') => {
+  const buyer = Boolean(user && paid && !mine);
+  const roles = receipt.data?.roles ?? [];
+  const buyerAccepted = roles.includes('buyer');
+  const run = (action: 'accept' | 'refund' | 'complete' | 'acknowledge') => {
     updateOrder.mutate({ orderId, action });
   };
 
@@ -47,10 +61,14 @@ export function ShopOrderActions({ orderId, shop, orderStatus, sellerId, paid }:
           <Text style={styles.secondaryText}>Refund</Text>
         </GlassPressable>
       ) : null}
-      {mine && status === 'accepted' ? (
-        <GlassPressable style={styles.button} onPress={() => run('complete')} disabled={updateOrder.isPending}>
-          <Text style={styles.buttonText}>Order completed</Text>
-        </GlassPressable>
+      {buyer && status === 'accepted' && !buyerAccepted ? (
+        <ReceiptAck role="platetaker" busy={updateOrder.isPending} onSend={() => run('acknowledge')} />
+      ) : null}
+      {mine && status === 'accepted' && !buyerAccepted ? (
+        <Text style={styles.note}>{RECEIPT_ACK_COPY} Waiting for the PlateTaker to acknowledge receipt.</Text>
+      ) : null}
+      {mine && status === 'accepted' && buyerAccepted && !roles.includes('seller') ? (
+        <ReceiptAck role="platemaker" busy={updateOrder.isPending} onSend={() => run('complete')} />
       ) : null}
     </>
   );
@@ -62,4 +80,5 @@ const styles = StyleSheet.create({
   buttonText: { color: Colors.white, fontWeight: '700' },
   secondary: { marginTop: 8, borderRadius: 12, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: Colors.gray[300] },
   secondaryText: { color: Colors.gray[900], fontWeight: '700' },
+  note: { marginTop: 8, color: Colors.gray[700], lineHeight: 20 },
 });

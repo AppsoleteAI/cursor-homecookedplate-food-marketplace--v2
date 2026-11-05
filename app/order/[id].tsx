@@ -11,7 +11,8 @@ import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { BUYER_AFTER_NOTE } from '@/lib/buyer-safety';
 import { GlassPressable } from '@/components/glass-surface';
 import { ScreenBack } from '@/components/BackCircle';
-import { orderCloseout } from '@/lib/order-closeout';
+import { orderCloseout, RECEIPT_ACK_COPY } from '@/lib/order-closeout';
+import { ReceiptAck } from '@/components/ReceiptAck';
 import { formatPickupTime } from '@/lib/pickup-time';
 import { trpc } from '@/lib/trpc';
 import { ReviewCommentActions } from '@/components/ReviewCommentActions';
@@ -145,19 +146,17 @@ export default function OrderDetailsPage() {
             {(() => {
               const confirmedRole = user?.role === 'platemaker' ? 'seller' : 'buyer';
               const alreadyConfirmed = (order.pickupConfirmedBy ?? []).includes(confirmedRole);
-              const closeout = orderCloseout(user?.role, order.status, alreadyConfirmed);
+              const buyerAccepted = (order.pickupConfirmedBy ?? []).includes('buyer');
+              const closeout = order.paid ? orderCloseout(user?.role, order.status, alreadyConfirmed, buyerAccepted) : null;
               const canCancel = user?.role === 'platetaker' && order.status === 'pending';
+              if (closeout?.next === 'completed') return null;
               if (!closeout && !canCancel) return null;
               return (
                 <GlassPressable
                   onPress={() => {
                     const next = canCancel && !closeout ? 'cancelled' : closeout?.next;
                     if (!next) return;
-                    setOrderStatus(order.id, next).then((result) => {
-                      if (result?.waiting) {
-                        Alert.alert('Pickup', 'Waiting for the other person to confirm pickup.');
-                      }
-                    }).catch((error: unknown) => {
+                    setOrderStatus(order.id, next).catch((error: unknown) => {
                       const message = error instanceof Error ? error.message : 'Could not update this order.';
                       Alert.alert('Order', message);
                     });
@@ -170,12 +169,31 @@ export default function OrderDetailsPage() {
               );
             })()}
           </View>
-          {order.status === 'ready' ? (
-            <Text style={styles.value}>
-              {(order.pickupConfirmedBy ?? []).includes(user?.role === 'platemaker' ? 'seller' : 'buyer')
-                ? 'You confirmed pickup. Waiting for the other person.'
-                : 'Both people confirm pickup before this order closes.'}
-            </Text>
+          {order.paid && order.status === 'ready' && (user?.role === 'platemaker' || user?.role === 'platetaker') && orderCloseout(
+            user.role,
+            order.status,
+            (order.pickupConfirmedBy ?? []).includes(user.role === 'platemaker' ? 'seller' : 'buyer'),
+            (order.pickupConfirmedBy ?? []).includes('buyer'),
+          )?.next === 'completed' ? (
+            <ReceiptAck
+              role={user.role}
+              onSend={() => {
+                setOrderStatus(order.id, 'completed').then((result) => {
+                  if (result?.waiting) {
+                    Alert.alert('Receipt', 'The PlateMaker can clear this order after you send this acknowledgment.');
+                  }
+                }).catch((error: unknown) => {
+                  const message = error instanceof Error ? error.message : 'Could not update this order.';
+                  Alert.alert('Order', message);
+                });
+              }}
+            />
+          ) : null}
+          {order.status === 'ready' && order.paid && (order.pickupConfirmedBy ?? []).includes(user?.role === 'platemaker' ? 'seller' : 'buyer') ? (
+            <Text style={styles.value}>You acknowledged receipt. Waiting for the other person.</Text>
+          ) : null}
+          {order.status === 'ready' && order.paid && user?.role === 'platemaker' && !(order.pickupConfirmedBy ?? []).includes('buyer') ? (
+            <Text style={styles.value}>{RECEIPT_ACK_COPY} Waiting for the PlateTaker to acknowledge receipt.</Text>
           ) : null}
         </View>
 

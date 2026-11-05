@@ -72,7 +72,7 @@ export default function LoginScreen() {
   const [legalChecked, setLegalChecked] = useState(isLoginLegalBoxChecked);
   const [agreementOnFile, setAgreementOnFile] = useState(false);
   const [legalNotice, setLegalNotice] = useState<string | null>(null);
-  const { login, user } = useAuth();
+  const { login, loginWithProvider, user } = useAuth();
   const saveAgreement = trpc.auth.updateProfile.useMutation();
   const scrollRef = useRef<ScrollView>(null);
   const [legalPrompt, setLegalPrompt] = useState(false);
@@ -137,8 +137,51 @@ export default function LoginScreen() {
     router.push(href);
   };
 
-  const handleProvider = (provider: 'Apple' | 'Google') => {
-    setProviderNotice(`${provider} sign-in is not available yet. Use email to sign in.`);
+  const handleProvider = async (provider: 'Apple' | 'Google') => {
+    setProviderNotice(null);
+    setError(null);
+    setLegalPrompt(false);
+    setLoading(true);
+    try {
+      await loginWithProvider(provider === 'Apple' ? 'apple' : 'google');
+      AsyncStorage.setItem('hcp_has_account', '1').catch(() => undefined);
+      const storedAgreement = await readLegalAgreement();
+      const agreement = toCompletedLegalAgreement(storedAgreement);
+      if (agreement) {
+        try {
+          const stamped = { ...agreement, acknowledgedAt: new Date().toISOString() };
+          await saveAgreement.mutateAsync({ legalSafetyAgreement: stamped });
+          await writeLegalAgreement(stamped);
+          await clearLegalReadyForSignIn();
+        } catch (syncError) {
+          console.error('[Login] Legal agreement was not stored on the account', syncError);
+        }
+      }
+      router.replace('/');
+    } catch (providerError: unknown) {
+      const serverMessage = readLoginError(providerError) || (providerError instanceof Error ? providerError.message : '');
+      const loginCode = providerError && typeof providerError === 'object' && 'data' in providerError
+        && providerError.data && typeof providerError.data === 'object' && 'code' in providerError.data
+        && typeof providerError.data.code === 'string'
+        ? providerError.data.code
+        : '';
+      if (serverMessage === 'Sign-in was cancelled.') {
+        reveal('Sign-in was cancelled.');
+      } else if (serverMessage.includes('Complete the Legal & Safety page')) {
+        reveal(LEGAL_SIGN_IN_MESSAGE, true);
+      } else if (isIneligibleAccountMessage(serverMessage)) {
+        reveal(MEMBERSHIP_INELIGIBLE_MESSAGE);
+      } else if (isMissingAccountMessage(serverMessage) || loginCode === 'NOT_FOUND') {
+        reveal(`${NO_ACCOUNT_MESSAGE} Tap Create an Account.`);
+      } else if (/confirm your email|email not confirmed/i.test(serverMessage)) {
+        setNeedsConfirmation(true);
+        setConfirmationExpired(/expired after 24 hours/i.test(serverMessage));
+      } else {
+        reveal(serverMessage || 'That sign-in did not finish.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleLogin = async (isRetry = false) => {

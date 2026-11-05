@@ -10,6 +10,24 @@ import { orderBuyerId, orderTotal } from '../../../../lib/order-row';
 import { applePayMerchantName, profilePayeeName } from '../../../../lib/payee-name';
 import { resolvedMembershipTier } from '../../../../lib/trial-access';
 
+async function attachPlatePaymentIntent(
+  admin: { from: (table: string) => any },
+  orderIds: string[],
+  paymentIntentId: string,
+) {
+  const saved = await admin
+    .from('orders')
+    .update({ payment_intent_id: paymentIntentId })
+    .in('id', orderIds)
+    .eq('paid', false);
+  if (saved.error) {
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'The payment could not be linked to these orders.',
+    });
+  }
+}
+
 const inputSchema = z.object({
   amount: z.number().min(0),
   currency: z.string().default('usd'),
@@ -160,8 +178,10 @@ export const createPaymentIntentProcedure = protectedProcedure
           delivery_fee: levy.deliveryFee.toFixed(2),
           delivery_platform_fee: levy.platformFee.toFixed(2),
           delivery_buyer_pays: levy.buyerPays.toFixed(2),
+          base_cents: String(Math.round(serverBaseAmount * 100)),
         },
       });
+      await attachPlatePaymentIntent(ctx.supabaseAdmin, input.orderIds, checkout.paymentIntentId);
       return {
         clientSecret: '',
         checkoutUrl: checkout.url,
@@ -192,6 +212,7 @@ export const createPaymentIntentProcedure = protectedProcedure
       'metadata[delivery_fee]': levy.deliveryFee.toFixed(2),
       'metadata[delivery_platform_fee]': levy.platformFee.toFixed(2),
       'metadata[delivery_buyer_pays]': levy.buyerPays.toFixed(2),
+      'metadata[base_cents]': String(Math.round(serverBaseAmount * 100)),
       transfer_group: input.orderIds.join(','),
     });
 
@@ -211,6 +232,7 @@ export const createPaymentIntentProcedure = protectedProcedure
     }
 
     const paymentIntent = await response.json();
+    await attachPlatePaymentIntent(ctx.supabaseAdmin, input.orderIds, paymentIntent.id);
 
     console.log(`[Stripe] Payment intent created: ${paymentIntent.id}`);
     console.log(`[Stripe] Fee breakdown: Base=$${fees.baseAmount.toFixed(2)}, Buyer fee=$${fees.buyerFee.toFixed(2)}, Seller fee=$${fees.sellerFee.toFixed(2)}`);

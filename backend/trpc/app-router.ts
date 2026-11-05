@@ -34,7 +34,7 @@ import { reportReviewCommentProcedure } from "./routes/reviews/report/route";
 import { uploadMediaProcedure } from "./routes/media/upload/route";
 import { uploadProfileImageProcedure } from "./routes/media/upload-profile/route";
 import { createPaymentIntentProcedure } from "./routes/payments/create-payment-intent/route";
-import { abandonShopOrderProcedure, confirmShopPaymentProcedure, createShopCheckoutProcedure, listShopOrdersProcedure, updateShopOrderProcedure } from "./routes/payments/create-shop-checkout/route";
+import { abandonShopOrderProcedure, confirmShopPaymentProcedure, createShopCheckoutProcedure, listShopOrdersProcedure, shopReceiptProcedure, updateShopOrderProcedure } from "./routes/payments/create-shop-checkout/route";
 import { confirmCombinedCheckoutProcedure, createCombinedCheckoutProcedure, getAreaStoresProcedure, refundCombinedCheckoutProcedure, setAreaStoreProcedure } from "./routes/payments/combined-checkout/route";
 import { confirmWebCheckoutProcedure } from "./routes/payments/confirm-web-checkout/route";
 import { deletePromotionProcedure, listMyPromotionsProcedure, savePromotionProcedure } from "./routes/promotions/route";
@@ -169,6 +169,7 @@ export const appRouter = createTRPCRouter({
     confirmWebCheckout: confirmWebCheckoutProcedure,
     listShopOrders: listShopOrdersProcedure,
     updateShopOrder: updateShopOrderProcedure,
+    shopReceipt: shopReceiptProcedure,
     abandonShopOrder: abandonShopOrderProcedure,
     confirmPayment: confirmPaymentProcedure,
     createCheckoutSession: createCheckoutSessionProcedure,

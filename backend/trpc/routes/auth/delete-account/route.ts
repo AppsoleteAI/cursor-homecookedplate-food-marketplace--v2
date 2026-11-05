@@ -7,7 +7,7 @@ import { unpackShopLines } from '../../../../lib/shop-fulfillment';
 import { readAppleRenewalStatus } from '../../../../lib/apple-server';
 import { cancelGoogleSubscription } from '../../../../lib/google-play';
 import { missingStoreDateColumn } from '../../../../lib/store-membership';
-import { appleMembershipCovers, googleMembershipCovers } from '../../../../lib/trial-access';
+import { appleDeletionBlock, googleMembershipCovers } from '../../../../lib/trial-access';
 
 /**
  * Server-Side Account Deletion
@@ -198,17 +198,9 @@ async function assertStoreBillingWillStop(
         message: 'The App Store subscription could not be checked. This account was not deleted.',
       });
     }
-    if (!status.configured && appleMembershipCovers(profile)) {
-      throw new TRPCError({
-        code: 'PRECONDITION_FAILED',
-        message: 'Cancel the App Store subscription before this account can be deleted. HomeCookedPlate could not confirm that Apple has stopped renewal.',
-      });
-    }
-    if (status.renewing) {
-      throw new TRPCError({
-        code: 'PRECONDITION_FAILED',
-        message: 'Cancel the App Store subscription in Apple subscriptions, then delete the account again. Apple keeps billing until that renewal is off.',
-      });
+    const block = appleDeletionBlock(profile, status);
+    if (block) {
+      throw new TRPCError({ code: 'PRECONDITION_FAILED', message: block });
     }
   }
 

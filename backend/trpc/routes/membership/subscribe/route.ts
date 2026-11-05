@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { protectedProcedure } from '../../../create-context';
-import { getStripePriceId } from '../../../../lib/stripe-utils';
+import { membershipPriceCents, membershipProductName } from '../../../../lib/fees';
 import { nearestMetro } from '../../../../lib/metro-radius';
 
 // Major metropolitan areas eligible for trial promotion
@@ -252,7 +252,7 @@ export const subscribeProcedure = protectedProcedure
           const trialEndsAt = new Date();
           trialEndsAt.setDate(trialEndsAt.getDate() + trialDays);
 
-          await ctx.supabase
+          await ctx.supabaseAdmin
             .from('profiles')
             .update({
               metro_area: metroName,
@@ -292,7 +292,7 @@ export const subscribeProcedure = protectedProcedure
       customerId = customer.id;
 
       // Save customer ID to profile
-      await ctx.supabase
+      await ctx.supabaseAdmin
         .from('profiles')
         .update({ stripe_customer_id: customerId })
         .eq('id', profile.id);
@@ -334,24 +334,23 @@ export const subscribeProcedure = protectedProcedure
       // Continue anyway - subscription creation will handle it
     }
 
-    // Determine Early Bird status and get appropriate price ID
-    const isEarlyBird = trialDays > 0 && !!metroName && metroName !== 'Remote/Other';
-    const membershipTier: 'premium' | 'free' =
-      trialDays > 0 || profile.membership_tier === 'premium' ? 'premium' : 'free';
-    const priceId = getStripePriceId(membershipTier, isEarlyBird);
+    const role = profile.role === 'platemaker' ? 'platemaker' : 'platetaker';
+    const unitAmount = membershipPriceCents(role, 'month');
 
-    // Create subscription
+    // Create subscription at the role price. Premium is saved only after Stripe reports active or trialing.
     const subscriptionParams = new URLSearchParams({
       customer: customerId,
-      items: JSON.stringify([{ price: priceId }]),
+      'items[0][price_data][currency]': 'usd',
+      'items[0][price_data][unit_amount]': String(unitAmount),
+      'items[0][price_data][recurring][interval]': 'month',
+      'items[0][price_data][product_data][name]': membershipProductName(role, 'month'),
       default_payment_method: input.paymentMethodId,
       payment_behavior: 'default_incomplete',
-      expand: 'latest_invoice.payment_intent',
-      metadata: JSON.stringify({
-        user_id: profile.id,
-        promo_name: trialDays > 0 ? 'EARLY_BIRD' : null,
-        metro_name: metroName || null,
-      }),
+      'expand[]': 'latest_invoice.payment_intent',
+      'metadata[user_id]': profile.id,
+      'metadata[role]': role,
+      'metadata[promo_name]': trialDays > 0 ? 'EARLY_BIRD' : '',
+      'metadata[metro_name]': metroName || '',
     });
 
     if (trialDays > 0) {
@@ -374,15 +373,16 @@ export const subscribeProcedure = protectedProcedure
     }
 
     const subscription = await subscriptionResponse.json();
-
-    // Save subscription ID to profile
-    await ctx.supabase
-      .from('profiles')
-      .update({
-        stripe_subscription_id: subscription.id,
-        membership_tier: 'premium', // Set to premium immediately (even during trial)
-      })
-      .eq('id', profile.id);
+    const paidStatus = subscription.status === 'active' || subscription.status === 'trialing';
+    if (paidStatus) {
+      await ctx.supabaseAdmin
+        .from('profiles')
+        .update({
+          stripe_subscription_id: subscription.id,
+          membership_tier: 'premium',
+        })
+        .eq('id', profile.id);
+    }
 
     // Extract client secret from invoice payment intent
     const clientSecret = subscription.latest_invoice?.payment_intent?.client_secret || null;

@@ -223,3 +223,40 @@ export async function isLegalReadyForSignIn(): Promise<boolean> {
 export async function clearLegalReadyForSignIn(): Promise<void> {
   await AsyncStorage.removeItem(READY_KEY);
 }
+
+/** Email, Apple, and Google sign-in use this same Legal & Safety gate. */
+export async function applySignInLegal(createdAt: Date, accountRecord: unknown): Promise<'ok' | 'block'> {
+  const storedAgreement = await readLegalAgreement();
+  const localAgreement = toCompletedLegalAgreement(storedAgreement);
+  const accountAgreement = agreementFromUnknown(accountRecord);
+  const accountOk = Boolean(accountAgreement && !agreementPredatesAccount(accountAgreement, createdAt));
+  const legalReady = await isLegalReadyForSignIn();
+  const localOk = chooseLegalForm({
+    signedIn: true,
+    createdAt,
+    account: null,
+    device: storedAgreement,
+    legalReady,
+    today: todayStamp(),
+  }) === 'device';
+  const appleRecheck = needsAppleLicenseRecheck(accountRecord, createdAt);
+  if (!accountOk && !localOk && !appleRecheck) {
+    if (localAgreement) {
+      await clearLegalAgreement();
+      await clearLegalReadyForSignIn();
+    }
+    return 'block';
+  }
+  if (accountOk && accountAgreement && !localOk) {
+    try {
+      await writeLegalAgreement(accountAgreement);
+    } catch (storageError) {
+      console.error('[Login] Could not save the Legal & Safety agreement on this device', storageError);
+    }
+  }
+  if (accountOk && accountAgreement) {
+    setLoginLegalBoxChecked(true);
+    await clearLegalReadyForSignIn();
+  }
+  return 'ok';
+}

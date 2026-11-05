@@ -3,6 +3,7 @@ import {
   cancelledAuditShop,
   cancelledShopLines,
   nextShopStatus,
+  shopClearAllowed,
   shopCloseoutNotice,
   shopOrderMatchesCombinedRefund,
   shopRefundIsFull,
@@ -27,6 +28,8 @@ describe('shop order closeout', () => {
     expect(shopCloseoutNotice('complete').body).toBe('The cook completed your order.');
     expect(shopCloseoutNotice('accept').body).toBe('The cook accepted your order.');
     expect(shopCloseoutNotice('refund').body).toBe('This order was refunded.');
+    expect(shopClearAllowed(false)).toBe(false);
+    expect(shopClearAllowed(true)).toBe(true);
   });
 
   it('cancels only the refunded shop on a combined charge', () => {

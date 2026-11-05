@@ -35,6 +35,9 @@ export const updateOrderStatusProcedure = protectedProcedure
     if (!orderStatusAllowed(role, order.status, input.status)) {
       throw new Error(`This order is ${order.status}. That step is not available.`);
     }
+    if ((input.status === 'ready' || input.status === 'completed') && order.paid !== true) {
+      throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Stripe has not confirmed this payment.' });
+    }
 
     if (role === 'buyer' && input.status === 'cancelled' && order.paid === true) {
       const paymentIntentId = typeof order.payment_intent_id === 'string' ? order.payment_intent_id : '';
@@ -123,6 +126,12 @@ export const updateOrderStatusProcedure = protectedProcedure
       const roles = (prior.data || [])
         .map((row: { new_data?: { role?: string } }) => row.new_data?.role)
         .filter((value: string | undefined): value is 'buyer' | 'seller' => value === 'buyer' || value === 'seller');
+      if (role === 'seller' && !roles.includes('buyer')) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'The PlateTaker has to acknowledge that the food was paid for and received before this order can be cleared.',
+        });
+      }
       if (!roles.includes(role)) {
         const saved = await ctx.supabaseAdmin.from('audit_logs').insert({
           user_id: ctx.userId,

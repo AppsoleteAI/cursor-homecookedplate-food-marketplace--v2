@@ -1,8 +1,9 @@
 import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { orderBuyerId } from "../../../../lib/order-row";
+import { orderBuyerId, orderTotal } from "../../../../lib/order-row";
 import { notifyParty } from "../../../../lib/account-notice";
+import { listedPlateMetadata, platePaymentCovers } from "../../../../lib/record-paid-order";
 
 /**
  * Accept Order Procedure
@@ -74,10 +75,69 @@ export const acceptOrderProcedure = protectedProcedure
       });
     }
 
-    if (order.paid !== true) {
+    if (order.paid !== true || typeof order.payment_intent_id !== 'string' || order.payment_intent_id.length < 3) {
       throw new TRPCError({
         code: 'BAD_REQUEST',
-        message: 'This order is not paid. It cannot be accepted.',
+        message: 'Stripe has not confirmed this payment. It cannot be accepted.',
+      });
+    }
+    const stripeSecretKey = ctx.stripeSecretKey || process.env.STRIPE_SECRET_KEY;
+    if (!stripeSecretKey) {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: 'Stripe has not confirmed this payment. It cannot be accepted.',
+      });
+    }
+    const paymentResponse = await fetch(`https://api.stripe.com/v1/payment_intents/${order.payment_intent_id}`, {
+      headers: { Authorization: `Bearer ${stripeSecretKey}` },
+    });
+    if (!paymentResponse.ok) {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: 'Stripe has not confirmed this payment. It cannot be accepted.',
+      });
+    }
+    const paymentIntent = await paymentResponse.json() as {
+      status?: string;
+      amount?: number;
+      metadata?: { order_ids?: string; base_cents?: string; delivery_fee?: string };
+    };
+    if (paymentIntent.status !== 'succeeded') {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: 'Stripe has not confirmed this payment. It cannot be accepted.',
+      });
+    }
+    const siblings = await ctx.supabaseAdmin
+      .from('orders')
+      .select('id, buyer_id, platetaker_id, total_price, total_price_cents')
+      .eq('payment_intent_id', order.payment_intent_id);
+    if (siblings.error || !siblings.data || siblings.data.length === 0) {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: 'Stripe has not confirmed this payment. It cannot be accepted.',
+      });
+    }
+    const buyer = await ctx.supabaseAdmin
+      .from('profiles')
+      .select('role, membership_tier')
+      .eq('id', orderBuyerId(siblings.data[0]))
+      .maybeSingle();
+    const listed = listedPlateMetadata(paymentIntent.metadata);
+    const covers = platePaymentCovers({
+      orderIds: siblings.data.map((row: { id: string }) => row.id),
+      bases: siblings.data.map((row: { total_price?: unknown; total_price_cents?: unknown }) => orderTotal(row)),
+      deliveryFee: Number(paymentIntent.metadata?.delivery_fee ?? 0),
+      amountCents: paymentIntent.amount ?? 0,
+      buyerRole: buyer.data?.role,
+      buyerTier: buyer.data?.membership_tier,
+      listedOrderIds: listed.listedOrderIds,
+      listedBaseCents: listed.listedBaseCents,
+    });
+    if (!covers) {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: 'Stripe has not confirmed this payment for these plate prices.',
       });
     }
 

@@ -1,7 +1,9 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { agreementFromUnknown, agreementPredatesAccount, chooseLegalForm, clearLegalAgreement, clearLegalReadyForSignIn, clearLoginLegalBox, isLegalReadyForSignIn, LEGAL_SIGN_IN_MESSAGE, needsAppleLicenseRecheck, readLegalAgreement, setLoginLegalBoxChecked, todayStamp, toCompletedLegalAgreement, writeLegalAgreement } from '@/lib/legal-agreement';
+import { applySignInLegal, clearLegalAgreement, clearLegalReadyForSignIn, clearLoginLegalBox, LEGAL_SIGN_IN_MESSAGE } from '@/lib/legal-agreement';
+import { requestProviderSession } from '@/lib/provider-sign-in';
+import { providerAccountBlock } from '@/backend/lib/provider-account';
 // Import expo-secure-store with platform-specific shim for web compatibility
 // Metro will automatically resolve to lib/expo-secure-store.web.ts on web platform
 import * as SecureStore from '@/lib/expo-secure-store';
@@ -15,6 +17,7 @@ import { router } from 'expo-router';
 import { Alert, Platform } from 'react-native';
 import { navLogger } from '@/lib/nav-logger';
 import { recoveryScreenIsOpen } from '@/lib/verification-link';
+import { rememberAccessToken } from '@/lib/access-token';
 import { SESSION_RESTORE_MS, settleWithin } from '@/lib/settle-within';
 
 interface AuthState {
@@ -23,6 +26,7 @@ interface AuthState {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (username: string, password: string, code?: string) => Promise<{ needsTwoFactor: true; codeReused: boolean } | { needsTwoFactor: false }>;
+  loginWithProvider: (provider: 'apple' | 'google') => Promise<void>;
   signup: (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }, foodSafetyAcknowledged?: boolean) => Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean; chooseMembership?: boolean; needsEmailConfirmation?: boolean; confirmationEmailSent?: boolean }>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<Pick<User, 'username' | 'email' | 'phone' | 'bio' | 'profileImage' | 'businessName'>>) => Promise<void>;
@@ -54,6 +58,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const trialPromptedRef = useRef(false);
 
   const loginMutation = trpc.auth.login.useMutation();
+  const holdProviderRef = useRef(false);
   const signupMutation = trpc.auth.signup.useMutation();
   const logoutMutation = trpc.auth.logout.useMutation();
   const updateProfileMutation = trpc.auth.updateProfile.useMutation();
@@ -137,12 +142,14 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       if (sessionStr) {
         try {
           const sessionData = JSON.parse(sessionStr) as Session;
+          if (sessionData.access_token) rememberAccessToken(sessionData.access_token);
           const { data, error } = await settleWithin(supabase.auth.setSession({
             access_token: sessionData.access_token,
             refresh_token: sessionData.refresh_token,
           }), SESSION_RESTORE_MS);
 
           if (error || !data.session) {
+            rememberAccessToken(null);
             // Session invalid - clean up corrupted state
             await Promise.all([
               SecureStore.deleteItemAsync(SESSION_KEY).catch(() => {}), // Graceful cleanup
@@ -163,6 +170,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
             });
           }
         } catch (parseError) {
+          rememberAccessToken(null);
           // Corrupted session data - clean up
           await Promise.all([
             SecureStore.deleteItemAsync(SESSION_KEY).catch(() => {}), // Graceful cleanup
@@ -255,7 +263,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, nextSession) => {
       // Return immediately. Awaiting auth.me here calls getSession while Supabase
-      // still holds its auth lock, so signup never starts and the 15s timer fires.
+      // still holds its auth lock, so signup and sign-in never start and the timer fires.
       setTimeout(() => {
         void handleAuthEvent(event, nextSession);
       }, 0);
@@ -269,6 +277,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
         // Handle successful sign-in
         if (event === 'SIGNED_IN' && nextSession) {
+          if (holdProviderRef.current) return;
+          rememberAccessToken(nextSession.access_token);
           setSession(nextSession);
           await persistSession(nextSession);
           // Pull the latest profile/user from backend using the new session
@@ -281,6 +291,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         // Handle email confirmation: USER_UPDATED fires when user confirms email via Supabase
         // Note: Our custom Resend email flow doesn't trigger this, but we handle it for completeness
         if (event === 'USER_UPDATED' && nextSession) {
+          rememberAccessToken(nextSession.access_token);
           setSession(nextSession);
           await persistSession(nextSession);
           // Pull the latest profile/user after email confirmation
@@ -295,6 +306,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         // Force navigation to reset-password screen regardless of role to bypass [2026-01-09] lock
         // This ensures user can set new password before being redirected to their dashboard
         if (event === 'PASSWORD_RECOVERY' && nextSession) {
+          rememberAccessToken(nextSession.access_token);
           setSession(nextSession);
           await persistSession(nextSession);
           addBreadcrumb('Supabase auth PASSWORD_RECOVERY', 'auth', { userId: nextSession.user?.id });
@@ -304,6 +316,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
         // Handle token refresh: TOKEN_REFRESHED fires when access token is refreshed
         if (event === 'TOKEN_REFRESHED' && nextSession) {
+          rememberAccessToken(nextSession.access_token);
           setSession(nextSession);
           await persistSession(nextSession);
           // Silently update session without navigation
@@ -312,12 +325,14 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
         // Handle sign out
         if (event === 'SIGNED_OUT') {
+          rememberAccessToken(null);
           setSession(null);
           setUser(null);
           await persistSession(null);
           await persistUser(null);
           setSentryUser(null);
           addBreadcrumb('Supabase auth SIGNED_OUT', 'auth');
+          if (holdProviderRef.current) return;
           // A failed reset link signs the session out. Stay on that screen so the
           // person can request a new link. Other sign-outs still return to sign-in.
           if (!recoveryScreenIsOpen()) {
@@ -363,7 +378,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   useEffect(() => {
     if (meData?.orderingRemoved && mountedRef.current) {
-      supabase.auth.signOut().catch(() => undefined);
+      rememberAccessToken(null);
+      settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
       setUser(null);
       setSession(null);
       persistUser(null).catch(() => undefined);
@@ -438,49 +454,23 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         return { needsTwoFactor: true as const, codeReused: result.codeReused === true };
       }
       const createdAt = new Date(result.user.createdAt);
-      const storedAgreement = await readLegalAgreement();
-      const localAgreement = toCompletedLegalAgreement(storedAgreement);
-      const accountAgreement = agreementFromUnknown(result.legalSafetyAgreement);
-      const accountOk = Boolean(accountAgreement && !agreementPredatesAccount(accountAgreement, createdAt));
-      const legalReady = await isLegalReadyForSignIn();
-      const localOk = chooseLegalForm({
-        signedIn: true,
-        createdAt,
-        account: null,
-        device: storedAgreement,
-        legalReady,
-        today: todayStamp(),
-      }) === 'device';
-      const appleRecheck = needsAppleLicenseRecheck(result.legalSafetyAgreement, createdAt);
-      if (!accountOk && !localOk && !appleRecheck) {
-        if (localAgreement) {
-          await clearLegalAgreement();
-          await clearLegalReadyForSignIn();
-        }
+      if (await applySignInLegal(createdAt, result.legalSafetyAgreement) === 'block') {
         throw new Error(LEGAL_SIGN_IN_MESSAGE);
       }
-      if (accountOk && accountAgreement) {
-        if (!localOk) {
-          try {
-            await writeLegalAgreement(accountAgreement);
-          } catch (storageError) {
-            console.error('[Login] Could not save the Legal & Safety agreement on this device', storageError);
-          }
-        }
-        setLoginLegalBoxChecked(true);
-        await clearLegalReadyForSignIn();
-      }
 
+      rememberAccessToken(result.session.access_token);
       if (mountedRef.current) {
         setUser(result.user);
         setSession(result.session);
       }
       await persistUser(result.user);
       await persistSession(result.session);
-      await supabase.auth.setSession({
+      // setSession takes the same auth lock. A stuck refresh must not hold the
+      // sign-in screen on the 10 second timer after the account already answered.
+      await settleWithin(supabase.auth.setSession({
         access_token: result.session.access_token,
         refresh_token: result.session.refresh_token,
-      });
+      }), 2000).catch(() => undefined);
       setSentryUser(result.user);
       addBreadcrumb('User logged in', 'auth', { userId: result.user.id, role: result.user.role });
       return { needsTwoFactor: false as const };
@@ -496,6 +486,83 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       throw error;
     }
   }, [loginMutation, persistUser, persistSession]);
+
+  const loginWithProvider = useCallback(async (provider: 'apple' | 'google') => {
+    holdProviderRef.current = true;
+    try {
+      await requestProviderSession(provider);
+      let stored: Awaited<ReturnType<typeof supabase.auth.getSession>>;
+      try {
+        stored = await settleWithin(supabase.auth.getSession(), SESSION_RESTORE_MS);
+      } catch {
+        throw new Error('That sign-in did not finish.');
+      }
+      const nextSession = stored.data.session;
+      if (!nextSession?.user) {
+        throw new Error('That sign-in did not finish.');
+      }
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, username, business_name, email, role, is_admin, phone, bio, profile_image, created_at, is_paused, two_factor_enabled, ordering_removed, legal_safety_agreement')
+        .eq('id', nextSession.user.id)
+        .maybeSingle();
+      if (profileError) {
+        throw new Error('That sign-in could not be checked.');
+      }
+      const block = providerAccountBlock(profile ? {
+        role: profile.role,
+        is_paused: profile.is_paused,
+        ordering_removed: profile.ordering_removed,
+        email_confirmed_at: nextSession.user.email_confirmed_at,
+      } : null);
+      if (block || !profile) {
+        await settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
+        throw new Error(block || 'No account found. Create an account.');
+      }
+      if (profile.two_factor_enabled) {
+        await settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
+        throw new Error('This account uses a sign-in code. Use email to sign in.');
+      }
+      const signedInUser = {
+        id: profile.id,
+        username: profile.username,
+        businessName: typeof profile.business_name === 'string' ? profile.business_name : '',
+        email: profile.email,
+        role: profile.role as 'platemaker' | 'platetaker',
+        isAdmin: profile.is_admin || false,
+        phone: profile.phone,
+        bio: profile.bio,
+        profileImage: profile.profile_image,
+        createdAt: new Date(profile.created_at),
+        isPaused: profile.is_paused,
+        twoFactorEnabled: profile.two_factor_enabled,
+      };
+      if (await applySignInLegal(signedInUser.createdAt, profile.legal_safety_agreement) === 'block') {
+        await settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
+        throw new Error(LEGAL_SIGN_IN_MESSAGE);
+      }
+      rememberAccessToken(nextSession.access_token);
+      if (mountedRef.current) {
+        setUser(signedInUser);
+        setSession(nextSession);
+      }
+      await persistUser(signedInUser);
+      await persistSession(nextSession);
+      setSentryUser(signedInUser);
+      addBreadcrumb('User logged in', 'auth', { userId: signedInUser.id, role: signedInUser.role, provider });
+    } catch (error) {
+      await settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
+      if (error instanceof Error && (error.message.includes('Complete the Legal & Safety page') || error.message === 'Sign-in was cancelled.')) {
+        throw error;
+      }
+      captureException(error as Error, { context: 'provider-login', provider });
+      throw error;
+    } finally {
+      setTimeout(() => {
+        holdProviderRef.current = false;
+      }, 300);
+    }
+  }, [persistSession, persistUser]);
 
   const signup = useCallback(async (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }, foodSafetyAcknowledged?: boolean): Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean; chooseMembership?: boolean; needsEmailConfirmation?: boolean; confirmationEmailSent?: boolean }> => {
     try {
@@ -536,6 +603,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, [signupMutation]);
 
   const logout = useCallback(async () => {
+    rememberAccessToken(null);
     clearLoginLegalBox();
     await clearLegalAgreement().catch(() => undefined);
     await clearLegalReadyForSignIn().catch(() => undefined);
@@ -544,7 +612,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     } catch (error) {
       captureException(error as Error, { context: 'logout' });
     }
-    await supabase.auth.signOut();
+    await settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
     if (mountedRef.current) {
       setUser(null);
       setSession(null);
@@ -750,6 +818,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     isLoading,
     isAuthenticated: !!visibleUser && !!session,
     login,
+    loginWithProvider,
     signup,
     logout,
     updateProfile,
@@ -764,7 +833,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     reactivateAccount,
     openKitchen,
     setOrderingAsBuyer,
-  }), [visibleUser, session, isLoading, login, signup, logout, updateProfile, requestPlatemakerRole, pauseAccount, unpauseAccount, deleteAccount, setTwoFactorEnabled, changePassword, requestDataExport, resetPassword, reactivateAccount, openKitchen, setOrderingAsBuyer]);
+  }), [visibleUser, session, isLoading, login, loginWithProvider, signup, logout, updateProfile, requestPlatemakerRole, pauseAccount, unpauseAccount, deleteAccount, setTwoFactorEnabled, changePassword, requestDataExport, resetPassword, reactivateAccount, openKitchen, setOrderingAsBuyer]);
 
 
   return authState;

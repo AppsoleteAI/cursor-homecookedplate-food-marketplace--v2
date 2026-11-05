@@ -54,6 +54,7 @@ export const getIncomingOrdersProcedure = protectedProcedure
         )
       `)
       .eq('seller_id', ctx.userId)
+      .eq('paid', true)
       .in('status', ['pending', 'accepted', 'preparing', 'ready'])
       .order('created_at', { ascending: true });
 

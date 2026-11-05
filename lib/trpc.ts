@@ -3,6 +3,7 @@ import { createTRPCProxyClient, httpLink } from "@trpc/client";
 import type { AppRouter } from "@/backend/trpc/app-router";
 import superjson from "superjson";
 import { Platform } from "react-native";
+import { readAccessToken } from "./access-token";
 import { supabase } from "./supabase";
 
 export const trpc = createTRPCReact<AppRouter>();
@@ -71,8 +72,10 @@ export const trpcClient = trpc.createClient({
       url: trpcUrl,
       transformer: superjson,
       async headers() {
-        const session = await supabase.auth.getSession();
-        const token = session.data.session?.access_token;
+        const token = await readAccessToken(async () => {
+          const session = await supabase.auth.getSession();
+          return session.data.session?.access_token ?? null;
+        });
         return {
           'Content-Type': 'application/json',
           'x-trpc-source': 'expo-web', // Required for CORS validation
@@ -164,8 +167,10 @@ export const trpcProxyClient = createTRPCProxyClient<AppRouter>({
       url: trpcUrl,
       transformer: superjson,
       async headers() {
-        const session = await supabase.auth.getSession();
-        const token = session.data.session?.access_token;
+        const token = await readAccessToken(async () => {
+          const session = await supabase.auth.getSession();
+          return session.data.session?.access_token ?? null;
+        });
         return {
           'Content-Type': 'application/json',
           'x-trpc-source': 'expo-web', // Required for CORS validation

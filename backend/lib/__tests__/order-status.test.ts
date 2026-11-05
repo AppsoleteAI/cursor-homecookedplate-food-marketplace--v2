@@ -1,4 +1,6 @@
-import { lostPortionOrderCloses } from '../record-paid-order';
+import { lostPortionOrderCloses, platePaymentCovers } from '../record-paid-order';
+import { buyerCardCharge, buyerServiceFeePercent, calculateFees, orderTotalWithDelivery } from '../fees';
+import { shopClearAllowed } from '../shop-order-status';
 import { missingBuyerColumn, orderBuyerId, orderTotal } from '../order-row';
 import { orderStatusAllowed, pickupConfirmedByBoth } from '../order-status';
 import { orderCloseout } from '@/lib/order-closeout';
@@ -24,6 +26,50 @@ describe('order close-out', () => {
     expect(orderStatusAllowed('buyer', 'ready', 'completed')).toBe(true);
   });
 
+  it('lets the cook clear a paid plate only after the buyer acknowledges receipt', () => {
+    expect(orderCloseout('platemaker', 'ready')).toBeNull();
+    expect(orderCloseout('platemaker', 'ready', false, true)?.next).toBe('completed');
+    expect(orderCloseout('platetaker', 'ready')?.label).toBe('Send');
+    expect(shopClearAllowed(false)).toBe(false);
+    expect(shopClearAllowed(true)).toBe(true);
+  });
+
+  it('marks a plate paid only when the Stripe amount matches the cook price', () => {
+    const base = 20;
+    const percent = buyerServiceFeePercent({ role: 'platetaker', membershipTier: 'free', baseAmount: base });
+    const fees = calculateFees(base, percent, 10);
+    const card = buyerCardCharge(orderTotalWithDelivery(fees.totalCharge, fees.sellerPayout, 0).buyerPays);
+    const amountCents = Math.round(card.cardCharge * 100);
+    expect(platePaymentCovers({
+      orderIds: ['order-1'],
+      bases: [base],
+      deliveryFee: 0,
+      amountCents,
+      buyerRole: 'platetaker',
+      buyerTier: 'free',
+      listedOrderIds: ['order-1'],
+      listedBaseCents: 2000,
+    })).toBe(true);
+    expect(platePaymentCovers({
+      orderIds: ['order-1', 'order-2'],
+      bases: [base, 40],
+      deliveryFee: 0,
+      amountCents,
+      buyerRole: 'platetaker',
+      buyerTier: 'free',
+      listedOrderIds: ['order-1'],
+      listedBaseCents: 2000,
+    })).toBe(false);
+    expect(platePaymentCovers({
+      orderIds: ['order-1'],
+      bases: [base],
+      deliveryFee: 0,
+      amountCents: 50,
+      buyerRole: 'platetaker',
+      buyerTier: 'free',
+    })).toBe(false);
+  });
+
   it('starts the payout clock only after both people confirm pickup', () => {
     expect(pickupConfirmedByBoth(['seller'])).toBe(false);
     expect(pickupConfirmedByBoth(['buyer'])).toBe(false);
@@ -32,7 +78,7 @@ describe('order close-out', () => {
 
   it('names the button for the person holding the phone', () => {
     expect(orderCloseout('platemaker', 'accepted')?.label).toBe('Ready for pickup');
-    expect(orderCloseout('platetaker', 'ready')?.next).toBe('completed');
+    expect(orderCloseout('platetaker', 'ready', false, false)?.next).toBe('completed');
     expect(orderCloseout('platetaker', 'pending')).toBeNull();
     expect(orderCloseout('platetaker', 'ready', true)).toBeNull();
     expect(orderCloseout('platemaker', 'ready', true)).toBeNull();

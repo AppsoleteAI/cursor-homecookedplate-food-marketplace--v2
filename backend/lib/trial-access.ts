@@ -16,6 +16,28 @@ function futureDate(value: string | null | undefined, now: number): boolean {
   return !Number.isNaN(ends) && ends > now;
 }
 
+export const APPLE_RENEWAL_DELETE_MESSAGE =
+  'Cancel the App Store subscription in Apple subscriptions, then delete the account again. Apple keeps billing until that renewal is off.';
+
+export const APPLE_UNCONFIRMED_DELETE_MESSAGE =
+  'Cancel the App Store subscription before this account can be deleted. HomeCookedPlate could not confirm that Apple has stopped renewal.';
+
+export const APPLE_CHECK_FAILED_DELETE_MESSAGE =
+  'The App Store subscription could not be checked. This account was not deleted.';
+
+/** A renewing App Store membership blocks deletion. An expired or refunded one does not. */
+export function appleDeletionBlock(
+  profile: TrialAccessProfile | null | undefined,
+  status: { configured: boolean; renewing: boolean } | null,
+  now = new Date(),
+): string | null {
+  if (!profile?.apple_original_transaction_id) return null;
+  if (!status) return APPLE_CHECK_FAILED_DELETE_MESSAGE;
+  if (!status.configured && appleMembershipCovers(profile, now)) return APPLE_UNCONFIRMED_DELETE_MESSAGE;
+  if (status.renewing) return APPLE_RENEWAL_DELETE_MESSAGE;
+  return null;
+}
+
 /** An App Store membership covers Premium only while Apple still entitles it. A row saved before an expiry date was stored still covers until a check writes that date. */
 export function appleMembershipCovers(profile: TrialAccessProfile, now = new Date()): boolean {
   if (!profile.apple_original_transaction_id) return false;
