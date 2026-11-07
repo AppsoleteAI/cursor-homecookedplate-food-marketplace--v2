@@ -6,7 +6,7 @@ import { type ShopName } from '../../../../lib/shop-catalog';
 import { priceShopOrder } from '../../../../lib/shop-quote';
 import { checkoutAreaShop, shopFulfillmentSchema, type ShopFulfillment } from '../../../../lib/shop-fulfillment';
 import { fulfillmentIsDelivery, savedDeliveryFee } from '../../../../lib/delivery-fee';
-import { appRevenueWithDelivery, orderTotalWithDelivery, sharedChargeRefundCents } from '../../../../lib/fees';
+import { appRevenueWithDelivery, CHECKOUT_QUANTITY_MAX, orderTotalWithDelivery, sharedChargeRefundCents } from '../../../../lib/fees';
 import { applePayMerchantName, profilePayeeName } from '../../../../lib/payee-name';
 import { resolvedMembershipTier } from '../../../../lib/trial-access';
 import { assertShopHandoff } from '@/lib/combined-handoff';
@@ -41,7 +41,7 @@ import { browserOrigin, openStripeCheckout } from '../../../../lib/stripe-checko
 
 const lineSchema = z.object({
   productId: z.string().min(1).max(80),
-  quantity: z.number().int().positive().max(999),
+  quantity: z.number().int().positive().max(CHECKOUT_QUANTITY_MAX),
   pickupTime: z.string().min(1).max(40).optional(),
   pickupTimeZone: z.string().min(1).max(80).optional(),
   specialInstructions: z.string().max(500).optional(),

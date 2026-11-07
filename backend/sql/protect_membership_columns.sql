@@ -1,6 +1,9 @@
--- Stops a signed-in account from writing its own membership, subscription, or payout columns.
--- The service role, used by the Worker, can still record a payment Stripe, Apple, or Google confirmed.
--- Run this once in the Supabase SQL editor.
+-- Stops a signed-in account from writing its own membership, subscription, payout, metro,
+-- pause, or authenticator columns.
+-- The service role, used by the Worker, can still record a payment Stripe, Apple, or Google confirmed,
+-- and can still set metro_area during signup and Get GPS.
+-- Run this in the Supabase SQL editor. Running it again replaces the previous function
+-- and adds two_factor_enabled and is_paused.
 
 CREATE OR REPLACE FUNCTION public.protect_membership_columns()
 RETURNS trigger
@@ -29,7 +32,10 @@ DECLARE
     'selling_removed',
     'ordering_removed',
     'dispute_fee_owed_cents',
-    'kitchen_permit'
+    'kitchen_permit',
+    'metro_area',
+    'two_factor_enabled',
+    'is_paused'
   ];
   column_name text;
   old_row jsonb := to_jsonb(OLD);

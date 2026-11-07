@@ -92,7 +92,7 @@ The Apple review demo account and the Google review demo account are the only Pr
 
 ## Lifetime membership after a re-download
 
-A lifetime membership is not an App Store product. Monthly and yearly are the App Store products. Lifetime stays on the account. Deleting the app and downloading it again creates a new binding token. Sign-in on that same account saves the new token. The account is not sent to the hardware-mismatch screen. Another account cannot take the token, because `profiles.device_id` is unique.
+A lifetime membership is not an App Store product. Monthly and yearly are the App Store products. Lifetime stays on the account. Deleting the app and downloading it again creates a new binding token. Sign-in on that same account saves the new token. A signed-in PlateMaker stays on the kitchen. A signed-in PlateTaker stays on home. Another account cannot take the token, because `profiles.device_id` is unique.
 
 The live database still has the old function until `backend/sql/allow_lifetime_device_rebind.sql` is run in the SQL editor. Until that run, the app allows the re-download and the database refuses to store the new token.
 
@@ -121,3 +121,18 @@ Read `role` before a price, a trial, or a checkout.
 - PlateTaker: free access. Optional Premium is $7.99 a month or $75.99 a year. Do not open Stripe from signup. Do not grant Early Bird.
 - Do not reuse the PlateTaker "one $4.99 button" path on a PlateMaker account.
 - Do not show the PlateMaker $4.99 price on a PlateTaker account.
+
+## Four payment flows
+
+Web, iOS, and Android use the same source. This check is local. No live card was charged. It ran 10 times in `backend/lib/__tests__/membership-payments.test.ts`.
+
+Signed out, neither role can start a membership charge.
+
+| Role | Interval | Charge | After the subscription is active |
+| --- | --- | --- | --- |
+| PlateMaker | Monthly | $4.99 | The kitchen opens. Clips can be posted. A buyer fee on this account stays 10%. |
+| PlateMaker | Yearly | $39.99 | The same Premium access as monthly. |
+| PlateTaker | Monthly | $7.99 | The app was already usable. Premium posts clips. The service fee is 5% when the food total is $20 or more, and 10% below that. |
+| PlateTaker | Yearly | $75.99 | The same Premium access as monthly. |
+
+On one card for a $12 cheesecake and an $18 pumpkin pie, a free PlateTaker pays $33.00. PlateTaker Premium pays $31.50. A PlateMaker Premium plan does not change that buyer fee. When the subscription is no longer active, the cook’s kitchen closes and the buyer fee returns to 10%. Signed out, Premium is not on.

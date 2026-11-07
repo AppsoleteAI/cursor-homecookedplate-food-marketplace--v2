@@ -27,6 +27,12 @@ function mailDelivery(): { client: Resend; from: string } | null {
   };
 }
 
+/** Resend returns quota and other refusals on `error` and does not throw. */
+export function resendFailure(result: { error?: { message?: string } | null } | null | undefined): string | null {
+  if (!result?.error) return null;
+  return result.error.message || 'Email was not sent.';
+}
+
 /**
  * Send email confirmation link to new user
  * 
@@ -112,16 +118,17 @@ If you didn't create an account, you can safely ignore this email.
       `.trim(),
     });
 
-    if (result.error) {
+    const failure = resendFailure(result);
+    if (failure) {
       console.error('[Email Service] Failed to send confirmation email:', result.error);
       if (logError) {
-        logError(new Error(`Resend error: ${result.error.message}`), {
+        logError(new Error(`Resend error: ${failure}`), {
           context: 'sendEmailConfirmation',
           email,
           username,
         });
       }
-      throw new Error(`Failed to send email: ${result.error.message}`);
+      throw new Error(`Failed to send email: ${failure}`);
     }
 
     console.log(`[Email Service] Confirmation email sent to ${email}`);
@@ -147,15 +154,15 @@ If you didn't create an account, you can safely ignore this email.
 export async function sendWelcomeEmail(
   email: string,
   username: string
-): Promise<void> {
+): Promise<boolean> {
   const delivery = mailDelivery();
   if (!delivery) {
     console.warn('[Email Service] Resend not initialized. Skipping welcome email.');
-    return;
+    return false;
   }
 
   try {
-    await delivery.client.emails.send({
+    const result = await delivery.client.emails.send({
       from: delivery.from,
       to: email,
       subject: 'Welcome to HomeCookedPlate!',
@@ -191,7 +198,12 @@ export async function sendWelcomeEmail(
       `,
     });
 
+    if (resendFailure(result)) {
+      console.error('[Email Service] Welcome email was not sent:', result.error);
+      return false;
+    }
     console.log(`[Email Service] Welcome email sent to ${email}`);
+    return true;
   } catch (error) {
     console.error('[Email Service] Error sending welcome email:', error);
     if (logError) {
@@ -201,7 +213,7 @@ export async function sendWelcomeEmail(
         username,
       });
     }
-    // Don't throw - welcome email is not critical
+    return false;
   }
 }
 
@@ -226,7 +238,7 @@ export async function sendPasswordResetEmail(
   try {
     const resetUrl = `${webUrl}/reset-password?token=${resetToken}`;
 
-    await delivery.client.emails.send({
+    const result = await delivery.client.emails.send({
       from: delivery.from,
       to: email,
       subject: 'Reset your HomeCookedPlate password',
@@ -260,6 +272,10 @@ export async function sendPasswordResetEmail(
       `,
     });
 
+    const failure = resendFailure(result);
+    if (failure) {
+      throw new Error(`Failed to send email: ${failure}`);
+    }
     console.log(`[Email Service] Password reset email sent to ${email}`);
   } catch (error) {
     console.error('[Email Service] Error sending password reset email:', error);
@@ -278,24 +294,31 @@ export async function sendSignInCode(email: string, code: string): Promise<void>
   if (!delivery) {
     throw new Error('The sign-in code could not be emailed.');
   }
-  await delivery.client.emails.send({
+  const result = await delivery.client.emails.send({
     from: delivery.from,
     to: email,
     subject: 'Your HomeCookedPlate sign-in code',
     text: `Your sign-in code is ${code}. It expires in 10 minutes. Five wrong tries close it.`,
   });
+  if (resendFailure(result)) {
+    throw new Error('The sign-in code could not be emailed.');
+  }
 }
 
 export async function sendNoticeEmail(email: string, subject: string, body: string): Promise<boolean> {
   const delivery = mailDelivery();
   if (!delivery || !email) return false;
   try {
-    await delivery.client.emails.send({
+    const result = await delivery.client.emails.send({
       from: delivery.from,
       to: email,
       subject,
       text: body,
     });
+    if (resendFailure(result)) {
+      console.error('[Email Service] Notice email failed:', result.error);
+      return false;
+    }
     return true;
   } catch (error) {
     console.error('[Email Service] Notice email failed:', error);

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { protectedProcedure } from '../../../create-context';
-import { buyerServiceFeePercent, calculateDeliveryLevy, calculateFees, orderTotalWithDelivery, sellerRefundAmount } from '../../../../lib/fees';
+import { buyerServiceFeePercent, calculateDeliveryLevy, calculateFees, CHECKOUT_QUANTITY_MAX, orderTotalWithDelivery, sellerRefundAmount } from '../../../../lib/fees';
 import { applePayMerchantName, profilePayeeName } from '../../../../lib/payee-name';
 import { resolvedMembershipTier } from '../../../../lib/trial-access';
 import { nextShopStatus, shopClearAllowed, shopCloseoutNotice, shopRefundIsFull } from '../../../../lib/shop-order-status';
@@ -25,7 +25,7 @@ import {
 
 const lineSchema = z.object({
   productId: z.string().min(1).max(80),
-  quantity: z.number().int().positive().max(999),
+  quantity: z.number().int().positive().max(CHECKOUT_QUANTITY_MAX),
 });
 
 const checkoutInput = z.object({

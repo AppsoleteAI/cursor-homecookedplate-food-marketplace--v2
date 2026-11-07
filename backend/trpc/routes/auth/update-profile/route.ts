@@ -1,7 +1,8 @@
-import { protectedProcedure } from "../../../create-context";
+import { sessionProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { auditTextField } from "../../../../lib/text-audit";
+import { accountAllowsSignIn, LEGAL_SAVE_FAILED_MESSAGE, LEGAL_SIGN_IN_MESSAGE, legalSafetyAgreementSchema, submittedAgreementAllows } from "../../../../lib/legal-gate";
 
 /**
  * Update Profile Procedure
@@ -12,7 +13,7 @@ import { auditTextField } from "../../../../lib/text-audit";
  * 
  * Corresponds to SQL Section 3 in security_enhancements.sql
  */
-export const updateProfileProcedure = protectedProcedure
+export const updateProfileProcedure = sessionProcedure
   .input(
       z.object({
         username: z.string().min(3).optional(),
@@ -22,24 +23,26 @@ export const updateProfileProcedure = protectedProcedure
         profileImage: z.string().optional(),
         businessName: z.string().max(80).optional(),
         foodSafetyAcknowledged: z.boolean().optional(),
-        legalSafetyAgreement: z.object({
-          sections: z.object({
-            jurisdictional_law: z.literal(true),
-            delivery_safety: z.literal(true),
-            liability_waiver: z.literal(true),
-            legal_safety_financial: z.literal(true),
-            allergy_food_safety: z.literal(true),
-            fee_structure: z.literal(true),
-            account_termination: z.literal(true),
-            uploaded_content: z.literal(true),
-            apple_eula: z.literal(true),
-          }),
-          acknowledgedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-          acknowledgedAt: z.string().min(10),
-        }).nullable().optional(),
+        legalSafetyAgreement: legalSafetyAgreementSchema.nullable().optional(),
       })
   )
   .mutation(async ({ input, ctx }) => {
+    const existing = await ctx.supabaseAdmin
+      .from('profiles')
+      .select('legal_safety_agreement, created_at')
+      .eq('id', ctx.userId)
+      .maybeSingle();
+    const createdAt = new Date(existing.data?.created_at ?? '');
+    const allowed = accountAllowsSignIn(existing.data?.legal_safety_agreement, createdAt);
+    const keys = (Object.keys(input) as (keyof typeof input)[]).filter((key) => input[key] !== undefined);
+    const legalOnly = keys.length === 1 && keys[0] === 'legalSafetyAgreement';
+    if (!allowed && !legalOnly) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: LEGAL_SIGN_IN_MESSAGE });
+    }
+    if (input.legalSafetyAgreement && !submittedAgreementAllows(input.legalSafetyAgreement, createdAt)) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: LEGAL_SIGN_IN_MESSAGE });
+    }
+
     const updateData: Record<string, string | boolean | object | null> = {};
 
     if (input.username) {
@@ -114,6 +117,10 @@ export const updateProfileProcedure = protectedProcedure
 
     if (error || !profile) {
       throw new Error(error?.message || 'Failed to update profile');
+    }
+
+    if (input.legalSafetyAgreement && !accountAllowsSignIn(profile.legal_safety_agreement, createdAt)) {
+      throw new TRPCError({ code: 'PRECONDITION_FAILED', message: LEGAL_SAVE_FAILED_MESSAGE });
     }
 
     return {

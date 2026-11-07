@@ -18,7 +18,7 @@ import { CHECKOUT_AREA_LABEL } from '@/backend/lib/combined-checkout';
 import { useCart } from '@/hooks/cart-context';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
 import { buyerFoodCharge } from '@/backend/lib/fees';
-import { DELIVERY_PLATFORM_RATE } from '@/lib/fees';
+import { checkoutQuantity, DELIVERY_PLATFORM_RATE } from '@/lib/fees';
 import { useAuth } from '@/hooks/auth-context';
 import { ScrollJumps } from '@/components/ScrollJumps';
 import { FoodImage } from '@/components/FoodImage';
@@ -121,7 +121,7 @@ export default function CartScreen() {
                   <Text style={styles.quantity}>{item.quantity}</Text>
                   <GlassPressable
                     style={styles.quantityButton}
-                    onPress={() => updateQuantity(item.meal.id, item.quantity + 1)}
+                    onPress={() => updateQuantity(item.meal.id, checkoutQuantity(item.quantity + 1))}
                   >
                     <Ionicons name="add" size={16} color={Colors.gray[600]} />
                   </GlassPressable>

@@ -1,6 +1,6 @@
-import { protectedProcedure } from "../../../create-context";
+import { sessionProcedure } from "../../../create-context";
 
-export const logoutProcedure = protectedProcedure
+export const logoutProcedure = sessionProcedure
   .mutation(async ({ ctx }) => {
     const { error } = await ctx.supabase.auth.signOut();
 

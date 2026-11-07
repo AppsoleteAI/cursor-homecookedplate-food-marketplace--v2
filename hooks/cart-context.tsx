@@ -3,7 +3,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import { CartItem, Meal } from '@/types';
 import { isSampleMealId } from '@/lib/sample-meals';
-import { promotionalBase } from '@/lib/fees';
+import { checkoutQuantity, promotionalBase } from '@/lib/fees';
 import { portionsFromTags } from '@/lib/meal-publish';
 import { storedCartLineIsClosed } from '@/lib/cart-line';
 import { trpcProxyClient } from '@/lib/trpc';
@@ -75,7 +75,7 @@ export const [CartProvider, useCart] = createContextHook<CartState>(() => {
   const addToCart = useCallback((meal: Meal, quantity: number, options?: Partial<CartItem>) => {
     if (meal.isSample || isSampleMealId(meal.id) || meal.acceptingOrders === false) return false;
     const cap = portionsFromTags(meal.tags);
-    const adding = Math.min(cap, Math.max(1, Math.round(quantity)));
+    const adding = Math.min(cap, checkoutQuantity(quantity));
     setItems(prev => {
       const existing = prev.find(item => item.meal.id === meal.id);
       if (existing) {
@@ -102,7 +102,7 @@ export const [CartProvider, useCart] = createContextHook<CartState>(() => {
     setItems(prev =>
       prev.map(item =>
         item.meal.id === mealId
-          ? { ...item, quantity: Math.min(portionsFromTags(item.meal.tags), Math.round(quantity)) }
+          ? { ...item, quantity: Math.min(portionsFromTags(item.meal.tags), checkoutQuantity(quantity)) }
           : item
       )
     );
@@ -146,7 +146,7 @@ export const [CartProvider, useCart] = createContextHook<CartState>(() => {
 
   const totalItems = useMemo(() => items.reduce((sum, item) => sum + item.quantity, 0), [items]);
   const totalPrice = useMemo(() => items.reduce((sum, item) => (
-    sum + promotionalBase(item.meal.price, Math.max(1, Math.round(item.quantity)), item.meal.promotionalOffer)
+    sum + promotionalBase(item.meal.price, checkoutQuantity(item.quantity), item.meal.promotionalOffer)
   ), 0), [items]);
 
   return useMemo(() => ({

@@ -1,4 +1,7 @@
-import { agreementPredatesAccount, chooseLegalForm, emptyLegalSections, needsAppleLicenseRecheck, priorAgreementFromUnknown, type LegalAgreementRecord } from '../legal-agreement';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { appleLicenseParagraphs } from '../apple-eula';
+import { agreementFromUnknown, agreementPredatesAccount, chooseLegalForm, emptyLegalSections, needsAppleLicenseRecheck, priorAgreementFromUnknown, type LegalAgreementRecord } from '../legal-agreement';
 
 const sections = {
   jurisdictional_law: true as const,
@@ -102,10 +105,34 @@ describe('Apple app license re-check', () => {
     expect(needsAppleLicenseRecheck(older, created)).toBe(true);
   });
 
-  it('does not ask again once the Apple app license is already checked', () => {
+  it('asks again when the Apple app license was checked before this wording', () => {
     const done = { ...older, sections };
-    expect(needsAppleLicenseRecheck(done, created)).toBe(false);
+    expect(needsAppleLicenseRecheck(done, created)).toBe(true);
+    expect(agreementFromUnknown(done)).toBeNull();
     expect(needsAppleLicenseRecheck(null, created)).toBe(false);
+  });
+
+  it('does not ask again when the Apple app license check is after this wording', () => {
+    const done = {
+      ...older,
+      sections,
+      acknowledgedOn: '2026-11-05',
+      acknowledgedAt: '2026-11-05T22:00:00.000Z',
+    };
+    expect(needsAppleLicenseRecheck(done, created)).toBe(false);
+    expect(agreementFromUnknown(done)?.sections.apple_eula).toBe(true);
+  });
+
+  it('publishes the same Apple app license on the public terms page', () => {
+    const html = readFileSync(resolve(__dirname, '../../pages/legal/terms.html'), 'utf8');
+    const paragraphs = appleLicenseParagraphs();
+    expect(paragraphs[0]).toContain('Volume Content Terms');
+    expect(paragraphs[1]).toContain('volume purchasing');
+    expect(paragraphs[4]).toContain('HealthKit and HomeKit');
+    for (const [index, paragraph] of paragraphs.entries()) {
+      if (index === 7) continue;
+      expect(html).toContain(paragraph);
+    }
   });
 
   it('does not treat a deleted account copy as the re-check', () => {

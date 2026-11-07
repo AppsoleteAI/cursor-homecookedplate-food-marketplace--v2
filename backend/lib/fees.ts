@@ -85,6 +85,21 @@ export function buyerServiceFeePercent(input: {
   return 10;
 }
 
+/** The final plate receipt. The base is order.total_price. A shared card uses the combined food total for the buyer fee. */
+export function finalPlateReceipt(input: {
+  totalPrice: number;
+  buyerRole: string | null | undefined;
+  buyerMembershipTier: string | null | undefined;
+  cardBase?: number;
+}) {
+  const buyerFeePercent = buyerServiceFeePercent({
+    role: input.buyerRole,
+    membershipTier: input.buyerMembershipTier,
+    baseAmount: input.cardBase ?? input.totalPrice,
+  });
+  return calculateFees(input.totalPrice, buyerFeePercent, 10);
+}
+
 /**
  * Calculates the "Double 10" split for Rork orders.
  * Buyer pays +10%, Seller pays -10%. Platform keeps 20%.
@@ -269,13 +284,23 @@ export function producedCost(ingredients: number, packaging: number): number {
   return roundMoney(ingredients + packaging);
 }
 
+/** The most units one checkout line accepts. */
+export const CHECKOUT_QUANTITY_MAX = 999;
+
+/** Stops a checkout quantity at 999. A blank or low value stays at one unit. */
+export function checkoutQuantity(quantity: number): number {
+  const whole = Math.round(Number(quantity));
+  if (!Number.isFinite(whole) || whole < 1) return 1;
+  return Math.min(CHECKOUT_QUANTITY_MAX, whole);
+}
+
 /** Menu line total after one active offer. A free item does not change this plate's price. */
 export function promotionalBase(unitPrice: number, quantity: number, offer: PromotionPrice | null | undefined): number {
   if (!Number.isFinite(unitPrice) || unitPrice < 0) {
     throw new Error(`Invalid unit price: ${unitPrice}. Must be a finite, non-negative number.`);
   }
-  if (!Number.isInteger(quantity) || quantity < 1) {
-    throw new Error(`Invalid quantity: ${quantity}. Must be a whole number of at least 1.`);
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > CHECKOUT_QUANTITY_MAX) {
+    throw new Error(`Invalid quantity: ${quantity}. Must be a whole number from 1 to ${CHECKOUT_QUANTITY_MAX}.`);
   }
   const menu = roundMoney(unitPrice * quantity);
   if (!offer) return menu;
@@ -321,8 +346,8 @@ export function calculateOrderBreakdown(unitPrice: number, quantity: number) {
   if (!Number.isFinite(unitPrice) || unitPrice < 0) {
     throw new Error(`Invalid unitPrice: ${unitPrice}. Must be a finite, non-negative number.`);
   }
-  if (!Number.isFinite(quantity) || quantity <= 0 || quantity > 999) {
-    throw new Error(`Invalid quantity: ${quantity}. Must be between 1 and 999.`);
+  if (!Number.isFinite(quantity) || quantity <= 0 || quantity > CHECKOUT_QUANTITY_MAX) {
+    throw new Error(`Invalid quantity: ${quantity}. Must be between 1 and ${CHECKOUT_QUANTITY_MAX}.`);
   }
 
   const subtotal = unitPrice * quantity;

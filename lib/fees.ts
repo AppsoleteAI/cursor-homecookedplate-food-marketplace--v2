@@ -20,7 +20,9 @@
  * @param baseAmount - The base order amount (meal price)
  * @returns Object with totalCaptured, appRevenue, and sellerPayout
  */
-export { promotionalBase, type PromotionPrice } from '@/backend/lib/fees';
+import { CHECKOUT_QUANTITY_MAX } from '@/backend/lib/fees';
+
+export { promotionalBase, checkoutQuantity, CHECKOUT_QUANTITY_MAX, type PromotionPrice } from '@/backend/lib/fees';
 
 export const calculateOrderSplit = (baseAmount: number) => {
   // Null/NaN validation
@@ -150,8 +152,8 @@ export function calculateOrderBreakdown(unitPrice: number, quantity: number) {
   if (!Number.isFinite(unitPrice) || unitPrice < 0) {
     throw new Error(`Invalid unitPrice: ${unitPrice}. Must be a finite, non-negative number.`);
   }
-  if (!Number.isFinite(quantity) || quantity <= 0 || quantity > 999) {
-    throw new Error(`Invalid quantity: ${quantity}. Must be between 1 and 999.`);
+  if (!Number.isFinite(quantity) || quantity <= 0 || quantity > CHECKOUT_QUANTITY_MAX) {
+    throw new Error(`Invalid quantity: ${quantity}. Must be between 1 and ${CHECKOUT_QUANTITY_MAX}.`);
   }
 
   const subtotal = unitPrice * quantity;

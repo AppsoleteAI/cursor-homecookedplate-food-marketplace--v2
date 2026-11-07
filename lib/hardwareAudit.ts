@@ -78,10 +78,6 @@ export async function runHardwareAudit(
       deviceId: bindingToken,
     });
 
-    if (!result.allowed) {
-      console.error('[LifetimeBinding] Token mismatch');
-    }
-
     return { allowed: result.allowed };
   } catch (err) {
     // Fail open: allow access on network/server errors

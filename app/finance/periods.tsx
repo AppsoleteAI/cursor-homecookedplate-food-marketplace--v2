@@ -10,6 +10,7 @@ import { SellerOnly } from '@/components/RoleGuard';
 import { trpc } from '@/lib/trpc';
 import BarChart, { BarDatum } from '@/components/BarChart';
 import { DashboardSectionBack } from '@/components/BackCircle';
+import { Stack } from 'expo-router';
 
 function getWeekDays(): string[] {
   const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -84,11 +85,12 @@ export default function PeriodsFinanceScreen() {
 
   // Security: Add defensive check to prevent rendering for non-platemakers (after all hooks)
   if (user?.role !== 'platemaker') {
-    return null;
+    return <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />;
   }
 
   return (
     <SellerOnly>
+      <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
       <View style={styles.container}>
       <View style={styles.staticHeader}>
         <LinearGradient

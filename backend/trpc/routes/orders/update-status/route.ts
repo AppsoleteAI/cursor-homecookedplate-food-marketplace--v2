@@ -4,7 +4,7 @@ import { z } from "zod";
 import { orderBuyerId, orderTotal } from "../../../../lib/order-row";
 import { orderStatusAllowed, pickupConfirmedByBoth } from "../../../../lib/order-status";
 import { payoutReleaseAt } from "../../../../lib/payout-policy";
-import { notifyParty } from "../../../../lib/account-notice";
+import { notifyParty, ORDER_STEP_NOTICES } from "../../../../lib/account-notice";
 import { refundChargeCents, refundOpenCharge } from "../../../../lib/refund-card";
 import { saleRefundCents } from "../../../../lib/fees";
 import { unpackShopLines } from "../../../../lib/shop-fulfillment";
@@ -148,10 +148,7 @@ export const updateOrderStatusProcedure = protectedProcedure
       if (!pickupConfirmedByBoth(roles)) {
         const otherId = role === 'seller' ? buyerId : order.seller_id;
         try {
-          await notifyParty(ctx.supabaseAdmin, otherId, 'orderUpdates', {
-            title: 'Confirm pickup',
-            body: 'The other person confirmed pickup. Confirm it too so this order can close.',
-          });
+          await notifyParty(ctx.supabaseAdmin, otherId, 'orderUpdates', ORDER_STEP_NOTICES.confirmPickup);
         } catch (noticeError) {
           console.error('[UpdateOrderStatus] Pickup notice was not sent:', noticeError);
         }
@@ -173,15 +170,12 @@ export const updateOrderStatusProcedure = protectedProcedure
 
     const otherId = role === 'seller' ? buyerId : order.seller_id;
     if (input.status === 'ready' || input.status === 'completed' || input.status === 'cancelled') {
-      const body = input.status === 'ready'
-        ? 'This order is ready for pickup.'
+      const notice = input.status === 'ready'
+        ? ORDER_STEP_NOTICES.ready
         : input.status === 'completed'
-          ? 'This order was marked picked up.'
-          : 'This order was cancelled.';
-      await notifyParty(ctx.supabaseAdmin, otherId, 'orderUpdates', {
-        title: 'Order update',
-        body,
-      });
+          ? ORDER_STEP_NOTICES.pickedUp
+          : { title: 'Order update', body: 'This order was cancelled.' };
+      await notifyParty(ctx.supabaseAdmin, otherId, 'orderUpdates', notice);
     }
 
     if (input.status === 'completed') {

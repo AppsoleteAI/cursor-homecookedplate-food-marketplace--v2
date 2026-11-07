@@ -1,4 +1,4 @@
-import { confirmationAlreadyDone, confirmationPath, recoveryFromLink, tokenFromLink } from '@/lib/verification-link';
+import { confirmationAlreadyDone, confirmationPath, recoveryFromLink, recoveryLinkPresent, tokenFromLink } from '@/lib/verification-link';
 
 const token = 'a'.repeat(64);
 
@@ -32,6 +32,15 @@ describe('verification link', () => {
     const fromQuery = recoveryFromLink('/reset-password?token_hash=abc&type=recovery');
     expect(fromQuery.tokenHash).toBe('abc');
     expect(fromQuery.type).toBe('recovery');
+  });
+
+  it('treats a reset link as present so an existing session cannot replace it', () => {
+    const fromHash = recoveryFromLink('https://homecookedplate.com/reset-password#access_token=abc&refresh_token=def&type=recovery');
+    expect(recoveryLinkPresent(fromHash)).toBe(true);
+    expect(recoveryLinkPresent(recoveryFromLink('/reset-password?token_hash=abc&type=recovery'))).toBe(true);
+    expect(recoveryLinkPresent(recoveryFromLink('/reset-password?code=xyz'))).toBe(true);
+    expect(recoveryLinkPresent(recoveryFromLink('/reset-password?error_description=expired'))).toBe(true);
+    expect(recoveryLinkPresent(recoveryFromLink('/reset-password'))).toBe(false);
   });
 
   it('treats a second open as confirmed', () => {

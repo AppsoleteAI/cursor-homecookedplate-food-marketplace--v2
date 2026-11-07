@@ -1,3 +1,9 @@
+-- Live orders columns: platetaker_id, platemaker_id, total_price_cents.
+-- There is no buyer_id, seller_id, or paid column.
+-- A new order row must have no payment intent and status pending.
+-- Platemakers view incoming, Platetakers view history, and
+-- session_completed_second_factor stay in place.
+
 -- Enable RLS on all tables
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.meals ENABLE ROW LEVEL SECURITY;
@@ -10,7 +16,7 @@ ALTER TABLE public.promotional_offers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.favorites ENABLE ROW LEVEL SECURITY;
 
 -- 1. Performance Indexes (Essential so RLS subqueries don't lag)
-CREATE INDEX IF NOT EXISTS idx_orders_buyer_seller ON public.orders(buyer_id, seller_id);
+CREATE INDEX IF NOT EXISTS idx_orders_buyer_seller ON public.orders(platetaker_id, platemaker_id);
 CREATE INDEX IF NOT EXISTS idx_meals_published_user ON public.meals(published, user_id);
 
 -- 2. Profiles Policies
@@ -37,16 +43,20 @@ CREATE POLICY "delete_meal_owner" ON public.meals FOR DELETE USING (user_id = au
 
 -- 4. Orders Policies
 DROP POLICY IF EXISTS "select_orders_buyer_or_seller" ON public.orders;
-CREATE POLICY "select_orders_buyer_or_seller" ON public.orders FOR SELECT USING (buyer_id = auth.uid() OR seller_id = auth.uid());
+CREATE POLICY "select_orders_buyer_or_seller" ON public.orders FOR SELECT USING (platetaker_id = auth.uid() OR platemaker_id = auth.uid());
 
 DROP POLICY IF EXISTS "insert_order_buyer" ON public.orders;
-CREATE POLICY "insert_order_buyer" ON public.orders FOR INSERT WITH CHECK (buyer_id = auth.uid());
+CREATE POLICY "insert_order_buyer" ON public.orders FOR INSERT WITH CHECK (
+  platetaker_id = auth.uid()
+  AND payment_intent_id IS NULL
+  AND status = 'pending'
+);
 
 DROP POLICY IF EXISTS "update_order_buyer_or_seller" ON public.orders;
-CREATE POLICY "update_order_buyer_or_seller" ON public.orders FOR UPDATE USING (buyer_id = auth.uid() OR seller_id = auth.uid()) WITH CHECK (buyer_id = auth.uid() OR seller_id = auth.uid());
+CREATE POLICY "update_order_buyer_or_seller" ON public.orders FOR UPDATE USING (platetaker_id = auth.uid() OR platemaker_id = auth.uid()) WITH CHECK (platetaker_id = auth.uid() OR platemaker_id = auth.uid());
 
 DROP POLICY IF EXISTS "delete_order_buyer_or_seller" ON public.orders;
-CREATE POLICY "delete_order_buyer_or_seller" ON public.orders FOR DELETE USING (buyer_id = auth.uid() OR seller_id = auth.uid());
+CREATE POLICY "delete_order_buyer_or_seller" ON public.orders FOR DELETE USING (platetaker_id = auth.uid() OR platemaker_id = auth.uid());
 
 -- 5. Reviews (Requires 'completed' order check)
 DROP POLICY IF EXISTS "select_reviews_all" ON public.reviews;
@@ -58,7 +68,7 @@ CREATE POLICY "insert_review_after_purchase" ON public.reviews FOR INSERT WITH C
   AND EXISTS (
     SELECT 1 FROM public.orders o
     WHERE o.meal_id = reviews.meal_id
-      AND o.buyer_id = auth.uid()
+      AND o.platetaker_id = auth.uid()
       AND o.status = 'completed'
   )
 );
@@ -75,7 +85,7 @@ CREATE POLICY "select_order_messages" ON public.order_messages FOR SELECT USING 
   EXISTS (
     SELECT 1 FROM public.orders o
     WHERE o.id = order_messages.order_id
-      AND (o.buyer_id = auth.uid() OR o.seller_id = auth.uid())
+      AND (o.platetaker_id = auth.uid() OR o.platemaker_id = auth.uid())
   )
 );
 
@@ -85,7 +95,7 @@ CREATE POLICY "insert_order_messages" ON public.order_messages FOR INSERT WITH C
   AND EXISTS (
     SELECT 1 FROM public.orders o
     WHERE o.id = order_id
-      AND (o.buyer_id = auth.uid() OR o.seller_id = auth.uid())
+      AND (o.platetaker_id = auth.uid() OR o.platemaker_id = auth.uid())
   )
 );
 

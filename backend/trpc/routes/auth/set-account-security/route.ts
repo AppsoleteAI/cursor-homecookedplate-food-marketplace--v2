@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { accountSecurityColumns } from '../../../../lib/account-security';
+import { verifiedFactors } from '../../../../lib/second-factor';
 import { protectedProcedure } from '../../../create-context';
 
 export const setAccountSecurityProcedure = protectedProcedure
@@ -13,6 +14,29 @@ export const setAccountSecurityProcedure = protectedProcedure
     }),
   )
   .mutation(async ({ input, ctx }) => {
+    if (input.twoFactorEnabled !== undefined) {
+      const listed = await ctx.supabaseAdmin.auth.admin.mfa.listFactors({ userId: ctx.userId });
+      if (listed.error) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'That authenticator could not be checked.',
+        });
+      }
+      const verified = verifiedFactors(listed.data?.factors);
+      if (input.twoFactorEnabled && verified.length === 0) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'Add the authenticator code before turning this on.',
+        });
+      }
+      if (!input.twoFactorEnabled && verified.length > 0) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'The authenticator is still on this account.',
+        });
+      }
+    }
+
     const updateData = accountSecurityColumns(input);
 
     // The id is the verified JWT subject. Service role writes these two flags

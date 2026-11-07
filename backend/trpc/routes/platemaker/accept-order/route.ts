@@ -2,7 +2,7 @@ import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { orderBuyerId, orderTotal } from "../../../../lib/order-row";
-import { notifyParty } from "../../../../lib/account-notice";
+import { notifyParty, ORDER_STEP_NOTICES } from "../../../../lib/account-notice";
 import { listedPlateMetadata, platePaymentCovers } from "../../../../lib/record-paid-order";
 
 /**
@@ -184,10 +184,7 @@ export const acceptOrderProcedure = protectedProcedure
       });
     }
 
-    await notifyParty(ctx.supabaseAdmin, orderBuyerId(updatedOrder), 'orderUpdates', {
-      title: 'Order accepted',
-      body: 'The cook accepted your order.',
-    });
+    await notifyParty(ctx.supabaseAdmin, orderBuyerId(updatedOrder), 'orderUpdates', ORDER_STEP_NOTICES.accepted);
 
     return {
       id: updatedOrder.id,

@@ -4,8 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, render } from '@testing-library/react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider } from '@/hooks/auth-context';
-import { LaunchCover, LAUNCH_LAYOUT_GIVE_UP_MS } from '@/components/launch-cover';
-import { SESSION_RESTORE_MS } from '@/lib/settle-within';
+import { LaunchCover, LAUNCH_AUTH_GIVE_UP_MS, LAUNCH_LAYOUT_GIVE_UP_MS } from '@/components/launch-cover';
 import Index from '@/app/index';
 
 /**
@@ -99,6 +98,31 @@ function storedUser(user: Record<string, unknown>) {
   getItem.mockResolvedValue(JSON.stringify({ ...user, createdAt: new Date().toISOString() }));
 }
 
+async function lateRole(os: 'ios' | 'android', role: 'platemaker' | 'platetaker', href: string) {
+  let finish: (value: unknown) => void = () => undefined;
+  mockPhone.readSession = () => Promise.resolve(storedSession());
+  mockPhone.restoreSession = () => new Promise((resolve) => {
+    finish = resolve;
+  });
+  const id = role === 'platemaker' ? 'cook' : 'buyer';
+  storedUser(role === 'platemaker'
+    ? { id, role, needsMembership: true, metroArea: 'Austin' }
+    : { id, role, needsMembership: true });
+  const view = await boot(os);
+  await act(async () => {
+    jest.advanceTimersByTime(LAUNCH_LAYOUT_GIVE_UP_MS + LAUNCH_AUTH_GIVE_UP_MS);
+  });
+  expect(view.queryByText('redirect:/(auth)/welcome')).toBeNull();
+  await act(async () => {
+    finish(await restoredSession(id));
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  expect(view.getByText(`redirect:${href}`)).toBeTruthy();
+}
+
 function PhoneLaunch() {
   return (
     <AuthProvider>
@@ -148,23 +172,25 @@ describe.each(['ios', 'android'] as const)('phone launch on %s', (os) => {
     expect(view.getByText('redirect:/(auth)/welcome')).toBeTruthy();
   });
 
-  it('a saved sign-in that never answers still opens Welcome', async () => {
+  it('a saved sign-in that has not answered stays off Welcome', async () => {
     mockPhone.readSession = () => Promise.resolve(storedSession());
     const view = await boot(os);
     expect(view.getByTestId('launch-cover')).toBeTruthy();
     expect(hideAsync).not.toHaveBeenCalled();
 
     await act(async () => {
-      jest.advanceTimersByTime(LAUNCH_LAYOUT_GIVE_UP_MS);
+      jest.advanceTimersByTime(LAUNCH_LAYOUT_GIVE_UP_MS + LAUNCH_AUTH_GIVE_UP_MS);
     });
     expect(hideAsync).toHaveBeenCalled();
-    expect(view.getByTestId('launch-cover')).toBeTruthy();
+    expect(view.queryByText('redirect:/(auth)/welcome')).toBeNull();
+  });
 
-    await act(async () => {
-      jest.advanceTimersByTime(SESSION_RESTORE_MS);
-    });
-    expect(view.queryByTestId('launch-cover')).toBeNull();
-    expect(view.getByText('redirect:/(auth)/welcome')).toBeTruthy();
+  it('a PlateMaker session that answers after the old give-up opens the dashboard', async () => {
+    await lateRole(os, 'platemaker', '/(tabs)/dashboard');
+  });
+
+  it('a PlateTaker session that answers after the old give-up opens home', async () => {
+    await lateRole(os, 'platetaker', '/(tabs)/(home)/home');
   });
 
   it('a restored PlateMaker opens the dashboard', async () => {

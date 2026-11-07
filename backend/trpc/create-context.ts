@@ -3,7 +3,9 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { z } from "zod";
 import { readAdminRole } from "../lib/admin-role";
+import { LEGAL_SIGN_IN_MESSAGE, profileAllowsSignIn } from "../lib/legal-gate";
 import { createServerSupabaseClient, createSupabaseAdmin } from "../lib/supabase";
+import { mfaLookupState, readAccessTokenAal, SECOND_FACTOR_MESSAGE, sessionMayEnter, verifiedFactors } from "../lib/second-factor";
 import type { CloudflareAI, MediaFrameBinding } from "../lib/image-security";
 
 type EnvBindings = {
@@ -73,18 +75,41 @@ export const createContext = async (opts: FetchCreateContextFnOptions, env?: Env
     supabaseAdmin = moduleAdmin;
   }
 
-  // Verify JWT token using anon key client (respects RLS)
+  // Verify JWT token using anon key client (respects RLS).
+  // A verified factor must already be in the token as aal2. An aal1 token is not signed in.
   let userId: string | null = null;
+  let secondFactorPending = false;
   if (token) {
     const { data } = await supabase.auth.getUser(token);
-    userId = data.user?.id ?? null;
+    const verifiedId = data.user?.id ?? null;
+    if (verifiedId) {
+      const aal = readAccessTokenAal(token);
+      if (aal === 'aal2') {
+        userId = verifiedId;
+      } else {
+        const listed = await supabaseAdmin.auth.admin.mfa.listFactors({ userId: verifiedId });
+        const lookup = mfaLookupState(listed.error?.message);
+        const verifiedCount = lookup === 'ok' ? verifiedFactors(listed.data?.factors).length : 0;
+        if (lookup === 'off' || sessionMayEnter(aal, verifiedCount, lookup === 'failed')) {
+          userId = verifiedId;
+        } else {
+          secondFactorPending = true;
+        }
+      }
+    }
   }
+
+  const supabaseUrl = env?.SUPABASE_URL || process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+  const supabaseAnonKey = env?.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
   return {
     req: opts.req,
     supabase, // ANON KEY - Use for all user operations (respects RLS)
     supabaseAdmin, // SERVICE ROLE KEY - Use ONLY for admin/system operations (bypasses RLS)
     userId,
+    secondFactorPending,
+    supabaseUrl,
+    supabaseAnonKey,
     webUrl: env?.EXPO_PUBLIC_WEB_URL || 'https://homecookedplate.com', // Web URL for redirects (password reset, etc.)
     ai: env?.AI, // Cloudflare Workers AI binding — available in CF Workers, undefined in local Bun dev
     media: env?.MEDIA,
@@ -158,7 +183,16 @@ const t = initTRPC.context<Context>().create({
  * - If valid, userId is set in context; if invalid, userId remains null
  * - This middleware double-checks that userId exists before allowing access
  */
+function rejectUnfinishedSecondFactor(pending: boolean) {
+  if (!pending) return;
+  throw new TRPCError({
+    code: 'UNAUTHORIZED',
+    message: SECOND_FACTOR_MESSAGE,
+  });
+}
+
 const isAuthenticated = t.middleware(async ({ ctx, next }) => {
+  rejectUnfinishedSecondFactor(ctx.secondFactorPending);
   const authHeader = ctx.req.headers.get('Authorization');
 
   // Check if Authorization header exists and has the correct format
@@ -201,6 +235,17 @@ const isAuthenticated = t.middleware(async ({ ctx, next }) => {
   });
 });
 
+/** PlateMaker and PlateTaker API calls require the agreement stored on the profile. */
+const requireLegalSafety = t.middleware(async ({ ctx, next }) => {
+  if (!ctx.userId || !(await profileAllowsSignIn(ctx.supabaseAdmin, ctx.userId))) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: LEGAL_SIGN_IN_MESSAGE,
+    });
+  }
+  return next();
+});
+
 /**
  * Admin Middleware - Uses checkIsAdmin helper for consistency
  * 
@@ -210,12 +255,17 @@ const isAuthenticated = t.middleware(async ({ ctx, next }) => {
  * anon/authenticated roles, so we query directly (matching security.ts pattern).
  */
 const isAdmin = t.middleware(async ({ ctx, next }) => {
+  rejectUnfinishedSecondFactor(ctx.secondFactorPending);
   // First check authentication (reuse the same check as isAuthenticated)
   if (!ctx.userId) {
     throw new TRPCError({ 
       code: 'UNAUTHORIZED', 
       message: 'No ID card found! Please log in to access this resource.' 
     });
+  }
+
+  if (!(await profileAllowsSignIn(ctx.supabaseAdmin, ctx.userId))) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: LEGAL_SIGN_IN_MESSAGE });
   }
 
   // Check if user has admin privileges using the same pattern as security.ts
@@ -244,11 +294,16 @@ const isAdmin = t.middleware(async ({ ctx, next }) => {
 });
 
 const isMainAdmin = t.middleware(async ({ ctx, next }) => {
+  rejectUnfinishedSecondFactor(ctx.secondFactorPending);
   if (!ctx.userId) {
     throw new TRPCError({
       code: 'UNAUTHORIZED',
       message: 'No ID card found! Please log in to access this resource.',
     });
+  }
+
+  if (!(await profileAllowsSignIn(ctx.supabaseAdmin, ctx.userId))) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: LEGAL_SIGN_IN_MESSAGE });
   }
 
   const full = await ctx.supabase
@@ -279,6 +334,8 @@ const isMainAdmin = t.middleware(async ({ ctx, next }) => {
 
 export const createTRPCRouter = t.router;
 export const publicProcedure = t.procedure;
-export const protectedProcedure = t.procedure.use(isAuthenticated);
+/** Signed-in, including the call that stores Legal & Safety and the call that signs out. */
+export const sessionProcedure = t.procedure.use(isAuthenticated);
+export const protectedProcedure = sessionProcedure.use(requireLegalSafety);
 export const adminProcedure = t.procedure.use(isAdmin);
 export const mainAdminProcedure = t.procedure.use(isMainAdmin);

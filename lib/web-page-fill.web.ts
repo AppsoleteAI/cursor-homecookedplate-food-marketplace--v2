@@ -10,7 +10,6 @@ const HONEY = [
   '/recover',
   '/reset-password',
   '/verify-email',
-  '/hardware-mismatch',
   '/legal',
   '/kitchen-rules',
   '/food-handling',

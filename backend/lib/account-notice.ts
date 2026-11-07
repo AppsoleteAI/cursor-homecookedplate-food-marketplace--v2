@@ -59,6 +59,23 @@ export async function readNoticePrefs(admin: Admin, userId: string): Promise<Not
 
 const SELLER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+export function paymentReceivedNotice(buyerPays: number): { title: string; body: string } {
+  return {
+    title: 'Payment received',
+    body: `A buyer paid $${buyerPays.toFixed(2)}. Accept the order when you can cook it.`,
+  };
+}
+
+export const ORDER_STEP_NOTICES = {
+  accepted: { title: 'Order accepted', body: 'The cook accepted your order.' },
+  ready: { title: 'Order update', body: 'This order is ready for pickup.' },
+  pickedUp: { title: 'Order update', body: 'This order was marked picked up.' },
+  confirmPickup: {
+    title: 'Confirm pickup',
+    body: 'The other person confirmed pickup. Confirm it too so this order can close.',
+  },
+} as const;
+
 /** The cook hears that a plate or a shop order was paid. A notice failure does not undo the payment. */
 export async function notifyCookOfPayment(
   admin: Admin,
@@ -67,10 +84,7 @@ export async function notifyCookOfPayment(
 ): Promise<void> {
   if (!sellerId || !SELLER_ID.test(sellerId) || !(buyerPays > 0)) return;
   try {
-    await notifyParty(admin, sellerId, 'paymentAlerts', {
-      title: 'Payment received',
-      body: `A buyer paid $${buyerPays.toFixed(2)}. Accept the order when you can cook it.`,
-    });
+    await notifyParty(admin, sellerId, 'paymentAlerts', paymentReceivedNotice(buyerPays));
   } catch (error) {
     console.error('[PaymentNotice] Notice was not sent:', error);
   }

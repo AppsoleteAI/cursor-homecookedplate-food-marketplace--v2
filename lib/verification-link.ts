@@ -73,6 +73,18 @@ function pick(params: URLSearchParams, key: string): string | null {
   return value && value.length > 0 ? value : null;
 }
 
+/** A reset link is present when any recovery field arrived. An existing session must not be used instead. */
+export function recoveryLinkPresent(recovery: RecoveryLink): boolean {
+  return Boolean(
+    recovery.errorDescription ||
+    recovery.accessToken ||
+    recovery.refreshToken ||
+    recovery.code ||
+    recovery.tokenHash ||
+    recovery.type
+  );
+}
+
 /** Tokens from a reset link. Supabase puts them in the hash, after the #. */
 export function recoveryFromLink(...values: (string | null | undefined)[]): RecoveryLink {
   const merged = new URLSearchParams();

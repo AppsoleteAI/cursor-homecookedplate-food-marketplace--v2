@@ -39,7 +39,7 @@ describe('index gate', () => {
     jest.useRealTimers();
   });
 
-  it('a sign-in that never finishes still reaches welcome', () => {
+  it('a slow restore stays off welcome until the session arrives', () => {
     useAuthMock.mockReturnValue({
       isLoading: true,
       isAuthenticated: false,
@@ -51,7 +51,25 @@ describe('index gate', () => {
     act(() => {
       jest.advanceTimersByTime(10_000);
     });
-    expect(view.getByText('redirect:/(auth)/welcome')).toBeTruthy();
+    expect(view.queryByText(/redirect:/)).toBeNull();
+
+    useAuthMock.mockReturnValue({
+      isLoading: false,
+      isAuthenticated: true,
+      session: { user: { id: 'cook' } },
+      user: { id: 'cook', role: 'platemaker', needsMembership: true, metroArea: 'Austin' },
+    });
+    view.rerender(<Index />);
+    expect(view.getByText('redirect:/(tabs)/dashboard')).toBeTruthy();
+
+    useAuthMock.mockReturnValue({
+      isLoading: false,
+      isAuthenticated: true,
+      session: { user: { id: 'buyer' } },
+      user: { id: 'buyer', role: 'platetaker', needsMembership: true },
+    });
+    view.rerender(<Index />);
+    expect(view.getByText('redirect:/(tabs)/(home)/home')).toBeTruthy();
   });
 
   it('a signed-out PlateMaker or PlateTaker reaches welcome', () => {

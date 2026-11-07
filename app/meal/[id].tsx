@@ -18,6 +18,7 @@ import { GradientButton } from '@/components/GradientButton';
 import { allergyOptions, cookingTemperatures } from '@/mocks/data';
 import { isSampleMealId } from '@/lib/sample-meals';
 import { portionsFromTags } from '@/lib/meal-publish';
+import { checkoutQuantity } from '@/lib/fees';
 import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { FoodImage } from '@/components/FoodImage';
 import { trpc } from '@/lib/trpc';
@@ -122,7 +123,7 @@ export default function MealDetailScreen() {
     return (
       <ErrorBoundary>
         <SafeAreaView style={styles.container} edges={Platform.OS === 'android' ? ['top', 'bottom'] : undefined}>
-          <Stack.Screen options={{ headerShown: false, title: 'Meal Details' }} />
+          <Stack.Screen options={{ headerShown: false, title: 'Meal Details', presentation: 'modal' }} />
           <View style={styles.backFloat}>
             <BackCircle tone="light" onPress={leave} testID="meal-back" />
           </View>
@@ -136,7 +137,7 @@ export default function MealDetailScreen() {
     return (
       <ErrorBoundary>
         <SafeAreaView style={styles.container} edges={Platform.OS === 'android' ? ['top', 'bottom'] : undefined}>
-          <Stack.Screen options={{ headerShown: false, title: 'Meal Details' }} />
+          <Stack.Screen options={{ headerShown: false, title: 'Meal Details', presentation: 'modal' }} />
           <View style={styles.errorContainer}>
             <BackCircle tone="honey" onPress={leave} testID="meal-back" />
             <Text style={styles.errorText}>Meal not found</Text>
@@ -436,7 +437,7 @@ export default function MealDetailScreen() {
                 <Text style={styles.quantityText}>{quantity}</Text>
                 <GlassPressable
                   style={styles.quantityButton}
-                  onPress={() => setQuantity(Math.min(portionsFromTags(meal.tags), quantity + 1))}
+                  onPress={() => setQuantity(Math.min(portionsFromTags(meal.tags), checkoutQuantity(quantity + 1)))}
                 >
                   <Text style={styles.quantityButtonText}>+</Text>
                 </GlassPressable>

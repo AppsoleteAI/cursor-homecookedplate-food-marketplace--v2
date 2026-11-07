@@ -59,6 +59,21 @@ export function storeMembershipCovers(profile: TrialAccessProfile, now = new Dat
     || googleMembershipCovers(profile, now);
 }
 
+/** A PlateMaker posts a clip with Premium, lifetime, or a Stripe subscription. A PlateTaker posts a clip with Premium. */
+export function clipPostAllowed(user: {
+  role?: string | null;
+  membershipTier?: string | null;
+  stripeSubscriptionId?: string | null;
+} | null | undefined): boolean {
+  if (!user) return false;
+  if (user.role === 'platemaker') {
+    return user.membershipTier === 'premium'
+      || user.membershipTier === 'lifetime'
+      || Boolean(user.stripeSubscriptionId);
+  }
+  return user.membershipTier === 'premium';
+}
+
 /** PlateTaker Premium, a paid cook plan, or an Early Bird date that is still ahead. */
 export function resolvedMembershipTier(profile: TrialAccessProfile, now = new Date()): 'free' | 'premium' | 'lifetime' {
   if (profile.membership_tier === 'lifetime') return 'lifetime';

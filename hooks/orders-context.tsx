@@ -11,6 +11,7 @@ interface OrdersState {
   orders: Order[];
   isLoading: boolean;
   refresh: () => Promise<void>;
+  loadError: string | null;
   activeOrdersCount: number;
   todayEarnings: number;
   weekEarnings: number;
@@ -43,6 +44,7 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const mountedRef = useRef<boolean>(true);
   const messagesRef = useRef<Record<string, OrderMessage[]>>({});
   const [messageTick, setMessageTick] = useState(0);
@@ -64,6 +66,7 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
       // Not authenticated - skip expensive operations
       if (mountedRef.current) {
         setIsLoading(false);
+        setLoadError(null);
         setOrders([]);
       }
       return;
@@ -106,6 +109,7 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
           : undefined,
       }));
       if (mountedRef.current) {
+        setLoadError(null);
         setOrders(hydrated);
         // Load persisted messages asynchronously in background without blocking
         setTimeout(() => {
@@ -137,6 +141,9 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
       }
     } catch (e) {
       captureException(e as Error, { context: 'orders refresh', userId: user?.id, role: user?.role });
+      if (mountedRef.current) {
+        setLoadError(e instanceof Error && e.message ? e.message : 'Orders could not be loaded.');
+      }
     } finally {
       if (mountedRef.current) setIsLoading(false);
     }
@@ -387,6 +394,7 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
     orders,
     isLoading,
     refresh,
+    loadError,
     activeOrdersCount,
     todayEarnings,
     weekEarnings,
@@ -400,5 +408,5 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
     markBellSeen,
     getNotificationItems,
     syncMessages,
-  }), [orders, isLoading, refresh, activeOrdersCount, todayEarnings, weekEarnings, totalReviews, getOrder, setOrderStatus, addMessage, getMessages, createPaidOrdersFromCart, bellCount, markBellSeen, getNotificationItems, syncMessages]);
+  }), [orders, isLoading, refresh, loadError, activeOrdersCount, todayEarnings, weekEarnings, totalReviews, getOrder, setOrderStatus, addMessage, getMessages, createPaidOrdersFromCart, bellCount, markBellSeen, getNotificationItems, syncMessages]);
 });

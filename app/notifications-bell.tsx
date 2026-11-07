@@ -31,7 +31,7 @@ export default function NotificationsBellScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Stack.Screen options={{ headerShown: false }} />
+      <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
       <LinearGradient colors={monoGradients.yellow} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>

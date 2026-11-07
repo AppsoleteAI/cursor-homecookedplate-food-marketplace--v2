@@ -1,13 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { trpc } from '@/lib/trpc';
 import { Alert, Platform } from 'react-native';
 import { useDebounce } from './useDebounce';
-import { getPasswordStrengthScore } from '@/components/PasswordStrengthMeter';
+import { getPasswordStrengthScore, passwordMeetsRules } from '@/components/PasswordStrengthMeter';
 import { useAuth } from './auth-context';
 import { readDeviceCoordinates } from '@/lib/device-coordinates';
 
-type SignupDraft = {
+type SignupFormData = {
   username: string;
   email: string;
   password: string;
@@ -17,7 +17,13 @@ type SignupDraft = {
   foodSafetyAcknowledged: boolean;
 };
 
-const emptySignupDraft = (): SignupDraft => ({
+type SignupDraft = {
+  username: string;
+  email: string;
+  role: 'platemaker' | 'platetaker';
+};
+
+const emptySignupForm = (): SignupFormData => ({
   username: '',
   email: '',
   password: '',
@@ -27,6 +33,14 @@ const emptySignupDraft = (): SignupDraft => ({
   foodSafetyAcknowledged: false,
 });
 
+function draftFromForm(form: SignupFormData): SignupDraft {
+  return {
+    username: form.username,
+    email: form.email,
+    role: form.role,
+  };
+}
+
 let signupDraft: SignupDraft | null = null;
 
 export function clearSignupDraft() {
@@ -35,29 +49,35 @@ export function clearSignupDraft() {
 
 export interface UseSignupFormOptions {
   initialRole?: 'platemaker' | 'platetaker';
-  onSuccess?: (result: { requiresLogin: boolean; requiresCheckout?: boolean; chooseMembership?: boolean; needsEmailConfirmation?: boolean; confirmationEmailSent?: boolean }) => void;
+  onSuccess?: (result: { requiresLogin: boolean; requiresCheckout?: boolean; chooseMembership?: boolean; needsEmailConfirmation?: boolean; confirmationEmailSent?: boolean; metro?: string }) => void;
   onError?: (error: Error) => void;
 }
 
 export const useSignupForm = (options?: UseSignupFormOptions) => {
   const { signup } = useAuth();
   
-  const [formData, setFormData] = useState<SignupDraft>(() => {
-    const draft = signupDraft ? { ...signupDraft } : emptySignupDraft();
-    if (options?.initialRole === 'platemaker' || options?.initialRole === 'platetaker') {
-      draft.role = options.initialRole;
+  const [formData, setFormData] = useState<SignupFormData>(() => {
+    const form = emptySignupForm();
+    if (signupDraft) {
+      form.username = signupDraft.username;
+      form.email = signupDraft.email;
+      form.role = signupDraft.role;
     }
-    return draft;
+    if (options?.initialRole === 'platemaker' || options?.initialRole === 'platetaker') {
+      form.role = options.initialRole;
+    }
+    return form;
   });
 
   useEffect(() => {
-    signupDraft = { ...formData };
+    signupDraft = draftFromForm(formData);
   }, [formData]);
 
   const [loading, setLoading] = useState(false);
   const [isSigningUp, setIsSigningUp] = useState(false);
   const [confirmationEmailSent, setConfirmationEmailSent] = useState(false);
   const [signupUserRole, setSignupUserRole] = useState<'platetaker' | 'platemaker' | null>(null);
+  const [signupMetro, setSignupMetro] = useState<string | null>(null);
   const [chooseMembership, setChooseMembership] = useState(false);
   const [isMembershipEnabled, setIsMembershipEnabled] = useState(false);
   const [isEligibleForTrial, setIsEligibleForTrial] = useState(false);
@@ -120,15 +140,6 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
       return;
     }
 
-    // On web, allow toggle but skip location check
-    if (Platform.OS === 'web') {
-      console.log('[Signup] Web platform - skipping location check');
-      setIsEligibleForTrial(false);
-      setTrialMeta(null);
-      setCheckingEligibility(false);
-      return;
-    }
-
     setCheckingEligibility(true);
     setIsEligibleForTrial(false);
     setTrialMeta(null);
@@ -183,12 +194,21 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
     }
   }, [formData.role, checkEligibilityMutation]);
 
-  // Clear error state when form data changes
+  const errorFieldsRef = useRef<string | null>(null);
+  const fieldKey = `${formData.username}\n${formData.email}\n${formData.password}`;
   useEffect(() => {
-    if (error && (formData.username || formData.email || formData.password)) {
+    if (!error) {
+      errorFieldsRef.current = null;
+      return;
+    }
+    if (errorFieldsRef.current === null) {
+      errorFieldsRef.current = fieldKey;
+      return;
+    }
+    if (errorFieldsRef.current !== fieldKey) {
       setError(null);
     }
-  }, [formData.username, formData.email, formData.password, error]);
+  }, [error, fieldKey]);
 
   // Clear error and retry count on unmount
   useEffect(() => {
@@ -198,14 +218,35 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
     };
   }, []);
 
+  const signupInFlight = useRef(false);
+  const usernameNotReady =
+    formData.username.trim().length < 3 ||
+    formData.username !== debouncedUsername ||
+    checkUsernameQuery.isFetching ||
+    isUsernameAvailable === false;
+
+  const confirmUsername = useCallback(async (): Promise<string | null> => {
+    if (formData.username.trim().length < 3) return 'Username must be at least 3 characters.';
+    if (formData.username !== debouncedUsername || checkUsernameQuery.isFetching) {
+      return 'Wait until the username check finishes.';
+    }
+    if (isUsernameAvailable === true) return null;
+    if (isUsernameAvailable === false) return 'Please choose a different username.';
+    const again = await checkUsernameQuery.refetch();
+    if (again.data?.available === true) return null;
+    if (again.data?.available === false) return 'Please choose a different username.';
+    return 'Username could not be checked. Try again before creating the account.';
+  }, [formData.username, debouncedUsername, checkUsernameQuery, isUsernameAvailable]);
+
   // 3. Signup Handler
   const handleSignup = useCallback(async (isRetry = false) => {
-    // Prevent double-taps
-    if (loading) {
+    if (signupInFlight.current || loading) {
       console.log('[Signup] Sign-up blocked: Already in progress');
       return;
     }
-
+    signupInFlight.current = true;
+    let retryAfter = false;
+    try {
     // Prevent excessive retries (max 3 attempts)
     if (retryCount >= 3 && !isRetry) {
       const message = 'Too many signup attempts. Please wait a moment before trying again.';
@@ -282,9 +323,7 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
       return;
     }
 
-    // Password strength check
-    const passwordScore = getPasswordStrengthScore(formData.password);
-    if (passwordScore < 5) {
+    if (!passwordMeetsRules(formData.password)) {
       const message = 'Please ensure your password meets all requirements';
       if (Platform.OS === 'web') {
         window.alert(message);
@@ -294,13 +333,12 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
       return;
     }
 
-    // Username availability check
-    if (isUsernameAvailable === false) {
-      const message = 'Please choose a different username';
+    const usernameMessage = await confirmUsername();
+    if (usernameMessage) {
       if (Platform.OS === 'web') {
-        window.alert(message);
+        window.alert(usernameMessage);
       } else {
-        Alert.alert('Error', message);
+        Alert.alert('Error', usernameMessage);
       }
       return;
     }
@@ -308,32 +346,26 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
     setLoading(true);
     setError(null);
     console.log("[Signup] Mutating...", { isRetry, retryCount });
-    
-    // Add timeout for stuck network requests (15 seconds for signup)
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(() => {
-        reject(new Error('Request timed out. Please check your connection and try again.'));
-      }, 15000);
-    });
 
     try {
-      const signupPromise = signup(
-        formData.username, 
-        cleanEmail, 
-        formData.password, 
-        formData.role, 
-        userLocation || undefined, 
+      let location = userLocation;
+      if (!location) {
+        const read = await readDeviceCoordinates(true);
+        if (read.status === 'ready') {
+          location = read.point;
+          setUserLocation(read.point);
+        }
+      }
+
+      const result = await signup(
+        formData.username,
+        cleanEmail,
+        formData.password,
+        formData.role,
+        location || undefined,
         formData.foodSafetyAcknowledged
       );
 
-      const result = await Promise.race([signupPromise, timeoutPromise]);
-      
-      // Clear timeout if signup succeeds
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      
       console.log("[Signup] Success!", result);
 
       // Success - reset retry count and error
@@ -342,6 +374,7 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
       
       // Set animation state - this will trigger the success UI
       setSignupUserRole(formData.role);
+      setSignupMetro(typeof result.metro === 'string' ? result.metro : null);
       setChooseMembership(formData.role === 'platemaker' || result.chooseMembership === true);
       setConfirmationEmailSent(result.confirmationEmailSent === true);
       clearSignupDraft();
@@ -353,12 +386,6 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
         options.onSuccess(result);
       }
     } catch (err: any) {
-      // Clear timeout if error occurs
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      
-      // Increment retry count
       if (!isRetry) {
         setRetryCount(prev => prev + 1);
       }
@@ -384,11 +411,7 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
           : errorMessage;
         
         if (Platform.OS === 'web') {
-          const shouldRetry = window.confirm(alertMessage + '\n\nWould you like to retry?');
-          if (shouldRetry) {
-            handleSignup(true);
-            return;
-          }
+          retryAfter = window.confirm(alertMessage + '\n\nWould you like to retry?');
         } else {
           Alert.alert('Signup Issue', alertMessage, [
             { text: 'Cancel', style: 'cancel' },
@@ -405,6 +428,7 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
       
       setIsSigningUp(false);
       setSignupUserRole(null);
+      setSignupMetro(null);
       
       // Call error callback if provided
       if (options?.onError) {
@@ -413,15 +437,19 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
     } finally {
       setLoading(false);
     }
+    } finally {
+      signupInFlight.current = false;
+      if (retryAfter) void handleSignup(true);
+    }
   }, [
-    formData, 
-    loading, 
-    isUsernameAvailable, 
-    userLocation, 
-    signup, 
+    formData,
+    loading,
+    userLocation,
+    signup,
     options,
     retryCount,
     isMembershipEnabled,
+    confirmUsername,
   ]);
 
   return {
@@ -433,6 +461,8 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
     isUsernameAvailable,
     isCheckingUsername: checkUsernameQuery.isFetching,
     usernameError,
+    usernameNotReady,
+    confirmUsername,
     
     // Password strength
     passwordScore: getPasswordStrengthScore(formData.password),
@@ -451,6 +481,7 @@ export const useSignupForm = (options?: UseSignupFormOptions) => {
     isSigningUp,
     confirmationEmailSent,
     signupUserRole,
+    signupMetro,
     chooseMembership,
     
     // Error recovery

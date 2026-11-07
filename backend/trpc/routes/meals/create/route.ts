@@ -8,6 +8,7 @@ import { missingKitchenPinColumn } from "../../../../lib/kitchen-pin";
 import { auditTextField, auditTextList } from "../../../../lib/text-audit";
 import { portionTag, timeZoneTag } from "@/lib/meal-publish";
 import { cookPermitIsSaved } from "../../../../lib/kitchen-permit";
+import { cookMayList, cottageFoodGuidance } from "../../../../lib/state-meal-plan";
 
 export const createMealProcedure = protectedProcedure
   .input(
@@ -26,6 +27,7 @@ export const createMealProcedure = protectedProcedure
       cookTimeZone: z.string().max(80).optional(),
       expiryDate: z.string().optional(),
       receiptDate: z.string().optional(),
+      stateCode: z.string().regex(/^[A-Za-z]{2}$/).optional(),
     })
   )
   .mutation(async ({ input, ctx }) => {
@@ -61,6 +63,13 @@ export const createMealProcedure = protectedProcedure
         .eq('id', ctx.userId)
         .maybeSingle();
       if (!dates.error && dates.data) Object.assign(profile, dates.data);
+    }
+
+    if (!cookMayList(profile.role)) {
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'Only a PlateMaker can list a meal.',
+      });
     }
 
     if (profile.role === 'platemaker' && !(await cookPermitIsSaved(ctx.supabaseAdmin, ctx.userId))) {
@@ -114,6 +123,8 @@ export const createMealProcedure = protectedProcedure
       ? await auditTextList(ctx.supabaseAdmin, ctx.userId, 'meal_dietary_options', input.dietaryOptions)
       : { values: [] as string[], blocked: false, flags: [] as string[] };
 
+    const stateGuidance = input.stateCode ? cottageFoodGuidance(input.stateCode).note : null;
+
     if (
       nameResult.blocked ||
       descResult.blocked ||
@@ -142,8 +153,9 @@ export const createMealProcedure = protectedProcedure
         dietary_options: dietaryResult.values,
         preparation_time: input.preparationTime,
         tags: [
-          ...tagsResult.values.filter((tag) => !/^portions:\d+$/.test(tag) && !tag.startsWith('tz:')),
+          ...tagsResult.values.filter((tag) => !/^portions:\d+$/.test(tag) && !tag.startsWith('tz:') && !tag.startsWith('state:')),
           portionTag(input.portions ?? 1),
+          ...(input.stateCode ? [`state:${input.stateCode.toUpperCase()}`] : []),
           ...(timeZoneTag(input.cookTimeZone) ? [timeZoneTag(input.cookTimeZone) as string] : []),
         ],
         expiry_date: input.expiryDate,
@@ -186,6 +198,7 @@ export const createMealProcedure = protectedProcedure
       receiptDate: data.receipt_date,
       createdAt: new Date(data.created_at),
       // Fee breakdown for chef transparency
+      stateGuidance,
       breakdown: {
         listedPrice: input.price,
         buyerPays: buyerBreakdown.total, // What buyer pays (listed price + 10% buyer fee)

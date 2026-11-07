@@ -6,6 +6,7 @@ import { mergeById, sameOrders, truckOrdersFromSaved } from '@/lib/saved-shop-or
 import type { PickupSlot, TruckPermitRecord } from '@/lib/food-truck-permit';
 import { evaluateTruckMenuItem } from '@/lib/food-truck-permit';
 import { shareLaneListing, useSharedLaneListings } from '@/lib/lane-sync';
+import { checkoutQuantity } from '@/lib/fees';
 
 const STORAGE_KEY = 'food_truck_popup_v1';
 
@@ -129,7 +130,7 @@ export function addTruckItem(
 export function setTruckQuantity(itemId: string, quantity: number) {
   const items = quantity <= 0
     ? state.items.filter((item) => item.itemId !== itemId)
-    : state.items.map((item) => (item.itemId === itemId ? { ...item, quantity } : item));
+    : state.items.map((item) => (item.itemId === itemId ? { ...item, quantity: checkoutQuantity(quantity) } : item));
   state = { ...state, items };
   emit();
 }

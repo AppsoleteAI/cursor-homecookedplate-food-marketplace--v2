@@ -64,6 +64,14 @@ function money(amount: number): number {
   return Math.round(amount * 100) / 100;
 }
 
+export function checkoutAreaFromTags(tags: unknown): CheckoutArea | null {
+  if (!Array.isArray(tags)) return null;
+  const tag = tags.find((item) => typeof item === 'string' && item.startsWith('area:'));
+  if (typeof tag !== 'string') return null;
+  const area = tag.slice('area:'.length);
+  return (CHECKOUT_AREAS as readonly string[]).includes(area) ? area as CheckoutArea : null;
+}
+
 export function checkoutKey(area: CheckoutArea, sellerId: string): string {
   return `${area}:${sellerId}`;
 }

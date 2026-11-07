@@ -10,6 +10,7 @@ import { SellerOnly } from '@/components/RoleGuard';
 import { trpc } from '@/lib/trpc';
 import BarChart, { BarDatum } from '@/components/BarChart';
 import { DashboardSectionBack } from '@/components/BackCircle';
+import { Stack } from 'expo-router';
 
 export default function TodayFinanceScreen() {
   const insets = useSafeAreaInsets();
@@ -69,6 +70,8 @@ export default function TodayFinanceScreen() {
   }, [todaysOrders]);
 
   return (
+    <>
+    <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
     <SellerOnly>
       <View style={styles.container}>
       <View style={styles.staticHeader}>
@@ -121,6 +124,7 @@ export default function TodayFinanceScreen() {
       </ScrollView>
     </View>
     </SellerOnly>
+    </>
   );
 }
 

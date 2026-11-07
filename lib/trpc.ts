@@ -5,21 +5,14 @@ import superjson from "superjson";
 import { Platform } from "react-native";
 import { readAccessToken } from "./access-token";
 import { supabase } from "./supabase";
+import { replacementForPlainBody } from "./worker-capacity";
 
 export const trpc = createTRPCReact<AppRouter>();
 
-const BUSY_MESSAGE = 'Our kitchen is a bit busy right now. Please try again in a moment!';
-
-function busyTrpcResponse(status: number): Response {
-  return new Response(JSON.stringify({
-    error: {
-      json: {
-        message: BUSY_MESSAGE,
-        code: -32603,
-        data: { code: 'INTERNAL_SERVER_ERROR', httpStatus: status },
-      },
-    },
-  }), {
+function busyTrpcResponse(status: number, body: string): Response | null {
+  const json = replacementForPlainBody(status, body);
+  if (!json) return null;
+  return new Response(json, {
     status,
     headers: { 'content-type': 'application/json' },
   });
@@ -65,24 +58,19 @@ if (typeof window !== 'undefined') {
   });
 }
 
-export const trpcClient = trpc.createClient({
-  links: [
-    httpLink({
-      // httpLink automatically adds /trpc, so set to /api to get /api/trpc
-      url: trpcUrl,
-      transformer: superjson,
-      async headers() {
-        const token = await readAccessToken(async () => {
-          const session = await supabase.auth.getSession();
-          return session.data.session?.access_token ?? null;
-        });
-        return {
-          'Content-Type': 'application/json',
-          'x-trpc-source': 'expo-web', // Required for CORS validation
-          ...(token ? { authorization: `Bearer ${token}` } : {}),
-        };
-      },
-      fetch: async (url, options) => {
+async function trpcHeaders() {
+  const token = await readAccessToken(async () => {
+    const session = await supabase.auth.getSession();
+    return session.data.session?.access_token ?? null;
+  });
+  return {
+    'Content-Type': 'application/json',
+    'x-trpc-source': 'expo-web',
+    ...(token ? { authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+async function workerFetch(url: RequestInfo | URL, options?: RequestInit): Promise<Response> {
         // Runtime check: If on HTTPS tunnel but URL is HTTP, force production backend
         // Convert URL to string for processing
         const urlString = typeof url === 'string' ? url : url instanceof URL ? url.toString() : String(url);
@@ -131,10 +119,8 @@ export const trpcClient = trpc.createClient({
             const clonedResponse = response.clone();
             const text = await clonedResponse.text();
             console.error('[tRPC] Request failed:', response.status, response.statusText, 'Body:', text.substring(0, 200));
-            const trimmed = text.trim();
-            if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
-              return busyTrpcResponse(response.status);
-            }
+            const replacement = busyTrpcResponse(response.status, text);
+            if (replacement) return replacement;
           }
           return response;
         } catch (error) {
@@ -155,7 +141,15 @@ export const trpcClient = trpc.createClient({
           const finalUrlString = typeof finalUrl === 'string' ? finalUrl : String(finalUrl);
           throw new Error(`Failed to fetch from ${finalUrlString}: ${error instanceof Error ? error.message : String(error)}`);
         }
-      },
+}
+
+export const trpcClient = trpc.createClient({
+  links: [
+    httpLink({
+      url: trpcUrl,
+      transformer: superjson,
+      headers: trpcHeaders,
+      fetch: workerFetch,
     }),
   ],
 });
@@ -163,20 +157,10 @@ export const trpcClient = trpc.createClient({
 export const trpcProxyClient = createTRPCProxyClient<AppRouter>({
   links: [
     httpLink({
-      // Use trpcUrl for consistency - ensures this matches your Hono route
       url: trpcUrl,
       transformer: superjson,
-      async headers() {
-        const token = await readAccessToken(async () => {
-          const session = await supabase.auth.getSession();
-          return session.data.session?.access_token ?? null;
-        });
-        return {
-          'Content-Type': 'application/json',
-          'x-trpc-source': 'expo-web', // Required for CORS validation
-          ...(token ? { authorization: `Bearer ${token}` } : {}),
-        };
-      },
+      headers: trpcHeaders,
+      fetch: workerFetch,
     }),
   ],
 });

@@ -58,7 +58,12 @@ const styles = StyleSheet.create({
   reqText: { ...preAppFont, fontSize: 12, fontWeight: '400' }
 });
 
+export const PASSWORD_RULE_MESSAGE =
+  'Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a symbol.';
+
 // Export the helper function for use in hooks
 export const getPasswordStrengthScore = (password: string) => {
   return getPasswordStrength(password).score;
 };
+
+export const passwordMeetsRules = (password: string) => getPasswordStrengthScore(password) >= 5;

@@ -23,11 +23,12 @@ import { ScreenBack } from '@/components/BackCircle';
 import { ScrollJumps } from '@/components/ScrollJumps';
 import { useConsumeBack } from '@/hooks/use-leave-screen';
 import { openStoreSubscriptions } from '@/lib/iap';
+import { PasswordStrengthMeter, PASSWORD_RULE_MESSAGE, passwordMeetsRules } from '@/components/PasswordStrengthMeter';
 
 
 export default function PrivacySecurityScreen() {
   const scrollRef = useRef<ScrollView>(null);
-  const { user, pauseAccount, unpauseAccount, deleteAccount, setTwoFactorEnabled, changePassword, requestDataExport } = useAuth();
+  const { user, pauseAccount, unpauseAccount, deleteAccount, setTwoFactorEnabled, beginTwoFactor, confirmTwoFactor, changePassword, requestDataExport } = useAuth();
   const router = useRouter();
   const [profileVisibility, setProfileVisibility] = useState<boolean>(true);
   const [showEmail, setShowEmail] = useState<boolean>(false);
@@ -35,6 +36,9 @@ export default function PrivacySecurityScreen() {
   const [twoFA, setTwoFA] = useState<boolean>(user?.twoFactorEnabled ?? false);
   const [savingPause, setSavingPause] = useState<boolean>(false);
   const [savingTwoFA, setSavingTwoFA] = useState<boolean>(false);
+  const [enrollOpen, setEnrollOpen] = useState(false);
+  const [enrollSecret, setEnrollSecret] = useState('');
+  const [enrollCode, setEnrollCode] = useState('');
   const [deleteModalVisible, setDeleteModalVisible] = useState<boolean>(false);
   const [confirmationStep, setConfirmationStep] = useState<1 | 2 | 3>(1);
   const [passwordModalVisible, setPasswordModalVisible] = useState<boolean>(false);
@@ -53,8 +57,8 @@ export default function PrivacySecurityScreen() {
   }, []);
 
   const submitChangePassword = useCallback(async () => {
-    if (!newPassword || newPassword.length < 6) {
-      Alert.alert('Change Password', 'New password must be at least 6 characters long');
+    if (!passwordMeetsRules(newPassword)) {
+      Alert.alert('Change Password', PASSWORD_RULE_MESSAGE);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -283,7 +287,7 @@ export default function PrivacySecurityScreen() {
                 </View>
                 <View style={styles.settingText}>
                   <Text style={styles.settingTitle}>Two-Factor Authentication</Text>
-                  <Text style={styles.settingDescription}>The next sign-in emails a 6-digit code. It expires in 10 minutes. Five wrong tries close it.</Text>
+                  <Text style={styles.settingDescription}>The next sign-in asks for the 6-digit code from your authenticator app.</Text>
                 </View>
               </View>
               <Switch
@@ -292,15 +296,24 @@ export default function PrivacySecurityScreen() {
                 disabled={savingTwoFA}
                 onValueChange={async (v) => {
                   setSavingTwoFA(true);
-                  setTwoFA(v);
                   try {
-                    await setTwoFactorEnabled(v);
-                  } catch {
-                    setTwoFA(!v);
+                    if (v) {
+                      const started = await beginTwoFactor();
+                      setEnrollSecret(started.secret);
+                      setEnrollCode('');
+                      setEnrollOpen(true);
+                      setTwoFA(false);
+                      return;
+                    }
+                    setTwoFA(false);
+                    await setTwoFactorEnabled(false);
+                  } catch (error) {
+                    setTwoFA(Boolean(user?.twoFactorEnabled));
+                    const message = error instanceof Error ? error.message : 'Could not save two-factor on the server.';
                     if (Platform.OS === 'web') {
-                      window.alert('Could not save two-factor on the server.');
+                      window.alert(message);
                     } else {
-                      Alert.alert('Two-factor', 'Could not save two-factor on the server.');
+                      Alert.alert('Two-factor', message);
                     }
                   } finally {
                     setSavingTwoFA(false);
@@ -463,6 +476,77 @@ export default function PrivacySecurityScreen() {
         </View>
       </Modal>
 
+      <Modal visible={enrollOpen} transparent animationType="slide" onRequestClose={() => setEnrollOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.warningIconLarge}>
+                <Shield size={28} color={Colors.gradient.green} />
+              </View>
+              <GlassPressable style={styles.closeButton} onPress={() => setEnrollOpen(false)}>
+                <X size={24} color={Colors.gray[600]} />
+              </GlassPressable>
+            </View>
+            <Text style={styles.modalTitle}>Authenticator app</Text>
+            <Text style={styles.modalMessage}>Add HomeCookedPlate in your authenticator app with this secret, then enter the 6-digit code.</Text>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Secret</Text>
+              <TextInput
+                testID="input-authenticator-secret"
+                style={styles.input}
+                value={enrollSecret}
+                editable={false}
+                selectTextOnFocus
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>6-digit code</Text>
+              <TextInput
+                testID="input-authenticator-code"
+                style={styles.input}
+                value={enrollCode}
+                onChangeText={(value) => setEnrollCode(value.replace(/\D/g, '').slice(0, 6))}
+                keyboardType="number-pad"
+                placeholder="000000"
+                placeholderTextColor={Colors.gray[400]}
+              />
+            </View>
+            <View style={styles.modalButtons}>
+              <GlassPressable style={styles.cancelButton} onPress={() => setEnrollOpen(false)}>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </GlassPressable>
+              <GlassPressable
+                style={styles.confirmButton}
+                onPress={async () => {
+                  if (enrollCode.length !== 6) {
+                    const message = 'Enter the 6-digit code from your authenticator app.';
+                    if (Platform.OS === 'web') window.alert(message);
+                    else Alert.alert('Two-factor', message);
+                    return;
+                  }
+                  setSavingTwoFA(true);
+                  try {
+                    await confirmTwoFactor(enrollCode);
+                    setTwoFA(true);
+                    setEnrollOpen(false);
+                    setEnrollSecret('');
+                    setEnrollCode('');
+                  } catch (error) {
+                    const message = error instanceof Error ? error.message : 'That authenticator code does not match.';
+                    if (Platform.OS === 'web') window.alert(message);
+                    else Alert.alert('Two-factor', message);
+                  } finally {
+                    setSavingTwoFA(false);
+                  }
+                }}
+              >
+                <Text style={styles.confirmButtonText}>Turn On</Text>
+              </GlassPressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={passwordModalVisible} transparent animationType="slide" onRequestClose={() => setPasswordModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -498,6 +582,7 @@ export default function PrivacySecurityScreen() {
                 placeholder="Enter new password"
                 placeholderTextColor={Colors.gray[400]}
               />
+              {newPassword.length > 0 ? <PasswordStrengthMeter password={newPassword} /> : null}
             </View>
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Confirm New Password</Text>

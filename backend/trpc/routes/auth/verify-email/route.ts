@@ -95,8 +95,8 @@ export const verifyEmailProcedure = publicProcedure
     // Send welcome email (optional - don't fail if this fails)
     if (profile && !profileError) {
       try {
-        await sendWelcomeEmail(profile.email, profile.username);
-        console.log(`[Verify Email] Welcome email sent to ${profile.email}`);
+        const sent = await sendWelcomeEmail(profile.email, profile.username);
+        if (sent) console.log(`[Verify Email] Welcome email sent to ${profile.email}`);
       } catch (emailError) {
         console.error('[Verify Email] Failed to send welcome email:', emailError);
         // Don't throw - welcome email is not critical

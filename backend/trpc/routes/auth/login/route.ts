@@ -1,12 +1,12 @@
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createServerSupabaseClient } from "../../../../lib/supabase";
 import { readAdminRole } from "../../../../lib/admin-role";
 import { assertEmailConfirmed, CONFIRMATION_EXPIRED_MESSAGE, confirmationWindowClosed } from "../../../../lib/email-confirmation";
-import { sendSignInCode } from "../../../../lib/email";
-import { nextSignInAttempt, SIGN_IN_CODE_LOCKED_MESSAGE, signInCodeStillOpen, signInCodeWasLocked } from "../../../../lib/sign-in-code";
+import { accountAllowsSignIn, LEGAL_SAVE_FAILED_MESSAGE, LEGAL_SIGN_IN_MESSAGE, legalSafetyAgreementSchema, legalSignInDecision } from "../../../../lib/legal-gate";
 import { MEMBERSHIP_INELIGIBLE_MESSAGE, NO_ACCOUNT_MESSAGE } from "../../../../lib/sign-in-messages";
+import { readAuthIdentityKind, signInWithoutProfileMessage } from "../../../../lib/provider-profile";
+import { AUTHENTICATOR_MISMATCH_MESSAGE, mfaLookupState, verifiedTotpFactorId, verifyTotpCode } from "../../../../lib/second-factor";
 
 /**
  * Login procedure - uses anon key (not service role key)
@@ -18,11 +18,6 @@ import { MEMBERSHIP_INELIGIBLE_MESSAGE, NO_ACCOUNT_MESSAGE } from "../../../../l
  * The Worker builds that client per request from its own bindings. The module
  * singleton is empty there, so login must use ctx.supabase.
  */
-async function sha256(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
 async function confirmationExpired(admin: { from: (table: string) => any }, email: string, userId?: string | null, knownCreatedAt?: string | null): Promise<boolean> {
   let accountId = userId || null;
   let accountCreatedAt = knownCreatedAt || null;
@@ -58,6 +53,7 @@ export const loginProcedure = publicProcedure
       email: z.string().email(),
       password: z.string(),
       code: z.string().regex(/^\d{6}$/).optional(),
+      legalSafetyAgreement: legalSafetyAgreementSchema.optional(),
     })
   )
   .mutation(async ({ input, ctx }) => {
@@ -83,10 +79,18 @@ export const loginProcedure = publicProcedure
         .select('id')
         .ilike('email', input.email)
         .maybeSingle();
+      const identity = await readAuthIdentityKind(ctx.supabaseAdmin, input.email);
       if (!lookupError && !existingAccount) {
+        const unfinished = signInWithoutProfileMessage(identity);
         throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: NO_ACCOUNT_MESSAGE,
+          code: unfinished ? 'CONFLICT' : 'NOT_FOUND',
+          message: unfinished || NO_ACCOUNT_MESSAGE,
+        });
+      }
+      if (identity === 'provider') {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: signInWithoutProfileMessage('provider') || NO_ACCOUNT_MESSAGE,
         });
       }
       throw new TRPCError({
@@ -110,13 +114,9 @@ export const loginProcedure = publicProcedure
       });
     }
 
-    const authenticatedClient = createServerSupabaseClient(data.session.access_token, {
-      SUPABASE_URL: process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL,
-      EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
-    });
-
-    // Fetch profile using authenticated client (anon key with session token)
-    const { data: profile, error: profileError } = await authenticatedClient
+    // The password session is aal1. A verified factor cannot read its profile through that token.
+    // The user id comes from the password sign-in, and the service role reads the row.
+    const { data: profile, error: profileError } = await ctx.supabaseAdmin
       .from('profiles')
       .select('*')
       .eq('id', data.user.id)
@@ -124,9 +124,11 @@ export const loginProcedure = publicProcedure
 
     if (profileError || !profile) {
       await ctx.supabase.auth.signOut();
+      const identity = await readAuthIdentityKind(ctx.supabaseAdmin, input.email);
+      const unfinished = signInWithoutProfileMessage(identity);
       throw new TRPCError({
-        code: 'NOT_FOUND',
-        message: NO_ACCOUNT_MESSAGE,
+        code: unfinished ? 'CONFLICT' : 'NOT_FOUND',
+        message: unfinished || NO_ACCOUNT_MESSAGE,
       });
     }
 
@@ -138,93 +140,64 @@ export const loginProcedure = publicProcedure
       });
     }
 
-    if (profile.two_factor_enabled) {
+    const createdAt = new Date(profile.created_at);
+    const legalDecision = legalSignInDecision({
+      stored: profile.legal_safety_agreement,
+      submitted: input.legalSafetyAgreement,
+      createdAt,
+    });
+    if (legalDecision === 'refuse') {
+      await ctx.supabase.auth.signOut();
+      throw new TRPCError({ code: 'FORBIDDEN', message: LEGAL_SIGN_IN_MESSAGE });
+    }
+    if (legalDecision === 'save') {
+      const saved = await ctx.supabaseAdmin
+        .from('profiles')
+        .update({ legal_safety_agreement: input.legalSafetyAgreement })
+        .eq('id', profile.id)
+        .select('legal_safety_agreement')
+        .single();
+      if (saved.error || !accountAllowsSignIn(saved.data?.legal_safety_agreement, createdAt)) {
+        await ctx.supabase.auth.signOut();
+        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: LEGAL_SAVE_FAILED_MESSAGE });
+      }
+      profile.legal_safety_agreement = saved.data.legal_safety_agreement;
+    }
+
+    let session = data.session;
+    const listed = await ctx.supabaseAdmin.auth.admin.mfa.listFactors({ userId: profile.id });
+    const lookup = mfaLookupState(listed.error?.message);
+    if (lookup === 'failed') {
+      await ctx.supabase.auth.signOut({ scope: 'local' });
+      throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'That authenticator could not be checked.' });
+    }
+    const factorId = verifiedTotpFactorId(listed.data?.factors);
+    const verifiedCount = (listed.data?.factors ?? []).filter((factor) => factor.status === 'verified').length;
+    if (verifiedCount > 0 && !factorId) {
+      await ctx.supabase.auth.signOut({ scope: 'local' });
+      throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'This account has a second factor this app cannot ask for.' });
+    }
+    if (factorId) {
       if (!input.code) {
-        const openCode = await ctx.supabaseAdmin
-          .from('audit_logs')
-          .select('id, new_data')
-          .eq('user_id', profile.id)
-          .eq('action', 'SIGN_IN_CODE')
-          .order('created_at', { ascending: false })
-          .limit(1);
-        if (openCode.error) {
-          await ctx.supabase.auth.signOut();
-          throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'That sign-in code could not be checked.' });
-        }
-        const openRow = openCode.data?.[0];
-        const openStored = openRow?.new_data as { hash?: string; expiresAt?: string; used?: boolean; attempts?: number } | null;
-        if (signInCodeStillOpen(openStored)) {
-          await ctx.supabase.auth.signOut();
-          return { needsTwoFactor: true as const, codeReused: true as const };
-        }
-        const code = String(Math.floor(100000 + Math.random() * 900000));
-        const hash = await sha256(`${profile.id}:${code}`);
-        const saved = await ctx.supabaseAdmin.from('audit_logs').insert({
-          user_id: profile.id,
-          action: 'SIGN_IN_CODE',
-          table_name: 'profiles',
-          new_data: { hash, expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(), used: false, attempts: 0 },
-        }).select('id').single();
-        if (saved.error || !saved.data?.id) {
-          await ctx.supabase.auth.signOut();
-          throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'The sign-in code could not be saved.' });
-        }
-        const dropUnsent = async () => {
-          await ctx.supabaseAdmin.from('audit_logs').delete().eq('id', saved.data.id);
-        };
-        if (!profile.email) {
-          await dropUnsent();
-          await ctx.supabase.auth.signOut();
-          throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'The sign-in code could not be emailed.' });
-        }
-        try {
-          await sendSignInCode(profile.email, code);
-        } catch {
-          await dropUnsent();
-          await ctx.supabase.auth.signOut();
-          throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'The sign-in code could not be emailed.' });
-        }
-        await ctx.supabase.auth.signOut();
-        return { needsTwoFactor: true as const, codeReused: false as const };
+        await ctx.supabase.auth.signOut({ scope: 'local' });
+        return { needsTwoFactor: true as const };
       }
-      const { data: latest } = await ctx.supabaseAdmin
-        .from('audit_logs')
-        .select('id, new_data')
-        .eq('user_id', profile.id)
-        .eq('action', 'SIGN_IN_CODE')
-        .order('created_at', { ascending: false })
-        .limit(1);
-      const row = latest?.[0];
-      const stored = row?.new_data as { hash?: string; expiresAt?: string; used?: boolean; attempts?: number } | null;
-      const hash = await sha256(`${profile.id}:${input.code}`);
-      const fresh = stored?.expiresAt ? Date.parse(stored.expiresAt) > Date.now() : false;
-      if (signInCodeWasLocked(stored)) {
-        await ctx.supabase.auth.signOut();
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: SIGN_IN_CODE_LOCKED_MESSAGE });
+      const upgraded = await verifyTotpCode({
+        supabaseUrl: ctx.supabaseUrl,
+        anonKey: ctx.supabaseAnonKey,
+        accessToken: data.session.access_token,
+        factorId,
+        code: input.code,
+      });
+      if (!upgraded) {
+        await ctx.supabase.auth.signOut({ scope: 'local' });
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: AUTHENTICATOR_MISMATCH_MESSAGE });
       }
-      if (!row || !stored || stored.used || !fresh) {
-        await ctx.supabase.auth.signOut();
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'That sign-in code does not match.' });
-      }
-      if (stored.hash !== hash) {
-        const next = nextSignInAttempt(stored.attempts);
-        const savedAttempt = await ctx.supabaseAdmin.from('audit_logs').update({
-          new_data: { ...stored, attempts: next.attempts, used: next.locked },
-        }).eq('id', row.id);
-        await ctx.supabase.auth.signOut();
-        if (savedAttempt.error) {
-          throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'That sign-in code could not be checked.' });
-        }
-        throw new TRPCError({
-          code: 'UNAUTHORIZED',
-          message: next.locked
-            ? SIGN_IN_CODE_LOCKED_MESSAGE
-            : 'That sign-in code does not match.',
-        });
-      }
-      await ctx.supabaseAdmin.from('audit_logs').update({
-        new_data: { ...stored, used: true },
-      }).eq('id', row.id);
+      session = {
+        ...data.session,
+        access_token: upgraded.access_token,
+        refresh_token: upgraded.refresh_token,
+      };
     }
 
     if (profile.ordering_removed) {
@@ -250,9 +223,9 @@ export const loginProcedure = publicProcedure
         profileImage: profile.profile_image,
         createdAt: new Date(profile.created_at),
         isPaused: profile.is_paused,
-        twoFactorEnabled: profile.two_factor_enabled,
+        twoFactorEnabled: Boolean(factorId),
       },
-      session: data.session,
+      session,
       legalSafetyAgreement: profile.legal_safety_agreement ?? null,
     };
   });

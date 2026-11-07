@@ -1,4 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { TERMS_OF_SERVICE_URL } from '@/constants/urls';
+
+/** Signed out, both roles read the public terms. Signed in, the account holds the acknowledgment. */
+export function legalSurface(signedIn: boolean): { kind: 'account' | 'public-terms'; url: string | null } {
+  if (signedIn) return { kind: 'account', url: null };
+  return { kind: 'public-terms', url: TERMS_OF_SERVICE_URL };
+}
 
 export const LEGAL_SECTION_IDS = [
   'jurisdictional_law',
@@ -25,6 +32,9 @@ export type CompletedLegalAgreement = {
   acknowledgedOn: string;
   acknowledgedAt: string;
 };
+
+/** Acceptances before this instant checked the shorter Apple app license. */
+export const APPLE_LICENSE_REVISION = '2026-11-05T21:30:00.000Z';
 
 const STORAGE_KEY = 'legal_safety_agreement';
 const READY_KEY = 'hcp_legal_ready';
@@ -82,11 +92,22 @@ export function priorAgreementFromUnknown(value: unknown): LegalAgreementRecord 
   };
 }
 
+/** The stored Apple app license includes the Schedule 1 Exhibit B wording from 5 November 2026. */
+export function appleLicenseCoversRevision(record: {
+  sections: { apple_eula?: boolean };
+  acknowledgedAt?: string;
+}): boolean {
+  if (record.sections.apple_eula !== true) return false;
+  const at = Date.parse(record.acknowledgedAt ?? '');
+  if (Number.isNaN(at)) return false;
+  return at >= Date.parse(APPLE_LICENSE_REVISION);
+}
+
 /** Sign-in stays open. The Apple app license is checked on Legal & Safety after sign-in. */
 export function needsAppleLicenseRecheck(value: unknown, createdAt: Date): boolean {
   const prior = priorAgreementFromUnknown(value);
-  if (!prior || prior.sections.apple_eula) return false;
-  return !agreementPredatesAccount(prior, createdAt);
+  if (!prior || agreementPredatesAccount(prior, createdAt)) return false;
+  return !appleLicenseCoversRevision(prior);
 }
 
 export function todayStamp(): string {
@@ -147,7 +168,9 @@ export function toCompletedLegalAgreement(
 /** Accept a stored account or device record only when every section and the date are present. */
 export function agreementFromUnknown(value: unknown): CompletedLegalAgreement | null {
   if (!value || typeof value !== 'object') return null;
-  return toCompletedLegalAgreement(value as LegalAgreementRecord);
+  const completed = toCompletedLegalAgreement(value as LegalAgreementRecord);
+  if (!completed || !appleLicenseCoversRevision(completed)) return null;
+  return completed;
 }
 
 export async function readLegalAgreement(): Promise<LegalAgreementRecord | null> {

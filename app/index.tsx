@@ -1,4 +1,3 @@
-import React from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { userNeedsMembership } from '@/backend/lib/trial-access';
@@ -7,30 +6,19 @@ import { navLogger } from '@/lib/nav-logger';
 
 export default function Index() {
   const { isAuthenticated, isLoading, user, session } = useAuth();
-  const [hasTimedOut, setHasTimedOut] = React.useState(false);
 
   // Log entry point for debugging (Issue #4: Code Clarity)
   if (__DEV__) {
     console.log('[INDEX_GATE]', { isLoading, isAuthenticated, hasSession: !!session });
   }
 
-  // Timeout fallback for stuck loading states (10 seconds)
-  React.useEffect(() => {
-    if (isLoading) {
-      const timeout = setTimeout(() => {
-        console.warn('[INDEX_GATE] Auth loading timeout - forcing render');
-        setHasTimedOut(true);
-      }, 10000);
-      return () => clearTimeout(timeout);
-    } else {
-      setHasTimedOut(false);
-    }
-  }, [isLoading]);
-
+  // A slow session restore stays on this fill. Welcome is only for a restore
+  // that has finished with no session. A PlateMaker or PlateTaker whose
+  // session arrives later still gets that role's screen.
   // The native splash stays up while this is true. A null view here is the
   // white frame after that splash drops, on the signed-out gate and on both
   // signed-in roles. The fill matches the splash.
-  if (isLoading && !hasTimedOut) {
+  if (isLoading) {
     if (Platform.OS === 'web') return null;
     return <View style={styles.launch} />;
   }

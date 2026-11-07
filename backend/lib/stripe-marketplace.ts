@@ -4,6 +4,7 @@ import { sendExpoPushNotification } from './expo-push-notifications';
 import { sendNoticeEmail } from './email';
 import {
   PAYOUT_HOLD_DAYS,
+  cookPayoutReady,
   type LostDisputeOutcome,
   type ResponsibilityCounts,
   type ResponsibilityKind,
@@ -278,10 +279,11 @@ export async function releaseDuePayouts(
         dispute_fee_owed_cents?: number | null;
       } | null;
 
-    if (!profile?.stripe_account_id || profile.selling_removed) {
+    if (!profile || !cookPayoutReady(profile) || !profile.stripe_account_id) {
       skipped += 1;
       continue;
     }
+    const destination = profile.stripe_account_id;
 
     const grossCents = Math.round(Number(row.seller_payout) * 100);
     if (!Number.isFinite(grossCents) || grossCents < 1) {
@@ -300,7 +302,7 @@ export async function releaseDuePayouts(
         new URLSearchParams({
           amount: String(cents),
           currency: row.currency || 'usd',
-          destination: profile.stripe_account_id,
+          destination,
           'metadata[transaction_id]': row.id,
           'metadata[order_id]': row.order_id ?? '',
           'metadata[payment_intent_id]': row.payment_intent_id,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,13 +15,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/hooks/auth-context';
 import { AuthColors } from '@/constants/auth-palette';
 import { AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
 import { BackCircle } from '@/components/BackCircle';
 import { useReplaceBack } from '@/hooks/use-leave-screen';
 import { GlassPressable } from '@/components/glass-surface';
-import { recoveryFromLink, markRecoveryScreen, type RecoveryLink } from '@/lib/verification-link';
+import { PasswordStrengthMeter, PASSWORD_RULE_MESSAGE, passwordMeetsRules } from '@/components/PasswordStrengthMeter';
+import { recoveryFromLink, recoveryLinkPresent, markRecoveryScreen, type RecoveryLink } from '@/lib/verification-link';
 
 const INVALID_LINK = 'This password reset link is invalid or has expired. Please request a new one.';
 
@@ -55,9 +55,21 @@ function linkFromParams(params: {
   return text ? `?${text}` : null;
 }
 
+function userIdFromAccessToken(token: string): string | null {
+  try {
+    const part = token.split('.')[1];
+    if (!part || typeof globalThis.atob !== 'function') return null;
+    const padded = part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=');
+    const payload = JSON.parse(globalThis.atob(padded)) as { sub?: unknown };
+    return typeof payload.sub === 'string' ? payload.sub : null;
+  } catch {
+    return null;
+  }
+}
+
 function validatePassword(password: string): { valid: boolean; message?: string } {
-  if (password.length < 8) {
-    return { valid: false, message: 'Password must be at least 8 characters long' };
+  if (!passwordMeetsRules(password)) {
+    return { valid: false, message: PASSWORD_RULE_MESSAGE };
   }
   return { valid: true };
 }
@@ -96,12 +108,12 @@ export default function ResetPasswordScreen() {
     token_hash?: string | string[];
     error_description?: string | string[];
   }>();
-  const { session } = useAuth();
   const linkedUrl = Linking.useURL();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [phase, setPhase] = useState<'checking' | 'ready' | 'invalid'>('checking');
+  const recoveryUserId = useRef<string | null>(null);
   const backToSignIn = useReplaceBack('/(auth)/login');
   const paramLink = linkFromParams(params);
   markRecoveryScreen(true);
@@ -118,23 +130,48 @@ export default function ResetPasswordScreen() {
       if (!live) return;
       const webHref = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.href : null;
       const recovery = recoveryFromLink(webHref, linkedUrl, opened, paramLink);
+      if (recoveryLinkPresent(recovery)) {
+        const accepted = await acceptRecovery(recovery);
+        if (!live) return;
+        if (accepted !== 'ready') {
+          recoveryUserId.current = null;
+          setPhase('invalid');
+          return;
+        }
+        const { data } = await supabase.auth.getSession();
+        if (!live) return;
+        const userId = data.session?.user?.id ?? null;
+        const expectedId = recovery.accessToken ? userIdFromAccessToken(recovery.accessToken) : null;
+        if (!userId || (expectedId && userId !== expectedId)) {
+          recoveryUserId.current = null;
+          setPhase('invalid');
+          return;
+        }
+        recoveryUserId.current = userId;
+        setPhase('ready');
+        return;
+      }
       const { data } = await supabase.auth.getSession();
       if (!live) return;
-      if (data.session) {
-        setPhase('ready');
-        return;
-      }
-      const accepted = await acceptRecovery(recovery);
-      if (!live) return;
-      if (accepted === 'ready') {
-        setPhase('ready');
-        return;
-      }
-      const hasLink = Boolean(opened || linkedUrl || paramLink || recovery.errorDescription);
+      const hasLink = Boolean(opened || linkedUrl || paramLink);
       if (!hasLink && Platform.OS !== 'web') {
         wait = setTimeout(() => {
-          if (live) setPhase((current) => (current === 'checking' ? 'invalid' : current));
+          void supabase.auth.getSession().then(({ data: latest }) => {
+            if (!live) return;
+            const latestUserId = latest.session?.user?.id ?? null;
+            if (!latestUserId) {
+              setPhase((current) => (current === 'checking' ? 'invalid' : current));
+              return;
+            }
+            recoveryUserId.current = latestUserId;
+            setPhase('ready');
+          });
         }, 2000);
+        return;
+      }
+      if (data.session?.user?.id) {
+        recoveryUserId.current = data.session.user.id;
+        setPhase('ready');
         return;
       }
       setPhase((current) => (current === 'ready' ? current : 'invalid'));
@@ -164,13 +201,20 @@ export default function ResetPasswordScreen() {
       return;
     }
 
-    if (phase !== 'ready' && !session) {
+    if (phase !== 'ready') {
       Alert.alert('Invalid Link', INVALID_LINK);
       return;
     }
 
     setLoading(true);
     try {
+      const { data } = await supabase.auth.getSession();
+      const currentUserId = data.session?.user?.id ?? null;
+      if (!currentUserId || currentUserId !== recoveryUserId.current) {
+        setPhase('invalid');
+        Alert.alert('Invalid Link', INVALID_LINK);
+        return;
+      }
       const { error } = await supabase.auth.updateUser({
         password: password,
       });
@@ -235,7 +279,7 @@ export default function ResetPasswordScreen() {
                 ) : null}
                 {phase === 'ready' ? (
                 <>
-                <Text style={styles.help}>Choose a password with at least 8 characters.</Text>
+                <Text style={styles.help}>Use 8 or more characters with an uppercase letter, a lowercase letter, a number, and a symbol.</Text>
                 <View style={styles.field}>
                   <Ionicons name="lock-closed-outline" size={18} color={AuthColors.maroon} />
                   <TextInput
@@ -249,6 +293,7 @@ export default function ResetPasswordScreen() {
                     testID="reset-password"
                   />
                 </View>
+                {password.length > 0 ? <PasswordStrengthMeter password={password} /> : null}
                 <View style={styles.field}>
                   <Ionicons name="lock-closed-outline" size={18} color={AuthColors.maroon} />
                   <TextInput

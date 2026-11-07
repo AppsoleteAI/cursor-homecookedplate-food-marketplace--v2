@@ -25,6 +25,7 @@ import { ScrollJumps } from '@/components/ScrollJumps';
 import { appleLicenseParagraphs } from '@/lib/apple-eula';
 import {
   agreementFromUnknown,
+  appleLicenseCoversRevision,
   agreementPredatesAccount,
   allSectionsAgreed,
   chooseLegalForm,
@@ -115,6 +116,13 @@ export default function LegalScreen() {
         return;
       }
       if (choice === 'device' && record) {
+        if (!appleLicenseCoversRevision(record)) {
+          setSections({ ...record.sections, apple_eula: false });
+          setDateText('');
+          setRecordedOn(null);
+          setNotice('Check Apple app license and enter today\'s date.');
+          return;
+        }
         applyRecord(record);
         return;
       }
@@ -122,11 +130,11 @@ export default function LegalScreen() {
       if (
         session &&
         prior &&
-        !prior.sections.apple_eula &&
         createdAt &&
-        !agreementPredatesAccount(prior, createdAt)
+        !agreementPredatesAccount(prior, createdAt) &&
+        !appleLicenseCoversRevision(prior)
       ) {
-        setSections(prior.sections);
+        setSections({ ...prior.sections, apple_eula: false });
         setDateText('');
         setRecordedOn(null);
         setNotice('Check Apple app license and enter today\'s date.');

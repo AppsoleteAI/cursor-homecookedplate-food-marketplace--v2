@@ -245,7 +245,13 @@ describe.each([1, 2, 3])('diagnostic flows, run %s', () => {
         acknowledgedAt: '2026-11-02T22:00:00.000Z',
       };
       expect(isLegalAgreementComplete(saved)).toBe(true);
-      expect(needsAppleLicenseRecheck(saved, created)).toBe(false);
+      expect(needsAppleLicenseRecheck(saved, created)).toBe(true);
+      const current = {
+        ...saved,
+        acknowledgedOn: '2026-11-05',
+        acknowledgedAt: '2026-11-05T22:00:00.000Z',
+      };
+      expect(needsAppleLicenseRecheck(current, created)).toBe(false);
     }
     const terms = await fetch('https://homecookedplate.com/terms');
     const html = await terms.text();

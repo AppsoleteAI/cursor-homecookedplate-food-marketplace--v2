@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { FoodImage } from '@/components/FoodImage';
 import { titleCase } from '@/lib/title-case';
-import { useLocalSearchParams } from 'expo-router';
+import { Redirect, Stack, useLocalSearchParams } from 'expo-router';
 import { Colors, monoGradients } from '@/constants/colors';
 import StarRating from '@/components/StarRating';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,7 +18,7 @@ import { chosenReviewOrder, ordersLeftToReview } from '@/lib/review-order';
 export default function ReviewsScreen() {
   const params = useLocalSearchParams<{ mealId: string; next?: string; initialRating?: string }>();
   const mealId = params.mealId;
-  const { user } = useAuth();
+  const { user, isLoading, isAuthenticated } = useAuth();
   const mealQuery = trpc.meals.get.useQuery(
     { id: mealId ?? '', metroArea: user?.metroArea || undefined },
     { enabled: !!mealId }
@@ -100,8 +100,27 @@ export default function ReviewsScreen() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container} testID="reviews-loading">
+        <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
+        <ActivityIndicator color={Colors.gray[400]} />
+      </SafeAreaView>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
+        <Redirect href="/(auth)/login" />
+      </>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
+      <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
       <LinearGradient colors={monoGradients.yellow} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.headerGradient} />
       <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={[styles.header]}>

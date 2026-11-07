@@ -2,9 +2,10 @@ import { readAdminRole } from "../../../../lib/admin-role";
 import { earlyBirdCoversThisMetro, readEarlyBirdClaim } from "../../../../lib/early-bird-claim";
 import { refreshAppleMembership, refreshGoogleMembership, refreshStripeMembership, writeResolvedTier } from "../../../../lib/store-membership";
 import { platemakerMayEnter, platemakerTrialCountdownDays, trialCloseoutKeepsKitchen, unpaidPlatemakerTrialEnded } from "../../../../lib/trial-access";
-import { protectedProcedure } from "../../../create-context";
+import { verifiedFactors } from "../../../../lib/second-factor";
+import { sessionProcedure } from "../../../create-context";
 
-export const meProcedure = protectedProcedure
+export const meProcedure = sessionProcedure
   .query(async ({ ctx }) => {
     const { data: profile, error } = await ctx.supabase
       .from('profiles')
@@ -44,6 +45,19 @@ export const meProcedure = protectedProcedure
       !closeoutOrders.error && (closeoutOrders.data || []).length > 0,
     );
 
+    let twoFactorEnabled = Boolean(profile.two_factor_enabled);
+    const factors = await ctx.supabaseAdmin.auth.admin.mfa.listFactors({ userId: profile.id });
+    if (!factors.error) {
+      const enabled = verifiedFactors(factors.data?.factors).length > 0;
+      if (enabled !== twoFactorEnabled) {
+        await ctx.supabaseAdmin
+          .from('profiles')
+          .update({ two_factor_enabled: enabled })
+          .eq('id', profile.id);
+        twoFactorEnabled = enabled;
+      }
+    }
+
     return {
       id: profile.id,
       username: profile.username,
@@ -57,7 +71,7 @@ export const meProcedure = protectedProcedure
       profileImage: profile.profile_image,
       createdAt: new Date(profile.created_at),
       isPaused: profile.is_paused,
-      twoFactorEnabled: profile.two_factor_enabled,
+      twoFactorEnabled,
       membershipTier,
       needsMembership: profile.role === 'platemaker'
         && !keepKitchen

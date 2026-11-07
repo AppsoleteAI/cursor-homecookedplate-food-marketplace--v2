@@ -3,6 +3,14 @@ export const CONFIRMATION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export const CONFIRMATION_EXPIRED_MESSAGE = 'Your confirmation link expired after 24 hours. Open Confirm email to send a new one.';
 
+/** Same sentence for a known address, an unknown address, a confirmed address, and a send that did not go out. */
+export const RESEND_CONFIRMATION_MESSAGE =
+  'If an account exists with this email, a new verification link has been sent.';
+
+export function confirmationExpiresAt(now = Date.now()): string {
+  return new Date(now + CONFIRMATION_WINDOW_MS).toISOString();
+}
+
 export function assertEmailConfirmed(emailConfirmedAt: string | null | undefined) {
   if (!emailConfirmedAt) {
     throw new Error('Confirm your email before signing in. Check your inbox for the verification link. The link lasts 24 hours.');

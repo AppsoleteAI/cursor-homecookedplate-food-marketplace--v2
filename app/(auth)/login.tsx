@@ -21,7 +21,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import { Redirect, router, useFocusEffect, type Href } from 'expo-router';
 import { useAuth } from '@/hooks/auth-context';
-import { openSignInCanEmailNewCode } from '@/backend/lib/sign-in-code';
+import { isAccountRole, PROVIDER_ROLE_STORAGE_KEY } from '@/backend/lib/provider-profile';
 import {
   isIneligibleAccountMessage,
   isMissingAccountMessage,
@@ -29,8 +29,7 @@ import {
   NO_ACCOUNT_MESSAGE,
   WRONG_SIGN_IN_MESSAGE,
 } from '@/backend/lib/sign-in-messages';
-import { trpc } from '@/lib/trpc';
-import { chooseLegalForm, clearLegalAgreement, clearLegalReadyForSignIn, isLegalReadyForSignIn, isLoginLegalBoxChecked, LEGAL_SIGN_IN_MESSAGE, readLegalAgreement, setLoginLegalBoxChecked, todayStamp, toCompletedLegalAgreement, writeLegalAgreement } from '@/lib/legal-agreement';
+import { chooseLegalForm, clearLegalAgreement, clearLegalReadyForSignIn, isLegalReadyForSignIn, isLoginLegalBoxChecked, LEGAL_SIGN_IN_MESSAGE, readLegalAgreement, setLoginLegalBoxChecked, todayStamp, toCompletedLegalAgreement } from '@/lib/legal-agreement';
 import { AuthColors, preAppFont } from '@/constants/auth-palette';
 import { AuthBackground, AuthBrand, MaroonButtonFill } from '@/components/auth/AuthChrome';
 import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
@@ -62,6 +61,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [signInCode, setSignInCode] = useState('');
   const [needsCode, setNeedsCode] = useState(false);
+  const [providerPending, setProviderPending] = useState<'code' | 'role' | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,8 +72,7 @@ export default function LoginScreen() {
   const [legalChecked, setLegalChecked] = useState(isLoginLegalBoxChecked);
   const [agreementOnFile, setAgreementOnFile] = useState(false);
   const [legalNotice, setLegalNotice] = useState<string | null>(null);
-  const { login, loginWithProvider, user } = useAuth();
-  const saveAgreement = trpc.auth.updateProfile.useMutation();
+  const { login, loginWithProvider, verifyProviderCode, finishProviderAccount, user } = useAuth();
   const scrollRef = useRef<ScrollView>(null);
   const [legalPrompt, setLegalPrompt] = useState(false);
 
@@ -128,7 +127,27 @@ export default function LoginScreen() {
     }, []),
   );
 
+  const enterApp = async () => {
+    AsyncStorage.setItem('hcp_has_account', '1').catch(() => undefined);
+    router.replace('/');
+  };
+
   const openSignup = (role?: SignupRole) => {
+    if (role) {
+      AsyncStorage.setItem(PROVIDER_ROLE_STORAGE_KEY, role).catch(() => undefined);
+    }
+    if (providerPending === 'role' && role) {
+      setLoading(true);
+      setError(null);
+      setLegalPrompt(false);
+      finishProviderAccount(role)
+        .then(() => enterApp())
+        .catch((finishError: unknown) => {
+          reveal(readLoginError(finishError) || (finishError instanceof Error ? finishError.message : 'The account could not be finished.'));
+        })
+        .finally(() => setLoading(false));
+      return;
+    }
     const href = (
       role
         ? { pathname: '/(auth)/welcome', params: { role } }
@@ -143,21 +162,22 @@ export default function LoginScreen() {
     setLegalPrompt(false);
     setLoading(true);
     try {
-      await loginWithProvider(provider === 'Apple' ? 'apple' : 'google');
-      AsyncStorage.setItem('hcp_has_account', '1').catch(() => undefined);
-      const storedAgreement = await readLegalAgreement();
-      const agreement = toCompletedLegalAgreement(storedAgreement);
-      if (agreement) {
-        try {
-          const stamped = { ...agreement, acknowledgedAt: new Date().toISOString() };
-          await saveAgreement.mutateAsync({ legalSafetyAgreement: stamped });
-          await writeLegalAgreement(stamped);
-          await clearLegalReadyForSignIn();
-        } catch (syncError) {
-          console.error('[Login] Legal agreement was not stored on the account', syncError);
-        }
+      const storedRole = await AsyncStorage.getItem(PROVIDER_ROLE_STORAGE_KEY);
+      const role = isAccountRole(storedRole) ? storedRole : null;
+      const result = await loginWithProvider(provider === 'Apple' ? 'apple' : 'google', role);
+      if ('needsTwoFactor' in result) {
+        setProviderPending('code');
+        setNeedsCode(true);
+        setError('Enter the 6-digit code from your authenticator app.');
+        return;
       }
-      router.replace('/');
+      if ('needsRole' in result) {
+        setProviderPending('role');
+        setError('Choose Order a Plate or Start Cooking to finish this account.');
+        return;
+      }
+      setProviderPending(null);
+      await enterApp();
     } catch (providerError: unknown) {
       const serverMessage = readLoginError(providerError) || (providerError instanceof Error ? providerError.message : '');
       const loginCode = providerError && typeof providerError === 'object' && 'data' in providerError
@@ -186,6 +206,31 @@ export default function LoginScreen() {
 
   const handleLogin = async (isRetry = false) => {
     console.log('Sign-in triggered', { isRetry, retryCount });
+
+    if (providerPending === 'code') {
+      if (signInCode.length !== 6) {
+        reveal('Enter the 6-digit code from your authenticator app.');
+        return;
+      }
+      setLoading(true);
+      setError(null);
+      try {
+        const verified = await verifyProviderCode(signInCode);
+        if ('needsRole' in verified) {
+          setProviderPending('role');
+          setNeedsCode(false);
+          setError('Choose Order a Plate or Start Cooking to finish this account.');
+          return;
+        }
+        setProviderPending(null);
+        await enterApp();
+      } catch (providerError: unknown) {
+        reveal(readLoginError(providerError) || (providerError instanceof Error ? providerError.message : 'That authenticator code does not match.'));
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     if (!username || !password) {
       reveal('Enter your email and password.');
@@ -245,33 +290,22 @@ export default function LoginScreen() {
 
     try {
       if (needsCode && signInCode.length !== 6) {
-        reveal('Enter the 6-digit code from your email.');
+        reveal('Enter the 6-digit code from your authenticator app.');
         setLoading(false);
         clearTimeout(timeoutId);
         return;
       }
       const signedIn = await login(cleanEmail, password, needsCode ? signInCode : undefined);
       if (signedIn?.needsTwoFactor) {
+        setProviderPending(null);
         setNeedsCode(true);
-        setError(signedIn.codeReused
-          ? 'Enter the sign-in code already emailed. A new sign-in does not replace it.'
-          : 'A sign-in code was emailed. Enter it here.');
+        setError('Enter the 6-digit code from your authenticator app.');
         setLoading(false);
         clearTimeout(timeoutId);
         return;
       }
       AsyncStorage.setItem('hcp_has_account', '1').catch(() => undefined);
       if (timedOut) return;
-      if (agreement) {
-        try {
-          const stamped = { ...agreement, acknowledgedAt: new Date().toISOString() };
-          await saveAgreement.mutateAsync({ legalSafetyAgreement: stamped });
-          await writeLegalAgreement(stamped);
-          await clearLegalReadyForSignIn();
-        } catch (syncError) {
-          console.error('[Login] Legal agreement was not stored on the account', syncError);
-        }
-      }
       setRetryCount(0);
       setError(null);
       router.replace('/');
@@ -284,6 +318,7 @@ export default function LoginScreen() {
       const confirmationExpiredNow = /expired after 24 hours/i.test(serverMessage);
       const confirmationNeeded = confirmationExpiredNow || /confirm your email|email not confirmed/i.test(serverMessage);
       const legalNeeded = serverMessage.includes('Complete the Legal & Safety page');
+      const legalSaveFailed = serverMessage.includes('could not be saved');
 
       const isValidationError = serverMessage.includes('invalid_format') ||
         loginError.data?.zodError?.issues?.some((issue: any) => issue.path?.includes('email'));
@@ -293,17 +328,11 @@ export default function LoginScreen() {
         serverMessage.includes('timeout') ||
         serverMessage.includes('Failed to fetch');
 
-      if (!isRetry && !confirmationNeeded && !legalNeeded) {
+      if (!isRetry && !confirmationNeeded && !legalNeeded && !legalSaveFailed) {
         setRetryCount((prev) => prev + 1);
       }
 
-      if (openSignInCanEmailNewCode(serverMessage)) {
-        setNeedsCode(false);
-        setSignInCode('');
-        setNeedsConfirmation(false);
-        setConfirmationExpired(false);
-        reveal(serverMessage);
-      } else if (legalNeeded) {
+      if (legalNeeded) {
         setNeedsConfirmation(false);
         setConfirmationExpired(false);
         reveal(LEGAL_SIGN_IN_MESSAGE, true);
@@ -490,7 +519,7 @@ export default function LoginScreen() {
                     <Ionicons name="key-outline" size={18} color={AuthColors.maroon} />
                     <TextInput
                       style={styles.input}
-                      placeholder="6-digit sign-in code"
+                      placeholder="6-digit authenticator code"
                       placeholderTextColor={AuthColors.placeholder}
                       value={signInCode}
                       onChangeText={(value) => {

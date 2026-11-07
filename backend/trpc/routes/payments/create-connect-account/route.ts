@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../../create-context';
+import { recordOperationalFailure } from '../../../../lib/failure-alert';
 
 const inputSchema = z.object({
   email: z.string().email(),
@@ -62,6 +63,7 @@ export const createConnectAccountProcedure = protectedProcedure
       if (!accountResponse.ok) {
         const error = await accountResponse.text();
         console.error('[Stripe Connect] Account creation failed:', error);
+        await recordOperationalFailure('payment_error', 'Stripe Connect account creation failed.', ctx.supabaseAdmin);
         throw new Error('Failed to create Stripe Connect account');
       }
 

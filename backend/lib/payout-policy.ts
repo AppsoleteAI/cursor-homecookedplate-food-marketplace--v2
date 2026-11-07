@@ -164,6 +164,14 @@ export function salesVolumeBlockMessage(
   return null;
 }
 
+/** A payout lands only after this cook has finished their own Stripe account. */
+export function cookPayoutReady(profile: {
+  stripe_account_id?: string | null;
+  selling_removed?: boolean | null;
+} | null | undefined): boolean {
+  return Boolean(profile?.stripe_account_id) && profile?.selling_removed !== true;
+}
+
 export function payoutReleaseAt(paidAt: Date = new Date()): string {
   const release = new Date(paidAt.getTime());
   release.setUTCDate(release.getUTCDate() + PAYOUT_HOLD_DAYS);

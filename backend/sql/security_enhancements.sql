@@ -27,26 +27,50 @@ set search_path = public
 as $$
 declare
   chosen_role text;
+  base_name text;
+  candidate text;
+  suffix integer := 0;
 begin
-  chosen_role := coalesce(new.raw_user_meta_data->>'role', 'platetaker');
-  if chosen_role not in ('platemaker', 'platetaker') then
-    chosen_role := 'platetaker';
+  chosen_role := nullif(new.raw_user_meta_data->>'role', '');
+  if chosen_role is null or chosen_role not in ('platemaker', 'platetaker') then
+    return new;
   end if;
 
-  insert into public.profiles (id, username, email, role, is_admin)
-  values (
-    new.id,
-    coalesce(nullif(new.raw_user_meta_data->>'username', ''), split_part(coalesce(new.email, 'member'), '@', 1)),
-    coalesce(new.email, new.id::text || '@users.local'),
-    chosen_role,
-    false
-  )
-  on conflict (id) do nothing;
-  return new;
-exception
-  when others then
-    raise log 'handle_new_user failed for %: %', new.id, sqlerrm;
-    return new;
+  base_name := coalesce(nullif(new.raw_user_meta_data->>'username', ''), split_part(coalesce(new.email, 'member'), '@', 1));
+  base_name := lower(regexp_replace(base_name, '[^a-zA-Z0-9_]', '', 'g'));
+  if length(base_name) < 3 then
+    base_name := 'member' || left(replace(new.id::text, '-', ''), 6);
+  end if;
+  base_name := left(base_name, 24);
+  candidate := base_name;
+
+  loop
+    begin
+      insert into public.profiles (id, username, email, role, is_admin)
+      values (
+        new.id,
+        candidate,
+        coalesce(new.email, new.id::text || '@users.local'),
+        chosen_role,
+        false
+      )
+      on conflict (id) do nothing;
+      return new;
+    exception
+      when unique_violation then
+        if sqlerrm ilike '%username%' and suffix < 30 then
+          suffix := suffix + 1;
+          if suffix = 30 then
+            candidate := left(base_name, 12) || left(replace(new.id::text, '-', ''), 8);
+          else
+            candidate := left(base_name, 20) || suffix::text;
+          end if;
+        else
+          raise log 'handle_new_user left % without a profile: %', new.id, sqlerrm;
+          return new;
+        end if;
+    end;
+  end loop;
 end;
 $$;
 

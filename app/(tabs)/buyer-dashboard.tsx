@@ -170,7 +170,9 @@ export default function BuyerDashboardScreen() {
               <Text style={styles.emptySubtext}>Portions set aside for unhoused people, elders, and children. No card.</Text>
             </GlassPressable>
             <Text testID="recent-purchases-title" style={styles.sectionTitle}>Recent Purchases</Text>
-            {(orders || []).length === 0 ? (
+            {orderList.error ? (
+              <Text testID="buyer-orders-error" style={[styles.emptySubtext, { paddingHorizontal: 24 }]}>{orderList.error.message}</Text>
+            ) : (orders || []).length === 0 ? (
               <Text style={[styles.emptySubtext, { paddingHorizontal: 24 }]}>Your orders will show up here.</Text>
             ) : (
             <HorizontalCarousel contentContainerStyle={styles.horizontal}>

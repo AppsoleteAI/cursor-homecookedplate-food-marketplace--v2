@@ -150,7 +150,7 @@ export default function SearchScreen() {
               </GlassPressable>
             )}
         <Text style={styles.resultCount}>
-          {isLoading ? 'Loading plates' : error ? 'Could not load plates' : `${filteredMeals.length} meals found`}
+          {isLoading ? 'Loading plates' : error ? (error.message || 'Could not load plates') : `${filteredMeals.length} meals found`}
         </Text>
         <View style={styles.mealGrid}>
           {filteredMeals.map(meal => (

@@ -1,3 +1,4 @@
+import { TRPCError } from "@trpc/server";
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
 
@@ -37,13 +38,16 @@ export const resetPasswordProcedure = publicProcedure
       redirectTo,
     });
 
-    // Don't reveal if email exists for security (prevent email enumeration)
-    // Always return success message regardless of whether email exists
+    // An unknown address still gets the same success sentence. A mail-host
+    // refusal, including the free daily cap, is a failure and does not say
+    // whether that address has an account.
     if (error) {
       console.error('[Reset Password] Error:', error);
-      // Still return success to prevent email enumeration
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: 'The reset email could not be sent. Try again later.',
+      });
     }
 
-    // Always return success message
     return { success: true, message: 'If an account exists with this email, a password reset link has been sent.' };
   });

@@ -31,7 +31,7 @@ export default function FunnelScreen() {
   const [priceRange, setPriceRange] = useState<{ min: number | null; max: number | null }>({ min: null, max: null });
   const [minRating, setMinRating] = useState<number>(0);
 
-  const { data: mealsData, isLoading } = trpc.meals.list.useQuery({
+  const { data: mealsData, isLoading, error } = trpc.meals.list.useQuery({
     metroArea: user?.metroArea || undefined,
   });
   const liveMeals: Meal[] = useMemo(() => {
@@ -277,7 +277,7 @@ export default function FunnelScreen() {
         </View>
 
         <Text style={styles.resultCount}>
-          {isLoading ? 'Loading plates' : `${filteredMeals.length} meals found`}
+          {isLoading ? 'Loading plates' : error ? (error.message || 'Could not load plates') : `${filteredMeals.length} meals found`}
         </Text>
         <View style={styles.mealGrid}>
           {filteredMeals.map(meal => (

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
 import { FoodImage } from '@/components/FoodImage';
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Stack, router, useLocalSearchParams, type Href } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Colors } from '@/constants/colors';
 import { useOrders } from '@/hooks/orders-context';
@@ -33,6 +33,7 @@ export default function OrderDetailsPage() {
   const insets = useSafeAreaInsets();
 
   const isActive = useMemo(() => order && order.status !== 'completed' && order.status !== 'cancelled', [order]);
+  const canMessage = Boolean(isActive && order?.paid);
   const plateReviews = trpc.reviews.list.useQuery(
     { mealId: order?.mealId ?? '' },
     { enabled: !!order?.mealId && order.status === 'completed' },
@@ -52,7 +53,7 @@ export default function OrderDetailsPage() {
   }, [order, user, syncMessages]);
 
   const onSend = useCallback(async () => {
-    if (!order || !input.trim() || !isActive || !user || sending) return;
+    if (!order || !input.trim() || !isActive || !order.paid || !user || sending) return;
     const role = user.role;
     const senderId = user.id;
     setSending(true);
@@ -195,6 +196,24 @@ export default function OrderDetailsPage() {
           {order.status === 'ready' && order.paid && user?.role === 'platemaker' && !(order.pickupConfirmedBy ?? []).includes('buyer') ? (
             <Text style={styles.value}>{RECEIPT_ACK_COPY} Waiting for the PlateTaker to acknowledge receipt.</Text>
           ) : null}
+          {order.paid && isCook && order.status !== 'completed' && order.status !== 'cancelled' ? (
+            <GlassPressable
+              onPress={() => router.push(`/order-eta?orderId=${encodeURIComponent(order.id)}` as Href)}
+              style={styles.completeBtn}
+              testID="send-eta-btn"
+            >
+              <Text style={styles.completeBtnText}>Send an ETA</Text>
+            </GlassPressable>
+          ) : null}
+          {order.status === 'completed' && (isCook || isBuyer) ? (
+            <GlassPressable
+              onPress={() => router.push(`/final-receipt?orderId=${encodeURIComponent(order.id)}` as Href)}
+              style={styles.completeBtn}
+              testID="final-receipt-btn"
+            >
+              <Text style={styles.completeBtnText}>Final receipt</Text>
+            </GlassPressable>
+          ) : null}
         </View>
 
         {user?.role === 'platetaker' && order.plateMakerId ? (
@@ -335,18 +354,24 @@ export default function OrderDetailsPage() {
       </ScrollView>
 
       <KeyboardAvoidingView behavior={Platform.select({ ios: 'padding', default: undefined })}>
-        <View style={[styles.inputRow, { opacity: isActive ? 1 : 0.5 }]}>
+        <View style={[styles.inputRow, { opacity: canMessage ? 1 : 0.5 }]}>
           <TextInput
             style={styles.input}
-            placeholder={isActive ? 'Type a message' : 'Messaging closed for completed orders'}
+            placeholder={
+              canMessage
+                ? (user?.role === 'platemaker' ? 'Message the buyer' : 'Message the cook about this paid order')
+                : order.paid
+                  ? 'Messaging closed for completed orders'
+                  : 'Pay for this order before sending a message.'
+            }
             value={input}
             onChangeText={setInput}
-            editable={isActive}
+            editable={canMessage}
             testID="order-message-input"
           />
           <GlassPressable 
             onPress={onSend} 
-            disabled={!isActive || !input.trim() || sending} 
+            disabled={!canMessage || !input.trim() || sending} 
             style={[styles.sendBtn, (sending || !input.trim()) && styles.sendBtnDisabled]} 
             testID="order-send-btn"
           >

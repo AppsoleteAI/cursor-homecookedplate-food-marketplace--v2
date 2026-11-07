@@ -8,7 +8,7 @@ import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
 import StarRating from '@/components/StarRating';
-import { router, type Href } from 'expo-router';
+import { router, Stack, type Href } from 'expo-router';
 import { ReviewCommentActions } from '@/components/ReviewCommentActions';
 import { DashboardSectionBack } from '@/components/BackCircle';
 
@@ -67,6 +67,7 @@ export default function ReviewsDashboardScreen() {
 
   return (
     <View style={styles.container}>
+      <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
       <View style={styles.staticHeader}>
         <LinearGradient
           colors={monoGradients.green}

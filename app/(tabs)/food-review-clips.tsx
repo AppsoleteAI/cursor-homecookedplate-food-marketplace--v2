@@ -59,6 +59,7 @@ import { IdleChrome } from '@/components/IdleChrome';
 import { CHROME_CHIP_SIZE, CHROME_ICON_SIZE } from '@/lib/chrome-activity';
 import { readLocalMedia } from '@/lib/read-local-media';
 import { trpc } from '@/lib/trpc';
+import { clipPostAllowed } from '@/backend/lib/trial-access';
 
 const webHandle: ViewStyle | null = Platform.OS === 'web'
   ? ({ cursor: 'ns-resize', touchAction: 'none' } as unknown as ViewStyle)
@@ -181,9 +182,11 @@ export default function FoodReviewClips() {
   const { user } = useAuth();
   const username = user?.username || 'Guest';
   const role: 'platemaker' | 'platetaker' = user?.role === 'platemaker' ? 'platemaker' : 'platetaker';
-  const canPostClip = role === 'platemaker'
-    ? user?.membershipTier === 'premium' || user?.membershipTier === 'lifetime' || Boolean(user?.stripeSubscriptionId)
-    : user?.membershipTier === 'premium';
+  const canPostClip = clipPostAllowed({
+    role,
+    membershipTier: user?.membershipTier,
+    stripeSubscriptionId: user?.stripeSubscriptionId,
+  });
   const surface = foodReviewSurface(Platform.OS, width, height);
   const layout = resolveFoodReviewTimelineLayout(width, height, surface);
 

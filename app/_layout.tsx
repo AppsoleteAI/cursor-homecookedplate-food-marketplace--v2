@@ -42,7 +42,7 @@ import { OrdersProvider } from "@/hooks/orders-context";
 import { MealsProvider } from "@/hooks/meals-context";
 import { AdminsProvider } from "@/hooks/admin-context";
 import { trpc, trpcClient } from "@/lib/trpc";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { NavigationErrorBoundary } from "@/components/NavigationErrorBoundary";
 import { StripeProvider } from '@/lib/stripe';
 import { navLogger } from '@/lib/nav-logger';
 import { captureException, scrubSentryEvent, Sentry } from '@/lib/sentry';
@@ -238,7 +238,7 @@ function RootLayout() {
   // This makes web boot process straight-line (no gates)
   if (isWeb) {
     return (
-      <ErrorBoundary>
+      <NavigationErrorBoundary>
         <GestureHandlerRootView style={styles.container} onTouchMove={pokeChromeActivity}>
           <CoreProviders>
             <ConditionalAppProviders>
@@ -257,12 +257,12 @@ function RootLayout() {
             </ConditionalAppProviders>
           </CoreProviders>
         </GestureHandlerRootView>
-      </ErrorBoundary>
+      </NavigationErrorBoundary>
     );
   }
 
   return (
-    <ErrorBoundary>
+    <NavigationErrorBoundary>
       <GestureHandlerRootView style={styles.launch} onTouchMove={pokeChromeActivity}>
         <View
           style={styles.launch}
@@ -280,7 +280,7 @@ function RootLayout() {
           </CoreProviders>
         </View>
       </GestureHandlerRootView>
-    </ErrorBoundary>
+    </NavigationErrorBoundary>
   );
 }
 

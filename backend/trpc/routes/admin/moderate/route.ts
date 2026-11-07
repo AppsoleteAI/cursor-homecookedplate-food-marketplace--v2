@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { adminProcedure } from '../../../create-context';
 import { notifyParty } from '../../../../lib/account-notice';
+import { messageNotice } from '@/lib/order-contact';
 import { missingBuyerColumn, orderBuyerId } from '../../../../lib/order-row';
 import { scanText } from '../../../../lib/text-security';
 
@@ -89,10 +90,7 @@ export const decideModerationProcedure = adminProcedure
       if (status === 'allowed') {
         const otherId = await otherParty(ctx.supabaseAdmin, row.data.order_id, row.data.sender_id);
         if (otherId) {
-          await notifyParty(ctx.supabaseAdmin, otherId, 'newMessages', {
-            title: 'New message',
-            body: String(row.data.text || '').slice(0, 140),
-          });
+          await notifyParty(ctx.supabaseAdmin, otherId, 'newMessages', messageNotice(String(row.data.text || '')));
         }
       }
       return { status };
@@ -150,10 +148,7 @@ export const decideModerationProcedure = adminProcedure
         await ctx.supabaseAdmin.from('order_messages').update({ moderation_status: 'allowed' }).eq('id', report.data.target_id);
         const otherId = await otherParty(ctx.supabaseAdmin, row.data.order_id, row.data.sender_id);
         if (otherId) {
-          await notifyParty(ctx.supabaseAdmin, otherId, 'newMessages', {
-            title: 'New message',
-            body: String(row.data.text || '').slice(0, 140),
-          });
+          await notifyParty(ctx.supabaseAdmin, otherId, 'newMessages', messageNotice(String(row.data.text || '')));
         }
       }
     }

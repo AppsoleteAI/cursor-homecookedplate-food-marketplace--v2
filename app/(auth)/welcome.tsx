@@ -20,6 +20,7 @@ import { SUBSCRIPTION_PRICES } from '@/backend/lib/fees';
 import { PLATEMAKER_LOST_DISPUTE_SIGNUP, PLATETAKER_LOST_DISPUTE_SIGNUP } from '@/backend/lib/payout-policy';
 import { BUYER_AFTER_NOTE, BUYER_FOOD_NOTE, BUYER_MEETING_NOTE } from '@/lib/buyer-safety';
 import { FoodHandlingLink } from '@/components/FoodHandlingLink';
+import { PROVIDER_ROLE_STORAGE_KEY } from '@/backend/lib/provider-profile';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, GlassTop, glassSurface } from '@/components/glass-surface';
 
@@ -151,6 +152,9 @@ export default function WelcomeScreen() {
   }, [isGate]);
 
   const goToSignIn = () => {
+    if (pickedRole) {
+      AsyncStorage.setItem(PROVIDER_ROLE_STORAGE_KEY, pickedRole).catch(() => undefined);
+    }
     markWelcomeSeen();
     router.replace('/(auth)/login');
   };
@@ -177,6 +181,7 @@ export default function WelcomeScreen() {
   };
 
   const chooseRole = (next: Role) => {
+    AsyncStorage.setItem(PROVIDER_ROLE_STORAGE_KEY, next).catch(() => undefined);
     setPickedRole(next);
     setStep(2);
   };

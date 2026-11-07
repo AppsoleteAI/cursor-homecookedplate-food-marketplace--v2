@@ -1,19 +1,11 @@
-// CODE VERSION: v4-insert-then-update-20250118 (forces module reload)
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { randomBytes } from "node:crypto";
 import { sendEmailConfirmation } from "@/backend/lib/email";
+import { readAuthIdentityKind, signupAlreadyRegisteredMessage } from "@/backend/lib/provider-profile";
 import { saveKitchenPin } from "../../../../lib/kitchen-pin";
-import { readGeofenceSettings } from "../../../../lib/metro-geofence";
-import { nearestMetro } from "../../../../lib/metro-radius";
-// Use process.stdout.write directly for critical logs (bypasses Bun buffering)
-
-// Force module reload by adding version to export
-const SIGNUP_PROCEDURE_VERSION = `v4-insert-then-update-20250118-${Date.now()}`;
-
-console.log('[Signup Route] PROCEDURE_EXPORT - Version:', SIGNUP_PROCEDURE_VERSION);
-
+import { abandonFailedSignup, isDuplicateAuthError, planSignupMetro } from "../../../../lib/signup-account";
 // Strict password validation schema - matches frontend PasswordStrengthMeter requirements
 // Export for reuse in other routes (e.g., password reset, password change)
 export const passwordSchema = z.string()
@@ -23,10 +15,7 @@ export const passwordSchema = z.string()
   .regex(/[0-9]/, "Password must contain at least one number")
   .regex(/[^a-zA-Z0-9]/, "Password must contain at least one special character");
 
-// Create procedure with runtime version check
-const createSignupProcedure = () => {
-  console.log('[Signup Route] Creating signup procedure with version:', SIGNUP_PROCEDURE_VERSION);
-  return publicProcedure
+export const signupProcedure = publicProcedure
     .input(
       z.object({
         username: z.string().min(3),
@@ -42,13 +31,20 @@ const createSignupProcedure = () => {
 
       console.log('[Signup] Starting signup for:', input.email);
 
-      // Use admin.createUser() - requires Service Role Key
-      // Use ctx.supabaseAdmin (service role) for signup operations:
-      // - Creating auth users via admin.createUser() (requires service role)
-      // - Inserting/updating profiles during signup (system operation)
-      // - Metro count increments (thread-safe atomic writes)
-      let authData: any;
-      let authError: any;
+      // Metro is decided before any auth user exists. A paused city stops here.
+      const plan = await planSignupMetro(ctx.supabaseAdmin, input.lat, input.lng);
+      if (plan.pausedMessage) {
+        process.stdout.write(`[GEO_LOCK] ${plan.pausedMessage} No auth user was created.\n`);
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: plan.pausedMessage,
+        });
+      }
+
+      // Use admin.createUser() - requires Service Role Key.
+      // A duplicate email is refused without checking the password or opening a session.
+      let authData: { user: { id: string } | null };
+      let authError: { message?: string; status?: number; code?: string | number } | null;
 
       try {
         const result = await ctx.supabaseAdmin.auth.admin.createUser({
@@ -57,89 +53,31 @@ const createSignupProcedure = () => {
           email_confirm: false,
           user_metadata: { username: input.username, role: input.role }
         });
-        authData = { user: result.data.user, session: null };
+        authData = { user: result.data.user };
         authError = result.error;
 
       } catch (error: any) {
         authError = error;
-        authData = { user: null, session: null };
+        authData = { user: null };
       }
 
       if (authError || !authData.user) {
         console.error('[Signup] Auth error:', authError);
-        const isDuplicateEmail =
-          authError?.message?.toLowerCase().includes('already registered') ||
-          authError?.message?.toLowerCase().includes('user already exists') ||
-          authError?.status === 422 ||
-          authError?.code === '23505';
-
-        if (isDuplicateEmail) {
-          const passwordCheck = await ctx.supabase.auth.signInWithPassword({
-            email: input.email,
-            password: input.password,
-          });
-          const passwordMessage = passwordCheck.error?.message?.toLowerCase() || "";
-          const passwordAccepted = Boolean(passwordCheck.data?.session) || passwordMessage.includes("not confirmed");
-          if (!passwordAccepted) {
-            throw new TRPCError({
-              code: 'BAD_REQUEST',
-              message: 'An account with this email already exists. Please use login instead.',
-            });
-          }
-
-          const { data: existingProfile, error: existingProfileError } = await ctx.supabaseAdmin
-            .from("profiles")
-            .select("id, username, email, role, is_admin, phone, bio, profile_image, created_at, is_paused, two_factor_enabled, metro_area, trial_ends_at, membership_tier")
-            .eq("email", input.email)
+        if (isDuplicateAuthError(authError)) {
+          const { data: registeredProfile } = await ctx.supabaseAdmin
+            .from('profiles')
+            .select('id')
+            .ilike('email', input.email)
             .maybeSingle();
-
-          if (existingProfileError || !existingProfile) {
-            throw new TRPCError({
-              code: 'BAD_REQUEST',
-              message: 'An account with this email already exists. Please use login instead.',
-            });
-          }
-
-          if (existingProfile.membership_tier === "premium" && existingProfile.trial_ends_at) {
-            throw new TRPCError({
-              code: 'BAD_REQUEST',
-              message: 'An account with this email already exists. Please use login instead.',
-            });
-          }
-
-          if (passwordCheck.data?.session) {
-            await ctx.supabase.auth.signOut();
-          }
-          const alreadyConfirmed = Boolean(passwordCheck.data?.user?.email_confirmed_at) || Boolean(passwordCheck.data?.session);
-          if (alreadyConfirmed) {
-            throw new TRPCError({
-              code: 'BAD_REQUEST',
-              message: 'An account with this email already exists. Please use login instead.',
-            });
-          }
-
-          return {
-            status: (existingProfile.role === 'platetaker' ? 'SUCCESS' : 'CHOOSE_MEMBERSHIP') as 'SUCCESS' | 'CHOOSE_MEMBERSHIP',
-            user: {
-              id: existingProfile.id,
-              username: existingProfile.username,
-              email: existingProfile.email,
-              role: existingProfile.role as 'platemaker' | 'platetaker',
-              isAdmin: existingProfile.is_admin || false,
-              phone: existingProfile.phone,
-              bio: existingProfile.bio,
-              profileImage: existingProfile.profile_image,
-              createdAt: new Date(existingProfile.created_at),
-              isPaused: existingProfile.is_paused,
-              twoFactorEnabled: existingProfile.two_factor_enabled,
-              metroArea: existingProfile.metro_area || null,
-              trialEndsAt: existingProfile.trial_ends_at ? new Date(existingProfile.trial_ends_at) : null,
-            },
-            session: null,
-            metro: existingProfile.metro_area || 'Remote/Other',
-            needsEmailConfirmation: true,
-            confirmationEmailSent: false,
-          };
+          const identity = await readAuthIdentityKind(ctx.supabaseAdmin, input.email);
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: signupAlreadyRegisteredMessage({
+              profileExists: Boolean(registeredProfile),
+              passwordAccepted: false,
+              identity,
+            }) || 'An account with this email already exists. Please use login instead.',
+          });
         }
 
         throw new TRPCError({
@@ -148,95 +86,49 @@ const createSignupProcedure = () => {
         });
       }
 
-      console.log('[Signup] User created:', authData.user.id);
+      const createdUserId = authData.user.id;
+      console.log('[Signup] User created:', createdUserId);
 
-      // GEO-LOCK v4: Determine metro_area, trial_ends_at, and membership_tier
-      // Inside metros: Check is_active (from metro_geofences) and the Early Bird slot rule - one PlateMaker per 10,000 people, from 200 to 1,000
-      // Outside metros (Remote): Assign 'Remote/Other', no trial, set membership_tier to 'free' (must pay $4.99 to activate premium)
-      // Source of Truth: All city-level settings (trial length, active status) MUST be read from metro_geofences table
-      let assignedMetro: string | null = null;
+      const role = (input.role || 'platetaker') as 'platemaker' | 'platetaker';
+      const assignedMetro = plan.assignedMetro;
       const trialEndsAt: string | null = null;
-      let membershipTier: 'free' | 'premium' = 'free'; // Default to free
+      const membershipTier: 'free' | 'premium' = 'free';
       let earlyBirdEligible = false;
       let offeredTrialDays = 0;
+      let slot: { role: string; metro: string } | null = null;
+      let committed = false;
 
-      if (typeof input.lat === 'number' && typeof input.lng === 'number') {
-        process.stdout.write(`[GEO_LOCK] Verifying location for user: ${input.username} at (${input.lat}, ${input.lng})\n`);
-        
-        // Consolidated RPC: Get metro settings by location (combines lookup + settings query)
-        // Returns metro_name, is_active, and trial_days if metro found, otherwise returns no rows
-        // Use ctx.supabaseAdmin (service role) for system operations during signup
-        const nearest = nearestMetro(input.lat, input.lng);
-        const settingsRead = nearest ? await readGeofenceSettings(ctx.supabaseAdmin, nearest.name) : null;
-        if (settingsRead?.error) {
-          process.stdout.write(`[GEO_LOCK] Could not read metro settings: ${settingsRead.error}. Using the nearest 50-mile metro.\n`);
+      try {
+      if (plan.holdSlot) {
+        process.stdout.write(`[GEO_LOCK] Verifying location for user: ${input.username}. Metro ${assignedMetro}.\n`);
+        const { data: status, error: incrementError } = await ctx.supabaseAdmin.rpc(
+          'increment_metro_count',
+          {
+            metro_name_param: assignedMetro,
+            user_role: role,
+          }
+        );
+
+        if (incrementError) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Failed to secure metro spot: ${incrementError.message || JSON.stringify(incrementError)}`,
+          });
         }
-        const saved = settingsRead?.settings ?? null;
-        const metro = nearest
-          ? {
-            metro_name: nearest.name,
-            is_active: saved?.is_active !== false,
-            trial_days: typeof saved?.trial_days === 'number' ? saved.trial_days : 90,
-          }
-          : null;
 
-        if (!metro) {
-          process.stdout.write(`[GEO_LOCK] No metro area found for coordinates (${input.lat}, ${input.lng}). Assigning Remote/Other\n`);
-          assignedMetro = 'Remote/Other';
-          membershipTier = 'free';
-          process.stdout.write(`[GEO_LOCK] Remote User. Early Bird is not available. membership_tier: ${membershipTier}\n`);
+        if (status === 'SUCCESS' && role === 'platemaker') {
+          slot = { role, metro: assignedMetro };
+          offeredTrialDays = plan.trialDays || 90;
+          earlyBirdEligible = true;
+          process.stdout.write(`[GEO_LOCK] Metro Match: ${assignedMetro}. Early Bird is open for ${offeredTrialDays} days. It is not started until the PlateMaker chooses it.\n`);
+        } else if (status === 'SUCCESS') {
+          slot = { role, metro: assignedMetro };
+          process.stdout.write(`[GEO_LOCK] Metro Match: ${assignedMetro}. PlateTaker signup. Premium stays optional.\n`);
         } else {
-          // Metro found - Check is_active FIRST (Panic Button check)
-          // Throw error immediately if inactive - do not proceed with signup
-          if (!metro.is_active) {
-            throw new TRPCError({
-              code: 'PRECONDITION_FAILED',
-              message: `Signups in ${metro.metro_name} are currently paused for maintenance.`,
-            });
-          }
-
-          // Metro is active - proceed with signup and check cap
-          assignedMetro = metro.metro_name;
-          
-          // Database Integrity: Always use increment_metro_count RPC for signups
-          // RPC handles row-level locking for concurrency safety (do not manage counts in frontend)
-          // RPC returns status string 'SUCCESS' or 'CAP_REACHED'
-          // Use ctx.supabaseAdmin (service role) for writes - ensures thread-safe atomic increment
-          const { data: status, error: incrementError } = await ctx.supabaseAdmin.rpc(
-            'increment_metro_count',
-            {
-              metro_name_param: metro.metro_name, // RPC parameter: text
-              user_role: input.role || 'platetaker' // RPC parameter: text
-            }
-          );
-
-          if (incrementError) {
-            throw new TRPCError({
-              code: 'INTERNAL_SERVER_ERROR',
-              message: `Failed to secure metro spot: ${incrementError.message || JSON.stringify(incrementError)}`,
-            });
-          }
-
-          if (status === 'SUCCESS' && (input.role || 'platetaker') === 'platemaker') {
-            // The spot is held. Early Bird starts only when the PlateMaker chooses it. No card.
-            offeredTrialDays = metro.trial_days ?? 90;
-            earlyBirdEligible = true;
-            membershipTier = 'free';
-            process.stdout.write(`[GEO_LOCK] Metro Match: ${assignedMetro}. Early Bird is open for ${offeredTrialDays} days. It is not started until the PlateMaker chooses it.\n`);
-          } else if (status === 'SUCCESS') {
-            membershipTier = 'free';
-            process.stdout.write(`[GEO_LOCK] Metro Match: ${assignedMetro}. PlateTaker signup. Premium stays optional.\n`);
-          } else {
-            membershipTier = 'free';
-            process.stdout.write(`[GEO_LOCK] Metro Match: ${assignedMetro}. CAP_REACHED. PlateMaker chooses a paid plan. Early Bird is not available.\n`);
-          }
+          process.stdout.write(`[GEO_LOCK] Metro Match: ${assignedMetro}. CAP_REACHED. PlateMaker chooses a paid plan. Early Bird is not available.\n`);
         }
       } else {
-        // No coordinates provided: Assign Remote/Other (no trial, free tier)
-        process.stdout.write(`[GEO_LOCK] No coordinates provided. Assigning Remote/Other\n`);
-        assignedMetro = 'Remote/Other';
-        membershipTier = 'free';
-        process.stdout.write(`[GEO_LOCK] Remote User. Early Bird is not available. membership_tier: ${membershipTier}\n`);
+        process.stdout.write(`[GEO_LOCK] Assigning ${assignedMetro}. No metro slot is taken.\n`);
       }
 
       // V4 PATTERN: INSERT-then-UPDATE (Catch 23505)
@@ -245,7 +137,7 @@ const createSignupProcedure = () => {
 
       // Prepare profile data with finalized metro_area, trial_ends_at, and membership_tier
       const profileData = {
-        id: authData.user.id,
+        id: createdUserId,
         username: input.username,
         email: input.email,
         role: input.role as 'platemaker' | 'platetaker',
@@ -281,7 +173,7 @@ const createSignupProcedure = () => {
             membership_tier: profileData.membership_tier, // CRITICAL: Finalize membership_tier ('premium' for metro, 'free' for remote)
             food_safety_acknowledged: profileData.food_safety_acknowledged, // Store food safety acknowledgment for platemakers
           })
-          .eq('id', authData.user.id)
+          .eq('id', createdUserId)
           .select()
           .single();
         profile = updateResult.data;
@@ -292,21 +184,20 @@ const createSignupProcedure = () => {
 
       if (profileError || !profile) {
         console.error('[Signup] Profile upsert failed:', profileError);
-        try {
-          await ctx.supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-          console.log('[Signup] Cleaned up auth user after profile creation failure');
-        } catch (cleanupError) {
-          console.error('[Signup] Failed to cleanup auth user:', cleanupError);
-        }
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: `Failed to create profile: ${profileError?.message || 'Unknown error'}`,
         });
       }
 
+      committed = true;
       console.log('[Signup] Profile created successfully with admin client');
       if (typeof input.lat === 'number' && typeof input.lng === 'number') {
-        await saveKitchenPin(ctx.supabaseAdmin, authData.user.id, input.lat, input.lng);
+        try {
+          await saveKitchenPin(ctx.supabaseAdmin, createdUserId, input.lat, input.lng);
+        } catch (pinError) {
+          console.error('[Signup] Kitchen pin was not saved:', pinError);
+        }
       }
 
       // Generate email confirmation token and send via Resend (production email service)
@@ -323,7 +214,7 @@ const createSignupProcedure = () => {
         const { error: tokenError } = await ctx.supabaseAdmin
           .from('email_verification_tokens')
           .insert({
-            user_id: authData.user.id,
+            user_id: createdUserId,
             token: confirmationToken,
             email: input.email,
             expires_at: expiresAt.toISOString(),
@@ -394,8 +285,10 @@ const createSignupProcedure = () => {
         needsEmailConfirmation: true,
         confirmationEmailSent,
       };
+      } catch (error) {
+        if (!committed) {
+          await abandonFailedSignup(ctx.supabaseAdmin, createdUserId, slot);
+        }
+        throw error;
+      }
     });
-};
-
-// Export the procedure by calling the function to create a new instance
-export const signupProcedure = createSignupProcedure();

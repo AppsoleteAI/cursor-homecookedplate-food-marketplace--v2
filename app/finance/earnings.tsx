@@ -7,6 +7,7 @@ import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { calculateFees, getNetPayout } from '@/backend/lib/fees';
 import { DELIVERY_PLATFORM_RATE } from '@/lib/fees';
 import { DashboardSectionBack } from '@/components/BackCircle';
+import { Stack } from 'expo-router';
 
 function formatMoney(n: number) {
   const v = Number.isFinite(n) ? n : 0;
@@ -28,6 +29,7 @@ export default function PlatemakerEarningsScreen() {
 
   return (
     <View style={styles.container}>
+      <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
       <View style={styles.staticHeader}>
         <LinearGradient
           colors={monoGradients.green}

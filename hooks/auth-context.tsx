@@ -1,15 +1,18 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { applySignInLegal, clearLegalAgreement, clearLegalReadyForSignIn, clearLoginLegalBox, LEGAL_SIGN_IN_MESSAGE } from '@/lib/legal-agreement';
+import { applySignInLegal, chooseLegalForm, clearLegalAgreement, clearLegalReadyForSignIn, clearLoginLegalBox, isLegalReadyForSignIn, LEGAL_SIGN_IN_MESSAGE, readLegalAgreement, todayStamp, toCompletedLegalAgreement, writeLegalAgreement } from '@/lib/legal-agreement';
+import { accountAllowsSignIn, LEGAL_SAVE_FAILED_MESSAGE } from '@/backend/lib/legal-gate';
 import { requestProviderSession } from '@/lib/provider-sign-in';
 import { providerAccountBlock } from '@/backend/lib/provider-account';
+import { isAccountRole, PROVIDER_ROLE_STORAGE_KEY, type AccountRole } from '@/backend/lib/provider-profile';
+import { SECOND_FACTOR_MESSAGE } from '@/backend/lib/second-factor';
 // Import expo-secure-store with platform-specific shim for web compatibility
 // Metro will automatically resolve to lib/expo-secure-store.web.ts on web platform
 import * as SecureStore from '@/lib/expo-secure-store';
 import { User } from '@/types';
-import { trpc } from '@/lib/trpc';
-import { supabase } from '@/lib/supabase';
+import { trpc, trpcProxyClient } from '@/lib/trpc';
+import { createMemoryAuthClient, supabase } from '@/lib/supabase';
 import type { Session } from '@supabase/supabase-js';
 import { captureException, setUser as setSentryUser, addBreadcrumb } from '@/lib/sentry';
 import { runHardwareAudit } from '@/lib/hardwareAudit';
@@ -25,9 +28,13 @@ interface AuthState {
   session: Session | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (username: string, password: string, code?: string) => Promise<{ needsTwoFactor: true; codeReused: boolean } | { needsTwoFactor: false }>;
-  loginWithProvider: (provider: 'apple' | 'google') => Promise<void>;
-  signup: (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }, foodSafetyAcknowledged?: boolean) => Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean; chooseMembership?: boolean; needsEmailConfirmation?: boolean; confirmationEmailSent?: boolean }>;
+  login: (username: string, password: string, code?: string) => Promise<{ needsTwoFactor: true } | { needsTwoFactor: false }>;
+  loginWithProvider: (provider: 'apple' | 'google', role?: AccountRole | null) => Promise<{ needsTwoFactor: true } | { needsRole: true } | { done: true }>;
+  verifyProviderCode: (code: string) => Promise<{ needsRole: true } | { done: true }>;
+  finishProviderAccount: (role: AccountRole) => Promise<void>;
+  beginTwoFactor: () => Promise<{ secret: string }>;
+  confirmTwoFactor: (code: string) => Promise<void>;
+  signup: (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }, foodSafetyAcknowledged?: boolean) => Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean; chooseMembership?: boolean; needsEmailConfirmation?: boolean; confirmationEmailSent?: boolean; metro?: string }>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<Pick<User, 'username' | 'email' | 'phone' | 'bio' | 'profileImage' | 'businessName'>>) => Promise<void>;
   requestPlatemakerRole: () => Promise<void>;
@@ -41,6 +48,33 @@ interface AuthState {
   reactivateAccount: (email: string, password: string) => Promise<void>;
   openKitchen: () => Promise<void>;
   setOrderingAsBuyer: (on: boolean) => Promise<void>;
+}
+
+async function pendingLegalAgreement() {
+  const stored = await readLegalAgreement();
+  const ready = await isLegalReadyForSignIn();
+  const agreement = chooseLegalForm({
+    signedIn: false,
+    createdAt: null,
+    account: null,
+    device: stored,
+    legalReady: ready,
+    today: todayStamp(),
+  }) === 'device'
+    ? toCompletedLegalAgreement(stored)
+    : null;
+  if (!agreement) return undefined;
+  return { ...agreement, acknowledgedAt: new Date().toISOString() };
+}
+
+async function keepDeviceCopy(stamped: NonNullable<Awaited<ReturnType<typeof pendingLegalAgreement>>> | undefined) {
+  if (!stamped) return;
+  try {
+    await writeLegalAgreement(stamped);
+    await clearLegalReadyForSignIn();
+  } catch (error) {
+    console.error('[Login] Could not save the Legal & Safety agreement on this device', error);
+  }
 }
 
 const STORAGE_KEY = 'auth_user_v2';
@@ -59,7 +93,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   const loginMutation = trpc.auth.login.useMutation();
   const holdProviderRef = useRef(false);
-  const signupMutation = trpc.auth.signup.useMutation();
+  const signupBusy = useRef(false);
   const logoutMutation = trpc.auth.logout.useMutation();
   const updateProfileMutation = trpc.auth.updateProfile.useMutation();
   const requestPlatemakerRoleMutation = trpc.auth.requestPlatemakerRole.useMutation();
@@ -67,6 +101,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const reactivateAccountMutation = trpc.auth.reactivateAccount.useMutation();
   const deleteAccountMutation = trpc.auth.deleteAccount.useMutation();
   const setAccountSecurityMutation = trpc.auth.setAccountSecurity.useMutation();
+  const finishProviderMutation = trpc.auth.finishProviderAccount.useMutation();
   const exportMyDataMutation = trpc.auth.exportMyData.useMutation();
   const { data: meData, error: meError, refetch: refetchMe } = trpc.auth.me.useQuery(undefined, {
     enabled: !!session,
@@ -118,8 +153,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   const loadUser = useCallback(async () => {
     // Phase 3: Auth Hydration - Only starts after Phase 4 (Navigation Ready) is complete.
-    // A stored session from the previous install is restored with a timeout so the
-    // launch cover cannot wait on the network.
+    // A stored session is restored to completion. Giving up early used to mark a
+    // PlateMaker or PlateTaker signed out before the session arrived.
     navLogger.stateChange('hooks/auth-context.tsx:LOAD_USER', 'auth_hydration_start', undefined, {
       platform: Platform.OS,
     });
@@ -132,53 +167,81 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       // 1. Bootstrap: Pull encrypted session from SecureStore (async operation)
       // CRITICAL: SecureStore is asynchronous - must await before proceeding
       // This prevents navigation tree from mounting until session is hydrated
-      [sessionStr, userStr] = await settleWithin(Promise.all([
+      [sessionStr, userStr] = await Promise.all([
         SecureStore.getItemAsync(SESSION_KEY).catch(() => null), // Gracefully handle if not found
         AsyncStorage.getItem(STORAGE_KEY), // User data can stay in AsyncStorage (less sensitive)
-      ]), SESSION_RESTORE_MS).catch(() => [null, null] as [string | null, string | null]);
+      ]);
 
       // 2. Restore session if found. A profile without a token is not signed in.
+      // The call is allowed to finish. A late answer is still this person's session.
       let sessionOk = false;
       if (sessionStr) {
+        let sessionData: Session | null = null;
         try {
-          const sessionData = JSON.parse(sessionStr) as Session;
-          if (sessionData.access_token) rememberAccessToken(sessionData.access_token);
-          const { data, error } = await settleWithin(supabase.auth.setSession({
-            access_token: sessionData.access_token,
-            refresh_token: sessionData.refresh_token,
-          }), SESSION_RESTORE_MS);
-
-          if (error || !data.session) {
-            rememberAccessToken(null);
-            // Session invalid - clean up corrupted state
-            await Promise.all([
-              SecureStore.deleteItemAsync(SESSION_KEY).catch(() => {}), // Graceful cleanup
-              AsyncStorage.removeItem(STORAGE_KEY),
-            ]);
-            navLogger.warn('hooks/auth-context.tsx:LOAD_USER', 'Session restore failed, cleared storage', undefined, {
-              error: error?.message,
-            });
-          } else {
-            // Session restored successfully
-            if (mountedRef.current) {
-              setSession(data.session);
-            }
-            sessionOk = true;
-            await persistSession(data.session);
-            navLogger.stateChange('hooks/auth-context.tsx:LOAD_USER', 'session_restored', undefined, {
-              userId: data.session.user?.id,
-            });
-          }
+          sessionData = JSON.parse(sessionStr) as Session;
         } catch (parseError) {
           rememberAccessToken(null);
-          // Corrupted session data - clean up
           await Promise.all([
-            SecureStore.deleteItemAsync(SESSION_KEY).catch(() => {}), // Graceful cleanup
+            SecureStore.deleteItemAsync(SESSION_KEY).catch(() => {}),
             AsyncStorage.removeItem(STORAGE_KEY),
           ]);
           navLogger.error('hooks/auth-context.tsx:LOAD_USER', 'Session restore did not finish', undefined, {
             error: parseError instanceof Error ? parseError.message : String(parseError),
           });
+        }
+        if (sessionData?.access_token && sessionData.refresh_token) {
+          rememberAccessToken(sessionData.access_token);
+          try {
+            const { data, error } = await supabase.auth.setSession({
+              access_token: sessionData.access_token,
+              refresh_token: sessionData.refresh_token,
+            });
+
+            if (error || !data.session) {
+              rememberAccessToken(null);
+              // Session invalid - clean up corrupted state
+              await Promise.all([
+                SecureStore.deleteItemAsync(SESSION_KEY).catch(() => {}), // Graceful cleanup
+                AsyncStorage.removeItem(STORAGE_KEY),
+              ]);
+              navLogger.warn('hooks/auth-context.tsx:LOAD_USER', 'Session restore failed, cleared storage', undefined, {
+                error: error?.message,
+              });
+            } else {
+              let secondFactorPending = false;
+              try {
+                const level = await supabase.auth.mfa?.getAuthenticatorAssuranceLevel?.();
+                secondFactorPending = level?.data?.nextLevel === 'aal2' && level.data.currentLevel !== 'aal2';
+              } catch {
+                secondFactorPending = false;
+              }
+              if (secondFactorPending) {
+                rememberAccessToken(null);
+                await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+                await Promise.all([
+                  SecureStore.deleteItemAsync(SESSION_KEY).catch(() => {}),
+                  AsyncStorage.removeItem(STORAGE_KEY),
+                ]);
+                navLogger.warn('hooks/auth-context.tsx:LOAD_USER', 'Stored session has not finished the authenticator', undefined, {
+                  userId: data.session.user?.id,
+                });
+              } else {
+                if (mountedRef.current) {
+                  setSession(data.session);
+                }
+                sessionOk = true;
+                await persistSession(data.session);
+                navLogger.stateChange('hooks/auth-context.tsx:LOAD_USER', 'session_restored', undefined, {
+                  userId: data.session.user?.id,
+                });
+              }
+            }
+          } catch (restoreError) {
+            // Keep the stored session. A failed network call is not a sign-out.
+            navLogger.error('hooks/auth-context.tsx:LOAD_USER', 'Session restore did not finish', undefined, {
+              error: restoreError instanceof Error ? restoreError.message : String(restoreError),
+            });
+          }
         }
       }
 
@@ -369,15 +432,28 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   useEffect(() => {
     if (!meError) return;
+    const message = meError instanceof Error ? meError.message : '';
+    if (message.includes(SECOND_FACTOR_MESSAGE)) {
+      rememberAccessToken(null);
+      settleWithin(supabase.auth.signOut({ scope: 'local' }), 2000).catch(() => undefined);
+      setUser(null);
+      setSession(null);
+      persistUser(null).catch(() => undefined);
+      persistSession(null).catch(() => undefined);
+      return;
+    }
     console.error('[auth.me] Failed:', meError);
     captureException(
       meError instanceof Error ? meError : new Error('auth.me failed'),
       { context: 'auth.me' },
     );
-  }, [meError]);
+  }, [meError, persistSession, persistUser]);
 
   useEffect(() => {
-    if (meData?.orderingRemoved && mountedRef.current) {
+    const legalMissing = Boolean(
+      meData && !accountAllowsSignIn(meData.legalSafetyAgreement, new Date(meData.createdAt)),
+    );
+    if ((meData?.orderingRemoved || legalMissing) && mountedRef.current) {
       rememberAccessToken(null);
       settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
       setUser(null);
@@ -413,19 +489,10 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     let isMounted = true;
 
     const performAudit = async () => {
+      if (!isMounted) return;
       try {
-        const result = await runHardwareAudit(user.id);
-        if (!isMounted) return;
-
-        if (!result.allowed) {
-          // Device mismatch for lifetime user - navigate to error screen
-          // Note: This router.replace is acceptable here since it's not during initial mount
-          // The RORK_INSTRUCTIONS.md pattern applies to app/index.tsx initial routing
-          console.warn('[HardwareAudit] Device mismatch detected, navigating to hardware-mismatch screen');
-          router.replace('/(auth)/hardware-mismatch');
-        }
+        await runHardwareAudit(user.id);
       } catch (error) {
-        // Fail open: don't block user access on audit errors
         console.error('[HardwareAudit] Error during audit:', error);
       }
     };
@@ -448,15 +515,18 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         }, 10000);
       });
 
-      const loginPromise = loginMutation.mutateAsync({ email, password, code });
+      const stamped = await pendingLegalAgreement();
+      const loginPromise = loginMutation.mutateAsync({ email, password, code, legalSafetyAgreement: stamped });
       const result = await Promise.race([loginPromise, timeoutPromise]);
       if (result.needsTwoFactor) {
-        return { needsTwoFactor: true as const, codeReused: result.codeReused === true };
+        return { needsTwoFactor: true as const };
       }
       const createdAt = new Date(result.user.createdAt);
       if (await applySignInLegal(createdAt, result.legalSafetyAgreement) === 'block') {
+        await settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
         throw new Error(LEGAL_SIGN_IN_MESSAGE);
       }
+      await keepDeviceCopy(stamped);
 
       rememberAccessToken(result.session.access_token);
       if (mountedRef.current) {
@@ -475,7 +545,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       addBreadcrumb('User logged in', 'auth', { userId: result.user.id, role: result.user.role });
       return { needsTwoFactor: false as const };
     } catch (error) {
-      if (error instanceof Error && error.message.includes('Complete the Legal & Safety page')) {
+      if (error instanceof Error && (error.message.includes('Complete the Legal & Safety page') || error.message.includes('could not be saved'))) {
         throw error;
       }
       captureException(error as Error, { context: 'login' });
@@ -487,120 +557,250 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     }
   }, [loginMutation, persistUser, persistSession]);
 
-  const loginWithProvider = useCallback(async (provider: 'apple' | 'google') => {
-    holdProviderRef.current = true;
+  const acceptProviderSession = useCallback(async (role: AccountRole | null, provider: 'apple' | 'google' | 'saved') => {
+    let stored: Awaited<ReturnType<typeof supabase.auth.getSession>>;
     try {
-      await requestProviderSession(provider);
-      let stored: Awaited<ReturnType<typeof supabase.auth.getSession>>;
-      try {
-        stored = await settleWithin(supabase.auth.getSession(), SESSION_RESTORE_MS);
-      } catch {
-        throw new Error('That sign-in did not finish.');
-      }
-      const nextSession = stored.data.session;
-      if (!nextSession?.user) {
-        throw new Error('That sign-in did not finish.');
-      }
-      const { data: profile, error: profileError } = await supabase
+      stored = await settleWithin(supabase.auth.getSession(), SESSION_RESTORE_MS);
+    } catch {
+      throw new Error('That sign-in did not finish.');
+    }
+    const nextSession = stored.data.session;
+    if (!nextSession?.user) {
+      throw new Error('That sign-in did not finish.');
+    }
+    const listedFactors = await supabase.auth.mfa.listFactors();
+    const assurance = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    const verifiedTotp = (listedFactors.data?.totp?.length ?? 0) > 0;
+    if (verifiedTotp && assurance.data?.currentLevel !== 'aal2') {
+      return { needsTwoFactor: true as const };
+    }
+    rememberAccessToken(nextSession.access_token);
+
+    const readProfile = async () => {
+      const loaded = await supabase
         .from('profiles')
         .select('id, username, business_name, email, role, is_admin, phone, bio, profile_image, created_at, is_paused, two_factor_enabled, ordering_removed, legal_safety_agreement')
         .eq('id', nextSession.user.id)
         .maybeSingle();
-      if (profileError) {
-        throw new Error('That sign-in could not be checked.');
-      }
-      const block = providerAccountBlock(profile ? {
-        role: profile.role,
-        is_paused: profile.is_paused,
-        ordering_removed: profile.ordering_removed,
-        email_confirmed_at: nextSession.user.email_confirmed_at,
-      } : null);
-      if (block || !profile) {
+      if (loaded.error) throw new Error('That sign-in could not be checked.');
+      return loaded.data;
+    };
+
+    let profile = await readProfile();
+    if (!profile) {
+      if (!role) return { needsRole: true as const };
+      await finishProviderMutation.mutateAsync({ role });
+      profile = await readProfile();
+    } else if (role === 'platemaker' && profile.role === 'platetaker') {
+      await finishProviderMutation.mutateAsync({ role });
+      profile = await readProfile();
+    }
+    const block = providerAccountBlock(profile ? {
+      role: profile.role,
+      is_paused: profile.is_paused,
+      ordering_removed: profile.ordering_removed,
+      email_confirmed_at: nextSession.user.email_confirmed_at,
+    } : null);
+    if (block || !profile) {
+      await settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
+      throw new Error(block || 'Choose Order a Plate or Start Cooking to finish this account.');
+    }
+    const signedInUser = {
+      id: profile.id,
+      username: profile.username,
+      businessName: typeof profile.business_name === 'string' ? profile.business_name : '',
+      email: profile.email,
+      role: profile.role as 'platemaker' | 'platetaker',
+      isAdmin: profile.is_admin || false,
+      phone: profile.phone,
+      bio: profile.bio,
+      profileImage: profile.profile_image,
+      createdAt: new Date(profile.created_at),
+      isPaused: profile.is_paused,
+      twoFactorEnabled: profile.two_factor_enabled,
+    };
+    if (await applySignInLegal(signedInUser.createdAt, profile.legal_safety_agreement) === 'block') {
+      await settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
+      throw new Error(LEGAL_SIGN_IN_MESSAGE);
+    }
+    const stamped = await pendingLegalAgreement();
+    let gateRecord: unknown = profile.legal_safety_agreement;
+    if (stamped) {
+      try {
+        await updateProfileMutation.mutateAsync({ legalSafetyAgreement: stamped });
+        gateRecord = stamped;
+        await keepDeviceCopy(stamped);
+      } catch {
+        rememberAccessToken(null);
         await settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
-        throw new Error(block || 'No account found. Create an account.');
+        throw new Error(LEGAL_SAVE_FAILED_MESSAGE);
       }
-      if (profile.two_factor_enabled) {
-        await settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
-        throw new Error('This account uses a sign-in code. Use email to sign in.');
-      }
-      const signedInUser = {
-        id: profile.id,
-        username: profile.username,
-        businessName: typeof profile.business_name === 'string' ? profile.business_name : '',
-        email: profile.email,
-        role: profile.role as 'platemaker' | 'platetaker',
-        isAdmin: profile.is_admin || false,
-        phone: profile.phone,
-        bio: profile.bio,
-        profileImage: profile.profile_image,
-        createdAt: new Date(profile.created_at),
-        isPaused: profile.is_paused,
-        twoFactorEnabled: profile.two_factor_enabled,
-      };
-      if (await applySignInLegal(signedInUser.createdAt, profile.legal_safety_agreement) === 'block') {
-        await settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
-        throw new Error(LEGAL_SIGN_IN_MESSAGE);
-      }
-      rememberAccessToken(nextSession.access_token);
-      if (mountedRef.current) {
-        setUser(signedInUser);
-        setSession(nextSession);
-      }
-      await persistUser(signedInUser);
-      await persistSession(nextSession);
-      setSentryUser(signedInUser);
-      addBreadcrumb('User logged in', 'auth', { userId: signedInUser.id, role: signedInUser.role, provider });
+    }
+    if (!accountAllowsSignIn(gateRecord, signedInUser.createdAt)) {
+      rememberAccessToken(null);
+      await settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
+      throw new Error(LEGAL_SIGN_IN_MESSAGE);
+    }
+    const latest = await supabase.auth.getSession();
+    const committed = latest.data.session ?? nextSession;
+    rememberAccessToken(committed.access_token);
+    if (mountedRef.current) {
+      setUser(signedInUser);
+      setSession(committed);
+    }
+    await persistUser(signedInUser);
+    await persistSession(committed);
+    setSentryUser(signedInUser);
+    addBreadcrumb('User logged in', 'auth', { userId: signedInUser.id, role: signedInUser.role, provider });
+    holdProviderRef.current = false;
+    return { done: true as const };
+  }, [finishProviderMutation, persistSession, persistUser, updateProfileMutation]);
+
+  const loginWithProvider = useCallback(async (provider: 'apple' | 'google', role?: AccountRole | null) => {
+    holdProviderRef.current = true;
+    try {
+      await requestProviderSession(provider);
+      const chosen = role ?? await AsyncStorage.getItem(PROVIDER_ROLE_STORAGE_KEY).then((value) => (
+        isAccountRole(value) ? value : null
+      )).catch(() => null);
+      return await acceptProviderSession(chosen, provider);
     } catch (error) {
       await settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
-      if (error instanceof Error && (error.message.includes('Complete the Legal & Safety page') || error.message === 'Sign-in was cancelled.')) {
+      holdProviderRef.current = false;
+      if (error instanceof Error && (error.message.includes('Complete the Legal & Safety page') || error.message.includes('could not be saved') || error.message === 'Sign-in was cancelled.')) {
         throw error;
       }
       captureException(error as Error, { context: 'provider-login', provider });
       throw error;
-    } finally {
-      setTimeout(() => {
-        holdProviderRef.current = false;
-      }, 300);
     }
-  }, [persistSession, persistUser]);
+  }, [acceptProviderSession]);
 
-  const signup = useCallback(async (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }, foodSafetyAcknowledged?: boolean): Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean; chooseMembership?: boolean; needsEmailConfirmation?: boolean; confirmationEmailSent?: boolean }> => {
+  const verifyProviderCode = useCallback(async (code: string) => {
+    holdProviderRef.current = true;
     try {
-      // Add timeout for stuck network requests (15 seconds for signup)
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => {
-          reject(new Error('Signup request timed out. Please check your connection and try again.'));
-        }, 15000);
-      });
+      const listed = await supabase.auth.mfa.listFactors();
+      const factorId = listed.data?.totp?.[0]?.id;
+      if (listed.error || !factorId) {
+        throw new Error('That authenticator is not on this account.');
+      }
+      const verified = await supabase.auth.mfa.challengeAndVerify({ factorId, code });
+      if (verified.error) {
+        throw new Error('That authenticator code does not match.');
+      }
+      const chosen = await AsyncStorage.getItem(PROVIDER_ROLE_STORAGE_KEY).then((value) => (
+        isAccountRole(value) ? value : null
+      )).catch(() => null);
+      const result = await acceptProviderSession(chosen, 'saved');
+      if ('needsTwoFactor' in result) {
+        throw new Error('That authenticator code does not match.');
+      }
+      if ('needsRole' in result) return { needsRole: true as const };
+      return { done: true as const };
+    } catch (error) {
+      if (error instanceof Error && (error.message.includes('Complete the Legal & Safety page') || error.message.includes('could not be saved'))) {
+        throw error;
+      }
+      captureException(error as Error, { context: 'provider-second-factor' });
+      throw error;
+    }
+  }, [acceptProviderSession]);
 
-      const signupPromise = signupMutation.mutateAsync({ 
-        username, 
-        email, 
+  const finishProviderAccount = useCallback(async (role: AccountRole) => {
+    holdProviderRef.current = true;
+    await AsyncStorage.setItem(PROVIDER_ROLE_STORAGE_KEY, role).catch(() => undefined);
+    try {
+      const result = await acceptProviderSession(role, 'saved');
+      if ('done' in result) return;
+      throw new Error('needsTwoFactor' in result
+        ? 'Enter the code from your authenticator app to finish signing in.'
+        : 'Choose Order a Plate or Start Cooking to finish this account.');
+    } catch (error) {
+      holdProviderRef.current = false;
+      captureException(error as Error, { context: 'finish-provider-account', role });
+      throw error;
+    }
+  }, [acceptProviderSession]);
+
+  const beginTwoFactor = useCallback(async () => {
+    if (!user) throw new Error('Sign in to update two-factor.');
+    const listed = await supabase.auth.mfa.listFactors();
+    if (listed.error) throw new Error('That authenticator could not be checked.');
+    for (const factor of listed.data?.all ?? []) {
+      if (factor.status === 'unverified') {
+        await supabase.auth.mfa.unenroll({ factorId: factor.id });
+      }
+    }
+    const enrolled = await supabase.auth.mfa.enroll({
+      factorType: 'totp',
+      issuer: 'HomeCookedPlate',
+      friendlyName: 'HomeCookedPlate',
+    });
+    if (enrolled.error || !enrolled.data?.totp?.secret) {
+      throw new Error(enrolled.error?.message || 'The authenticator could not be started.');
+    }
+    return { secret: enrolled.data.totp.secret };
+  }, [user]);
+
+  const confirmTwoFactor = useCallback(async (code: string) => {
+    if (!user) throw new Error('Sign in to update two-factor.');
+    const listed = await supabase.auth.mfa.listFactors();
+    const factor = (listed.data?.all ?? []).find((item) => item.factor_type === 'totp' && item.status === 'unverified');
+    if (listed.error || !factor) throw new Error('Start the authenticator again.');
+    const verified = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
+    if (verified.error) throw new Error('That authenticator code does not match.');
+    const next = await supabase.auth.getSession();
+    if (next.data.session) {
+      rememberAccessToken(next.data.session.access_token);
+      if (mountedRef.current) setSession(next.data.session);
+      await persistSession(next.data.session);
+    }
+    const result = await setAccountSecurityMutation.mutateAsync({ twoFactorEnabled: true });
+    if (!result.twoFactorEnabled) throw new Error('Two-factor was not saved on the server.');
+    const updated = { ...user, isPaused: result.isPaused, twoFactorEnabled: true };
+    if (mountedRef.current) setUser(updated);
+    await persistUser(updated);
+  }, [persistSession, persistUser, setAccountSecurityMutation, user]);
+
+  const signup = useCallback(async (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }, foodSafetyAcknowledged?: boolean): Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean; chooseMembership?: boolean; needsEmailConfirmation?: boolean; confirmationEmailSent?: boolean; metro?: string }> => {
+    if (signupBusy.current) {
+      throw new Error('Signup is already in progress.');
+    }
+    signupBusy.current = true;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    try {
+      const result = await trpcProxyClient.auth.signup.mutate({
+        username,
+        email,
         password,
         role,
         lat: location?.lat,
         lng: location?.lng,
         foodSafetyAcknowledged: foodSafetyAcknowledged || false,
-      });
+      }, { signal: controller.signal });
 
-      const result = await Promise.race([signupPromise, timeoutPromise]);
-      
       // A new signup has no session. The confirmation link is what allows sign-in.
       const chooseMembership = result.status === 'CHOOSE_MEMBERSHIP';
       const requiresCheckout = false;
       const needsEmailConfirmation = result.needsEmailConfirmation ?? false;
       const confirmationEmailSent = result.confirmationEmailSent !== false;
-      addBreadcrumb('User signed up (no session - needs login)', 'auth', { userId: result.user.id, role: result.user.role, status: result.status, metro: result.metro });
-      return { success: true, requiresLogin: true, requiresCheckout, chooseMembership, needsEmailConfirmation, confirmationEmailSent };
+      const metro = typeof result.metro === 'string' ? result.metro : 'Remote/Other';
+      addBreadcrumb('User signed up (no session - needs login)', 'auth', { userId: result.user.id, role: result.user.role, status: result.status, metro });
+      return { success: true, requiresLogin: true, requiresCheckout, chooseMembership, needsEmailConfirmation, confirmationEmailSent, metro };
     } catch (error) {
+      if (controller.signal.aborted) {
+        throw new Error('Signup request timed out. Please check your connection and try again.');
+      }
       captureException(error as Error, { context: 'signup', role });
-      // Re-throw with better error message for network issues
-      if (error instanceof Error && (error.message.includes('timeout') || error.message.includes('fetch'))) {
+      if (error instanceof Error && error.message.includes('fetch')) {
         throw new Error('Network error. Please check your connection and try again.');
       }
       throw error;
+    } finally {
+      clearTimeout(timeoutId);
+      signupBusy.current = false;
     }
-  }, [signupMutation]);
+  }, []);
 
   const logout = useCallback(async () => {
     rememberAccessToken(null);
@@ -706,6 +906,14 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   const setTwoFactorEnabled = useCallback(async (enabled: boolean) => {
     if (!user) throw new Error('Sign in to update two-factor.');
+    if (!enabled) {
+      const listed = await supabase.auth.mfa.listFactors();
+      if (listed.error) throw new Error('That authenticator could not be checked.');
+      for (const factor of listed.data?.all ?? []) {
+        const removed = await supabase.auth.mfa.unenroll({ factorId: factor.id });
+        if (removed.error) throw new Error(removed.error.message);
+      }
+    }
     const result = await setAccountSecurityMutation.mutateAsync({ twoFactorEnabled: enabled });
     if (result.twoFactorEnabled !== enabled) throw new Error('Two-factor was not saved on the server.');
     const updated = { ...user, isPaused: result.isPaused, twoFactorEnabled: result.twoFactorEnabled };
@@ -716,7 +924,9 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const changePassword = useCallback(async (current: string, newPassword: string) => {
     if (!user || !session || !user.email) return false;
     try {
-      const check = await supabase.auth.signInWithPassword({ email: user.email, password: current });
+      const checkClient = createMemoryAuthClient();
+      const check = await checkClient.auth.signInWithPassword({ email: user.email, password: current });
+      await checkClient.auth.signOut({ scope: 'local' }).catch(() => undefined);
       if (check.error || !check.data.session) return false;
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) {
@@ -763,8 +973,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         platform: Platform.OS === 'web' ? 'web' : 'mobile',
       });
       addBreadcrumb('Password reset requested', 'auth');
-      // The mutation always returns success for security (doesn't reveal if email exists)
-      // We can show the message to the user
       return;
     } catch (error) {
       captureException(error as Error, { context: 'resetPassword' });
@@ -819,6 +1027,10 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     isAuthenticated: !!visibleUser && !!session,
     login,
     loginWithProvider,
+    verifyProviderCode,
+    finishProviderAccount,
+    beginTwoFactor,
+    confirmTwoFactor,
     signup,
     logout,
     updateProfile,
@@ -833,7 +1045,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     reactivateAccount,
     openKitchen,
     setOrderingAsBuyer,
-  }), [visibleUser, session, isLoading, login, loginWithProvider, signup, logout, updateProfile, requestPlatemakerRole, pauseAccount, unpauseAccount, deleteAccount, setTwoFactorEnabled, changePassword, requestDataExport, resetPassword, reactivateAccount, openKitchen, setOrderingAsBuyer]);
+  }), [visibleUser, session, isLoading, login, loginWithProvider, verifyProviderCode, finishProviderAccount, beginTwoFactor, confirmTwoFactor, signup, logout, updateProfile, requestPlatemakerRole, pauseAccount, unpauseAccount, deleteAccount, setTwoFactorEnabled, changePassword, requestDataExport, resetPassword, reactivateAccount, openKitchen, setOrderingAsBuyer]);
 
 
   return authState;

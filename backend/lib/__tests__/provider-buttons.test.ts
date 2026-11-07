@@ -54,7 +54,7 @@ describe.each([1, 2, 3])('Apple and Google sign-in buttons, run %s', () => {
     expect(login).toContain('accessibilityLabel="Sign in with Google"');
     expect(login).toContain("onPress={() => handleProvider('Apple')}");
     expect(login).toContain("onPress={() => handleProvider('Google')}");
-    expect(login).toContain("loginWithProvider(provider === 'Apple' ? 'apple' : 'google')");
+    expect(login).toContain("loginWithProvider(provider === 'Apple' ? 'apple' : 'google', role)");
   });
 
   it('starts Apple and Google for the website and the phone', async () => {

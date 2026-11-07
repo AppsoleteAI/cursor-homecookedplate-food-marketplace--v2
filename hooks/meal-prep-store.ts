@@ -6,6 +6,7 @@ import { mergeById, prepOrdersFromSaved, sameOrders } from '@/lib/saved-shop-ord
 import type { PrepDiet, PrepLane } from '@/constants/meal-prep-go';
 import { evaluatePrepItem, type PrepKitchenRecord } from '@/lib/meal-prep-go';
 import { shareLaneListing, useSharedLaneListings } from '@/lib/lane-sync';
+import { checkoutQuantity } from '@/lib/fees';
 
 const STORAGE_KEY = 'meal_prep_go_v1';
 
@@ -120,15 +121,16 @@ export function setPrepQuantity(
   if (!Number.isInteger(quantity) || quantity < 0) {
     return { ok: false, reason: 'Enter a whole number of portions.' };
   }
+  const capped = quantity === 0 ? 0 : checkoutQuantity(quantity);
   const currentCook = state.items[0]?.cookId;
   if (quantity > 0 && currentCook && currentCook !== cookId) {
     return { ok: false, reason: 'A week comes from one cook. Clear the week before you add food from someone else.' };
   }
-  const items = quantity === 0
+  const items = capped === 0
     ? state.items.filter((item) => item.itemId !== itemId)
     : state.items.some((item) => item.itemId === itemId)
-      ? state.items.map((item) => (item.itemId === itemId ? { ...item, quantity } : item))
-      : [...state.items, { itemId, cookId, quantity }];
+      ? state.items.map((item) => (item.itemId === itemId ? { ...item, quantity: capped } : item))
+      : [...state.items, { itemId, cookId, quantity: capped }];
   state = { ...state, items };
   emit();
   return { ok: true };

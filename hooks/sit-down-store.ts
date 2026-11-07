@@ -6,6 +6,7 @@ import { mergeById, sameOrders, sitOrdersFromSaved } from '@/lib/saved-shop-orde
 import type { DiningService, SitDownLicense } from '@/lib/sit-down-license';
 import { evaluateSitDownItem } from '@/lib/sit-down-license';
 import { shareLaneListing, useSharedLaneListings } from '@/lib/lane-sync';
+import { checkoutQuantity } from '@/lib/fees';
 
 const STORAGE_KEY = 'sit_down_delicious_v1';
 
@@ -130,7 +131,7 @@ export function addSitItem(
 export function setSitQuantity(itemId: string, quantity: number) {
   const items = quantity <= 0
     ? state.items.filter((item) => item.itemId !== itemId)
-    : state.items.map((item) => (item.itemId === itemId ? { ...item, quantity } : item));
+    : state.items.map((item) => (item.itemId === itemId ? { ...item, quantity: checkoutQuantity(quantity) } : item));
   state = { ...state, items };
   emit();
 }

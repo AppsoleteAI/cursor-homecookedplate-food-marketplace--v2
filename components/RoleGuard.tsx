@@ -2,6 +2,7 @@ import React, { PropsWithChildren } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuth } from '@/hooks/auth-context';
+import { sellerScreenEntry } from '@/lib/role-entry';
 import { Colors } from '@/constants/colors';
 
 type GuardProps = PropsWithChildren;
@@ -16,30 +17,21 @@ function LoadingFallback() {
 
 export function useSellerGate() {
   const { isLoading, isAuthenticated, user } = useAuth();
-  if (isLoading) return <LoadingFallback />;
-  if (!isAuthenticated) return <Redirect href="/(auth)/login" />;
-  if (user?.role !== 'platemaker' && user?.isAdmin !== true) {
-    return <Redirect href="/(tabs)/(home)/home" />;
-  }
+  const entry = sellerScreenEntry({
+    loading: isLoading,
+    signedIn: isAuthenticated,
+    role: user?.role,
+    isAdmin: user?.isAdmin === true,
+  });
+  if (entry === 'wait') return <LoadingFallback />;
+  if (entry === 'sign-in') return <Redirect href="/(auth)/login" />;
+  if (entry === 'home') return <Redirect href="/(tabs)/(home)/home" />;
   return null;
 }
 
 export function SellerOnly({ children }: GuardProps) {
-  const { isLoading, isAuthenticated, user } = useAuth();
-
-  if (isLoading) return <LoadingFallback />;
-
-  if (!isAuthenticated) {
-    return <Redirect href="/(auth)/login" />;
-  }
-
-  const isSeller = user?.role === 'platemaker';
-  const isAdmin = user?.isAdmin === true;
-
-  if (!isSeller && !isAdmin) {
-    return <Redirect href="/(tabs)/(home)/home" />;
-  }
-
+  const gate = useSellerGate();
+  if (gate) return gate;
   return <>{children}</>;
 }
 

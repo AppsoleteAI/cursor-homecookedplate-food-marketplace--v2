@@ -1,5 +1,8 @@
 -- ============================================================================
 -- COMPLETE DATABASE SETUP - RUN THIS ENTIRE FILE IN ORDER
+-- Live orders use platetaker_id, platemaker_id, and total_price_cents.
+-- There is no buyer_id, seller_id, or paid column.
+-- A new order row must have no payment intent and status pending.
 -- ============================================================================
 -- This file consolidates all SQL scripts in the correct execution order
 -- Run this in your Supabase SQL Editor
@@ -64,20 +67,17 @@ CREATE TABLE IF NOT EXISTS public.meals (
 CREATE TABLE IF NOT EXISTS public.orders (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   meal_id uuid REFERENCES public.meals(id) ON DELETE CASCADE NOT NULL,
-  buyer_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-  seller_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  platetaker_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  platemaker_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
   status text NOT NULL CHECK (status IN ('pending', 'accepted', 'preparing', 'ready', 'completed', 'cancelled')) DEFAULT 'pending',
   quantity integer NOT NULL CHECK (quantity > 0 AND quantity <= 999),
-  total_price numeric(10,2) NOT NULL CHECK (total_price >= 0 AND total_price <= 999999999.99),
-  paid boolean DEFAULT false,
+  total_price_cents integer NOT NULL CHECK (total_price_cents >= 0),
   payment_intent_id text,
-  special_instructions text,
-  cooking_temperature text,
-  allergies text[] DEFAULT '{}',
-  delivery_address text,
+  instructions_status text,
   pickup_time timestamptz,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  pickup_timezone text,
+  estimated_completion_time timestamptz,
+  created_at timestamptz DEFAULT now()
 );
 
 -- Reviews table
@@ -177,13 +177,24 @@ CREATE INDEX IF NOT EXISTS idx_meals_cuisine ON public.meals(cuisine);
 CREATE INDEX IF NOT EXISTS idx_meals_category ON public.meals(category);
 CREATE INDEX IF NOT EXISTS idx_meals_available ON public.meals(available);
 CREATE INDEX IF NOT EXISTS idx_meals_featured ON public.meals(featured);
-CREATE INDEX IF NOT EXISTS idx_orders_buyer_id ON public.orders(buyer_id);
-CREATE INDEX IF NOT EXISTS idx_orders_seller_id ON public.orders(seller_id);
+CREATE INDEX IF NOT EXISTS idx_orders_platetaker_id ON public.orders(platetaker_id);
+CREATE INDEX IF NOT EXISTS idx_orders_platemaker_id ON public.orders(platemaker_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON public.orders(created_at);
 CREATE INDEX IF NOT EXISTS idx_reviews_meal_id ON public.reviews(meal_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_author_id ON public.reviews(author_id);
-CREATE INDEX IF NOT EXISTS idx_reviews_order_id ON public.reviews(order_id);
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'reviews'
+      AND column_name = 'order_id'
+  ) THEN
+    CREATE INDEX IF NOT EXISTS idx_reviews_order_id ON public.reviews(order_id);
+  END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS idx_order_messages_order_id ON public.order_messages(order_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_read ON public.notifications(read);
@@ -219,7 +230,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to automatically create profile when user signs up
+-- Function to automatically create profile when user signs up.
+-- A provider sign-in with no role waits for Order a Plate or Start Cooking.
+-- A taken username gets a suffix instead of leaving the auth user without a profile.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -228,26 +241,50 @@ SET search_path = public
 AS $$
 DECLARE
   chosen_role text;
+  base_name text;
+  candidate text;
+  suffix integer := 0;
 BEGIN
-  chosen_role := COALESCE(NEW.raw_user_meta_data->>'role', 'platetaker');
-  IF chosen_role NOT IN ('platemaker', 'platetaker') THEN
-    chosen_role := 'platetaker';
+  chosen_role := NULLIF(NEW.raw_user_meta_data->>'role', '');
+  IF chosen_role IS NULL OR chosen_role NOT IN ('platemaker', 'platetaker') THEN
+    RETURN NEW;
   END IF;
 
-  INSERT INTO public.profiles (id, username, email, role, is_admin)
-  VALUES (
-    NEW.id,
-    COALESCE(NULLIF(NEW.raw_user_meta_data->>'username', ''), SPLIT_PART(COALESCE(NEW.email, 'member'), '@', 1)),
-    COALESCE(NEW.email, NEW.id::text || '@users.local'),
-    chosen_role,
-    false
-  )
-  ON CONFLICT (id) DO NOTHING;
-  RETURN NEW;
-EXCEPTION
-  WHEN OTHERS THEN
-    RAISE LOG 'handle_new_user failed for %: %', NEW.id, SQLERRM;
-    RETURN NEW;
+  base_name := COALESCE(NULLIF(NEW.raw_user_meta_data->>'username', ''), SPLIT_PART(COALESCE(NEW.email, 'member'), '@', 1));
+  base_name := lower(regexp_replace(base_name, '[^a-zA-Z0-9_]', '', 'g'));
+  IF length(base_name) < 3 THEN
+    base_name := 'member' || left(replace(NEW.id::text, '-', ''), 6);
+  END IF;
+  base_name := left(base_name, 24);
+  candidate := base_name;
+
+  LOOP
+    BEGIN
+      INSERT INTO public.profiles (id, username, email, role, is_admin)
+      VALUES (
+        NEW.id,
+        candidate,
+        COALESCE(NEW.email, NEW.id::text || '@users.local'),
+        chosen_role,
+        false
+      )
+      ON CONFLICT (id) DO NOTHING;
+      RETURN NEW;
+    EXCEPTION
+      WHEN unique_violation THEN
+        IF SQLERRM ILIKE '%username%' AND suffix < 30 THEN
+          suffix := suffix + 1;
+          IF suffix = 30 THEN
+            candidate := left(base_name, 12) || left(replace(NEW.id::text, '-', ''), 8);
+          ELSE
+            candidate := left(base_name, 20) || suffix::text;
+          END IF;
+        ELSE
+          RAISE LOG 'handle_new_user left % without a profile: %', NEW.id, SQLERRM;
+          RETURN NEW;
+        END IF;
+    END;
+  END LOOP;
 END;
 $$;
 
@@ -328,7 +365,7 @@ BEGIN
     RAISE EXCEPTION 'This offer takes the price to zero. Use a smaller discount.';
   END IF;
 
-  new.total_price := charged;
+  new.total_price_cents := round(charged * 100)::integer;
 
   RETURN new;
 END;
@@ -386,6 +423,7 @@ DROP TRIGGER IF EXISTS set_updated_at_profiles ON public.profiles;
 DROP TRIGGER IF EXISTS set_updated_at_meals ON public.meals;
 DROP TRIGGER IF EXISTS set_updated_at_orders ON public.orders;
 DROP TRIGGER IF EXISTS set_updated_at_reviews ON public.reviews;
+-- Live orders has no updated_at column. Do not attach that trigger.
 DROP TRIGGER IF EXISTS update_meal_rating_on_review ON public.reviews;
 
 -- Create updated_at triggers
@@ -396,11 +434,6 @@ CREATE TRIGGER set_updated_at_profiles
 
 CREATE TRIGGER set_updated_at_meals
   BEFORE UPDATE ON public.meals
-  FOR EACH ROW
-  EXECUTE FUNCTION public.handle_updated_at();
-
-CREATE TRIGGER set_updated_at_orders
-  BEFORE UPDATE ON public.orders
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_updated_at();
 
@@ -546,28 +579,30 @@ USING (
 CREATE POLICY "select_orders_buyer_or_seller_or_admin" ON public.orders 
 FOR SELECT 
 USING (
-  buyer_id = auth.uid() 
-  OR seller_id = auth.uid()
+  platetaker_id = auth.uid() 
+  OR platemaker_id = auth.uid()
   OR public.is_admin() = true
 );
 
 CREATE POLICY "insert_order_buyer" ON public.orders 
 FOR INSERT 
 WITH CHECK (
-  buyer_id = auth.uid()
+  platetaker_id = auth.uid()
+  AND payment_intent_id IS NULL
+  AND status = 'pending'
   AND (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'platetaker'
 );
 
 CREATE POLICY "update_order_buyer_or_seller_or_admin" ON public.orders 
 FOR UPDATE 
 USING (
-  buyer_id = auth.uid() 
-  OR seller_id = auth.uid()
+  platetaker_id = auth.uid() 
+  OR platemaker_id = auth.uid()
   OR public.is_admin() = true
 )
 WITH CHECK (
-  buyer_id = auth.uid() 
-  OR seller_id = auth.uid()
+  platetaker_id = auth.uid() 
+  OR platemaker_id = auth.uid()
   OR public.is_admin() = true
 );
 
@@ -587,14 +622,9 @@ WITH CHECK (
   author_id = auth.uid()
   AND EXISTS (
     SELECT 1 FROM public.orders o
-    WHERE o.id = reviews.order_id
-      AND o.meal_id = reviews.meal_id
-      AND o.buyer_id = auth.uid()
+    WHERE o.meal_id = reviews.meal_id
+      AND o.platetaker_id = auth.uid()
       AND o.status = 'completed'
-  )
-  AND NOT EXISTS (
-    SELECT 1 FROM public.reviews r
-    WHERE r.order_id = reviews.order_id
   )
 );
 
@@ -623,7 +653,7 @@ USING (
   EXISTS (
     SELECT 1 FROM public.orders o
     WHERE o.id = order_messages.order_id
-      AND (o.buyer_id = auth.uid() OR o.seller_id = auth.uid())
+      AND (o.platetaker_id = auth.uid() OR o.platemaker_id = auth.uid())
   )
 );
 
@@ -634,7 +664,7 @@ WITH CHECK (
   AND EXISTS (
     SELECT 1 FROM public.orders o
     WHERE o.id = order_messages.order_id
-      AND (o.buyer_id = auth.uid() OR o.seller_id = auth.uid())
+      AND (o.platetaker_id = auth.uid() OR o.platemaker_id = auth.uid())
   )
 );
 

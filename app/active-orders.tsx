@@ -151,13 +151,13 @@ export default function ActiveOrdersModal() {
 
   // CRITICAL SECURITY: Defensive check
   if (user?.role !== 'platemaker') {
-    return null;
+    return <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />;
   }
 
   return (
     <SellerOnly>
       <View style={styles.container}>
-        <Stack.Screen options={{ headerShown: false }} />
+        <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
         <LinearGradient
           colors={monoGradients.green}
           start={{ x: 0, y: 0 }}

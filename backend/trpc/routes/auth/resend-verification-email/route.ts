@@ -1,20 +1,22 @@
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
-import { TRPCError } from "@trpc/server";
 import { randomBytes } from "node:crypto";
 import { sendEmailConfirmation } from "@/backend/lib/email";
+import { confirmationExpiresAt, RESEND_CONFIRMATION_MESSAGE } from "../../../../lib/email-confirmation";
 
 /**
  * Resend Email Verification Procedure
- * 
- * Allows users to request a new email confirmation link if they didn't receive
- * the original email or if the token expired.
- * 
- * CRITICAL: Supabase emails are rate-limited and not suitable for production.
- * This endpoint uses Resend (production email service) for reliable delivery.
- * 
- * Security: Only allows resending to existing unverified users to prevent email enumeration.
+ *
+ * Every address gets the same success sentence. A confirmed address, an unknown
+ * address, and a send that did not go out are not distinguishable.
+ * Each request stores a new link that lasts 24 hours from this request.
+ * An older unused link is expired so it is not sent again.
  */
+const sent = {
+  success: true as const,
+  message: RESEND_CONFIRMATION_MESSAGE,
+};
+
 export const resendVerificationEmailProcedure = publicProcedure
   .input(
     z.object({
@@ -23,10 +25,6 @@ export const resendVerificationEmailProcedure = publicProcedure
   )
   .mutation(async ({ input, ctx }) => {
     const email = input.email.trim().toLowerCase();
-    const sent = {
-      success: true,
-      message: 'If an account exists with this email, a new verification link has been sent.',
-    };
 
     const { data: profileRows, error: profileError } = await ctx.supabaseAdmin
       .from('profiles')
@@ -34,107 +32,54 @@ export const resendVerificationEmailProcedure = publicProcedure
       .ilike('email', email)
       .limit(1);
 
-    if (profileError) {
-      throw new TRPCError({
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'Failed to lookup user',
-      });
-    }
-
-    const profile = profileRows?.[0];
-    if (!profile) {
+    if (profileError || !profileRows?.[0]) {
+      if (profileError) console.error('[Resend Verification] The account could not be looked up');
       return sent;
     }
 
+    const profile = profileRows[0];
     const { data: authData, error: authError } = await ctx.supabaseAdmin.auth.admin.getUserById(profile.id);
-    if (authError || !authData.user) {
+    if (authError || !authData.user || authData.user.email_confirmed_at) {
       return sent;
-    }
-
-    if (authData.user.email_confirmed_at) {
-      return {
-        success: true,
-        alreadyConfirmed: true,
-        message: 'This address is already confirmed. You can sign in.',
-      };
     }
 
     const user = authData.user;
-
     const webUrl = ctx.webUrl || process.env.EXPO_PUBLIC_WEB_URL || 'https://homecookedplate.com';
-
-    // An unused token can exist when the first send failed. Send that same link again.
-    const { data: existingTokens } = await ctx.supabaseAdmin
-      .from('email_verification_tokens')
-      .select('token')
-      .eq('user_id', user.id)
-      .is('used_at', null)
-      .gt('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1);
-
     const username = profile.username || email.split('@')[0];
     const deliveryEmail = (profile.email || email).trim().toLowerCase();
-
-    if (existingTokens && existingTokens.length > 0 && existingTokens[0]?.token) {
-      try {
-        await sendEmailConfirmation(deliveryEmail, username, existingTokens[0].token, webUrl);
-      } catch (emailError) {
-        console.error('[Resend Verification] Failed to send the saved link:', emailError);
-        throw new TRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'Failed to send verification email. Please try again later.',
-        });
-      }
-      return {
-        success: true,
-        message: 'A confirmation link was sent. Open it within 24 hours.',
-      };
-    }
-
-    // Generate new secure token
     const confirmationToken = randomBytes(32).toString('hex');
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 24); // 24 hour expiry
+    const expiresAt = confirmationExpiresAt();
 
-    // Store new token in database
     const { error: tokenError } = await ctx.supabaseAdmin
       .from('email_verification_tokens')
       .insert({
         user_id: user.id,
         token: confirmationToken,
         email: deliveryEmail,
-        expires_at: expiresAt.toISOString(),
+        expires_at: expiresAt,
       });
 
     if (tokenError) {
-      console.error('[Resend Verification] Failed to store token:', tokenError);
-      throw new TRPCError({
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'Failed to generate verification token. Please try again.',
-      });
+      console.error('[Resend Verification] The new link could not be stored');
+      return sent;
     }
 
-    // Send confirmation email via Resend
+    const retired = await ctx.supabaseAdmin
+      .from('email_verification_tokens')
+      .update({ expires_at: new Date(0).toISOString() })
+      .eq('user_id', user.id)
+      .is('used_at', null)
+      .neq('token', confirmationToken);
+    if (retired.error) {
+      console.error('[Resend Verification] An older link could not be expired');
+    }
+
     try {
-      await sendEmailConfirmation(
-        deliveryEmail,
-        username,
-        confirmationToken,
-        webUrl
-      );
-      console.log(`[Resend Verification] Email sent to ${deliveryEmail}`);
-    } catch (emailError) {
-      console.error('[Resend Verification] Failed to send email:', emailError);
-      throw new TRPCError({
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'Failed to send verification email. Please try again later.',
-      });
+      await sendEmailConfirmation(deliveryEmail, username, confirmationToken, webUrl);
+    } catch {
+      console.error('[Resend Verification] The link was not sent');
+      return sent;
     }
 
-    // Always return success to prevent email enumeration
-    return {
-      success: true,
-      message: 'If an account exists with this email, a new verification link has been sent.',
-    };
+    return sent;
   });

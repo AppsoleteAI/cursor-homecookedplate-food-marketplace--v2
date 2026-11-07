@@ -7,7 +7,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Modal,
   Switch,
   ActivityIndicator,
   Pressable,
@@ -31,8 +30,6 @@ import { ResendConfirmation } from '@/components/auth/ResendConfirmation';
 export default function SignupScreen() {
   const params = useLocalSearchParams<{ role?: string | string[] }>();
   const roleParam = typeof params.role === 'string' ? params.role : undefined;
-  // Local UI state (not part of form logic)
-  const [showSuccessModal] = useState(false);
   const [confirmationSent, setConfirmationSent] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -44,6 +41,7 @@ export default function SignupScreen() {
     isUsernameAvailable,
     isCheckingUsername,
     usernameError,
+    usernameNotReady,
     passwordScore,
     isMembershipEnabled,
     handleToggleMembership,
@@ -53,6 +51,7 @@ export default function SignupScreen() {
     handleSignup,
     isLoading: loading,
     isSigningUp,
+    signupMetro,
     error,
     retryCount,
   } = useSignupForm({
@@ -95,6 +94,13 @@ export default function SignupScreen() {
               {confirmationSent
                 ? `A confirmation email was sent to ${email}. Open the link within 24 hours. It returns you to HomeCookedPlate on the web or in the app. Confirm it before you sign in.`
                 : `The account was created for ${email}. The confirmation email was not sent. Send the link below. It lasts 24 hours. Open it before you sign in.`}
+            </Text>
+            <Text style={styles.successText}>
+              {formData.role === 'platemaker'
+                ? signupMetro && signupMetro !== 'Remote/Other'
+                  ? `Choose Early Bird or a membership before the kitchen opens in ${signupMetro}. Early Bird does not charge a card.`
+                  : 'This account is Remote until Get GPS. You get 120 days at no charge, then a monthly or yearly plan. Plates are shown only to buyers within 20 miles of your kitchen.'
+                : `The app is free. Premium is optional: $${SUBSCRIPTION_PRICES.PLATETAKER_MONTHLY.toFixed(2)} a month or $${SUBSCRIPTION_PRICES.PLATETAKER_ANNUAL.toFixed(2)} a year.`}
             </Text>
             <ResendConfirmation email={email} />
             <GlassPressable
@@ -395,8 +401,8 @@ export default function SignupScreen() {
                   !agreedToTerms || 
                   !foodSafetyAcknowledged || 
                   loading || 
-                  passwordScore < 5 || 
-                  isUsernameAvailable === false
+                  passwordScore < 5 ||
+                  usernameNotReady
                 }
                 style={styles.signupButton}
               />
@@ -404,24 +410,6 @@ export default function SignupScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
-
-      <Modal
-        visible={showSuccessModal}
-        transparent
-        animationType="fade"
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.successIconContainer}>
-              <Ionicons name="checkmark-circle" size={64} color={AuthColors.maroon} />
-            </View>
-            <Text style={styles.modalTitle}>Successfully Signed Up!</Text>
-            <Text style={styles.modalMessage}>
-              Welcome to HOMECOOKEDPLATE! A confirmation email has been sent to {email} with instructions on how to get started.
-            </Text>
-          </View>
-        </View>
-      </Modal>
     </View>
     </AuthBackground>
   );
@@ -635,37 +623,6 @@ const styles = StyleSheet.create({
   },
   signupButton: {
     marginTop: 8,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  modalContent: {
-    backgroundColor: 'transparent',
-    borderRadius: 20,
-    padding: 32,
-    alignItems: 'center',
-    width: '100%',
-    maxWidth: 400,
-  },
-  successIconContainer: {
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: AuthColors.ink,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  modalMessage: {
-    fontSize: 16,
-    color: AuthColors.ink,
-    textAlign: 'center',
-    lineHeight: 24,
   },
   successContainer: {
     flex: 1,

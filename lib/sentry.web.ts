@@ -42,6 +42,10 @@ function start(options?: { dsn?: string; tracesSampleRate?: number; debug?: bool
 export function captureException(error: Error, context?: Record<string, any>) {
   if (!dsn()) return;
   start();
+  if (context?.tags) {
+    SentryBrowser.captureException(error, { extra: context.extra, tags: context.tags });
+    return;
+  }
   SentryBrowser.captureException(error, { extra: context });
 }
 

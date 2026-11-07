@@ -58,6 +58,8 @@ export default function OnboardingScreen() {
     isUsernameAvailable,
     isCheckingUsername,
     usernameError,
+    usernameNotReady,
+    confirmUsername,
     passwordScore,
     handleSignup,
     isLoading,
@@ -65,6 +67,7 @@ export default function OnboardingScreen() {
     error,
     retryCount,
     confirmationEmailSent,
+    signupMetro,
   } = useSignupForm({
     initialRole: isRole(roleParam) ? roleParam : undefined,
   });
@@ -160,7 +163,7 @@ export default function OnboardingScreen() {
     setStep(1);
   };
 
-  const continueFromAccount = () => {
+  const continueFromAccount = async () => {
     const cleanEmail = email.trim().toLowerCase();
     if (!username || !email || !password || !confirmPassword) {
       setPageError('Fill in your username, email, and password.');
@@ -178,8 +181,9 @@ export default function OnboardingScreen() {
       setPageError('Password still needs every requirement below.');
       return;
     }
-    if (isUsernameAvailable === false) {
-      setPageError('Choose a different username.');
+    const usernameMessage = await confirmUsername();
+    if (usernameMessage) {
+      setPageError(usernameMessage);
       return;
     }
     setPageError(null);
@@ -203,11 +207,11 @@ export default function OnboardingScreen() {
             <Text style={styles.successText}>{mailLine}</Text>
             <Text style={styles.successText}>
               {maker
-                ? !userLocation
-                  ? 'No location was saved. This account is Remote until Get GPS. You get 120 days at no charge, then a monthly or yearly plan. Plates are shown only to buyers within 20 miles of your kitchen.'
-                  : metroStatus === 'outside'
-                    ? 'You are outside every metro. This account is Remote. You get 120 days at no charge, then a monthly or yearly plan. Plates are shown only to buyers within 20 miles of your kitchen.'
-                    : 'Choose Early Bird or a membership before the kitchen opens. Early Bird does not charge a card.'
+                ? signupMetro && signupMetro !== 'Remote/Other'
+                  ? `Choose Early Bird or a membership before the kitchen opens in ${signupMetro}. Early Bird does not charge a card.`
+                  : !userLocation
+                    ? 'No location was saved. This account is Remote until Get GPS. You get 120 days at no charge, then a monthly or yearly plan. Plates are shown only to buyers within 20 miles of your kitchen.'
+                    : 'You are outside every metro. This account is Remote. You get 120 days at no charge, then a monthly or yearly plan. Plates are shown only to buyers within 20 miles of your kitchen.'
                 : `The app is free. Premium is optional: $${takerMonthly} a month or $${takerYearly} a year. It cuts the service fee from 10% to 5% on orders of $20 or more.`}
             </Text>
             <ResendConfirmation email={email} />
@@ -495,7 +499,7 @@ export default function OnboardingScreen() {
                     title="Create account"
                     onPress={() => handleSignup(false)}
                     loading={isLoading}
-                    disabled={!agreedToTerms || !foodSafetyAcknowledged || passwordScore < 5 || isUsernameAvailable === false}
+                    disabled={!agreedToTerms || !foodSafetyAcknowledged || passwordScore < 5 || usernameNotReady || isLoading}
                     testID="onboarding-create"
                     style={styles.action}
                   />

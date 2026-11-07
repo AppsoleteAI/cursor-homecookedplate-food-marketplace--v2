@@ -4,23 +4,19 @@ import { TRPCError } from "@trpc/server";
 import { missingBuyerColumn, orderBuyerId } from "../../../../lib/order-row";
 import { auditTextField } from "../../../../lib/text-audit";
 import { missingColumn, notifyModerators } from "../../../../lib/content-moderation";
+import { paidContactDecision } from "@/lib/order-contact";
 
 export const sendMessageProcedure = protectedProcedure
   .input(
     z.object({
       orderId: z.string().uuid(),
-      text: z.string().min(1).max(1000),
+      text: z.string().max(1000).default(''),
+      etaMinutes: z.number().int().min(5).max(240).optional(),
     })
   )
   .mutation(async ({ ctx, input }) => {
     const { orderId } = input;
     const userId = ctx.userId;
-    const scanned = await auditTextField(ctx.supabaseAdmin, userId, 'order_message', input.text);
-    if (scanned.blocked || !scanned.value.trim()) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'That message cannot be sent.' });
-    }
-    const text = scanned.value;
-
     const { data: profile } = await ctx.supabase
       .from("profiles")
       .select("role")
@@ -35,7 +31,6 @@ export const sendMessageProcedure = protectedProcedure
     }
 
     const userRole = profile.role as "platemaker" | "platetaker";
-
     const order = await loadOrderParty(ctx.supabaseAdmin, orderId);
 
     if (!order) {
@@ -52,6 +47,25 @@ export const sendMessageProcedure = protectedProcedure
         message: "You are not part of this order conversation",
       });
     }
+
+    const decision = paidContactDecision({
+      paid: order.paid === true,
+      role: userRole,
+      etaMinutes: input.etaMinutes,
+      text: input.text,
+    });
+    if (!decision.ok) {
+      throw new TRPCError({
+        code: decision.message.startsWith('Choose') || decision.message.startsWith('That message') ? 'BAD_REQUEST' : 'FORBIDDEN',
+        message: decision.message,
+      });
+    }
+
+    const scanned = await auditTextField(ctx.supabaseAdmin, userId, 'order_message', decision.text);
+    if (scanned.blocked || !scanned.value.trim()) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'That message cannot be sent.' });
+    }
+    const text = scanned.value;
 
     const insertMessage = (held: boolean) => ctx.supabase
       .from("order_messages")
@@ -97,9 +111,9 @@ export const sendMessageProcedure = protectedProcedure
   });
 
 async function loadOrderParty(admin: { from: (table: string) => any }, orderId: string) {
-  let result = await admin.from('orders').select('id, buyer_id, seller_id').eq('id', orderId).maybeSingle();
+  let result = await admin.from('orders').select('id, buyer_id, seller_id, paid').eq('id', orderId).maybeSingle();
   if (result.error && missingBuyerColumn(result.error.message)) {
-    result = await admin.from('orders').select('id, platetaker_id, seller_id').eq('id', orderId).maybeSingle();
+    result = await admin.from('orders').select('id, platetaker_id, seller_id, paid').eq('id', orderId).maybeSingle();
   }
   if (result.error) return null;
   return result.data;

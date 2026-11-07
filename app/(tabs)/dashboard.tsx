@@ -44,7 +44,7 @@ export default function DashboardScreen() {
   const [headerHeight, setHeaderHeight] = useState<number>(inAppHeaderBand.minHeight);
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
-  const { activeOrdersCount, todayEarnings, weekEarnings, totalReviews, orders, refresh } = useOrders();
+  const { activeOrdersCount, todayEarnings, weekEarnings, totalReviews, orders, refresh, loadError } = useOrders();
   const { user } = useAuth();
 
   // CRITICAL SECURITY: Only call backend procedure if user is platemaker
@@ -207,7 +207,7 @@ export default function DashboardScreen() {
           </View>
           <Text style={styles.availabilitySubtext}>
             {availabilityStatus.isError
-              ? 'Availability could not be loaded. The switch stays off until this check finishes.'
+              ? (availabilityStatus.error?.message || 'Availability could not be loaded. The switch stays off until this check finishes.')
               : !availabilityKnown
                 ? 'Checking whether you are accepting orders.'
                 : acceptingOrders
@@ -215,6 +215,10 @@ export default function DashboardScreen() {
                   : 'New orders will be blocked until you toggle this back on'}
           </Text>
         </View>
+
+        {loadError ? (
+          <Text testID="kitchen-load-error" style={styles.availabilitySubtext}>{loadError}</Text>
+        ) : null}
 
         <GetGpsCard />
 

@@ -1,8 +1,4 @@
 import { createTRPCRouter } from "./create-context";
-import hiRoute from "./routes/example/hi/route";
-import { supabaseTestProcedure } from "./routes/supabase-test/route";
-import { healthCheckProcedure } from "./routes/health/route";
-import { dbHealthProcedure } from "./routes/system/db-health/route";
 import { signupProcedure } from "./routes/auth/signup/route";
 import { checkEligibilityProcedure } from "./routes/auth/check-eligibility/route";
 import { checkUsernameProcedure } from "./routes/auth/check-username/route";
@@ -27,6 +23,7 @@ import { updateOrderStatusProcedure } from "./routes/orders/update-status/route"
 import { abandonUnpaidOrdersProcedure } from "./routes/orders/abandon-unpaid/route";
 import { blockCookProcedure } from "./routes/orders/block-cook/route";
 import { updatePaymentIntentProcedure } from "./routes/orders/update-payment-intent/route";
+import { finalReceiptProcedure } from "./routes/orders/final-receipt/route";
 import { createReviewProcedure } from "./routes/reviews/create/route";
 import { listReviewsProcedure } from "./routes/reviews/list/route";
 import { deleteReviewCommentProcedure } from "./routes/reviews/delete-comment/route";
@@ -74,6 +71,7 @@ import { getMetroAvailabilityProcedure } from "./routes/metro/get-availability/r
 import { hardwareAuditProcedure } from "./routes/auth/hardware-audit/route";
 import { deleteAccountProcedure } from "./routes/auth/delete-account/route";
 import { setAccountSecurityProcedure } from "./routes/auth/set-account-security/route";
+import { finishProviderAccountProcedure } from "./routes/auth/finish-provider-account/route";
 import { exportMyDataProcedure } from "./routes/auth/export-data/route";
 import { setNotificationPrefsProcedure } from "./routes/auth/set-notification-prefs/route";
 import { unpublishMealProcedure } from "./routes/meals/unpublish/route";
@@ -98,18 +96,6 @@ import { decideModerationProcedure, listModerationQueueProcedure, rescanStoredTe
 import { listNotificationsProcedure } from "./routes/notifications/list/route";
 
 export const appRouter = createTRPCRouter({
-  example: createTRPCRouter({
-    hi: hiRoute,
-  }),
-  supabase: createTRPCRouter({
-    test: supabaseTestProcedure,
-  }),
-  health: createTRPCRouter({
-    check: healthCheckProcedure,
-  }),
-  system: createTRPCRouter({
-    dbHealth: dbHealthProcedure,
-  }),
   auth: createTRPCRouter({
     signup: signupProcedure,
     login: loginProcedure,
@@ -124,6 +110,7 @@ export const appRouter = createTRPCRouter({
     hardwareAudit: hardwareAuditProcedure,
     deleteAccount: deleteAccountProcedure,
     setAccountSecurity: setAccountSecurityProcedure,
+    finishProviderAccount: finishProviderAccountProcedure,
     exportMyData: exportMyDataProcedure,
     setNotificationPrefs: setNotificationPrefsProcedure,
     verifyEmail: verifyEmailProcedure,
@@ -146,6 +133,7 @@ export const appRouter = createTRPCRouter({
     abandonUnpaid: abandonUnpaidOrdersProcedure,
     blockCook: blockCookProcedure,
     updatePaymentIntent: updatePaymentIntentProcedure,
+    finalReceipt: finalReceiptProcedure,
   }),
   reviews: createTRPCRouter({
     create: createReviewProcedure,

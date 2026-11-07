@@ -1,6 +1,8 @@
 import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { notifyParty, ORDER_STEP_NOTICES } from "../../../../lib/account-notice";
+import { orderBuyerId } from "../../../../lib/order-row";
 
 /**
  * Mark Order as Ready Procedure
@@ -18,7 +20,7 @@ export const markAsReadyProcedure = protectedProcedure
     // First, verify the order exists and the user is the seller
     const { data: order, error: checkError } = await ctx.supabase
       .from('orders')
-      .select('id, seller_id, status, buyer_id, paid')
+      .select('id, seller_id, status, buyer_id, platetaker_id, paid')
       .eq('id', input.orderId)
       .single();
 
@@ -69,6 +71,8 @@ export const markAsReadyProcedure = protectedProcedure
         message: error?.message || 'Failed to mark order as ready',
       });
     }
+
+    await notifyParty(ctx.supabaseAdmin, orderBuyerId(data), 'orderUpdates', ORDER_STEP_NOTICES.ready);
 
     return {
       id: data.id,

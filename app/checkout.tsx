@@ -33,7 +33,7 @@ import { trpc, trpcProxyClient } from '@/lib/trpc';
 import { useCart } from '@/hooks/cart-context';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
-import { buyerCardCharge, DELIVERY_PLATFORM_RATE, orderTotalWithDelivery, promotionalBase } from '@/lib/fees';
+import { buyerCardCharge, checkoutQuantity, DELIVERY_PLATFORM_RATE, orderTotalWithDelivery, promotionalBase } from '@/lib/fees';
 import { buyerServiceFeePercent, calculateFees } from '@/backend/lib/fees';
 import { accountAccessCopy } from '@/backend/lib/sign-in-messages';
 import { applePayMerchantName } from '@/backend/lib/payee-name';
@@ -45,7 +45,7 @@ import { CartItem } from '@/types';
 import { ScheduleTimePicker } from '@/components/ScheduleTimePicker';
 
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter , type Href } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter , type Href } from 'expo-router';
 
 import { useStripe } from '@/lib/stripe';
 import { useLeaveScreen, usePaidBack, useStayBack } from '@/hooks/use-leave-screen';
@@ -385,7 +385,7 @@ export default function CheckoutScreen() {
       const firstSellerId = sellerIds[0];
       const sellerItems = itemsBySeller[firstSellerId];
       const sellerTotal = sellerItems.reduce((sum, item) => (
-        sum + promotionalBase(item.meal.price, Math.max(1, Math.round(item.quantity)), item.meal.promotionalOffer)
+        sum + promotionalBase(item.meal.price, checkoutQuantity(item.quantity), item.meal.promotionalOffer)
       ), 0);
 
       const plateBlock = sellerItems
@@ -393,7 +393,7 @@ export default function CheckoutScreen() {
           mealId: item.meal.id,
           isSample: item.meal.isSample,
           tags: item.meal.tags,
-          quantity: item.quantity,
+          quantity: checkoutQuantity(item.quantity),
           pickupTime: item.pickupTime,
         }))
         .find((block) => block != null);
@@ -462,7 +462,7 @@ export default function CheckoutScreen() {
         const orderResult = await createOrder.mutateAsync({
           mealId: item.meal.id,
           sellerId: firstSellerId,
-          quantity: item.quantity,
+          quantity: checkoutQuantity(item.quantity),
           unitPrice: item.meal.price, // Price per unit - fees.ts will calculate breakdown
           specialInstructions: item.specialInstructions,
           cookingTemperature: item.cookingTemperature,
@@ -567,11 +567,17 @@ export default function CheckoutScreen() {
   };
 
   if (user?.role === 'platemaker') {
-    return <BuyerOnly />;
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
+        <BuyerOnly />
+      </>
+    );
   }
 
   return (
     <BuyerOnly>
+      <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
       <View style={styles.container}>
         <View style={styles.staticHeader}>
           <LinearGradient

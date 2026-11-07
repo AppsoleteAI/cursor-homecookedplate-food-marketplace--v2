@@ -13,9 +13,17 @@ import { handleChargeDispute, handleLostDispute, releaseDuePayouts } from "./lib
 import { readAppleServerNotification } from "./lib/apple-transaction";
 import { applyAppleNotification, writeResolvedTier } from "./lib/store-membership";
 import type { MediaFrameBinding } from "./lib/image-security";
+import { alertKvWriteCap } from "./lib/kv-write-cap";
+import { limitRequest, type SharedLimiter } from "./lib/request-limit";
+import { recordOperationalFailure } from "./lib/failure-alert";
+import { reportWorkerCrash, workerSentryDsn } from "./lib/worker-sentry";
+import { apiIsProduction, productionApiOrigin } from "./lib/api-origin";
+import { sameSecret } from "./lib/same-secret";
 
 type Bindings = {
   RATE_LIMIT_KV?: KVNamespace;
+  API_RATE_LIMIT?: SharedLimiter;
+  AUTH_RATE_LIMIT?: SharedLimiter;
   ENVIRONMENT?: string;
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
@@ -31,147 +39,45 @@ type Bindings = {
   ASC_API_KEY_ID?: string;
   ASC_API_ISSUER_ID?: string;
   ASC_API_PRIVATE_KEY?: string;
+  SENTRY_DSN?: string;
+  EXPO_PUBLIC_SENTRY_DSN?: string;
 };
 
 export const app = new Hono<{ Bindings: Bindings }>();
 
-const inMemoryRateLimit = new Map<string, { count: number; resetTime: number }>();
-let kvWriteLimitReached = false;
-
 const BUSY_MESSAGE = "Our kitchen is a bit busy right now. Please try again in a moment!";
-
-function runtimeIsProduction(env: Bindings | undefined): boolean {
-  const name = env?.ENVIRONMENT || process.env.ENVIRONMENT || process.env.NODE_ENV;
-  return name === "production";
-}
-
-function rememberKvFailure(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error("[Rate Limit] KV unavailable:", message);
-  if (/limit exceeded/i.test(message)) {
-    kvWriteLimitReached = true;
-  }
-}
-
-function memoryAllows(key: string, maxRequests: number, windowMs: number, now: number): boolean {
-  const record = inMemoryRateLimit.get(key);
-  if (record && now < record.resetTime) {
-    if (record.count >= maxRequests) return false;
-    record.count++;
-    inMemoryRateLimit.set(key, record);
-    return true;
-  }
-  inMemoryRateLimit.set(key, { count: 1, resetTime: now + windowMs });
-  setTimeout(() => {
-    inMemoryRateLimit.delete(key);
-  }, windowMs);
-  return true;
-}
-
-async function kvAllows(
-  kv: KVNamespace,
-  key: string,
-  maxRequests: number,
-  windowMs: number,
-  now: number,
-): Promise<boolean> {
-  const recordStr = await kv.get(key);
-  let record: { count: number; resetTime: number } | null = null;
-  if (recordStr) {
-    try {
-      record = JSON.parse(recordStr);
-    } catch (parseError) {
-      console.error("[Rate Limit] Failed to parse record:", parseError instanceof Error ? parseError.message : "unknown");
-    }
-  }
-
-  if (record && now < record.resetTime) {
-    if (record.count >= maxRequests) return false;
-    record.count++;
-    await kv.put(key, JSON.stringify(record), {
-      expirationTtl: Math.max(60, Math.ceil((record.resetTime - now) / 1000)),
-    });
-    return true;
-  }
-
-  await kv.put(key, JSON.stringify({ count: 1, resetTime: now + windowMs }), {
-    expirationTtl: Math.max(60, Math.ceil(windowMs / 1000)),
-  });
-  return true;
-}
 
 function isCredentialPath(path: string): boolean {
   return /\/auth\.(login|signup|resetPassword|resendVerificationEmail|verifyEmail|reactivateAccount)(?:\?|$)/.test(path);
 }
 
-const rateLimit = (maxRequests: number, windowMs: number, store: "memory" | "kv" = "kv") => {
-  return async (c: any, next: any) => {
-    const ip = c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown";
-    const now = Date.now();
-    const key = `ratelimit:${store}:${maxRequests}:${ip}`;
-    const kv = c.env?.RATE_LIMIT_KV as KVNamespace | undefined;
-    let allowed = true;
+async function sendCapAlert(env: Bindings | undefined): Promise<void> {
+  const url = env?.SUPABASE_URL;
+  const serviceKey = env?.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) return;
+  try {
+    const admin = createSupabaseAdmin({
+      SUPABASE_URL: url,
+      SUPABASE_SERVICE_ROLE_KEY: serviceKey,
+    });
+    await alertKvWriteCap(admin);
+  } catch {
+    console.error("[Rate Limit] Cap alert was not sent");
+  }
+}
 
-    if (store === "kv" && !kv && runtimeIsProduction(c.env)) {
-      console.error("[Rate Limit] Refusing request because RATE_LIMIT_KV is not bound");
-      return c.json({ error: "Service temporarily unavailable." }, 503);
-    }
+const rateLimit = (scope: "api" | "auth") => limitRequest(scope, {
+  onWriteCap: (env) => {
+    void sendCapAlert(env as Bindings | undefined);
+  },
+});
 
-    if (store === "kv" && kv && !kvWriteLimitReached) {
-      try {
-        allowed = await kvAllows(kv, key, maxRequests, windowMs, now);
-      } catch (error) {
-        rememberKvFailure(error);
-        allowed = memoryAllows(key, maxRequests, windowMs, now);
-      }
-    } else {
-      allowed = memoryAllows(key, maxRequests, windowMs, now);
-    }
-
-    if (!allowed) {
-      return c.json({ error: "Too many requests, please try again later." }, 429);
-    }
-    await next();
-  };
-};
-
-// Enable CORS for your Expo origin
-// MUST BE FIRST: CORS middleware must be before tRPC routes to handle OPTIONS preflight
+// CORS is first so an OPTIONS preflight is answered before the tRPC routes.
+// Production allows the website origins. Expo tunnel hosts are for a non-production Worker.
 app.use(
   '/api/trpc/*',
   cors({
-    // Allow Expo web origins (development and production)
-    // For development: '*' allows all origins (including Expo tunnel URLs)
-    // For production: Specify exact origins for security
-    origin: (origin) => {
-      // Allow all origins in development (includes Expo tunnel URLs like *.exp.direct, *.expo.dev)
-      if (process.env.NODE_ENV !== 'production') {
-        // Return actual origin if present, fallback to '*' only if no origin (for credentials compatibility)
-        return origin || '*';
-      }
-      // Production: Allow specific Expo origins
-      if (!origin) return '*'; // Allow requests without origin (e.g., Postman, curl) - '*' is OK here since no credentials without origin
-      try {
-        const url = new URL(origin);
-        if (url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1')) {
-          return origin;
-        }
-      } catch {
-        return null;
-      }
-      const allowedOrigins = [
-        'https://homecookedplate.com',
-        'https://www.homecookedplate.com',
-        'https://homecookedplate-marketplace.vercel.app',
-        // Add your production Expo web URL here when deployed
-      ];
-      // Also allow Expo tunnel URLs in production (for testing)
-      // CRITICAL: Must return exact origin (not true/*) when credentials: true is set
-      if (origin.includes('.exp.direct') || origin.includes('.expo.dev')) {
-        return origin;
-      }
-      return allowedOrigins.includes(origin) ? origin : null;
-    },
+    origin: (origin, c) => productionApiOrigin(origin, apiIsProduction(c.env)),
     allowMethods: ['POST', 'GET', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization', 'x-trpc-source'],
     exposeHeaders: ['Content-Length'],
@@ -208,9 +114,9 @@ app.use(
   })
 );
 
-app.use("*", rateLimit(100, 60 * 1000, "memory"));
+app.use("*", rateLimit("api"));
 
-const credentialLimit = rateLimit(10, 60 * 1000, "kv");
+const credentialLimit = rateLimit("auth");
 
 app.use("/api/trpc/*", async (c, next) => {
   if (!isCredentialPath(c.req.path)) {
@@ -221,6 +127,21 @@ app.use("/api/trpc/*", async (c, next) => {
 });
 
 app.use("/api/auth/*", credentialLimit);
+
+async function noteFailure(env: Bindings | undefined, kind: 'payment_error' | 'webhook_error' | 'security_alert', message: string) {
+  const supabaseUrl = env?.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseServiceKey = env?.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !supabaseServiceKey) return;
+  try {
+    const admin = createSupabaseAdmin({
+      SUPABASE_URL: supabaseUrl,
+      SUPABASE_SERVICE_ROLE_KEY: supabaseServiceKey,
+    });
+    await recordOperationalFailure(kind, message, admin);
+  } catch {
+    console.error('[Alerts] Failure was not recorded.');
+  }
+}
 
 async function syncStripeMembership(
   admin: ReturnType<typeof createSupabaseAdmin>,
@@ -260,6 +181,7 @@ app.post("/webhook/stripe", async (c) => {
 
   if (!webhookSecret || !supabaseUrl || !supabaseServiceKey) {
     console.error('[Stripe Webhook] Missing environment variables');
+    await noteFailure(c.env, 'webhook_error', 'Stripe webhook is missing its server configuration.');
     return c.json({ error: 'Server configuration error' }, 500);
   }
 
@@ -268,6 +190,7 @@ app.post("/webhook/stripe", async (c) => {
 
   if (!sig) {
     console.error('[Stripe Webhook] Missing signature');
+    await noteFailure(c.env, 'webhook_error', 'Stripe webhook arrived without a signature.');
     return c.json({ error: 'Missing signature' }, 400);
   }
 
@@ -300,20 +223,23 @@ app.post("/webhook/stripe", async (c) => {
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
 
-    if (computedSignature !== signature) {
+    if (!sameSecret(computedSignature, signature)) {
       console.error('[Stripe Webhook] Signature verification failed');
+      await noteFailure(c.env, 'security_alert', 'Stripe webhook signature was rejected.');
       return c.json({ error: 'Invalid signature' }, 400);
     }
 
     const eventTimestamp = Number(timestamp);
     if (!Number.isFinite(eventTimestamp) || Math.abs(Date.now() / 1000 - eventTimestamp) > 300) {
       console.error('[Stripe Webhook] Timestamp outside tolerance');
+      await noteFailure(c.env, 'security_alert', 'Stripe webhook timestamp was outside tolerance.');
       return c.json({ error: 'Timestamp outside tolerance' }, 400);
     }
 
     event = JSON.parse(payload);
   } catch (err) {
     console.error('[Stripe Webhook] Verification error:', err);
+    await noteFailure(c.env, 'webhook_error', 'Stripe webhook could not be verified.');
     return c.json({ error: 'Webhook error' }, 400);
   }
 
@@ -352,6 +278,7 @@ app.post("/webhook/stripe", async (c) => {
       }
     } catch (updateError) {
       console.error('[Stripe Webhook] Error updating orders:', updateError);
+      await recordOperationalFailure('payment_error', 'A paid plate could not be recorded from the Stripe webhook.', supabaseAdmin);
       return c.json({ error: 'Database error' }, 500);
     }
   }
@@ -364,7 +291,10 @@ app.post("/webhook/stripe", async (c) => {
     const active = event.type !== 'customer.subscription.deleted' && (status === 'active' || status === 'trialing');
     console.log('[Stripe Webhook] Subscription', event.type, subscription.id, 'status:', status);
     const synced = await syncStripeMembership(supabaseAdmin, customerId, active ? subscription.id : null);
-    if (synced === 'error') return c.json({ error: 'Database error' }, 500);
+    if (synced === 'error') {
+      await recordOperationalFailure('payment_error', 'Stripe membership could not be saved from the webhook.', supabaseAdmin);
+      return c.json({ error: 'Database error' }, 500);
+    }
   }
 
   if (event.type === 'customer.subscription.trial_will_end') {
@@ -431,6 +361,7 @@ app.post("/webhook/stripe", async (c) => {
     const stripeSecretKey = c.env?.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
     if (!stripeSecretKey) {
       console.error('[Stripe Webhook] Missing Stripe key for dispute');
+      await recordOperationalFailure('payment_error', 'A card dispute arrived without a Stripe key on the Worker.', supabaseAdmin);
       return c.json({ error: 'Server configuration error' }, 500);
     }
     try {
@@ -441,6 +372,7 @@ app.post("/webhook/stripe", async (c) => {
       }
     } catch (disputeError) {
       console.error('[Stripe Webhook] Dispute handling failed:', disputeError);
+      await recordOperationalFailure('payment_error', 'A card dispute could not be recorded.', supabaseAdmin);
       return c.json({ error: 'Dispute handling failed' }, 500);
     }
   }
@@ -453,6 +385,7 @@ app.post("/webhook/apple", async (c) => {
   const supabaseServiceKey = c.env?.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !supabaseServiceKey) {
     console.error('[Apple Webhook] Missing environment variables');
+    await noteFailure(c.env, 'webhook_error', 'App Store webhook is missing its server configuration.');
     return c.json({ error: 'Server configuration error' }, 500);
   }
   let signedPayload = '';
@@ -465,15 +398,16 @@ app.post("/webhook/apple", async (c) => {
   if (signedPayload.length < 40) {
     return c.json({ error: 'App Store notification could not be read' }, 400);
   }
+  const supabaseAdmin = createSupabaseAdmin({
+    SUPABASE_URL: supabaseUrl,
+    SUPABASE_SERVICE_ROLE_KEY: supabaseServiceKey,
+  });
   try {
     const note = readAppleServerNotification(signedPayload);
-    const supabaseAdmin = createSupabaseAdmin({
-      SUPABASE_URL: supabaseUrl,
-      SUPABASE_SERVICE_ROLE_KEY: supabaseServiceKey,
-    });
     await applyAppleNotification(supabaseAdmin, note);
   } catch (error) {
     console.error('[Apple Webhook] Notification was not applied.', error instanceof Error ? error.message : error);
+    await recordOperationalFailure('webhook_error', 'App Store notification was not applied.', supabaseAdmin);
     return c.json({ error: 'App Store notification was not applied' }, 400);
   }
   return c.json({ received: true });
@@ -484,8 +418,9 @@ app.post("/webhook/apple", async (c) => {
 app.post("/webhook/metro-cap-reached", async (c) => {
   const metroWebhookSecret = c.env?.METRO_WEBHOOK_SECRET || process.env.METRO_WEBHOOK_SECRET;
   const providedSecret = c.req.header('x-metro-webhook-secret');
-  if (!metroWebhookSecret || providedSecret !== metroWebhookSecret) {
+  if (!metroWebhookSecret || !providedSecret || !sameSecret(providedSecret, metroWebhookSecret)) {
     console.error('[Metro Cap Webhook] Missing or invalid webhook secret');
+    await noteFailure(c.env, 'security_alert', 'Metro webhook secret was rejected.');
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
@@ -494,6 +429,7 @@ app.post("/webhook/metro-cap-reached", async (c) => {
 
   if (!supabaseUrl || !supabaseServiceKey) {
     console.error('[Metro Cap Webhook] Missing environment variables');
+    await noteFailure(c.env, 'webhook_error', 'Metro cap webhook is missing its server configuration.');
     return c.json({ error: 'Server configuration error' }, 500);
   }
 
@@ -561,6 +497,7 @@ app.post("/webhook/metro-cap-reached", async (c) => {
     return c.json({ received: true, message: 'Metro cap notification processed' });
   } catch (error) {
     console.error('[Metro Cap Webhook] Error processing webhook:', error);
+    await recordOperationalFailure('webhook_error', 'Metro cap webhook could not be processed.', supabaseAdmin);
     return c.json({ error: 'Webhook processing error' }, 500);
   }
 });
@@ -693,6 +630,23 @@ async function releaseHeldPayoutsFromEnv(env: Bindings) {
 app.onError((error, c) => {
   const message = error instanceof Error ? error.message : "unknown";
   console.error("[API] Unhandled error:", message);
+  let path = c.req.path;
+  try {
+    path = new URL(c.req.url).pathname;
+  } catch {
+    path = c.req.path;
+  }
+  const pending = reportWorkerCrash({
+    error,
+    method: c.req.method,
+    path,
+    dsn: workerSentryDsn(c.env),
+  });
+  try {
+    c.executionCtx.waitUntil(pending);
+  } catch {
+    void pending;
+  }
   if (c.req.path.startsWith("/api/trpc")) {
     return c.json({
       error: {
@@ -710,6 +664,11 @@ app.onError((error, c) => {
 export default {
   fetch: (request: Request, env: Bindings, ctx: ExecutionContext) => app.fetch(request, env, ctx),
   scheduled(_event: ScheduledEvent, env: Bindings, ctx: ExecutionContext) {
-    ctx.waitUntil(releaseHeldPayoutsFromEnv(env));
+    ctx.waitUntil(releaseHeldPayoutsFromEnv(env).catch((error) => reportWorkerCrash({
+      error,
+      method: 'SCHEDULED',
+      path: '/cron/payouts',
+      dsn: workerSentryDsn(env),
+    })));
   },
 };

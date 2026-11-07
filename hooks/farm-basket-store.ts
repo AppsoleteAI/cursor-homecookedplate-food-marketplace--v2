@@ -6,6 +6,7 @@ import type { ComplianceRecord, FarmChannel, RegulatoryTrack } from '@/lib/cotta
 import { evaluateListing } from '@/lib/cottage-food';
 import { farmOrdersFromSaved, mergeById, sameOrders } from '@/lib/saved-shop-order';
 import { shareLaneListing, useSharedLaneListings } from '@/lib/lane-sync';
+import { checkoutQuantity } from '@/lib/fees';
 
 const STORAGE_KEY = 'farm_grown_basket_v1';
 
@@ -121,7 +122,7 @@ export function addFarmItem(productId: string, quantity = 1) {
 export function setFarmQuantity(productId: string, quantity: number) {
   const items = quantity <= 0
     ? state.items.filter((item) => item.productId !== productId)
-    : state.items.map((item) => (item.productId === productId ? { ...item, quantity } : item));
+    : state.items.map((item) => (item.productId === productId ? { ...item, quantity: checkoutQuantity(quantity) } : item));
   state = { ...state, items };
   emit();
 }

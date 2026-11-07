@@ -76,7 +76,6 @@ const HEADER_COLORS: [string, string][] = [
   ['/recover', AuthColors.brand],
   ['/reset-password', AuthColors.brand],
   ['/verify-email', AuthColors.brand],
-  ['/hardware-mismatch', AuthColors.brand],
 ];
 
 function matches(path: string, prefix: string) {

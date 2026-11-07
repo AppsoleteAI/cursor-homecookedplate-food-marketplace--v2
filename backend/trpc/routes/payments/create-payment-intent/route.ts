@@ -3,6 +3,7 @@ import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../../create-context';
 import { buyerCardCharge, buyerServiceFeePercent, calculateDeliveryLevy, calculateFees, orderTotalWithDelivery } from '../../../../lib/fees';
 import { savedDeliveryFee } from '../../../../lib/delivery-fee';
+import { recordOperationalFailure } from '../../../../lib/failure-alert';
 import { PAYOUT_HOLD_DAYS } from '../../../../lib/payout-policy';
 import { salesVolumeBlock } from '../../../../lib/stripe-marketplace';
 import { browserOrigin, openStripeCheckout } from '../../../../lib/stripe-checkout';
@@ -228,6 +229,7 @@ export const createPaymentIntentProcedure = protectedProcedure
     if (!response.ok) {
       const error = await response.text();
       console.error('[Stripe] Payment intent creation failed:', error);
+      await recordOperationalFailure('payment_error', 'Payment intent creation failed.', ctx.supabaseAdmin);
       throw new Error('Failed to create payment intent');
     }
 
