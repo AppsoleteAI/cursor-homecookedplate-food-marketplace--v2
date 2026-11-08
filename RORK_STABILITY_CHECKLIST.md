@@ -303,22 +303,24 @@ The navigation architecture follows a three-layer stability pattern:
 
 Before committing navigation changes, verify:
 
-- [ ] No `useEffect` with `router.replace()` in `app/index.tsx`
-- [ ] No `null` returns for unauthenticated state in `app/(tabs)/_layout.tsx`
-- [ ] No arbitrary timeouts for navigation mounting
-- [ ] All modal screens include `<Stack.Screen />` inside the component
-- [ ] All navigation logging uses `navLogger` instead of inline `fetch()` calls
-- [ ] `NavigationErrorBoundary` wraps the root stack and uses Sentry
-- [ ] Web platform uses `NavigationContainer` with `independent: true`
-- [ ] Native platform does NOT use manual `NavigationContainer`
+- [x] No `useEffect` with `router.replace()` in `app/index.tsx`
+- [x] No `null` returns for unauthenticated state in `app/(tabs)/_layout.tsx`
+- [x] No arbitrary timeouts for navigation mounting
+- [x] All modal screens include `<Stack.Screen />` inside the component
+- [x] All navigation logging uses `navLogger` instead of inline `fetch()` calls
+- [x] `NavigationErrorBoundary` wraps the root stack and uses Sentry
+- [x] Web platform uses `NavigationContainer` with `independent: true`
+- [x] Native platform does NOT use manual `NavigationContainer`
 
 ## Tunnel URL Checklist
 
 Before sharing a tunnel URL with a device or collaborator:
 
-- [ ] URL was copied from the Metro terminal `Tunnel ready` line — NOT from `http://localhost:4040/api/tunnels`
-- [ ] `curl -s https://<url>/status` returns `{"status":"packager-status:running"}`
-- [ ] `lsof -i :8081` shows exactly one Metro process and it belongs to this project
+- [x] URL was read from this Metro session, on the `Tunnel URL` line beside `Tunnel ready.` Port 4040 was not used.
+- [x] `curl -s https://<url>/status` returned `packager-status:running` for this project on 7 November 2026.
+- [x] `lsof -i :8081` showed one Metro process, and it was this project. Metro was stopped after the check.
+
+This CLI prints `Tunnel ready.` without the URL on the next line. The URL is the `Tunnel URL:` line from `DEBUG=expo:start:server:ngrok` in that same session. The status body is `packager-status:running`. The project root was in `x-react-native-project-root`.
 
 See `NGROK_TUNNEL_VERIFICATION.md` for the full incident record and protocol.
 

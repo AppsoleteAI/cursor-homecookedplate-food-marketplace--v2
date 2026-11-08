@@ -22,6 +22,7 @@ import { checkoutQuantity, DELIVERY_PLATFORM_RATE } from '@/lib/fees';
 import { useAuth } from '@/hooks/auth-context';
 import { ScrollJumps } from '@/components/ScrollJumps';
 import { FoodImage } from '@/components/FoodImage';
+import { firstPlatePhoto } from '@/lib/food-review-clips';
 
 export default function CartScreen() {
   const { items, totalPrice, updateQuantity, removeFromCart } = useCart();
@@ -103,7 +104,7 @@ export default function CartScreen() {
         <FoodHandlingNotice testID="cart-food-handling" />
         {items.map(item => (
           <View key={item.meal.id} style={styles.cartItem}>
-            <FoodImage source={{ uri: item.meal.images[0] }} style={styles.itemImage} />
+            <FoodImage source={{ uri: firstPlatePhoto(item.meal.images) }} style={styles.itemImage} />
             <View style={styles.itemRight}>
               <View style={styles.itemDetails}>
                 <Text style={styles.itemName}>{item.meal.name}</Text>

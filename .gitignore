@@ -42,6 +42,7 @@ supabase/.temp/
 Thumbs.db
 
 # --- BUILD OUTPUTS ---
+coverage/
 backend/dist/
 *.log
 npm-debug.log*

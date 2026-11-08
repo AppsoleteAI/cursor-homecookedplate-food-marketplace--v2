@@ -15,36 +15,25 @@ This guide helps you test the **Device-Lock** and **Stripe Trial** logic on the 
 
 ### Identify the Device ID
 
-The app uses `Application.getAndroidId()` on Android to get a unique device identifier. This ID gets locked into the `device_id` column of the `profiles` table for lifetime memberships.
+The app stores a random binding token for a lifetime account. It does not use the Android ID. A re-download creates a new token. The same account may replace `profiles.device_id`. Another account cannot take that token, because the column is unique.
 
 **To see the device ID:**
 
-1. Launch the app on the Android emulator
-2. Check the console logs for:
-   ```
-   [HardwareAudit] Device ID (Android ID): <your-emulator-id>
-   [HardwareAudit] This ID will be locked into device_id column for lifetime memberships
-   ```
-3. **Note this ID** - it's what gets stored in the database
-
-**Example output:**
-```
-[HardwareAudit] Device ID (Android ID): 9774d56d682e549c
-[HardwareAudit] This ID will be locked into device_id column for lifetime memberships
-```
+1. Sign in on the Android emulator with a lifetime account
+2. Read `profiles.device_id` for that account in the table editor. That value is the binding token for this install.
 
 ### First Sign-up (Lifetime Membership)
 
-When you create a **Lifetime** account on the emulator:
-- The Android ID from step 1 gets stored in `profiles.device_id`
+When a lifetime membership is saved on the emulator:
+- The binding token is stored in `profiles.device_id`
 - The `membership_tier` is set to `'lifetime'`
-- This creates the device lock
+- The membership stays on that account
 
 ## 2. Testing the "Device Lock" Integrity
 
 ### Manual Database Modification Test
 
-This test verifies that the database trigger `enforce_lifetime_hardware_lock` prevents unauthorized device_id changes.
+This test verifies that the same lifetime account can replace `device_id` after a re-download. The unique constraint still stops a second account from storing that same token.
 
 **Steps:**
 
@@ -63,12 +52,9 @@ This test verifies that the database trigger `enforce_lifetime_hardware_lock` pr
    - Try to save
 
 **Expected Result:**
-- The database should **reject the update** with error:
-  ```
-  Hardware mismatch: Lifetime membership is device-locked and non-transferable. 
-  Original device_id: <original-id>, Attempted device_id: WRONG_DEVICE_123
-  ```
-- The trigger `enforce_lifetime_hardware_lock_trigger` fires and raises an exception
+- The same account’s `device_id` update is saved.
+- A second account cannot store that same token. The unique constraint on `profiles.device_id` rejects the duplicate.
+- `backend/sql/allow_lifetime_device_rebind.sql` was run on 7 November 2026. The editor returned Success with no rows. Do not run it again.
 
 ### App-Level Hardware Audit Test
 
@@ -87,18 +73,13 @@ This test verifies that the app detects hardware mismatches and shows the error 
    ```
 3. **Relaunch the app** on the same emulator
 4. **Expected behavior:**
-   - App detects hardware mismatch during startup
-   - Navigates to `/(auth)/hardware-mismatch` screen
-   - Shows clear "Hardware Mismatch" error message
-   - User can logout and return to login
+   - The same account stays signed in.
+   - The app saves this install’s token on the account.
+   - A PlateMaker stays on the kitchen. A PlateTaker stays on home.
 
-**Console logs to verify:**
-```
-[HardwareAudit] Running hardware audit for user: <user-id>
-[HardwareAudit] Current device ID: <emulator-id>
-[HardwareAudit] Audit result: { allowed: false, reason: 'LIFETIME_DEVICE_MISMATCH' }
-[HardwareAudit] Hardware mismatch detected, navigating to hardware-mismatch screen
-```
+**What to check:**
+- `profiles.device_id` for that account equals this install’s token after sign-in.
+- A PlateMaker stays on the kitchen. A PlateTaker stays on home.
 
 ## 3. Testing the Stripe Trial ($4.99 Auto-Pay)
 
@@ -154,8 +135,7 @@ LIMIT 1;
 
 - [ ] Checkout completes successfully
 - [ ] Database check: `membership_tier` is set to `'lifetime'`
-- [ ] Database check: `device_id` is populated with emulator's Android ID
-- [ ] Database check: `device_id` matches the logged device ID from console
+- [ ] Database check: `device_id` is the binding token for this install
 
 **SQL to verify:**
 ```sql
@@ -194,24 +174,14 @@ WHERE metro_name = 'Austin';
 
 ## 5. Common Issues & Troubleshooting
 
-### Device ID Not Logging
+### Re-download token is not saved
 
-**Issue:** No device ID appears in console logs
-
-**Solution:**
-- Check that `expo-application` is properly installed
-- Verify Android emulator is running (not web)
-- Check app permissions (Android ID requires no special permissions)
-
-### Hardware Mismatch Not Detected
-
-**Issue:** App doesn't navigate to hardware-mismatch screen
+**Issue:** After a reinstall, `profiles.device_id` stays on the old token
 
 **Solution:**
-- Verify hardware audit is running: check console for `[HardwareAudit]` logs
-- Check that user has `membership_tier = 'lifetime'`
-- Verify `device_id` in database is different from current emulator ID
-- Check that `runHardwareAudit()` is being called in `hooks/auth-context.tsx`
+- Confirm `membership_tier` is `lifetime`
+- `backend/sql/allow_lifetime_device_rebind.sql` was run on 7 November 2026. Success with no rows. Do not run it again.
+- Sign in again on this install. The account replaces `device_id` with this install’s token.
 
 ### Stripe Checkout Not Showing Trial Message
 
@@ -224,26 +194,20 @@ WHERE metro_name = 'Austin';
 
 ### Database Trigger Not Firing
 
-**Issue:** Can manually change `device_id` in database without error
+**Issue:** Saving a new token on a lifetime account raises `Hardware mismatch`
 
 **Solution:**
-- Verify trigger is created: 
-  ```sql
-  SELECT * FROM pg_trigger WHERE tgname = 'enforce_lifetime_hardware_lock_trigger';
-  ```
-- Re-run migration: `backend/sql/add_hardware_lock_trigger.sql`
-- Check trigger function exists:
-  ```sql
-  SELECT * FROM pg_proc WHERE proname = 'enforce_lifetime_hardware_lock';
-  ```
+- `backend/sql/allow_lifetime_device_rebind.sql` was run on 7 November 2026. The editor returned Success with no rows. Do not run it again.
+- The unique constraint on `profiles.device_id` remains. A second account cannot store the same token.
 
 ## 6. Test Checklist Summary
 
 Before publishing, verify:
 
 - [ ] Device ID is logged correctly on app startup
-- [ ] Database trigger prevents `device_id` changes for lifetime members
-- [ ] App shows hardware-mismatch screen when device ID doesn't match
+- [ ] The same lifetime account can replace `device_id` after a re-download
+- [ ] A second account cannot store that same token
+- [ ] A re-download stays on the kitchen for a PlateMaker and on home for a PlateTaker
 - [ ] Stripe trial checkout shows "30 days free, then $4.99/month"
 - [ ] Metro name is correctly recorded after signup
 - [ ] Lifetime promo sets `device_id` and `membership_tier = 'lifetime'`
@@ -258,12 +222,6 @@ Before going live:
    - Update Stripe Price IDs to live prices
    - Test with real card (small amount)
 
-2. **Verify device lock in production:**
-   - Test on real Android device (not emulator)
-   - Verify Android ID is stable across app restarts
-   - Test hardware mismatch detection
-
-3. **Monitor logs:**
-   - Watch for `[HardwareAudit]` logs in production
-   - Monitor `audit_logs` table for `HARDWARE_MISMATCH` entries
-   - Set up alerts for hardware mismatch attempts
+2. **Verify a re-download:**
+   - Sign in on a lifetime account, note `device_id`, delete the app, install it again, and sign in.
+   - `device_id` updates to the new install. The account stays lifetime. A second account cannot store that same token.

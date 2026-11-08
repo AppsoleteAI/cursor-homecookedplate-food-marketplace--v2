@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
-import { orderBuyerId, orderTotal } from "../../../../lib/order-row";
+import { orderBuyerId, orderTotal, readOrderQuery } from "../../../../lib/order-row";
 import { orderStatusAllowed, pickupConfirmedByBoth } from "../../../../lib/order-status";
 import { payoutReleaseAt } from "../../../../lib/payout-policy";
 import { notifyParty, ORDER_STEP_NOTICES } from "../../../../lib/account-notice";
@@ -17,11 +17,11 @@ export const updateOrderStatusProcedure = protectedProcedure
     })
   )
   .mutation(async ({ input, ctx }) => {
-    const { data: order, error: checkError } = await ctx.supabase
+    const { data: order, error: checkError } = await readOrderQuery((columns) => ctx.supabase
       .from('orders')
-      .select('*')
+      .select(columns)
       .eq('id', input.orderId)
-      .single();
+      .single());
 
     if (checkError || !order) {
       throw new Error('Order not found');
@@ -97,7 +97,7 @@ export const updateOrderStatusProcedure = protectedProcedure
         .from('orders')
         .update({ status: 'cancelled', paid: false })
         .eq('id', input.orderId)
-        .select()
+        .select('id, status')
         .single();
       if (closed.error || !closed.data) {
         throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'The card was refunded, but this order is still open.' });
@@ -160,7 +160,7 @@ export const updateOrderStatusProcedure = protectedProcedure
       .from('orders')
       .update({ status: input.status })
       .eq('id', input.orderId)
-      .select()
+      .select('id, status')
       .single();
 
     if (error || !data) {

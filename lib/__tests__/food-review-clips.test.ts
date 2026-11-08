@@ -3,8 +3,11 @@ import {
   clipFrameAllowsNavigation,
   foodReviewClipMeta,
   foodReviewLinkClip,
+  firstPlatePhoto,
   foodReviewTimeline,
   seedFoodReviewClips,
+  sharedClipTimeline,
+  storedMealVideoAddress,
   socialClipEmbed,
   withSeedClips,
 } from '../food-review-clips';
@@ -97,6 +100,32 @@ describe('verified influencer seed', () => {
     expect(merged.some((clip) => clip.videoUri.includes('snapchat.com'))).toBe(false);
     expect(merged.find((clip) => clip.id === 'clip-belieber-spotlight')?.videoUri).toBe(REDDIT_REVIEW);
     expect(merged.find((clip) => clip.id === 'clip-belieber-spotlight')?.counts.smile).toBe(2);
+  });
+
+  it('keeps a shared upload on every device and drops a clip that never left this phone', () => {
+    const uploaded = {
+      ...seedFoodReviewClips[1],
+      id: 'clip-uploaded',
+      videoUri: 'https://example.supabase.co/storage/v1/object/public/meal-media/cook/meal/1.mp4',
+      posterUri: '',
+      durationSeconds: 8,
+      counts: { smile: 1, heart: 0, star: 0 },
+      reactionsByUser: { cook: ['smile' as const] },
+    };
+    const onlyHere = { ...uploaded, id: 'clip-local', videoUri: 'file://clip.mov' };
+    const merged = sharedClipTimeline([uploaded], [onlyHere, uploaded]);
+    expect(merged.some((clip) => clip.id === 'clip-local')).toBe(false);
+    expect(merged.find((clip) => clip.id === 'clip-uploaded')?.reactionsByUser.cook).toEqual(['smile']);
+    expect(merged.some((clip) => clip.id === 'clip-belieber-spotlight')).toBe(true);
+  });
+
+  it('plays a plate video from its stored address and keeps the food photo for the still', () => {
+    const photo = 'https://example.supabase.co/storage/v1/object/public/meal-media/cook/meal/plate.jpg';
+    const video = 'https://example.supabase.co/storage/v1/object/public/meal-media/cook/meal/plate.mp4';
+    expect(storedMealVideoAddress(video, 'cook')).toBe(true);
+    expect(storedMealVideoAddress(video, 'someone-else')).toBe(false);
+    expect(firstPlatePhoto([video, photo])).toBe(photo);
+    expect(foodReviewLinkClip('https://www.youtube.com/watch?v=yB0HFxUOf9s')?.videoUri).toContain('youtube.com');
   });
 
   it('adds a missing seed clip without dropping clips already on the device', () => {

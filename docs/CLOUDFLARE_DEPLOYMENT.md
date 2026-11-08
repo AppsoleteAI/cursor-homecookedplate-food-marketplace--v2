@@ -127,24 +127,28 @@ Cloudflare provides built-in analytics:
 1. **Global Edge Network**: Your API runs in 300+ cities worldwide
 2. **Zero Cold Starts**: Unlike serverless functions, Workers start instantly
 3. **Built-in DDoS Protection**: Cloudflare's network handles attacks
-4. **KV Storage**: Distributed rate limiting across all edge locations
+4. **Rate limit binding**: The 100-a-minute and 10-a-minute counters are shared across isolates and do not write KV
 5. **Free Tier**: 100,000 requests/day free
 
 ### How Rate Limiting Works
 
-- Uses Cloudflare KV for distributed storage
-- IP addresses are tracked using `cf-connecting-ip` header (real client IP)
-- Automatic TTL cleanup (no manual maintenance)
-- Scales globally without configuration
+- `API_RATE_LIMIT` counts 100 requests a minute for one IP, shared across isolates
+- `AUTH_RATE_LIMIT` counts 10 requests a minute for sign-in, account creation, password reset, email confirmation, and reactivation
+- Ordinary requests do not write KV
+- When the auth binding is missing, those routes use KV. A daily write cap falls back to memory and logs `KV_DAILY_WRITE_CAP`
+- IP addresses are tracked using `cf-connecting-ip` (the client address Cloudflare sets)
+- Deployed 7 November 2026 as `plate-marketplace-api`, version `202d29a1-8559-4d01-8da3-58526873e797`. The 5 November rate-limit version was `e48ba812-f010-4bfc-8e55-61e41b99d101`. The 5 November crash-reporter live version was `57626efa-5136-42bc-950a-6d212c5eec72`, with the secret `SENTRY_DSN`. Existing secrets stayed in place. `API_RATE_LIMIT` is 100 requests a minute. `AUTH_RATE_LIMIT` is 10 requests a minute. Both are shared across isolates. Five checks of `/` and `/health` each returned 200.
+- The monitor **KV daily write cap** was saved 5 November 2026. It checks Workers Logs every 1 minute. It emails `support@homecookedplate.com` when the count of `plate-marketplace-api` rows whose message contains `KV_DAILY_WRITE_CAP`, averaged over 1 minute, is above 0. The preview was flat at 0 before save. Signed in, that one email covers a PlateMaker and a PlateTaker. Signed out, it covers sign-in. Web, iOS, and Android use this Worker.
 
 ### Security Features
 
 1. **IP-based Rate Limiting**
-   - Global: 100 requests/minute
-   - Auth endpoints: 10 requests/minute
+   - Ordinary traffic: 100 requests a minute, shared when `API_RATE_LIMIT` is bound
+   - Sign-in and account routes: 10 requests a minute, shared when `AUTH_RATE_LIMIT` is bound
 
 2. **Stripe Webhook Verification**
    - HMAC-SHA256 signature validation
+   - The signature compare is constant-time
    - Prevents unauthorized order creation
 
 3. **Secure Headers**
@@ -152,7 +156,12 @@ Cloudflare provides built-in analytics:
    - XSS and clickjacking protection
 
 4. **CORS Configuration**
-   - Allows all origins (customize in backend/hono.ts if needed)
+   - Production allows `https://homecookedplate.com`, `https://www.homecookedplate.com`, `https://homecookedplate.pages.dev`, `https://homecookedplate-marketplace.vercel.app`, and `http://localhost` or `http://127.0.0.1`
+   - Production does not allow `*.expo.dev` or `*.exp.direct`
+   - Production does not allow a request that has no Origin
+   - The bearer token is not a cookie. A signed-in PlateMaker and a signed-in PlateTaker send that token on kitchen, home, and order calls. Signed out, both roles call the same API without a session. Web, iOS, and Android use this Worker. The phones do not use the Origin header. This change is local until the Worker is deployed. This turn did not deploy.
+
+`example.hi`, `supabase.test`, `health.check`, and `system.dbHealth` are not on the router. Signed in or signed out, a PlateMaker and a PlateTaker cannot call them. The profile count and database error text are not returned. This is the same Worker source. It is local until that Worker is deployed.
 
 ## Troubleshooting
 

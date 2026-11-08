@@ -10,6 +10,7 @@
     "share": "EXPO_TUNNEL_SUBDOMAIN=homecookedplate expo start --web --tunnel",
     "start-web-dev": "DEBUG=expo* expo start --web --tunnel",
     "lint": "expo lint",
+    "test": "jest --watchman=false --forceExit",
     "pages:build": "expo export --platform web --output-dir dist && node scripts/assemble-pages.mjs",
     "postinstall": "patch-package",
     "lint:fix": "expo lint --fix",

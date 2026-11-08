@@ -2,6 +2,9 @@ import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
 import { loadPublicProfiles } from "../../../../lib/public-profiles";
 import { commentForViewer } from "../../../../lib/content-moderation";
+import { PUBLIC_REVIEW_COLUMNS } from "../../../../lib/public-read";
+import { timePublicRead } from "../../../../lib/public-read-timing";
+import { logPublicReadFailure } from "../../../../lib/request-id";
 
 export const listReviewsProcedure = publicProcedure
   .input(
@@ -11,24 +14,24 @@ export const listReviewsProcedure = publicProcedure
     }).optional()
   )
   .query(async ({ input, ctx }) => {
-    let query = ctx.supabase
-      .from('reviews')
-      .select('*');
+    const { data, error } = await timePublicRead("listReviews", ctx, async () => {
+      let query = ctx.supabaseRead
+        .from('reviews')
+        .select(PUBLIC_REVIEW_COLUMNS);
 
-    if (input?.mealId) {
-      query = query.eq('meal_id', input.mealId);
-    }
-    if (input?.userId) {
-      query = query.eq('author_id', input.userId);
-    }
+      if (input?.mealId) {
+        query = query.eq('meal_id', input.mealId);
+      }
+      if (input?.userId) {
+        query = query.eq('author_id', input.userId);
+      }
 
-    query = query.order('created_at', { ascending: false });
-
-    const { data, error } = await query;
+      return await query.order('created_at', { ascending: false }) as unknown as Promise<{ data: any[] | null; error: { message?: string } | null }>;
+    });
 
     if (error) {
-      console.error('[ListReviews] Error:', error);
-      throw new Error(error.message);
+      logPublicReadFailure("listReviews", ctx.requestId, error.message || 'listReviews failed');
+      throw new Error(error.message || 'listReviews failed');
     }
 
     const authors = await loadPublicProfiles(

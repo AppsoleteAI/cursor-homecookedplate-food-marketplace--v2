@@ -17,6 +17,7 @@ function unchecked(note: string, line: string) {
 describe.each([1, 2, 3, 4, 5])('store launch still open, pass %s', () => {
   it('leaves one live order unproven and leaves the webhook secret alone', () => {
     const note = read('docs/POST_LAUNCH_DIAGNOSTICS.md');
+    const phone = read('docs/PHONE_DIAGNOSTICS.md');
     const stripe = read('docs/STRIPE_LIVE_WEBHOOK.md');
     const handler = read('backend/hono.ts');
     const accept = read('backend/trpc/routes/platemaker/accept-order/route.ts');
@@ -24,17 +25,20 @@ describe.each([1, 2, 3, 4, 5])('store launch still open, pass %s', () => {
     const gate = read('backend/trpc/create-context.ts');
 
     expect(note).toContain('A full launch of both stores is not ready.');
+    expect(note).not.toContain('Pay one live card on two phones.');
+    expect(stripe).not.toContain('On one phone, a signed-in PlateTaker pays');
     unchecked(
-      note,
+      phone,
       'Pay one live card on two phones. On one phone, a PlateTaker pays for a plate. On the other, that plate’s PlateMaker accepts the paid order. Then Event deliveries shows `payment_intent.succeeded` with 200. Leave the webhook secret as it is.',
     );
     unchecked(
-      note,
+      phone,
       'On one phone, a PlateTaker pays for a plate with a live card. On the other phone, that plate’s PlateMaker accepts the paid order. On Event deliveries, `payment_intent.succeeded` shows 200. Leave the webhook secret as it is.',
     );
-    expect(stripe).toContain('A live plate payment on this account is not confirmed.');
-    expect(stripe).toContain('Signed out, neither role can pay or accept.');
-    expect(stripe).toContain('Leave the webhook secret as it is.');
+    expect(phone).toContain('A live plate payment on this account is not confirmed.');
+    expect(phone).toContain('Signed out, neither role can pay or accept.');
+    expect(phone).toContain('Leave the webhook secret as it is.');
+    expect(stripe).toContain('Do not change the Worker secret `STRIPE_WEBHOOK_SECRET`');
     expect(stripe).not.toMatch(/whsec_/);
 
     expect(handler).toContain("event.type === 'payment_intent.succeeded'");
@@ -76,17 +80,22 @@ describe.each([1, 2, 3, 4, 5])('store launch still open, pass %s', () => {
 
   it('leaves the phone pass unchecked while the shared closeout rule stays checked', () => {
     const note = read('docs/POST_LAUNCH_DIAGNOSTICS.md');
+    const phone = read('docs/PHONE_DIAGNOSTICS.md');
     const membership = read('app/membership.tsx');
     const cook = { lat: 40.440624, lng: -79.995888 };
     const nearby = { lat: 40.5, lng: -80.0 };
     const far = { lat: 25.7617, lng: -80.1918 };
 
-    unchecked(note, 'Signed out: the maroon PlateMaker button opens sign-in. The maroon PlateTaker button opens sign-in.');
-    unchecked(note, 'Signed in, PlateMaker: Get GPS, publish a plate, then Accept, Ready for pickup, and Picked up.');
-    unchecked(note, 'Signed in, PlateTaker: stay inside 20 miles of that kitchen, pay by card, send a message, and tap I picked this up.');
-    unchecked(note, 'Prove Sentry on a phone. Install a preview or store build. Sign in as a PlateMaker, turn on airplane mode, and refresh orders. The new Sentry issue shows an account id. Email, username, and IP are empty. Repeat signed in as a PlateTaker.');
-    unchecked(note, 'Install a preview or store build, sign in as a PlateMaker, turn on airplane mode, and refresh orders. The new Sentry issue shows an account id. Email, username, and IP are empty.');
-    unchecked(note, 'Repeat signed in as a PlateTaker.');
+    unchecked(phone, 'Signed out: the maroon PlateMaker button opens sign-in. The maroon PlateTaker button opens sign-in.');
+    unchecked(phone, 'Signed in, PlateMaker: Get GPS, publish a plate, then Accept, Ready for pickup, check the receipt acknowledgement, and tap Send.');
+    unchecked(phone, 'Signed in, PlateTaker: stay inside 20 miles of that kitchen, pay by card, send a message, check the receipt acknowledgement, and tap Send.');
+    unchecked(phone, 'Prove Sentry on a phone. Install a preview or store build. Sign in as a PlateMaker, turn on airplane mode, and refresh orders. The new Sentry issue shows an account id. Email, username, and IP are empty. Repeat signed in as a PlateTaker.');
+    unchecked(phone, 'Install a preview or store build, sign in as a PlateMaker, turn on airplane mode, and refresh orders. The new Sentry issue shows an account id. Email, username, and IP are empty.');
+    unchecked(phone, 'Repeat signed in as a PlateTaker.');
+    unchecked(phone, 'On the later Android build, test Membership and plate checkout for a PlateMaker and a PlateTaker.');
+    unchecked(phone, 'On Android, test the hardware back button and check for console errors.');
+    unchecked(phone, 'On iOS, test swipe-to-dismiss and the iOS animations, and check for console errors.');
+    expect(note).not.toContain('Signed out: the maroon PlateMaker button opens sign-in.');
     expect(note).toContain('- [x] The order completes only after both people confirm.');
 
     expect(membership).toContain("router.push('/(auth)/login')");

@@ -71,10 +71,15 @@ function memoryAdmin(tables: Record<string, Row[]>) {
           filters.push((row) => String(row[key] ?? '') <= String(value));
           return chain;
         },
+        is(key: string, value: unknown) {
+          filters.push((row) => (value === null ? row[key] == null : row[key] === value));
+          return chain;
+        },
         in(key: string, values: unknown[]) {
           filters.push((row) => values.includes(row[key]));
           return chain;
         },
+        or() { return chain; },
         order() { return chain; },
         limit() { return run(); },
         maybeSingle() {
@@ -240,8 +245,15 @@ describe.each([1, 2, 3])('readiness at 5,000 a day, run %s', () => {
     expect(payoutReleaseAt(new Date('2026-11-05T04:00:00.000Z'))).toBe('2026-11-12T04:00:00.000Z');
     expect(cookPayoutReady(null)).toBe(false);
     expect(cookPayoutReady({ stripe_account_id: null, selling_removed: false })).toBe(false);
-    expect(cookPayoutReady({ stripe_account_id: 'acct_scale', selling_removed: true })).toBe(false);
-    expect(cookPayoutReady({ stripe_account_id: 'acct_scale', selling_removed: false })).toBe(true);
+    expect(cookPayoutReady({ stripe_account_id: 'acct_scale', selling_removed: false })).toBe(false);
+    expect(cookPayoutReady({ stripe_account_id: 'acct_scale', selling_removed: true, stripe_payouts_enabled: true })).toBe(false);
+    expect(cookPayoutReady({
+      stripe_account_id: 'acct_scale',
+      selling_removed: true,
+      stripe_payouts_enabled: true,
+      final_payout_at: '2020-01-01T00:00:00.000Z',
+    })).toBe(true);
+    expect(cookPayoutReady({ stripe_account_id: 'acct_scale', selling_removed: false, stripe_payouts_enabled: true })).toBe(true);
 
     const checkout = readFileSync(resolve(__dirname, '../../../backend/trpc/routes/payments/create-payment-intent/route.ts'), 'utf8');
     expect(checkout).toContain('Seller has not completed Stripe onboarding');

@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
-import { orderBuyerId, orderTotal } from "../../../../lib/order-row";
+import { orderBuyerId, orderTotal, readOrderQuery } from "../../../../lib/order-row";
 import { listedPlateMetadata, platePaymentCovers } from "../../../../lib/record-paid-order";
 
 export const updatePaymentIntentProcedure = protectedProcedure
@@ -20,10 +20,10 @@ export const updatePaymentIntentProcedure = protectedProcedure
       throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Stripe has not confirmed this payment.' });
     }
 
-    const { data: orders, error } = await ctx.supabaseAdmin
+    const { data: orders, error } = await readOrderQuery((columns) => ctx.supabaseAdmin
       .from('orders')
-      .select('*')
-      .in('id', input.orderIds);
+      .select(columns)
+      .in('id', input.orderIds));
     if (error || !orders || orders.length !== input.orderIds.length) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'One or more orders could not be found' });
     }

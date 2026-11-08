@@ -409,7 +409,7 @@ export default function CombinedCheckoutScreen() {
             ) : null}
             <Text style={styles.meta}>Base ${checkout.baseAmount.toFixed(2)}</Text>
             <Text style={styles.meta}>Buyer fee ${checkout.buyerFee.toFixed(2)} · Seller fee ${checkout.sellerFee.toFixed(2)}</Text>
-            <Text style={styles.meta}>You pay ${checkout.buyerPays.toFixed(2)} · Seller receives ${checkout.sellerPayout.toFixed(2)} after 7 days</Text>
+            <Text style={styles.meta}>You pay ${checkout.buyerPays.toFixed(2)} · Cook receives ${checkout.sellerPayout.toFixed(2)} after this order is cleared, then 7 days</Text>
             {gathered.checkouts.filter((item) => combinedChargeKey(item.area, item.sellerId) === combinedChargeKey(checkout.area, checkout.sellerId) && checkoutAreaShop(item.area)).map((draft) => (
               <CombinedHandoffFields key={checkout.id} draft={draft} onChange={onHandoff} />
             ))}
@@ -425,7 +425,7 @@ export default function CombinedCheckoutScreen() {
           <Text style={styles.total}>Combined total ${(preview.combinedBuyerPays + deliveryExtra.buyer).toFixed(2)}</Text>
           <Text style={styles.meta}>{preview.checkouts.length} checkout{preview.checkouts.length === 1 ? '' : 's'} · Platform keeps ${(preview.combinedPlatform + deliveryExtra.platform).toFixed(2)}</Text>
         </View>
-        {receiptId ? <Text style={styles.ok}>Paid on one charge. Each seller is on the 7-day payout.</Text> : null}
+        {receiptId ? <Text style={styles.ok}>Paid on one charge. Each cook is paid after that order is cleared, then held 7 days.</Text> : null}
         <GlassPressable style={styles.button} onPress={pay}>
           <Text style={styles.buttonText}>{charging ? 'Charging…' : 'Pay together'}</Text>
         </GlassPressable>

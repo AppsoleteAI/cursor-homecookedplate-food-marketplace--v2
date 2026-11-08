@@ -6,6 +6,7 @@ import {
   ScrollView,
   Alert,
   Dimensions,
+  Image,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,6 +22,8 @@ import { portionsFromTags } from '@/lib/meal-publish';
 import { checkoutQuantity } from '@/lib/fees';
 import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { FoodImage } from '@/components/FoodImage';
+import { FoodReviewPlayer } from '@/components/FoodReviewPlayer';
+import { isStoredVideoAddress } from '@/lib/food-review-clips';
 import { trpc } from '@/lib/trpc';
 import { buyerFoodCharge } from '@/backend/lib/fees';
 import type { Meal } from '@/types';
@@ -72,6 +75,9 @@ export default function MealDetailScreen() {
       isSample: data.isSample === true,
     };
   }, [mealQuery.data]);
+  const reportMealPhoto = trpc.media.reportMealImage.useMutation();
+  const reportCookPhoto = trpc.media.reportProfileImage.useMutation();
+  const cookPhoto = mealQuery.data?.plateMakerImage || '';
   const shownRating = Number.isFinite(Number(meal?.rating)) ? Number(meal?.rating) : 0;
   const shownReviewCount = meal?.reviewCount ?? 0;
 
@@ -220,6 +226,14 @@ export default function MealDetailScreen() {
             }}
           >
             {meal.images.map((image, index) => (
+              isStoredVideoAddress(image) ? (
+                <FoodReviewPlayer
+                  key={index}
+                  uri={image}
+                  width={width}
+                  height={width * 0.8}
+                />
+              ) : (
               <FoodImage
                 key={index}
                 source={{ uri: image }}
@@ -239,6 +253,7 @@ export default function MealDetailScreen() {
                   });
                 }}
               />
+              )
             ))}
           </ScrollView>
           <View style={styles.imageIndicators}>
@@ -252,6 +267,26 @@ export default function MealDetailScreen() {
               />
             ))}
           </View>
+          {user && meal && !isOwnPlate && !isSample && meal.images[currentImageIndex] && !isStoredVideoAddress(meal.images[currentImageIndex]) ? (
+            <GlassPressable
+              style={styles.reportPhoto}
+              testID="report-meal-photo"
+              accessibilityRole="button"
+              accessibilityLabel="Report this photo"
+              onPress={() => {
+                const imageUrl = meal.images[currentImageIndex];
+                reportMealPhoto.mutate({ mealId: meal.id, imageUrl }, {
+                  onSuccess: () => {
+                    Alert.alert('Photo reported', 'A moderator has this photo. It is hidden on every device until the moderator allows it.');
+                    mealQuery.refetch();
+                  },
+                  onError: (error) => Alert.alert('Photo report', error.message),
+                });
+              }}
+            >
+              <Text style={styles.reportPhotoText}>Report this photo</Text>
+            </GlassPressable>
+          ) : null}
         </View>
 
         <View style={styles.content}>
@@ -259,6 +294,29 @@ export default function MealDetailScreen() {
             <View style={styles.titleSection}>
               <Text style={styles.name}>{titleCase(meal.name)}</Text>
               <Text style={styles.plateMaker}>{meal.plateMakerName}</Text>
+              {cookPhoto ? (
+                <View style={styles.cookPhotoRow}>
+                  <Image source={{ uri: cookPhoto }} style={styles.cookPhoto} accessibilityLabel="PlateMaker profile photo" />
+                  {user && !isOwnPlate ? (
+                    <GlassPressable
+                      testID="report-cook-photo"
+                      accessibilityRole="button"
+                      accessibilityLabel="Report this profile photo"
+                      onPress={() => {
+                        reportCookPhoto.mutate({ userId: meal.plateMakerId }, {
+                          onSuccess: () => {
+                            Alert.alert('Photo reported', 'A moderator has this profile photo. It is hidden on every device until the moderator allows it.');
+                            mealQuery.refetch();
+                          },
+                          onError: (error) => Alert.alert('Photo report', error.message),
+                        });
+                      }}
+                    >
+                      <Text style={styles.reportPhotoText}>Report this photo</Text>
+                    </GlassPressable>
+                  ) : null}
+                </View>
+              ) : null}
               {(meal.dietaryOptions?.length ?? 0) > 0 && (
                 <View style={styles.dietRow}>
                   {meal.dietaryOptions.map((option) => (
@@ -424,7 +482,7 @@ export default function MealDetailScreen() {
             </View>
           </View>
 
-          {!isPlatemaker && !isOwnPlate && !isSample && (
+          {!isPlatemaker && !isOwnPlate && !isSample && mealQuery.data?.canOrder !== false && (
             <View style={styles.quantitySection}>
               <Text style={styles.sectionTitle}>Quantity</Text>
               <View style={styles.quantityControls}>
@@ -457,7 +515,12 @@ export default function MealDetailScreen() {
           <Text style={styles.sampleNote}>This is your plate. Order from another cook.</Text>
         </View>
       ) : null}
-      {!isPlatemaker && !isOwnPlate && !isSample && (
+      {!isPlatemaker && !isOwnPlate && !isSample && mealQuery.data?.canOrder === false ? (
+        <View style={styles.footer}>
+          <Text style={styles.sampleNote}>You can look from here. Ordering waits until your saved location is within 20 miles, and the pickup time is on a day and hour this plate is offered.</Text>
+        </View>
+      ) : null}
+      {!isPlatemaker && !isOwnPlate && !isSample && mealQuery.data?.canOrder !== false && (
         <View style={styles.footer}>
           <View style={styles.totalSection}>
             <Text style={styles.totalLabel}>Plate ${ (meal.price * quantity).toFixed(2) }</Text>
@@ -493,6 +556,27 @@ const styles = StyleSheet.create({
     width,
     height: width * 0.8,
     ...glassSurface,
+  },
+  reportPhoto: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    marginLeft: 16,
+  },
+  reportPhotoText: {
+    color: Colors.gray[700],
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  cookPhotoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 8,
+  },
+  cookPhoto: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
   imageIndicators: {
     position: 'absolute',

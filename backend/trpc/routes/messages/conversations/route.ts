@@ -4,6 +4,8 @@ import { TRPCError } from "@trpc/server";
 import { loadPublicProfiles } from "../../../../lib/public-profiles";
 import { missingBuyerColumn, orderBuyerId } from "../../../../lib/order-row";
 import { messageVisible, missingColumn } from "../../../../lib/content-moderation";
+import { firstPlatePhoto } from "@/lib/food-review-clips";
+import { hiddenClipVideoAddresses, hiddenMealImages, visiblePlateMedia } from "../../../../lib/hidden-clips";
 
 export const listConversationsProcedure = protectedProcedure
   .input(z.object({ asBuyer: z.boolean().optional() }).optional())
@@ -100,6 +102,12 @@ export const listConversationsProcedure = protectedProcedure
       orders.flatMap((o) => [orderBuyerId(o), o.seller_id])
     );
 
+    const mealIdOf = (meals: { id?: string } | { id?: string }[] | null | undefined) => {
+      if (!meals) return "";
+      return Array.isArray(meals) ? meals[0]?.id || "" : meals.id || "";
+    };
+    const hiddenVideos = await hiddenClipVideoAddresses(ctx.supabaseAdmin);
+    const hiddenStills = await hiddenMealImages(ctx.supabaseAdmin, orders.map((order) => mealIdOf(order.meals as { id?: string } | { id?: string }[] | null)));
     return orders.map((order) => {
       const buyerId = orderBuyerId(order);
       const otherUserId = userRole === "platemaker" ? buyerId : order.seller_id;
@@ -109,7 +117,7 @@ export const listConversationsProcedure = protectedProcedure
       return {
         orderId: order.id,
         mealName: (order.meals as any)?.name || "Unknown Meal",
-        mealImage: ((order.meals as any)?.images?.[0] as string) || "",
+        mealImage: firstPlatePhoto(visiblePlateMedia((order.meals as { images?: string[] } | null)?.images, hiddenStills.get(mealIdOf(order.meals as { id?: string } | { id?: string }[] | null)), hiddenVideos)),
         otherUserId,
         otherUserName: otherUser?.username || "User",
         otherUserImage: otherUser?.profile_image,

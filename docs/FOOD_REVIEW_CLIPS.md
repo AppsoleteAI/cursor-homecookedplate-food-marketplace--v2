@@ -6,6 +6,12 @@ The post card stays under the green header. It has no “Post a 20 second clip�
 
 The timeline shows two newest clips, then the popular clip with the highest smile, heart, and star total that is not already on screen, then repeats. The top clip is the newest. The bottom clip is not simply the oldest. A PlateMaker and a PlateTaker see that same order. Search and Bookmarks narrow the list before that order is applied. Hide removes a clip on this device.
 
+The video file is in the `meal-media` bucket. The address is saved on `food_review_clips`. A poster image is optional. The player uses the video address, so a clip with no poster still plays. Signed in, a PlateMaker and a PlateTaker see that clip on every device when they open Clips. A clip that was saved only on one phone is not on that list. Signed out, the app sends that person to sign-in.
+
+Record, Choose Clip, and a plate video posted to this timeline must be 20 seconds or less. A plate video is still refused past 8 seconds on Create Meal, which is inside that 20 second limit. A YouTube, Facebook, TikTok, or Reddit link can be longer. The frame plays that link.
+
+A report hides that video on every device, including on the plate, until an admin allows it. Allow shows it again. Remove leaves it hidden. Hide this clip still hides it on this device only. The website publish on main serves that report path. An installed app keeps the previous clips screen until the next store build.
+
 A verified food influencer has ✅ immediately after `@screenname`. `@LoveTrash` carries that mark. The other seed clips do not. The newest clip is `@LoveTrash`, “Reviewing influencer food reviews,” at `https://www.reddit.com/r/LoveTrash/comments/1wz4alk/reviewing_influencer_food_reviews/`. That post is at the top. The next post is the newer of the YouTube Shorts. Orlando is the first popular clip, so it is third. `@nicole.ludwig`, “TikTok clip,” at `https://www.tiktok.com/@nicole.ludwig/video/7524134107157105950` is the oldest post, so it is at the bottom. It plays in TikTok’s player inside the frame. A stored Snapchat clip is dropped. A device that already saved the earlier TikTok in this slot gets this link instead.
 
 The three-dot chip stays in the upper right of the clip. It opens the source page, reports the clip on this device, or hides the clip. Playback stays in the frame. A post that does not fill the 9:16 frame is centered, with the empty black split above and below.

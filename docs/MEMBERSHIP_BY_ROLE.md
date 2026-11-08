@@ -94,7 +94,7 @@ The Apple review demo account and the Google review demo account are the only Pr
 
 A lifetime membership is not an App Store product. Monthly and yearly are the App Store products. Lifetime stays on the account. Deleting the app and downloading it again creates a new binding token. Sign-in on that same account saves the new token. A signed-in PlateMaker stays on the kitchen. A signed-in PlateTaker stays on home. Another account cannot take the token, because `profiles.device_id` is unique.
 
-The live database still has the old function until `backend/sql/allow_lifetime_device_rebind.sql` is run in the SQL editor. Until that run, the app allows the re-download and the database refuses to store the new token.
+`backend/sql/allow_lifetime_device_rebind.sql` was run in the SQL editor on 7 November 2026. The editor returned Success with no rows. Do not run it again. The same account can store a new binding token. Another account cannot take that token.
 
 A PlateMaker and a PlateTaker use the same sign-in check. A lifetime tier is what starts it. Signed out, the check does not run.
 
@@ -112,6 +112,40 @@ A PlateMaker whose Early Bird date is still ahead stays on Premium after an App 
 | --- | --- | --- | --- |
 | App Store expiry or refund | Premium ends unless Early Bird is still ahead, or Stripe, Play, or lifetime still covers. The kitchen follows that result. | Premium ends unless Stripe, Play, or lifetime still covers. The buyer fee returns to 10%. | No membership is shown. |
 | Delete account | Delete waits until App Store renewal is off. Play renewal is cancelled when the service account is set. | The same billing check. The buyer account is what is deleted. | Delete is not available. |
+
+## Apple retention message
+
+Checked 5 November 2026 from the retention-messaging banner. Apple can show one message when a subscriber starts to cancel. It is configured under Monetization, Subscriptions, Retention Messaging. Text is required. An image and a retention offer are optional. This app has no retention offer. Skip the image. The image sizes Apple lists are 3840 × 2160 or 5244 × 2950.
+
+The Retention Messaging API limits a header to 66 characters and a body to 144. The Connect form’s own counter is the one to follow if it differs. Header and body cannot name a price, a discount, or a free period. English (U.S.) is the only localization on this app.
+
+Membership monthly and Membership yearly are the two products on the iOS 1.0 submission. A PlateMaker and a PlateTaker both buy those same two product ids on iPhone. One message is attached to both products. It states only what is true for both roles: when the subscription ends, Premium ends on the HomeCookedPlate account that bought it, and the download stays free. The kitchen closing is the PlateMaker outcome. The buyer fee returning to 10% is the PlateTaker outcome. Apple does not know which role bought the product, so the message leaves both of those out.
+
+Reference name, not shown to the subscriber:
+
+```text
+Membership stay
+```
+
+Header:
+
+```text
+Keep this HomeCookedPlate membership
+```
+
+Body:
+
+```text
+When it ends, Premium ends on the HomeCookedPlate account that bought it. The download stays free.
+```
+
+Save. Add for Review on that message page is a separate item from iOS 1.0. It does not replace the version that is Waiting for Review. Do not use a button on the version page. Web, iOS, and Android share the membership source. This message is an App Store Connect setting. No screen in the app changes.
+
+| | PlateMaker | PlateTaker |
+| --- | --- | --- |
+| Signed in, subscription still renewing | Apple may show this message on the cancel path. Premium stays until the subscription ends. The kitchen still follows the paid plan, Early Bird, or the Remote 120 days. | Apple may show the same message. Premium stays until the subscription ends. The lower buyer fee stays while Premium is on. |
+| Signed in, after it ends | Premium ends on that account. | Premium ends on that account. The buyer fee is 10% again. |
+| Signed out | No Apple subscription on this device, so no message. Purchase still waits for sign-in. | The same. |
 
 ## Rule for later changes
 

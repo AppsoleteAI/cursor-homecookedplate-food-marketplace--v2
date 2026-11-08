@@ -1,17 +1,21 @@
 import { readAdminRole } from "../../../../lib/admin-role";
 import { earlyBirdCoversThisMetro, readEarlyBirdClaim } from "../../../../lib/early-bird-claim";
+import { ACCOUNT_PROFILE_COLUMNS, readProfileRow } from "../../../../lib/profile-columns";
 import { refreshAppleMembership, refreshGoogleMembership, refreshStripeMembership, writeResolvedTier } from "../../../../lib/store-membership";
 import { platemakerMayEnter, platemakerTrialCountdownDays, trialCloseoutKeepsKitchen, unpaidPlatemakerTrialEnded } from "../../../../lib/trial-access";
 import { verifiedFactors } from "../../../../lib/second-factor";
 import { sessionProcedure } from "../../../create-context";
+import { ensureAccountIdentifier } from "../../../../lib/account-identifier";
 
 export const meProcedure = sessionProcedure
   .query(async ({ ctx }) => {
-    const { data: profile, error } = await ctx.supabase
+    const profileRead = await readProfileRow(ACCOUNT_PROFILE_COLUMNS, (columns) => ctx.supabase
       .from('profiles')
-      .select('*')
+      .select(columns as '*')
       .eq('id', ctx.userId)
-      .single();
+      .single() as PromiseLike<{ data: any; error: { message?: string } | null }>);
+    const profile = profileRead.data;
+    const error = profileRead.error;
 
     if (error || !profile) {
       throw new Error('Profile not found');
@@ -58,8 +62,11 @@ export const meProcedure = sessionProcedure
       }
     }
 
+    const accountCode = await ensureAccountIdentifier(ctx.supabaseAdmin, profile.id, profile.role);
+
     return {
       id: profile.id,
+      accountCode: accountCode || undefined,
       username: profile.username,
       businessName: typeof profile.business_name === 'string' ? profile.business_name : '',
       email: profile.email,

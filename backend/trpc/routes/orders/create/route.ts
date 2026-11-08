@@ -72,7 +72,24 @@ export const createOrderProcedure = protectedProcedure
         status: 'pending',
         payment_intent_id: null,
       })
-      .select()
+      .select([
+        'id',
+        'meal_id',
+        'buyer_id',
+        'seller_id',
+        'status',
+        'quantity',
+        'total_price',
+        'paid',
+        'special_instructions',
+        'cooking_temperature',
+        'allergies',
+        'delivery_address',
+        'pickup_time',
+        'created_at',
+        ...(withNote ? ['instructions_status'] : []),
+        ...(withZone && pickupTimeZone ? ['pickup_timezone'] : []),
+      ].join(', '))
       .single();
     let withZone = true;
     let withNote = noteHeld;
@@ -94,12 +111,13 @@ export const createOrderProcedure = protectedProcedure
       console.error('[CreateOrder] Error:', error);
       throw new Error(error?.message || 'Failed to create order');
     }
+    const order = data as any;
 
-    const over = await thisOrderExceedsPortions(ctx.supabaseAdmin, input.mealId, data.id, portionCap);
+    const over = await thisOrderExceedsPortions(ctx.supabaseAdmin, input.mealId, order.id, portionCap);
     if (over == null || over) {
-      const removed = await ctx.supabaseAdmin.from('orders').delete().eq('id', data.id);
+      const removed = await ctx.supabaseAdmin.from('orders').delete().eq('id', order.id);
       if (removed.error) {
-        await ctx.supabaseAdmin.from('orders').update({ status: 'cancelled' }).eq('id', data.id);
+        await ctx.supabaseAdmin.from('orders').update({ status: 'cancelled' }).eq('id', order.id);
       }
       throw new TRPCError({
         code: 'PRECONDITION_FAILED',
@@ -110,27 +128,27 @@ export const createOrderProcedure = protectedProcedure
     }
 
     return {
-      id: data.id,
-      mealId: data.meal_id,
-      buyerId: data.buyer_id,
-      sellerId: data.seller_id,
-      status: data.status,
-      quantity: data.quantity,
-      totalPrice: parseFloat(data.total_price), // Final price from DB (after trigger)
-      paid: data.paid,
+      id: order.id,
+      mealId: order.meal_id,
+      buyerId: order.buyer_id,
+      sellerId: order.seller_id,
+      status: order.status,
+      quantity: order.quantity,
+      totalPrice: parseFloat(order.total_price), // Final price from DB (after trigger)
+      paid: order.paid,
       specialInstructions: noteForViewer({
-        text: data.special_instructions,
-        status: data.instructions_status,
-        buyerId: orderBuyerId(data),
-        sellerId: data.seller_id,
+        text: order.special_instructions,
+        status: order.instructions_status,
+        buyerId: orderBuyerId(order),
+        sellerId: order.seller_id,
         viewerId: ctx.userId,
       }).text ?? undefined,
-      instructionsStatus: data.instructions_status ?? null,
-      cookingTemperature: data.cooking_temperature,
-      allergies: data.allergies,
-      deliveryAddress: data.delivery_address,
-      pickupTime: data.pickup_time ? new Date(data.pickup_time) : undefined,
-      pickupTimeZone: typeof data.pickup_timezone === 'string' ? data.pickup_timezone : pickupTimeZone || undefined,
-      createdAt: new Date(data.created_at),
+      instructionsStatus: order.instructions_status ?? null,
+      cookingTemperature: order.cooking_temperature,
+      allergies: order.allergies,
+      deliveryAddress: order.delivery_address,
+      pickupTime: order.pickup_time ? new Date(order.pickup_time) : undefined,
+      pickupTimeZone: typeof order.pickup_timezone === 'string' ? order.pickup_timezone : pickupTimeZone || undefined,
+      createdAt: new Date(order.created_at),
     };
   });

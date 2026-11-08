@@ -5,6 +5,7 @@ import { notifyParty } from '../../../../lib/account-notice';
 import { messageNotice } from '@/lib/order-contact';
 import { missingBuyerColumn, orderBuyerId } from '../../../../lib/order-row';
 import { scanText } from '../../../../lib/text-security';
+import { parseMealImageReport, setMealImageHeld, setProfileImageHeld } from '../../../../lib/hidden-clips';
 
 async function otherParty(admin: { from: (table: string) => any }, orderId: string, senderId: string) {
   let order = await admin.from('orders').select('buyer_id, seller_id').eq('id', orderId).maybeSingle();
@@ -138,6 +139,17 @@ export const decideModerationProcedure = adminProcedure
     if (saved.error) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'That report was not updated.' });
     if (report.data.target_type === 'clip') {
       await ctx.supabaseAdmin.from('food_review_clips').update({ hidden: status !== 'allowed' }).eq('id', report.data.target_id);
+    }
+    if (report.data.target_type === 'meal_image') {
+      const parsed = parseMealImageReport(report.data.target_id);
+      if (parsed) {
+        const held = await setMealImageHeld(ctx.supabaseAdmin, parsed.mealId, parsed.imageUrl, status !== 'allowed');
+        if (!held) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'That photo was not updated.' });
+      }
+    }
+    if (report.data.target_type === 'profile_image') {
+      const held = await setProfileImageHeld(ctx.supabaseAdmin, report.data.target_id, status !== 'allowed');
+      if (!held) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'That profile photo was not updated.' });
     }
     if (report.data.target_type === 'order_message' && status === 'removed') {
       await ctx.supabaseAdmin.from('order_messages').update({ moderation_status: 'removed' }).eq('id', report.data.target_id);

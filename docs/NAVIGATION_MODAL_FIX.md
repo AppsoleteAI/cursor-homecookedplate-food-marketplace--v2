@@ -265,22 +265,7 @@ if (readyRef.current) { /* ... */ }
 
 Before deploying any changes that affect navigation or modals:
 
-#### Android Emulator
-- [ ] Open meal detail modal from home screen
-- [ ] Open checkout modal from cart
-- [ ] Open active orders modal from dashboard
-- [ ] Verify modals can be closed/dismissed
-- [ ] Test hardware back button
-- [ ] Check for console errors
-
-#### iOS Device/Simulator
-- [ ] Open meal detail modal from home screen
-- [ ] Open checkout modal from cart
-- [ ] Open active orders modal from dashboard
-- [ ] Verify modals can be closed/dismissed
-- [ ] Test swipe-to-dismiss gesture
-- [ ] Verify iOS-specific animations work
-- [ ] Check for console errors
+Android and iOS are in `docs/PHONE_DIAGNOSTICS.md`.
 
 #### Web Browser
 - [ ] Open meal detail modal from home screen

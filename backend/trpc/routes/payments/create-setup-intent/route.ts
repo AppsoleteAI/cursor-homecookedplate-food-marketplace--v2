@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { protectedProcedure } from '../../../create-context';
+import { saveOwnedStripeCustomer } from '../../../../lib/account-identifier';
 
 const inputSchema = z.object({
   customerId: z.string().optional().nullable(),
@@ -25,8 +26,9 @@ export const createSetupIntentProcedure = protectedProcedure
       throw new Error('Profile not found');
     }
 
-    // Use existing customer ID or the one provided
-    let customerId = input.customerId || profile.stripe_customer_id;
+    // A customer id from the client is used only when it is already this account's id.
+    let customerId = profile.stripe_customer_id;
+    if (input.customerId && input.customerId === customerId) customerId = input.customerId;
 
     // If no customer exists, create one
     if (!customerId) {
@@ -51,13 +53,9 @@ export const createSetupIntentProcedure = protectedProcedure
       }
 
       const customer = await customerResponse.json();
-      customerId = customer.id;
-
-      // Save customer ID to profile
-      await ctx.supabaseAdmin
-        .from('profiles')
-        .update({ stripe_customer_id: customerId })
-        .eq('id', profile.id);
+      const saved = await saveOwnedStripeCustomer(ctx.supabaseAdmin, profile.id, customer.id);
+      if (!saved.ok) throw new Error('This Stripe customer cannot be used on this HomeCookedPlate account.');
+      customerId = saved.stripeId;
     }
 
     // Create Setup Intent for collecting payment method

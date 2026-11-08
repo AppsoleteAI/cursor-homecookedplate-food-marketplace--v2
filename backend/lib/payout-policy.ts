@@ -6,6 +6,8 @@ import { salesVolumeCap } from './fees';
 
 export const PAYOUT_HOLD_DAYS = 7;
 export const RESPONSIBILITY_WINDOW_DAYS = 30;
+/** After selling is removed, the remaining cook share is transferred once this many days have passed. */
+export const BAN_FINAL_PAYOUT_DAYS = 30;
 export const SALES_WEEK_DAYS = 7;
 
 /** Four lost disputes in a rolling 12 months, one per quarter. Two inside 60 days move the ban to the third. */
@@ -39,7 +41,7 @@ export type ResponsibilityCounts = {
 };
 
 export const PLATEMAKER_RESPONSIBILITY_STATEMENT =
-  'You take full responsibility for the food you sell. HomeCookedPlate pays your connected Stripe account directly, after a 7-day hold, so refunds and chargebacks can be fixed before that payout. A lost card dispute is a $15 fee charged to you, not to HomeCookedPlate. If you block that PlateTaker from ordering your plates, half of that fee ($7.50) is returned. Write to support@homecookedplate.com to discuss it. Counts use a rolling 30-day window. Too many chargebacks, refunds, or complaints in that window removes your selling access. One government request for removal does the same. An admin restores selling. Message an admin from this screen.';
+  'You take full responsibility for the food you sell. HomeCookedPlate pays your connected Stripe account directly, after a 7-day hold, so refunds and chargebacks can be fixed before that payout. A lost card dispute is a $15 fee charged to you, not to HomeCookedPlate. If you block that PlateTaker from ordering your plates, half of that fee ($7.50) is returned. Write to support@homecookedplate.com to discuss it. Counts use a rolling 30-day window. Too many chargebacks, refunds, or complaints in that window removes your selling access. One government request for removal does the same. An admin restores selling. If selling stays removed, the remaining payout is sent 30 days after that removal. Pending chargebacks are left out. Fees you still owe, including a $15 lost-dispute fee, are taken out of that payout. Message an admin from this screen.';
 
 export type LostDisputeOutcome = {
   count: number;
@@ -164,18 +166,78 @@ export function salesVolumeBlockMessage(
   return null;
 }
 
-/** A payout lands only after this cook has finished their own Stripe account. */
+/**
+ * A payout lands only after Stripe has enabled payouts on this cook’s own account.
+ * Selling removal waits until final_payout_at. That date is 30 days after the removal.
+ */
 export function cookPayoutReady(profile: {
   stripe_account_id?: string | null;
   selling_removed?: boolean | null;
-} | null | undefined): boolean {
-  return Boolean(profile?.stripe_account_id) && profile?.selling_removed !== true;
+  stripe_payouts_enabled?: boolean | null;
+  final_payout_at?: string | null;
+} | null | undefined, now: Date = new Date()): boolean {
+  if (!profile?.stripe_account_id || profile.stripe_payouts_enabled !== true) return false;
+  if (profile.selling_removed !== true) return true;
+  if (!profile.final_payout_at) return false;
+  const at = new Date(profile.final_payout_at).getTime();
+  return Number.isFinite(at) && at <= now.getTime();
 }
 
 export function payoutReleaseAt(paidAt: Date = new Date()): string {
   const release = new Date(paidAt.getTime());
   release.setUTCDate(release.getUTCDate() + PAYOUT_HOLD_DAYS);
   return release.toISOString();
+}
+
+export function finalPayoutAt(removedAt: Date = new Date()): string {
+  const release = new Date(removedAt.getTime());
+  release.setUTCDate(release.getUTCDate() + BAN_FINAL_PAYOUT_DAYS);
+  return release.toISOString();
+}
+
+/** Days an uncleared order can sit before the 7-day hold starts on its own. */
+export const PAYOUT_STALL_DAYS = 7;
+
+/**
+ * Starts the 7-day hold once `anchorAt` is PAYOUT_STALL_DAYS in the past.
+ * A mutual clear sets the hold itself and does not use this.
+ */
+export function stallAnchorRelease(input: { now: Date; anchorAt: Date | null }): string | null {
+  if (!input.anchorAt || Number.isNaN(input.anchorAt.getTime())) return null;
+  const openUntil = new Date(input.anchorAt.getTime());
+  openUntil.setUTCDate(openUntil.getUTCDate() + PAYOUT_STALL_DAYS);
+  if (input.now.getTime() < openUntil.getTime()) return null;
+  return payoutReleaseAt(input.now);
+}
+
+export function payoutRetryAt(kind: 'balance' | 'account', now: Date = new Date()): string {
+  const hours = kind === 'balance' ? 1 : 24;
+  return new Date(now.getTime() + hours * 60 * 60 * 1000).toISOString();
+}
+
+export function payoutStatusLabel(input: {
+  status: string;
+  releaseAt: string | null;
+  bankPayoutStatus?: string | null;
+  now?: Date;
+}): string {
+  const now = input.now ?? new Date();
+  if (input.status === 'held') {
+    if (!input.releaseAt) return 'Held until this order is cleared';
+    const release = new Date(input.releaseAt);
+    if (!Number.isNaN(release.getTime()) && release.getTime() <= now.getTime()) {
+      return 'Held. The transfer has not been sent yet.';
+    }
+    return `Held until ${release.toLocaleString()}`;
+  }
+  if (input.status === 'settled' && input.bankPayoutStatus === 'paid') return 'Paid to your bank by Stripe';
+  if (input.status === 'settled' && input.bankPayoutStatus === 'failed') {
+    return 'Stripe could not pay your bank. The transfer is still in your Stripe account.';
+  }
+  if (input.status === 'settled') return 'Paid to your Stripe account. Stripe pays your bank on its own schedule.';
+  if (input.status === 'refunded') return 'Refunded. This payout will not be sent.';
+  if (input.status === 'disputed') return 'Chargeback. This payout is stopped or pulled back.';
+  return input.status;
 }
 
 export function responsibilityWindowStart(now: Date = new Date()): string {
@@ -240,7 +302,7 @@ export function eventNotice(
   if (removed) {
     return {
       title: `${label} recorded. New orders are blocked.`,
-      body: `This ${label.toLowerCase()} is on your record. You have ${count} in the rolling ${RESPONSIBILITY_WINDOW_DAYS} days, and new orders are blocked. An admin can restore selling.`,
+      body: `This ${label.toLowerCase()} is on your record. You have ${count} in the rolling ${RESPONSIBILITY_WINDOW_DAYS} days, and new orders are blocked. An admin can restore selling. If selling stays removed, the remaining payout is sent ${BAN_FINAL_PAYOUT_DAYS} days after this removal. Pending chargebacks are left out. Fees still owed are taken from that payout.`,
     };
   }
   return {

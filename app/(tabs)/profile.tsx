@@ -292,6 +292,11 @@ export default function ProfileScreen() {
             </Text>
           ) : null}
           <Text style={styles.email}>{user?.email || 'guest@example.com'}</Text>
+          {user?.accountCode ? (
+            <Text style={styles.email} testID="account-code">
+              {accountRole === 'platemaker' ? 'PlateMaker' : 'PlateTaker'} ID {user.accountCode}
+            </Text>
+          ) : null}
           <View style={[styles.roleTag, { 
             backgroundColor: accountRole === 'platemaker' ? Colors.gradient.green : Colors.gradient.yellow,
             borderWidth: 2,

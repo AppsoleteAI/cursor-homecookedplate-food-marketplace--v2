@@ -390,6 +390,45 @@ export const seedFoodReviewClips: FoodReviewClip[] = [
   },
 ];
 
+/** A meal video this account already stored in meal-media. */
+export function storedMealVideoAddress(url: string, userId: string): boolean {
+  if (!userId) return false;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') return false;
+    return parsed.pathname.includes(`/storage/v1/object/public/meal-media/${userId}/`);
+  } catch {
+    return false;
+  }
+}
+
+export function isStoredVideoAddress(uri: string | null | undefined): boolean {
+  if (!uri) return false;
+  return /\.(mp4|mov|m4v|webm|quicktime)(\?|$)/i.test(uri);
+}
+
+/** The first food photo on a plate. A video address is not used as that still. */
+export function firstPlatePhoto(images: string[] | null | undefined): string {
+  return (images || []).find((uri) => uri.startsWith('https://') && !isStoredVideoAddress(uri)) || '';
+}
+
+/**
+ * Uploaded clips come from the shared kitchen.
+ * A clip that exists only on this device is not part of that list.
+ * Seed links stay. Reactions already on this device stay with the same clip.
+ */
+export function sharedClipTimeline(server: FoodReviewClip[], previous: FoodReviewClip[] = []): FoodReviewClip[] {
+  const prior = new Map(previous.map((clip) => [clip.id, clip]));
+  const serverIds = new Set(server.map((clip) => clip.id));
+  const uploaded = server.map((clip) => {
+    const kept = prior.get(clip.id);
+    if (!kept) return clip;
+    return { ...clip, counts: kept.counts, reactionsByUser: kept.reactionsByUser };
+  });
+  const seeds = seedFoodReviewClips.filter((clip) => !serverIds.has(clip.id));
+  return [...uploaded, ...seeds];
+}
+
 export function withSeedClips(clips: FoodReviewClip[]): FoodReviewClip[] {
   const seeds = new Map(seedFoodReviewClips.map((clip) => [clip.id, clip]));
   const refreshed = clips.map((clip) => {

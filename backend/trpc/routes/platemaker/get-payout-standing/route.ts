@@ -28,11 +28,27 @@ export const getPayoutStandingProcedure = protectedProcedure.query(async ({ ctx 
     await releaseDuePayouts(ctx.supabaseAdmin, stripeSecretKey, ctx.userId);
   }
 
-  const { data: standing } = await ctx.supabaseAdmin
+  type Standing = {
+    selling_removed?: boolean | null;
+    selling_removed_reason?: string | null;
+    stripe_account_id?: string | null;
+    stripe_payouts_enabled?: boolean | null;
+    stripe_bank_payout_status?: string | null;
+    final_payout_at?: string | null;
+    created_at?: string | null;
+  };
+  const standingQuery = await ctx.supabaseAdmin
     .from('profiles')
-    .select('selling_removed, selling_removed_reason, stripe_account_id, created_at')
+    .select('selling_removed, selling_removed_reason, stripe_account_id, stripe_payouts_enabled, stripe_bank_payout_status, final_payout_at, created_at')
     .eq('id', ctx.userId)
     .single();
+  const standing = (standingQuery.error
+    ? (await ctx.supabaseAdmin
+      .from('profiles')
+      .select('selling_removed, selling_removed_reason, stripe_account_id, created_at')
+      .eq('id', ctx.userId)
+      .single()).data
+    : standingQuery.data) as Standing | null;
 
   const counts = await countResponsibility(ctx.supabaseAdmin, ctx.userId);
 
@@ -83,7 +99,9 @@ export const getPayoutStandingProcedure = protectedProcedure.query(async ({ ctx 
     statement: `${PLATEMAKER_RESPONSIBILITY_STATEMENT} ${salesCapLine}`,
     sellingRemoved: standing?.selling_removed === true,
     sellingRemovedReason: standing?.selling_removed_reason ?? null,
-    stripeConnected: Boolean(standing?.stripe_account_id),
+    finalPayoutAt: typeof standing?.final_payout_at === 'string' ? standing.final_payout_at : null,
+    stripeConnected: Boolean(standing?.stripe_account_id) && standing?.stripe_payouts_enabled === true,
+    bankPayoutStatus: typeof standing?.stripe_bank_payout_status === 'string' ? standing.stripe_bank_payout_status : null,
     supportEmail: SUPPORT_EMAIL,
     counts,
     warnings: warningReasons(counts),

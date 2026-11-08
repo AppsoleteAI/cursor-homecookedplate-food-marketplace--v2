@@ -3,10 +3,8 @@ import { TRPCError } from '@trpc/server';
 import { protectedProcedure, publicProcedure } from '../../create-context';
 import { decode } from 'base64-arraybuffer';
 import { mediaFrameSource, scanVideo } from '../../../lib/image-security';
-import { nearbyCookIds } from '../../../lib/kitchen-pin';
-import { mealVisibleInMetro } from '../../../lib/metro-menu';
 import { buyerPremiumCovers, platemakerMayEnter } from '../../../lib/trial-access';
-import { foodReviewLinkClip } from '@/lib/food-review-clips';
+import { foodReviewLinkClip, storedMealVideoAddress } from '@/lib/food-review-clips';
 import { auditTextField } from '../../../lib/text-audit';
 import { missingColumn, notifyModerators } from '../../../lib/content-moderation';
 
@@ -29,28 +27,18 @@ function missingTable(error: { code?: string; message?: string } | null): boolea
 
 export const listClipsProcedure = publicProcedure
   .input(z.object({ metroArea: z.string().optional() }).optional())
-  .query(async ({ input, ctx }) => {
-  const profile = ctx.userId
-    ? await ctx.supabaseAdmin.from('profiles').select('metro_area').eq('id', ctx.userId).maybeSingle()
-    : { data: null };
-  const savedMetro = typeof profile.data?.metro_area === 'string' ? profile.data.metro_area.trim() : '';
-  const nearby = ctx.userId ? await nearbyCookIds(ctx.supabaseAdmin, ctx.userId) : { available: false, ids: [] as string[] };
-  if (nearby.available && nearby.ids.length === 0) return [];
-  let clipQuery = ctx.supabaseAdmin
+  .query(async ({ ctx }) => {
+  let listed = await ctx.supabaseAdmin
     .from('food_review_clips')
     .select('id, user_id, meal_name, author, role, video_url, poster_url, duration_seconds, created_at, hidden')
     .order('created_at', { ascending: false })
     .limit(50);
-  if (nearby.available) clipQuery = clipQuery.in('user_id', nearby.ids);
-  let listed = await clipQuery;
   if (listed.error && missingColumn(listed.error.message, 'hidden')) {
-    let retry = ctx.supabaseAdmin
+    listed = await ctx.supabaseAdmin
       .from('food_review_clips')
       .select('id, user_id, meal_name, author, role, video_url, poster_url, duration_seconds, created_at')
       .order('created_at', { ascending: false })
-      .limit(50);
-    if (nearby.available) retry = retry.in('user_id', nearby.ids);
-    listed = await retry as typeof listed;
+      .limit(50) as typeof listed;
   }
   const { data, error } = listed;
   if (error) {
@@ -58,13 +46,6 @@ export const listClipsProcedure = publicProcedure
     console.error('[Clips] List failed:', error.message);
     return [];
   }
-  const authorIds = [...new Set((data || []).map((row: { user_id?: string }) => row.user_id).filter(Boolean))];
-  const metros = authorIds.length === 0
-    ? { data: [] as { id: string; metro_area: string | null }[] }
-    : await ctx.supabaseAdmin.from('profiles').select('id, metro_area').in('id', authorIds);
-  const cookMetros = new Map<string, string | null>(
-    (metros.data || []).map((row: { id: string; metro_area: string | null }) => [row.id, row.metro_area])
-  );
   return (data || []).flatMap((row: {
     id: string;
     meal_name: string;
@@ -74,11 +55,9 @@ export const listClipsProcedure = publicProcedure
     poster_url: string | null;
     duration_seconds: number;
     created_at: string;
-    user_id?: string;
     hidden?: boolean;
   }) => {
     if (row.hidden === true) return [];
-    if (!nearby.available && !mealVisibleInMetro(cookMetros.get(row.user_id || ''), savedMetro || undefined)) return [];
     return [{
     id: row.id,
     mealName: row.meal_name,
@@ -215,6 +194,60 @@ export const publishClipLinkProcedure = protectedProcedure
       posterUri: link.posterUri,
       durationSeconds: 20,
       durationMeasured: false as const,
+      createdAt: new Date().toISOString(),
+      counts: { smile: 0, heart: 0, star: 0 },
+      reactionsByUser: {},
+    };
+  });
+
+export const publishStoredClipProcedure = protectedProcedure
+  .input(z.object({
+    mealName: z.string().min(1).max(80),
+    videoUrl: z.string().min(12).max(500),
+    durationSeconds: z.number().int().positive().max(20),
+    posterUri: z.string().max(500).optional(),
+  }))
+  .mutation(async ({ input, ctx }) => {
+    if (!storedMealVideoAddress(input.videoUrl, ctx.userId)) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'That video is not stored for this account.' });
+    }
+    const { data: profile } = await membershipProfile(ctx.supabaseAdmin, ctx.userId);
+    const cookMayPost = profile?.role === 'platemaker' && platemakerMayEnter(profile);
+    const buyerMayPost = Boolean(profile && buyerPremiumCovers(profile));
+    if (!profile || (!cookMayPost && !buyerMayPost)) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Posting a clip is for a premium membership.' });
+    }
+    const mealNameScan = await auditTextField(ctx.supabaseAdmin, ctx.userId, 'clip_meal_name', input.mealName);
+    if (mealNameScan.blocked || !mealNameScan.value) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'That meal name cannot be posted.' });
+    }
+    const id = `clip-${Date.now()}`;
+    const role = profile.role === 'platemaker' ? 'platemaker' : 'platetaker';
+    const poster = input.posterUri?.startsWith('https://') ? input.posterUri : null;
+    const { error } = await ctx.supabaseAdmin.from('food_review_clips').insert({
+      id,
+      user_id: ctx.userId,
+      meal_name: mealNameScan.value,
+      author: profile.username || 'Cook',
+      role,
+      video_url: input.videoUrl,
+      poster_url: poster,
+      duration_seconds: input.durationSeconds,
+    });
+    if (error) {
+      if (missingTable(error)) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'The shared clip timeline is not on this kitchen yet.' });
+      }
+      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'The clip could not be posted.' });
+    }
+    return {
+      id,
+      mealName: mealNameScan.value,
+      author: profile.username || 'Cook',
+      role,
+      videoUri: input.videoUrl,
+      posterUri: poster || '',
+      durationSeconds: input.durationSeconds,
       createdAt: new Date().toISOString(),
       counts: { smile: 0, heart: 0, star: 0 },
       reactionsByUser: {},

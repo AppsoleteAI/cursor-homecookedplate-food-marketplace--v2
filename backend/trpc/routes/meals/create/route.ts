@@ -9,6 +9,7 @@ import { auditTextField, auditTextList } from "../../../../lib/text-audit";
 import { portionTag, timeZoneTag } from "@/lib/meal-publish";
 import { cookPermitIsSaved } from "../../../../lib/kitchen-permit";
 import { cookMayList, cottageFoodGuidance } from "../../../../lib/state-meal-plan";
+import { confirmCookPayouts } from "../../../../lib/connect-account";
 
 export const createMealProcedure = protectedProcedure
   .input(
@@ -106,6 +107,13 @@ export const createMealProcedure = protectedProcedure
         throw new TRPCError({
           code: 'FORBIDDEN',
           message: 'Finish Stripe payouts before a plate goes on the menu. Buyers cannot pay until that account is connected.',
+        });
+      }
+      const payouts = await confirmCookPayouts(ctx.supabaseAdmin, ctx.userId, ctx.stripeSecretKey || process.env.STRIPE_SECRET_KEY);
+      if (!payouts.ok) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Finish Stripe payout setup before a plate goes on the menu. An account id is not enough.',
         });
       }
     }

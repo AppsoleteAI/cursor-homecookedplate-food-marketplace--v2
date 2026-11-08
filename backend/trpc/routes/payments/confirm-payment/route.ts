@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../../create-context';
-import { orderBuyerId } from '../../../../lib/order-row';
+import { orderBuyerId, readOrderQuery } from '../../../../lib/order-row';
 import { listedPlateMetadata, recordPlatePayment } from '../../../../lib/record-paid-order';
 
 const inputSchema = z.object({
@@ -17,12 +17,13 @@ export const confirmPaymentProcedure = protectedProcedure
       throw new Error('Stripe secret key not configured');
     }
 
-    const { data: ownedOrders, error: ownedError } = await ctx.supabaseAdmin
+    const { data: ownedRaw, error: ownedError } = await readOrderQuery((columns) => ctx.supabaseAdmin
       .from('orders')
-      .select('*')
-      .eq('payment_intent_id', input.paymentIntentId);
+      .select(columns)
+      .eq('payment_intent_id', input.paymentIntentId) as PromiseLike<{ data: any; error: { message?: string } | null }>);
+    const ownedOrders = (ownedRaw || []) as any[];
 
-    if (ownedError || !ownedOrders || ownedOrders.length === 0) {
+    if (ownedError || ownedOrders.length === 0) {
       throw new TRPCError({
         code: 'NOT_FOUND',
         message: 'Payment not found',
@@ -30,7 +31,7 @@ export const confirmPaymentProcedure = protectedProcedure
     }
 
     const isParty = ownedOrders.some(
-      (order) => orderBuyerId(order) === ctx.userId || order.seller_id === ctx.userId
+      (order: any) => orderBuyerId(order) === ctx.userId || order.seller_id === ctx.userId
     );
     if (!isParty) {
       throw new TRPCError({

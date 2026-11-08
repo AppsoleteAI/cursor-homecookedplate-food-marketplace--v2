@@ -59,12 +59,17 @@ export const getConnectAccountStatusProcedure = publicProcedure
     }
 
     const account = await accountResponse.json();
+    const payoutsEnabled = account.payouts_enabled === true;
+    await ctx.supabaseAdmin
+      .from('profiles')
+      .update({ stripe_payouts_enabled: payoutsEnabled })
+      .eq('id', ctx.userId);
 
     return {
-      needsOnboarding: !account.details_submitted,
+      needsOnboarding: !account.details_submitted || !payoutsEnabled,
       accountId: account.id,
       detailsSubmitted: account.details_submitted,
       chargesEnabled: account.charges_enabled,
-      payoutsEnabled: account.payouts_enabled,
+      payoutsEnabled,
     };
   });

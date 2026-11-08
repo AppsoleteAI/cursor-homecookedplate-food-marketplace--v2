@@ -7,6 +7,11 @@ import { mealVisibleInMetro } from "../../../../lib/metro-menu";
 import { publicMenuKeepsPlate } from "@/lib/cart-line";
 import { loadActiveOffers } from "../../../../lib/active-offer";
 import { countPermittedMealsWithMedia, permittedCookIds } from "../../../../lib/kitchen-permit";
+import { mealListSelect, PUBLIC_MEAL_COLUMNS } from "../../../../lib/public-read";
+import { timePublicRead } from "../../../../lib/public-read-timing";
+import { logPublicReadFailure } from "../../../../lib/request-id";
+import { hiddenClipVideoAddresses, hiddenMealImages, visiblePlateMedia } from "../../../../lib/hidden-clips";
+import { metrosForTravelPlace, travelBrowseOpen } from "../../../../lib/travel-browse";
 
 export const listMealsProcedure = publicProcedure
   .input(
@@ -16,6 +21,7 @@ export const listMealsProcedure = publicProcedure
       category: z.string().optional(),
       featured: z.boolean().optional(),
       metroArea: z.string().optional(),
+      place: z.string().max(80).optional(),
       limit: z.number().optional(),
       offset: z.number().optional(),
     }).optional()
@@ -31,16 +37,38 @@ export const listMealsProcedure = publicProcedure
         viewerMetro = saved || undefined;
       }
     }
+    const place = input?.place?.trim() || '';
+    let travelMetros: string[] = [];
+    if (place && ctx.userId && !input?.userId) {
+      const buyer = await ctx.supabaseAdmin
+        .from('profiles')
+        .select('role, membership_tier, trial_ends_at, stripe_subscription_id, apple_original_transaction_id, apple_expires_at, apple_revoked_at, google_purchase_token, google_expires_at')
+        .eq('id', ctx.userId)
+        .maybeSingle();
+      if (travelBrowseOpen(buyer.data)) {
+        travelMetros = metrosForTravelPlace(place);
+        if (travelMetros.length === 0) return [];
+      }
+    }
+    const traveling = travelMetros.length > 0;
+    let travelCookIds: string[] | null = null;
+    if (traveling) {
+      const cooksInPlace = await ctx.supabaseAdmin
+        .from('profiles')
+        .select('id')
+        .eq('role', 'platemaker')
+        .in('metro_area', travelMetros);
+      travelCookIds = (cooksInPlace.data || []).map((row: { id: string }) => row.id);
+      if (travelCookIds.length === 0) return [];
+    }
     const nearby = !input?.userId && ctx.userId
       ? await nearbyCookIds(ctx.supabaseAdmin, ctx.userId)
       : { available: false, ids: [] as string[] };
-    if (nearby.available && nearby.ids.length === 0) return [];
+    if (!traveling && nearby.available && nearby.ids.length === 0) return [];
     const area = nearby.available ? undefined : viewerMetro;
     const base = () => {
-      const select = area
-        ? '*, cook:profiles!meals_user_id_fkey!inner(metro_area)'
-        : '*';
-      let query = ctx.supabase
+      const select = mealListSelect(Boolean(area));
+      let query = ctx.supabaseRead
         .from('meals')
         .select(select)
         .eq('published', true)
@@ -49,7 +77,9 @@ export const listMealsProcedure = publicProcedure
       if (input?.cuisine) query = query.eq('cuisine', input.cuisine);
       if (input?.category) query = query.eq('category', input.category);
       if (input?.featured !== undefined) query = query.eq('featured', input.featured);
-      if (nearby.available) {
+      if (travelCookIds) {
+        query = query.in('user_id', travelCookIds);
+      } else if (nearby.available) {
         query = query.in('user_id', nearby.ids);
       } else if (area === 'Remote/Other') {
         query = query.or('metro_area.is.null,metro_area.eq.,metro_area.eq."Remote/Other"', { referencedTable: 'cook' });
@@ -61,27 +91,26 @@ export const listMealsProcedure = publicProcedure
       return query.order('created_at', { ascending: false });
     };
 
-    let { data, error } = await base() as {
-      data: { id: string; user_id: string }[] | null;
-      error: { message: string } | null;
-    };
     let joinFailed = false;
-    if (error && area) {
-      joinFailed = true;
-      let fallback = ctx.supabase.from('meals').select('*').eq('published', true).eq('available', true);
-      if (input?.cuisine) fallback = fallback.eq('cuisine', input.cuisine);
-      if (input?.category) fallback = fallback.eq('category', input.category);
-      if (input?.featured !== undefined) fallback = fallback.eq('featured', input.featured);
-      const retry = await fallback.order('created_at', { ascending: false }) as {
+    let { data, error } = await timePublicRead("listMeals", ctx, async () => {
+      const first = await base() as {
         data: { id: string; user_id: string }[] | null;
         error: { message: string } | null;
       };
-      data = retry.data;
-      error = retry.error;
-    }
+      if (!(first.error && area)) return first;
+      joinFailed = true;
+      let fallback = ctx.supabaseRead.from('meals').select(PUBLIC_MEAL_COLUMNS).eq('published', true).eq('available', true);
+      if (input?.cuisine) fallback = fallback.eq('cuisine', input.cuisine);
+      if (input?.category) fallback = fallback.eq('category', input.category);
+      if (input?.featured !== undefined) fallback = fallback.eq('featured', input.featured);
+      return await fallback.order('created_at', { ascending: false }) as {
+        data: { id: string; user_id: string }[] | null;
+        error: { message: string } | null;
+      };
+    });
 
     if (error) {
-      console.error('[ListMeals] Error:', error);
+      logPublicReadFailure("listMeals", ctx.requestId, error.message);
       throw new Error(error.message);
     }
 
@@ -104,21 +133,25 @@ export const listMealsProcedure = publicProcedure
       (data || []).map((meal: { id: string }) => meal.id)
     );
 
+    const hiddenVideos = await hiddenClipVideoAddresses(ctx.supabaseAdmin);
+    const hiddenStills = await hiddenMealImages(ctx.supabaseAdmin, (data || []).map((meal: { id: string }) => meal.id));
     const realMeals = (data || []).filter((meal: { user_id: string }) => {
       if (!ownList && !permitted.has(meal.user_id)) return false;
       if (input?.userId) return true;
       const state = cookState.get(meal.user_id);
       if (!publicMenuKeepsPlate(state?.is_paused, state?.available_for_orders)) return false;
+      if (traveling) return travelMetros.includes(cookMetros.get(meal.user_id) || '');
       if (nearby.available) return nearby.ids.includes(meal.user_id);
       return mealVisibleInMetro(cookMetros.get(meal.user_id), viewerMetro);
     }).map((meal: any) => ({
       id: meal.id,
       plateMakerId: meal.user_id,
       plateMakerName: displayName(cooks.get(meal.user_id)),
+      plateMakerImage: cooks.get(meal.user_id)?.profile_image || '',
       name: meal.name,
       description: meal.description,
       price: parseFloat(meal.price),
-      images: meal.images,
+      images: visiblePlateMedia(meal.images, hiddenStills.get(meal.id), hiddenVideos),
       ingredients: meal.ingredients,
       cuisine: meal.cuisine,
       category: meal.category,
@@ -131,10 +164,11 @@ export const listMealsProcedure = publicProcedure
       featured: meal.featured,
       tags: meal.tags,
       isSample: false,
+      canOrder: traveling ? nearby.available && nearby.ids.includes(meal.user_id) : true,
       promotionalOffer: offers.get(meal.id) ?? undefined,
     }));
 
-    if (input?.userId || nearby.available) return realMeals;
+    if (input?.userId || nearby.available || traveling) return realMeals;
 
     const realWithMedia = await countPermittedMealsWithMedia(ctx.supabaseAdmin, input?.metroArea);
     const realIds = new Set(realMeals.map((meal) => meal.id));
@@ -144,7 +178,7 @@ export const listMealsProcedure = publicProcedure
       if (input?.category && meal.category !== input.category) return false;
       if (input?.featured !== undefined && Boolean(meal.featured) !== input.featured) return false;
       return true;
-    });
+    }).map((meal) => ({ ...meal, plateMakerImage: '' }));
 
     const merged = [...realMeals, ...samples];
     if (!joinFailed) return merged;

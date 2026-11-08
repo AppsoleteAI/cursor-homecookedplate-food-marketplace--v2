@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Image } from 'react-native';
+import { Alert, View, Text, StyleSheet, FlatList, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { Colors } from '@/constants/colors';
@@ -29,6 +29,7 @@ export default function MessagesPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
+  const reportProfile = trpc.media.reportProfileImage.useMutation();
   const conversationsQuery = trpc.messages.conversations.useQuery(
     { asBuyer: user?.orderingAsBuyer === true },
     {
@@ -71,6 +72,27 @@ export default function MessagesPage() {
             </View>
           )}
           {item.unread && <View style={styles.unreadDot} />}
+          {item.otherUserImage && item.otherUserId !== user?.id ? (
+            <GlassPressable
+              testID={`report-profile-${item.otherUserId}`}
+              accessibilityRole="button"
+              accessibilityLabel="Report this profile photo"
+              onPress={() => {
+                Alert.alert('Report this photo?', 'It is hidden on every device until a moderator allows it.', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Report', onPress: () => reportProfile.mutate({ userId: item.otherUserId }, {
+                    onSuccess: () => {
+                      Alert.alert('Photo reported', 'A moderator has this profile photo. It is hidden on every device until the moderator allows it.');
+                      conversationsQuery.refetch();
+                    },
+                    onError: (error) => Alert.alert('Photo report', error.message),
+                  }) },
+                ]);
+              }}
+            >
+              <Text style={styles.reportPhoto}>Report this photo</Text>
+            </GlassPressable>
+          ) : null}
         </View>
 
         <View style={styles.conversationContent}>
@@ -99,7 +121,7 @@ export default function MessagesPage() {
         </View>
       </GlassPressable>
     );
-  }, [handleConversationPress]);
+  }, [conversationsQuery, handleConversationPress, reportProfile, user?.id]);
 
   if (!user) {
     return (
@@ -208,6 +230,13 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700' as const,
     color: Colors.white,
+  },
+  reportPhoto: {
+    color: Colors.gray[700],
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
+    width: 72,
   },
   unreadDot: {
     position: 'absolute',

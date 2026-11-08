@@ -12,12 +12,13 @@ module.exports = {
     '**/?(*.)+(spec|test).[jt]s?(x)',
   ],
   collectCoverageFrom: [
-    '**/*.{js,jsx,ts,tsx}',
+    'backend/**/*.{ts,tsx}',
+    'lib/**/*.{ts,tsx}',
+    'pages/**/*.{ts,tsx}',
     '!**/*.d.ts',
-    '!**/node_modules/**',
-    '!**/.expo/**',
-    '!**/coverage/**',
-    '!jest.config.js',
+    '!**/__tests__/**',
+    '!**/*.{test,spec}.{ts,tsx}',
   ],
+  coverageReporters: ['text-summary', 'json-summary'],
   testEnvironment: 'node',
 };

@@ -9,12 +9,15 @@ import { createSupabaseAdmin } from "./lib/supabase";
 import { logAdminAlert } from "./lib/alerts";
 import { sendExpoPushNotification } from "./lib/expo-push-notifications";
 import { listedPlateMetadata, recordPlatePayment } from "./lib/record-paid-order";
-import { handleChargeDispute, handleLostDispute, releaseDuePayouts } from "./lib/stripe-marketplace";
+import { handleChargeDispute, handleConnectWebhook, handleLostDispute, releaseDuePayouts } from "./lib/stripe-marketplace";
+import { connectReturnHtml, createAccountLink } from "./lib/connect-account";
 import { readAppleServerNotification } from "./lib/apple-transaction";
 import { applyAppleNotification, writeResolvedTier } from "./lib/store-membership";
 import type { MediaFrameBinding } from "./lib/image-security";
 import { alertKvWriteCap } from "./lib/kv-write-cap";
 import { limitRequest, type SharedLimiter } from "./lib/request-limit";
+import { limitBody } from "./lib/body-limit";
+import { assignRequestId, REQUEST_ID_HEADER } from "./lib/request-id";
 import { recordOperationalFailure } from "./lib/failure-alert";
 import { reportWorkerCrash, workerSentryDsn } from "./lib/worker-sentry";
 import { apiIsProduction, productionApiOrigin } from "./lib/api-origin";
@@ -26,10 +29,12 @@ type Bindings = {
   AUTH_RATE_LIMIT?: SharedLimiter;
   ENVIRONMENT?: string;
   SUPABASE_URL?: string;
+  SUPABASE_READ_REPLICA_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   EXPO_PUBLIC_SUPABASE_ANON_KEY?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
+  STRIPE_CONNECT_WEBHOOK_SECRET?: string;
   METRO_WEBHOOK_SECRET?: string;
   // Cloudflare Workers AI binding for image NSFW moderation
   AI?: Ai;
@@ -80,7 +85,7 @@ app.use(
     origin: (origin, c) => productionApiOrigin(origin, apiIsProduction(c.env)),
     allowMethods: ['POST', 'GET', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization', 'x-trpc-source'],
-    exposeHeaders: ['Content-Length'],
+    exposeHeaders: ['Content-Length', REQUEST_ID_HEADER],
     maxAge: 600,
     credentials: true,
   })
@@ -114,6 +119,8 @@ app.use(
   })
 );
 
+app.use("*", assignRequestId());
+
 app.use("*", rateLimit("api"));
 
 const credentialLimit = rateLimit("auth");
@@ -127,6 +134,8 @@ app.use("/api/trpc/*", async (c, next) => {
 });
 
 app.use("/api/auth/*", credentialLimit);
+
+app.use("*", limitBody());
 
 async function noteFailure(env: Bindings | undefined, kind: 'payment_error' | 'webhook_error' | 'security_alert', message: string) {
   const supabaseUrl = env?.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -174,8 +183,25 @@ async function syncStripeMembership(
   return 'ok';
 }
 
+async function stripeSignatureMatches(signedPayload: string, signature: string, secret: string): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signatureBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(signedPayload));
+  const computedSignature = Array.from(new Uint8Array(signatureBuffer))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+  return sameSecret(computedSignature, signature);
+}
+
 app.post("/webhook/stripe", async (c) => {
   const webhookSecret = c.env?.STRIPE_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET;
+  const connectWebhookSecret = c.env?.STRIPE_CONNECT_WEBHOOK_SECRET || process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
   const supabaseUrl = c.env?.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const supabaseServiceKey = c.env?.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -204,26 +230,15 @@ app.post("/webhook/stripe", async (c) => {
     }
 
     const signedPayload = `${timestamp}.${payload}`;
-    const encoder = new TextEncoder();
-    const key = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(webhookSecret),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign']
-    );
-
-    const signatureBuffer = await crypto.subtle.sign(
-      'HMAC',
-      key,
-      encoder.encode(signedPayload)
-    );
-
-    const computedSignature = Array.from(new Uint8Array(signatureBuffer))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
-
-    if (!sameSecret(computedSignature, signature)) {
+    const secrets = [webhookSecret, connectWebhookSecret].filter((value): value is string => !!value);
+    let verified = false;
+    for (const secret of secrets) {
+      if (await stripeSignatureMatches(signedPayload, signature, secret)) {
+        verified = true;
+        break;
+      }
+    }
+    if (!verified) {
       console.error('[Stripe Webhook] Signature verification failed');
       await noteFailure(c.env, 'security_alert', 'Stripe webhook signature was rejected.');
       return c.json({ error: 'Invalid signature' }, 400);
@@ -377,6 +392,20 @@ app.post("/webhook/stripe", async (c) => {
     }
   }
 
+  if (
+    event.type === 'account.updated'
+    || event.type === 'transfer.created'
+    || event.type === 'transfer.failed'
+    || event.type === 'payout.paid'
+    || event.type === 'payout.failed'
+  ) {
+    const connectResult = await handleConnectWebhook(supabaseAdmin, event);
+    if (connectResult === 'error') {
+      await recordOperationalFailure('payment_error', 'A Stripe Connect payout event could not be saved.', supabaseAdmin);
+      return c.json({ error: 'Connect event failed' }, 500);
+    }
+  }
+
   return c.json({ received: true });
 });
 
@@ -514,6 +543,7 @@ app.use(
       // Note: If you are using Bun locally, c.env might be empty, so we use the ?? operator to fall back to process.env
       const env = {
         SUPABASE_URL: c.env?.SUPABASE_URL ?? process.env.EXPO_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL,
+        SUPABASE_READ_REPLICA_URL: c.env?.SUPABASE_READ_REPLICA_URL,
         SUPABASE_SERVICE_ROLE_KEY: c.env?.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY,
         EXPO_PUBLIC_SUPABASE_ANON_KEY: c.env?.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
         EXPO_PUBLIC_WEB_URL: c.env?.EXPO_PUBLIC_WEB_URL ?? process.env.EXPO_PUBLIC_WEB_URL,
@@ -526,10 +556,18 @@ app.use(
         ASC_API_PRIVATE_KEY: c.env?.ASC_API_PRIVATE_KEY || process.env.ASC_API_PRIVATE_KEY,
         STRIPE_SECRET_KEY: c.env?.STRIPE_SECRET_KEY ?? process.env.STRIPE_SECRET_KEY,
         RESEND_API_KEY: c.env?.RESEND_API_KEY ?? process.env.RESEND_API_KEY,
+        SENTRY_DSN: c.env?.SENTRY_DSN,
+        EXPO_PUBLIC_SENTRY_DSN: c.env?.EXPO_PUBLIC_SENTRY_DSN,
       };
       if (env.STRIPE_SECRET_KEY) process.env.STRIPE_SECRET_KEY = env.STRIPE_SECRET_KEY;
       if (env.RESEND_API_KEY) process.env.RESEND_API_KEY = env.RESEND_API_KEY;
-      return await createContext(opts, env);
+      return await createContext(opts, env, c.get("requestId"), (work) => {
+        try {
+          c.executionCtx.waitUntil(work);
+        } catch {
+          void work;
+        }
+      });
     },
     onError: ({ path, error }) => {
       console.error(`❌ tRPC Error on ${path}:`, error);
@@ -546,6 +584,31 @@ app.use(
 
 app.get("/", (c) => {
   return c.json({ status: "ok", message: "API is running" });
+});
+
+app.get("/stripe/connect-return", (c) => {
+  return c.html(connectReturnHtml());
+});
+
+app.get("/stripe/connect-refresh", async (c) => {
+  const accountId = c.req.query('account') || '';
+  if (!/^acct_[A-Za-z0-9]+$/.test(accountId)) {
+    return c.text('This payout link is missing its Stripe account.', 400);
+  }
+  const stripeSecretKey = c.env?.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
+  const supabaseUrl = c.env?.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseServiceKey = c.env?.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!stripeSecretKey || !supabaseUrl || !supabaseServiceKey) {
+    return c.text('Payout setup is not available right now.', 500);
+  }
+  const admin = createSupabaseAdmin({ SUPABASE_URL: supabaseUrl, SUPABASE_SERVICE_ROLE_KEY: supabaseServiceKey });
+  const profile = await admin.from('profiles').select('id').eq('stripe_account_id', accountId).maybeSingle();
+  if (profile.error || !profile.data?.id) {
+    return c.text('This payout link does not match a HomeCookedPlate cook.', 404);
+  }
+  const link = await createAccountLink(stripeSecretKey, accountId);
+  if (!link.ok) return c.text('Stripe could not open payout setup. Return to the app and tap Set up Stripe payouts.', 502);
+  return c.redirect(link.url, 302);
 });
 
 // Health check endpoint - tests Supabase connection from Cloudflare Workers

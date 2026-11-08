@@ -1,3 +1,5 @@
+import { missingColumn } from './content-moderation';
+
 /**
  * Loads cook and buyer display fields with the service role.
  * Callers must pass only ids they are already allowed to show.
@@ -16,14 +18,20 @@ export async function loadPublicProfiles(
     ? 'id, username, business_name, profile_image, email'
     : 'id, username, business_name, profile_image';
 
-  const { data, error } = await admin.from('profiles').select(columns).in('id', unique);
-  if (error) {
-    console.error('[PublicProfiles] Lookup failed:', error);
+  const withHold = await admin.from('profiles').select(`${columns}, profile_image_hidden`).in('id', unique);
+  const listed = withHold.error && missingColumn(withHold.error.message, 'profile_image_hidden')
+    ? await admin.from('profiles').select(columns).in('id', unique)
+    : withHold;
+  if (listed.error) {
+    console.error('[PublicProfiles] Lookup failed:', listed.error);
     return profiles;
   }
 
-  for (const row of data || []) {
-    profiles.set(row.id, row);
+  for (const row of listed.data || []) {
+    profiles.set(row.id, {
+      ...row,
+      profile_image: row.profile_image_hidden === true ? null : row.profile_image,
+    });
   }
   return profiles;
 }

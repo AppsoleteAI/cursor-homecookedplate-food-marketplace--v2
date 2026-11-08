@@ -22,7 +22,7 @@ import {
   type QuotedCheckout,
   type QuotedLine,
 } from '../../../../lib/combined-checkout';
-import { payoutReleaseAt } from '../../../../lib/payout-policy';
+import { confirmCookPayouts } from '../../../../lib/connect-account';
 import { assertBuyerCanOrder } from '../../../../lib/buyer-order-access';
 import { pickupGate } from '../../../../lib/kitchen-pin';
 import { buyerMetroCanOrder } from '../../../../lib/metro-menu';
@@ -128,6 +128,13 @@ async function assertSellerCanTakeOrders(
     throw new TRPCError({
       code: 'BAD_REQUEST',
       message: 'This seller has not finished Stripe setup, so this checkout cannot be charged.',
+    });
+  }
+  const payouts = await confirmCookPayouts(admin, sellerId, process.env.STRIPE_SECRET_KEY);
+  if (!payouts.ok) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'This seller has not finished Stripe payout setup, so this checkout cannot be charged.',
     });
   }
   if (area === 'home') {
@@ -584,7 +591,7 @@ async function holdPayout(
     currency: 'usd',
     quantity: checkout.lines.reduce((sum, line) => sum + line.quantity, 0),
     status: 'held',
-    payout_release_at: orderId ? null : payoutReleaseAt(),
+    payout_release_at: null,
     metadata: {
       area: checkout.area,
       sellerName: checkout.sellerName,
@@ -615,6 +622,12 @@ export const setAreaStoreProcedure = protectedProcedure
     }
     if (input.open && !seller.stripe_account_id) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Finish Stripe setup before opening this store.' });
+    }
+    if (input.open) {
+      const payouts = await confirmCookPayouts(ctx.supabaseAdmin, ctx.userId, process.env.STRIPE_SECRET_KEY);
+      if (!payouts.ok) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Finish Stripe payout setup before opening this store. An account id is not enough.' });
+      }
     }
     const { error } = await ctx.supabaseAdmin.from('audit_logs').insert({
       user_id: ctx.userId,

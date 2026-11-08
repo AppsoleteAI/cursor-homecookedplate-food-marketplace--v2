@@ -31,12 +31,18 @@ CREATE OR REPLACE FUNCTION public.seed_metro_counts()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
+DECLARE
+  city text;
 BEGIN
-  -- Automatically create corresponding metro_area_counts entry for new metro
+  city := COALESCE(to_jsonb(NEW)->>'name', to_jsonb(NEW)->>'metro_name');
+  IF city IS NULL OR city = '' THEN
+    RETURN NEW;
+  END IF;
+
   INSERT INTO public.metro_area_counts (metro_name, platemaker_count, platetaker_count, max_cap)
-  VALUES (NEW.metro_name, 0, 0, 100)
+  VALUES (city, 0, 0, 100)
   ON CONFLICT (metro_name) DO NOTHING;
-  
+
   RETURN NEW;
 END;
 $$;

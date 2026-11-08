@@ -1,4 +1,5 @@
 import { logKvWriteCap } from "./kv-write-cap";
+import { logRateLimitUnbound, logRequestLimit, logRequestRejected } from "./request-id";
 
 /**
  * Per-minute request counts.
@@ -8,7 +9,25 @@ import { logKvWriteCap } from "./kv-write-cap";
 
 export const API_LIMIT = 100;
 export const AUTH_LIMIT = 10;
+export const ACCOUNT_LIMIT = API_LIMIT;
 export const LIMIT_WINDOW_MS = 60_000;
+
+const ACCOUNT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function accountIdFromAuthorization(header: string | null | undefined): string | null {
+  if (!header) return null;
+  const match = /^Bearer\s+(\S+)/i.exec(header.trim());
+  if (!match) return null;
+  const payload = match[1].split(".")[1];
+  if (!payload) return null;
+  try {
+    const padded = payload.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payload.length / 4) * 4, "=");
+    const json = JSON.parse(atob(padded)) as { sub?: unknown };
+    return typeof json.sub === "string" && ACCOUNT_ID.test(json.sub) ? json.sub : null;
+  } catch {
+    return null;
+  }
+}
 
 export type SharedLimiter = {
   limit(options: { key: string }): Promise<{ success: boolean }>;
@@ -22,6 +41,7 @@ export type LimitStore = {
 export type LimitDecision = {
   result: "allow" | "limit" | "unavailable";
   writeCapStarted: boolean;
+  unboundBinding: "API_RATE_LIMIT" | "AUTH_RATE_LIMIT" | null;
 };
 
 type Bucket = { count: number; resetTime: number };
@@ -34,6 +54,7 @@ export function clientIp(header: (name: string) => string | null | undefined): s
 
 export function createRequestLimit(now: () => number = () => Date.now()) {
   const memory = new Map<string, Bucket>();
+  const notedUnbound = new Set<"api" | "auth">();
   let kvWritesBlocked = false;
 
   function memoryAllows(key: string, max: number, windowMs: number): boolean {
@@ -84,22 +105,34 @@ export function createRequestLimit(now: () => number = () => Date.now()) {
   return {
     reset() {
       memory.clear();
+      notedUnbound.clear();
       kvWritesBlocked = false;
     },
     async decide(input: {
-      scope: "api" | "auth";
+      scope: "api" | "auth" | "account";
       ip: string;
+      accountId?: string | null;
       production: boolean;
       shared?: SharedLimiter | null;
       kv?: LimitStore | null;
     }): Promise<LimitDecision> {
-      const max = input.scope === "api" ? API_LIMIT : AUTH_LIMIT;
-      const key = `ratelimit:${input.scope}:${max}:${input.ip}`;
+      if (input.scope === "account" && !input.accountId) {
+        return { result: "allow", writeCapStarted: false, unboundBinding: null };
+      }
+      const max = input.scope === "auth" ? AUTH_LIMIT : ACCOUNT_LIMIT;
+      const subject = input.scope === "account" ? input.accountId : input.ip;
+      const key = `ratelimit:${input.scope}:${max}:${subject}`;
+      let unboundBinding: LimitDecision["unboundBinding"] = null;
+      if ((input.scope === "api" || input.scope === "auth") && input.production && !input.shared && !notedUnbound.has(input.scope)) {
+        notedUnbound.add(input.scope);
+        unboundBinding = input.scope === "api" ? "API_RATE_LIMIT" : "AUTH_RATE_LIMIT";
+      }
 
       if (input.shared) {
         try {
-          const { success } = await input.shared.limit({ key: input.ip });
-          return { result: success ? "allow" : "limit", writeCapStarted: false };
+          const sharedKey = input.scope === "account" ? `account:${input.accountId}` : input.ip;
+          const { success } = await input.shared.limit({ key: sharedKey });
+          return { result: success ? "allow" : "limit", writeCapStarted: false, unboundBinding };
         } catch (error) {
           const message = error instanceof Error ? error.message : "unknown";
           console.error("[Rate Limit] Shared limiter failed:", message.slice(0, 200));
@@ -109,19 +142,19 @@ export function createRequestLimit(now: () => number = () => Date.now()) {
       if (input.scope === "auth" && input.kv && !kvWritesBlocked) {
         try {
           const allowed = await kvAllows(input.kv, key, max, LIMIT_WINDOW_MS);
-          return { result: allowed ? "allow" : "limit", writeCapStarted: false };
+          return { result: allowed ? "allow" : "limit", writeCapStarted: false, unboundBinding };
         } catch (error) {
           const allowed = memoryAllows(key, max, LIMIT_WINDOW_MS);
-          return { result: allowed ? "allow" : "limit", writeCapStarted: noteCap(error) };
+          return { result: allowed ? "allow" : "limit", writeCapStarted: noteCap(error), unboundBinding };
         }
       }
 
       if (input.scope === "auth" && input.production && !input.kv && !kvWritesBlocked) {
-        return { result: "unavailable", writeCapStarted: false };
+        return { result: "unavailable", writeCapStarted: false, unboundBinding };
       }
 
       const allowed = memoryAllows(key, max, LIMIT_WINDOW_MS);
-      return { result: allowed ? "allow" : "limit", writeCapStarted: false };
+      return { result: allowed ? "allow" : "limit", writeCapStarted: false, unboundBinding };
     },
   };
 }
@@ -150,6 +183,9 @@ export function limitRequest(scope: "api" | "auth", hooks?: { onWriteCap?: (env:
       await next();
       return;
     }
+    if (outcome.unboundBinding) {
+      logRateLimitUnbound(c.get?.("requestId"), outcome.unboundBinding);
+    }
     if (outcome.writeCapStarted) {
       logKvWriteCap();
       try {
@@ -160,10 +196,36 @@ export function limitRequest(scope: "api" | "auth", hooks?: { onWriteCap?: (env:
     }
     if (outcome.result === "unavailable") {
       console.error("[Rate Limit] Refusing request because AUTH_RATE_LIMIT and RATE_LIMIT_KV are not bound");
+      logRequestRejected(c.get?.("requestId"), "limiter-unbound");
       return c.json({ error: "Service temporarily unavailable." }, 503);
     }
     if (outcome.result === "limit") {
+      logRequestLimit(c.get?.("requestId"), scope);
       return c.json({ error: "Too many requests, please try again later." }, 429);
+    }
+    if (scope === "api") {
+      const accountId = accountIdFromAuthorization(c.req.header("authorization"));
+      if (accountId) {
+        let accountOutcome: LimitDecision;
+        try {
+          accountOutcome = await requestLimit.decide({
+            scope: "account",
+            ip,
+            accountId,
+            production: productionEnv(c.env),
+            shared: c.env?.API_RATE_LIMIT,
+            kv: null,
+          });
+        } catch (error) {
+          console.error("[Rate Limit] Limiter failed:", error instanceof Error ? error.message : "unknown");
+          await next();
+          return;
+        }
+        if (accountOutcome.result === "limit") {
+          logRequestLimit(c.get?.("requestId"), "account");
+          return c.json({ error: "Too many requests, please try again later." }, 429);
+        }
+      }
     }
     await next();
   };

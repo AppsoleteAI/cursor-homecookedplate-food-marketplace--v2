@@ -24,8 +24,7 @@ import { readLocalMedia } from '@/lib/read-local-media';
 import { canPublishMeal, pickupTags } from '@/lib/meal-publish';
 import { deviceTimeZone } from '@/lib/pickup-time';
 import { markPlatePublished, readPlateDraft, type PlateDraft } from '@/lib/plate-draft';
-import { appendFoodReviewClip } from '@/lib/food-review-clip-store';
-import { foodReviewDurationSeconds } from '@/lib/food-review-clips';
+import { firstPlatePhoto, foodReviewDurationSeconds } from '@/lib/food-review-clips';
 import { Colors, pagePastel } from '@/constants/colors';
 import { ScrollJumps } from '@/components/ScrollJumps';
 
@@ -39,6 +38,7 @@ export default function PublishPlateScreen() {
   const createMeal = trpc.meals.create.useMutation();
   const kitchenPermit = trpc.meals.kitchenPermit.useQuery();
   const uploadMedia = trpc.media.upload.useMutation();
+  const publishStoredClip = trpc.clips.publishStored.useMutation();
   const [draft, setDraft] = useState<PlateDraft>(EMPTY);
   const [foodSafetyAcknowledged, setFoodSafetyAcknowledged] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -134,20 +134,18 @@ export default function PublishPlateScreen() {
         : undefined;
       if (timelineVideo) {
         const source = draft.media.find((item) => item.type === 'video');
-        const poster = media.find((item) => item.type === 'image')?.uri
-          || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800';
-        await appendFoodReviewClip({
-          id: `meal-${created.id}`,
-          mealName: draft.name.trim() || 'Food review',
-          author: user?.username || 'platemaker',
-          role: 'platemaker',
-          videoUri: timelineVideo.uri,
-          posterUri: poster,
-          durationSeconds: foodReviewDurationSeconds(source?.duration),
-          createdAt: new Date().toISOString(),
-          counts: { smile: 0, heart: 0, star: 0 },
-          reactionsByUser: {},
-        });
+        const poster = firstPlatePhoto(media.map((item) => item.uri));
+        try {
+          await publishStoredClip.mutateAsync({
+            mealName: draft.name.trim() || 'Food review',
+            videoUrl: timelineVideo.uri,
+            durationSeconds: foodReviewDurationSeconds(source?.duration),
+            posterUri: poster || undefined,
+          });
+        } catch (clipError) {
+          const clipMessage = clipError instanceof Error ? clipError.message : 'The clip could not be posted.';
+          Alert.alert('Plate published', `The plate is saved. ${clipMessage}`);
+        }
       }
       markPlatePublished();
       router.replace({ pathname: '/meal-details', params: { id: created.id } } as Href);
@@ -157,7 +155,7 @@ export default function PublishPlateScreen() {
     } finally {
       setSaving(false);
     }
-  }, [isValid, saving, createMeal, draft, priceNumber, preparationMinutes, uploadMedia, addMeal, user?.id, user?.username]);
+  }, [isValid, saving, createMeal, draft, priceNumber, preparationMinutes, uploadMedia, addMeal, publishStoredClip, user?.id]);
 
   return (
     <SellerOnly>

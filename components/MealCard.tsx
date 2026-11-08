@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { GlassBadge, GlassPressable, glassSurface } from '@/components/glass-surface';
 import { FoodImage } from '@/components/FoodImage';
+import { firstPlatePhoto } from '@/lib/food-review-clips';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Star, Clock, Tag, Percent, Gift } from 'lucide-react-native';
 import { Meal } from '@/types';
@@ -81,7 +82,7 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, onPress, sizeVariant =
     >
       <View style={styles.clip}>
       {meal.images && meal.images.length > 0 ? (
-        <FoodImage source={{ uri: meal.images[0] }} style={[styles.image, sizeVariant === 'featured' ? styles.imageFeatured : styles.imageGrid]} />
+        <FoodImage source={{ uri: firstPlatePhoto(meal.images) }} style={[styles.image, sizeVariant === 'featured' ? styles.imageFeatured : styles.imageGrid]} />
       ) : (
         <View style={[styles.image, sizeVariant === 'featured' ? styles.imageFeatured : styles.imageGrid, styles.imagePlaceholder]}>
           <Text style={styles.imagePlaceholderText}>No Image</Text>
@@ -119,6 +120,9 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, onPress, sizeVariant =
         <Text style={styles.plateMaker} numberOfLines={1}>
           {meal.plateMakerName}
         </Text>
+        {meal.canOrder === false ? (
+          <Text style={styles.lookOnly}>Look only until you are within 20 miles</Text>
+        ) : null}
         {(meal.dietaryOptions?.length ?? 0) > 0 && (
           <View style={styles.dietRow}>
             {meal.dietaryOptions.slice(0, 2).map((option) => (
@@ -268,6 +272,11 @@ const styles = StyleSheet.create({
     color: Colors.gray[900],
     marginBottom: 4,
     letterSpacing: -0.2,
+  },
+  lookOnly: {
+    color: Colors.gray[700],
+    fontSize: 12,
+    marginTop: 4,
   },
   plateMaker: {
     fontSize: 13,

@@ -34,6 +34,7 @@ import type { Meal } from '@/types';
 import { SkeletonMealList } from '@/components/SkeletonMealList';
 import { ScrollJumps } from '@/components/ScrollJumps';
 import { FoodImage } from '@/components/FoodImage';
+import { firstPlatePhoto } from '@/lib/food-review-clips';
 import { BackCircle } from '@/components/BackCircle';
 import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { BAKED_COTTAGE_LINK, BAKED_COTTAGE_NOTE, isCottageSearch } from '@/lib/baked-cottage';
@@ -211,7 +212,7 @@ export default function HomeScreen() {
             {currentMeal && (
               <Animated.View style={animatedImageStyle}>
                 <FoodImage
-                  source={{ uri: currentMeal.images[0] }}
+                  source={{ uri: firstPlatePhoto(currentMeal.images) }}
                   style={styles.heroImage}
                 />
               </Animated.View>
@@ -319,7 +320,7 @@ export default function HomeScreen() {
                     onPress={() => router.push(`/meal/${meal.id}` as const)}
                   >
                     {meal.images[0] ? (
-                      <FoodImage source={{ uri: meal.images[0] }} style={styles.cravingImage} />
+                      <FoodImage source={{ uri: firstPlatePhoto(meal.images) }} style={styles.cravingImage} />
                     ) : (
                       <View style={[styles.cravingImage, styles.reorderPlaceholder]} />
                     )}

@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/auth-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { captureException } from '@/lib/sentry';
 import { trpc, trpcProxyClient } from '@/lib/trpc';
+import { firstPlatePhoto } from '@/lib/food-review-clips';
 
 interface OrdersState {
   orders: Order[];
@@ -329,7 +330,7 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
       id: `ord_${now.getTime()}_${idx}`,
       mealId: ci.meal.id,
       mealName: ci.meal.name,
-      mealImage: ci.meal.images[0] ?? '',
+      mealImage: firstPlatePhoto(ci.meal.images),
       plateTakerId: plateTaker.id,
       plateTakerName: plateTaker.username,
       plateMakerId: ci.meal.plateMakerId,

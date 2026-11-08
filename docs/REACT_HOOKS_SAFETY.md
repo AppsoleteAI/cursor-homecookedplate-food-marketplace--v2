@@ -162,11 +162,11 @@ A pre-commit hook runs ESLint automatically. If hooks violations are detected, t
 
 Before submitting code, verify:
 
-- [ ] All hooks are called at the top level of the component
-- [ ] No hooks are called after conditional returns
-- [ ] No hooks are called inside conditionals, loops, or nested functions
-- [ ] All functions used in dependency arrays are defined before use
-- [ ] `npm run lint` passes without errors
+- [x] All hooks are called at the top level of the component
+- [x] No hooks are called after conditional returns
+- [x] No hooks are called inside conditionals, loops, or nested functions
+- [x] All functions used in dependency arrays are defined before use
+- [x] `npm run lint` passes without errors
 
 ## Real Examples from This Codebase
 

@@ -1,6 +1,6 @@
 # Text hold and moderator
 
-Web, iOS, and Android share this app. The website publish on `main` includes this UI on https://homecookedplate.com and https://homecookedplate.pages.dev. Held messages, notes, and the Moderator screen need the Worker update and `backend/sql/add_moderation_queue.sql` in the Supabase SQL editor. The live orders table names the buyer `platetaker_id` and the cook `platemaker_id`. Until that SQL is applied, a new order message is not sent.
+Web, iOS, and Android share this app. The website publish on `main` includes this UI on https://homecookedplate.com and https://homecookedplate.pages.dev. `backend/sql/add_moderation_queue.sql` was run in the SQL editor on 7 November 2026. The editor returned Success with no rows. Do not run it again. The live orders table names the buyer `platetaker_id` and the cook `platemaker_id`. A new order message waits for a moderator. The Worker `plate-marketplace-api` was deployed 7 November 2026.
 
 The phrase check runs after hidden characters are removed. It is a backstop for text a person will read. Words drawn in a picture can still push the vision model to answer SAFE.
 

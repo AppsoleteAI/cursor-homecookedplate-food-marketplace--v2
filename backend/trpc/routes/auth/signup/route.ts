@@ -5,7 +5,9 @@ import { randomBytes } from "node:crypto";
 import { sendEmailConfirmation } from "@/backend/lib/email";
 import { readAuthIdentityKind, signupAlreadyRegisteredMessage } from "@/backend/lib/provider-profile";
 import { saveKitchenPin } from "../../../../lib/kitchen-pin";
+import { SIGN_UP_PROFILE_COLUMNS } from "../../../../lib/profile-columns";
 import { abandonFailedSignup, isDuplicateAuthError, planSignupMetro } from "../../../../lib/signup-account";
+import { ensureAccountIdentifier } from "../../../../lib/account-identifier";
 // Strict password validation schema - matches frontend PasswordStrengthMeter requirements
 // Export for reuse in other routes (e.g., password reset, password change)
 export const passwordSchema = z.string()
@@ -151,11 +153,12 @@ export const signupProcedure = publicProcedure
 
       // Try insert first
       // Use ctx.supabaseAdmin (service role) for profile creation during signup (system operation)
-      let { data: profile, error: profileError } = await ctx.supabaseAdmin
+      let { data: profileRaw, error: profileError } = await ctx.supabaseAdmin
         .from('profiles')
         .insert(profileData)
-        .select()
+        .select(SIGN_UP_PROFILE_COLUMNS)
         .single();
+      let profile = profileRaw as any;
 
       // If insert fails with duplicate key (23505), trigger already created profile - UPDATE to finalize
       if (profileError?.code === '23505') {
@@ -174,9 +177,9 @@ export const signupProcedure = publicProcedure
             food_safety_acknowledged: profileData.food_safety_acknowledged, // Store food safety acknowledgment for platemakers
           })
           .eq('id', createdUserId)
-          .select()
+          .select(SIGN_UP_PROFILE_COLUMNS)
           .single();
-        profile = updateResult.data;
+        profile = updateResult.data as any;
         profileError = updateResult.error;
         process.stdout.write(`[SIGNUP_V4] UPDATE completed. metro_area=${profile?.metro_area}, trial_ends_at=${profile?.trial_ends_at || 'null'}, membership_tier=${profile?.membership_tier}\n`);
       }
@@ -192,6 +195,12 @@ export const signupProcedure = publicProcedure
 
       committed = true;
       console.log('[Signup] Profile created successfully with admin client');
+      let accountCode: string | null = null;
+      try {
+        accountCode = await ensureAccountIdentifier(ctx.supabaseAdmin, createdUserId, role);
+      } catch (identifierError) {
+        console.error('[Signup] Account identifier was not saved:', identifierError);
+      }
       if (typeof input.lat === 'number' && typeof input.lng === 'number') {
         try {
           await saveKitchenPin(ctx.supabaseAdmin, createdUserId, input.lat, input.lng);
@@ -255,6 +264,7 @@ export const signupProcedure = publicProcedure
         createdAt: new Date(profile.created_at),
         isPaused: profile.is_paused,
         twoFactorEnabled: profile.two_factor_enabled,
+        accountCode: accountCode || undefined,
         metroArea: profile.metro_area || null,
         trialEndsAt: profile.trial_ends_at ? new Date(profile.trial_ends_at) : null,
       };

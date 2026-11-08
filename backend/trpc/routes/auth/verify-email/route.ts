@@ -32,7 +32,7 @@ export const verifyEmailProcedure = publicProcedure
     // Find token in database
     const { data: tokenRecord, error: tokenError } = await ctx.supabaseAdmin
       .from('email_verification_tokens')
-      .select('*')
+      .select('id, user_id, expires_at, used_at')
       .eq('token', token)
       .single();
 

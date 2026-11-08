@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { protectedProcedure } from '../../../create-context';
 import { membershipPriceCents, membershipProductName } from '../../../../lib/fees';
 import { nearestMetro } from '../../../../lib/metro-radius';
+import { saveOwnedStripeCustomer } from '../../../../lib/account-identifier';
 
 // Major metropolitan areas eligible for trial promotion
 export const MAJOR_METROS = [
@@ -289,13 +290,9 @@ export const subscribeProcedure = protectedProcedure
       }
 
       const customer = await customerResponse.json();
-      customerId = customer.id;
-
-      // Save customer ID to profile
-      await ctx.supabaseAdmin
-        .from('profiles')
-        .update({ stripe_customer_id: customerId })
-        .eq('id', profile.id);
+      const saved = await saveOwnedStripeCustomer(ctx.supabaseAdmin, profile.id, customer.id);
+      if (!saved.ok) throw new Error('This Stripe customer cannot be used on this HomeCookedPlate account.');
+      customerId = saved.stripeId;
     }
 
     // Attach payment method to customer

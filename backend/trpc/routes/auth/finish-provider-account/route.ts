@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { sessionProcedure } from '../../../create-context';
 import { providerProfileAction, usernameCandidates, type AccountRole } from '../../../../lib/provider-profile';
+import { ensureAccountIdentifier } from '../../../../lib/account-identifier';
 
 export const finishProviderAccountProcedure = sessionProcedure
   .input(z.object({
@@ -42,6 +43,7 @@ export const finishProviderAccountProcedure = sessionProcedure
     });
 
     if (action.action === 'keep' && profile) {
+      await ensureAccountIdentifier(ctx.supabaseAdmin, ctx.userId, profile.role === 'platemaker' ? 'platemaker' : 'platetaker');
       return { role: profile.role as AccountRole, username: profile.username as string };
     }
 
@@ -134,5 +136,10 @@ export const finishProviderAccountProcedure = sessionProcedure
     await ctx.supabaseAdmin.auth.admin.updateUserById(ctx.userId, {
       user_metadata: { ...(account.user_metadata ?? {}), role: saved.role, username: saved.username },
     });
+    await ensureAccountIdentifier(
+      ctx.supabaseAdmin,
+      ctx.userId,
+      saved.role === 'platemaker' ? 'platemaker' : 'platetaker',
+    );
     return { role: saved.role as AccountRole, username: saved.username };
   });

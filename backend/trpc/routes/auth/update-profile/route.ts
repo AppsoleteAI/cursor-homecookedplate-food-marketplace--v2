@@ -1,6 +1,7 @@
 import { sessionProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { SAVED_PROFILE_COLUMNS } from "../../../../lib/profile-columns";
 import { auditTextField } from "../../../../lib/text-audit";
 import { accountAllowsSignIn, LEGAL_SAVE_FAILED_MESSAGE, LEGAL_SIGN_IN_MESSAGE, legalSafetyAgreementSchema, submittedAgreementAllows } from "../../../../lib/legal-gate";
 
@@ -108,12 +109,13 @@ export const updateProfileProcedure = sessionProcedure
     if (input.foodSafetyAcknowledged !== undefined) updateData.food_safety_acknowledged = input.foodSafetyAcknowledged;
     if (input.legalSafetyAgreement !== undefined) updateData.legal_safety_agreement = input.legalSafetyAgreement;
 
-    const { data: profile, error } = await ctx.supabase
+    const { data: profileRaw, error } = await ctx.supabase
       .from('profiles')
       .update(updateData)
       .eq('id', ctx.userId)
-      .select()
+      .select(SAVED_PROFILE_COLUMNS)
       .single();
+    const profile = profileRaw as any;
 
     if (error || !profile) {
       throw new Error(error?.message || 'Failed to update profile');

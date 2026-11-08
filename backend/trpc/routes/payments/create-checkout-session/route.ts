@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { membershipPriceCents, membershipProductName, type MembershipInterval, type MembershipRole } from '../../../../lib/fees';
+import { saveOwnedStripeCustomer } from '../../../../lib/account-identifier';
 import { protectedProcedure } from '../../../create-context';
 
 const inputSchema = z.object({
@@ -58,13 +59,9 @@ export const createCheckoutSessionProcedure = protectedProcedure
       }
 
       const customer = await customerResponse.json();
-      customerId = customer.id;
-
-      // Save customer ID to profile
-      await ctx.supabaseAdmin
-        .from('profiles')
-        .update({ stripe_customer_id: customerId })
-        .eq('id', profile.id);
+      const saved = await saveOwnedStripeCustomer(ctx.supabaseAdmin, profile.id, customer.id);
+      if (!saved.ok) throw new Error('This Stripe customer cannot be used on this HomeCookedPlate account.');
+      customerId = saved.stripeId;
     }
 
     // Determine return URLs

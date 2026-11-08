@@ -1,4 +1,5 @@
 import { TRPCError } from "@trpc/server";
+import { ROLE_PROFILE_COLUMNS } from "../../../../lib/profile-columns";
 import { resolvedMembershipTier } from "../../../../lib/trial-access";
 import { protectedProcedure } from "../../../create-context";
 
@@ -38,11 +39,12 @@ export const requestPlatemakerRoleProcedure = protectedProcedure
 
     // Check if user is already a platemaker
     if (currentProfile.role === 'platemaker') {
-      const { data: profile } = await ctx.supabase
+      const { data: profileRaw } = await ctx.supabase
         .from('profiles')
-        .select('*')
+        .select(ROLE_PROFILE_COLUMNS)
         .eq('id', ctx.userId)
         .single();
+      const profile = profileRaw as any;
 
       if (!profile) {
         throw new Error('Failed to fetch profile');
@@ -82,15 +84,16 @@ export const requestPlatemakerRoleProcedure = protectedProcedure
       });
     }
 
-    const { data: updatedProfile, error: updateError } = await ctx.supabaseAdmin
+    const { data: updatedRaw, error: updateError } = await ctx.supabaseAdmin
       .from('profiles')
       .update({ 
         role: 'platemaker',
         updated_at: new Date().toISOString(),
       })
       .eq('id', ctx.userId)
-      .select()
+      .select(ROLE_PROFILE_COLUMNS)
       .single();
+    const updatedProfile = updatedRaw as any;
 
     if (updateError || !updatedProfile) {
       throw new Error(updateError?.message || 'Failed to update role. Please contact support.');

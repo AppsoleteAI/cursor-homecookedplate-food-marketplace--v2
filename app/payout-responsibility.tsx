@@ -16,6 +16,7 @@ import { SellerOnly } from '@/components/RoleGuard';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { DELIVERY_PLATFORM_RATE } from '@/lib/fees';
+import { payoutStatusLabel } from '@/backend/lib/payout-policy';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
 import { DashboardSectionBack } from '@/components/BackCircle';
@@ -31,12 +32,8 @@ function when(value: string | null) {
   return date.toLocaleString();
 }
 
-function payoutLabel(status: string, releaseAt: string | null) {
-  if (status === 'held') return `Held until ${when(releaseAt)}`;
-  if (status === 'settled') return 'Paid to your Stripe account';
-  if (status === 'refunded') return 'Refunded. This payout will not be sent.';
-  if (status === 'disputed') return 'Chargeback. This payout is stopped or pulled back.';
-  return status;
+function payoutLabel(status: string, releaseAt: string | null, bankPayoutStatus: string | null) {
+  return payoutStatusLabel({ status, releaseAt, bankPayoutStatus });
 }
 
 export default function PayoutResponsibilityScreen() {
@@ -76,6 +73,9 @@ export default function PayoutResponsibilityScreen() {
     onSuccess: (result) => {
       WebBrowser.openBrowserAsync(result.onboardingUrl).catch(() => {
         Alert.alert('Stripe', 'Open this link in a browser to finish payout setup.');
+      }).finally(() => {
+        connect.refetch();
+        standing.refetch();
       });
     },
     onError: (error) => Alert.alert('Stripe', error.message),
@@ -100,7 +100,7 @@ export default function PayoutResponsibilityScreen() {
             <View style={styles.header}>
               <DashboardSectionBack />
               <Text style={styles.title}>Payouts and responsibility</Text>
-              <Text style={styles.subtitle}>Stripe pays you after a 7-day hold</Text>
+              <Text style={styles.subtitle}>Transfer after the order is cleared, then 7 days</Text>
             </View>
           </LinearGradient>
         </View>
@@ -118,6 +118,13 @@ export default function PayoutResponsibilityScreen() {
                 <Text style={styles.body}>{data.statement}</Text>
                 {data.sellingRemovedReason ? (
                   <Text style={styles.reason}>{data.sellingRemovedReason}</Text>
+                ) : null}
+                {data.sellingRemoved ? (
+                  <Text style={styles.body}>
+                    {data.finalPayoutAt
+                      ? `The remaining payout is sent on ${when(data.finalPayoutAt)}. Pending chargebacks stay here. Fees still owed are taken out of that payout.`
+                      : 'The remaining payout is sent 30 days after selling is removed. Pending chargebacks stay here. Fees still owed are taken out of that payout.'}
+                  </Text>
                 ) : null}
                 <Text style={styles.meta}>
                   Rolling {data.windowDays} days: {data.thresholds.chargeback} chargebacks, {data.thresholds.refund} refunds, {data.thresholds.complaint} complaints, or {data.thresholds.governmentRequest} government request. Each one sends you a notice. One event before a block sends a warning.
@@ -138,10 +145,13 @@ export default function PayoutResponsibilityScreen() {
                 <Text style={styles.body}>
                   {`HomeCookedPlate keeps both non-refundable 10% fees. Buyers pay 10% on top. Your payout is 10% less. Neither fee is returned on a refund. If you set a delivery fee, the buyer pays that amount plus ${Math.round(DELIVERY_PLATFORM_RATE * 100)}%. You receive the amount you set. HomeCookedPlate keeps the ${Math.round(DELIVERY_PLATFORM_RATE * 100)}%.`}
                 </Text>
+                {user?.accountCode ? (
+                  <Text style={styles.meta} testID="cook-account-code">PlateMaker ID {user.accountCode}</Text>
+                ) : null}
                 <Text style={styles.body}>
                   {connect.data?.payoutsEnabled
-                    ? 'Payouts are enabled. After the hold, Stripe transfers your share to this account.'
-                    : 'Finish Stripe Express setup so sales can be paid to you directly.'}
+                    ? 'Payouts are enabled. After the hold, HomeCookedPlate transfers your share to this Stripe account. Stripe pays your bank on its own schedule.'
+                    : 'Finish Stripe payout setup before a plate can be sold. An account id alone does not turn payouts on.'}
                 </Text>
                 {!connect.data?.payoutsEnabled ? (
                   <Pressable
@@ -213,7 +223,13 @@ export default function PayoutResponsibilityScreen() {
                   data.payouts.map((payout) => (
                     <View key={payout.id} style={styles.payout}>
                       <Text style={styles.row}>{money(payout.sellerPayout)}</Text>
-                      <Text style={styles.meta}>{payoutLabel(payout.status, payout.releaseAt)}</Text>
+                      <Text style={styles.meta}>
+                        {payoutLabel(
+                          payout.status,
+                          data.sellingRemoved && payout.status === 'held' ? data.finalPayoutAt : payout.releaseAt,
+                          data.bankPayoutStatus,
+                        )}
+                      </Text>
                     </View>
                   ))
                 )}

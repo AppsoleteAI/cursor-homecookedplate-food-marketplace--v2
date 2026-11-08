@@ -1,13 +1,14 @@
 import { LOST_DISPUTE_FEE, salesVolumeCap, sellerRefundAmount } from '../fees';
-import { lostDisputeOutcome, payoutReleaseAt, removalReasons, salesCapForCook, salesVolumeBlockMessage, warningReasons } from '../payout-policy';
+import { finalPayoutAt, lostDisputeOutcome, payoutReleaseAt, removalReasons, salesCapForCook, salesVolumeBlockMessage, warningReasons } from '../payout-policy';
 
 describe('payout hold and responsibility', () => {
   it('refunds only the cook share', () => {
     expect(sellerRefundAmount(20)).toBeCloseTo(18);
   });
 
-  it('holds a payout for 7 days', () => {
+  it('holds a payout for 7 days and a removed cook for 30 days', () => {
     expect(payoutReleaseAt(new Date('2026-10-07T15:00:00.000Z'))).toBe('2026-10-14T15:00:00.000Z');
+    expect(finalPayoutAt(new Date('2026-10-07T15:00:00.000Z'))).toBe('2026-11-06T15:00:00.000Z');
   });
 
   it('removes selling at the stated counts', () => {

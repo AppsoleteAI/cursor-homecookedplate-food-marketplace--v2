@@ -15,22 +15,35 @@ export const getPayoutReviewProcedure = mainAdminProcedure.query(async ({ ctx })
     .order('created_at', { ascending: false })
     .limit(200);
 
-  const { data: removed } = await ctx.supabaseAdmin
+  const removedQuery = await ctx.supabaseAdmin
     .from('profiles')
-    .select('id, username, email, selling_removed, selling_removed_reason')
+    .select('id, username, email, selling_removed, selling_removed_reason, final_payout_at')
     .eq('selling_removed', true)
     .limit(100);
+  const removed = removedQuery.error && /final_payout_at/i.test(removedQuery.error.message || '')
+    ? await ctx.supabaseAdmin
+      .from('profiles')
+      .select('id, username, email, selling_removed, selling_removed_reason')
+      .eq('selling_removed', true)
+      .limit(100)
+    : removedQuery;
 
   const ids = new Set<string>();
   for (const event of events ?? []) ids.add(event.platemaker_id);
-  for (const profile of removed ?? []) ids.add(profile.id);
+  for (const profile of removed.data ?? []) ids.add(profile.id);
 
-  const { data: profiles } = ids.size
+  const profileQuery = ids.size
     ? await ctx.supabaseAdmin
         .from('profiles')
-        .select('id, username, email, selling_removed, selling_removed_reason')
+        .select('id, username, email, selling_removed, selling_removed_reason, final_payout_at')
         .in('id', [...ids])
-    : { data: [] as { id: string; username: string | null; email: string | null; selling_removed: boolean; selling_removed_reason: string | null }[] };
+    : { data: [] as { id: string; username: string | null; email: string | null; selling_removed: boolean; selling_removed_reason: string | null; final_payout_at?: string | null }[], error: null };
+  const profiles = profileQuery.error && /final_payout_at/i.test(profileQuery.error.message || '')
+    ? (await ctx.supabaseAdmin
+        .from('profiles')
+        .select('id, username, email, selling_removed, selling_removed_reason')
+        .in('id', [...ids])).data
+    : profileQuery.data;
 
   const { data: messages } = await ctx.supabaseAdmin
     .from('platemaker_admin_messages')
@@ -45,6 +58,9 @@ export const getPayoutReviewProcedure = mainAdminProcedure.query(async ({ ctx })
       email: profile.email,
       sellingRemoved: profile.selling_removed === true,
       sellingRemovedReason: profile.selling_removed_reason,
+      finalPayoutAt: typeof (profile as { final_payout_at?: string | null }).final_payout_at === 'string'
+        ? (profile as { final_payout_at?: string | null }).final_payout_at
+        : null,
       events: (events ?? [])
         .filter((event) => event.platemaker_id === profile.id)
         .map((event) => ({

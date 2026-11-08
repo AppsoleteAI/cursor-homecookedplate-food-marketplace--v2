@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { FoodImage } from '@/components/FoodImage';
+import { firstPlatePhoto } from '@/lib/food-review-clips';
 import { titleCase } from '@/lib/title-case';
 import { Redirect, Stack, useLocalSearchParams } from 'expo-router';
 import { Colors, monoGradients } from '@/constants/colors';
@@ -24,6 +25,7 @@ export default function ReviewsScreen() {
     { enabled: !!mealId }
   );
   const meal = mealQuery.data;
+  const reportProfile = trpc.media.reportProfileImage.useMutation();
   const reviewQuery = trpc.reviews.list.useQuery(
     { mealId: mealId ?? undefined },
     { enabled: !!mealId }
@@ -131,7 +133,7 @@ export default function ReviewsScreen() {
 
         {meal && (
           <View style={styles.mealCard}>
-            <FoodImage source={{ uri: meal.images?.[0] }} style={styles.mealImage} />
+            <FoodImage source={{ uri: firstPlatePhoto(meal.images) }} style={styles.mealImage} />
             <View style={styles.mealInfo}>
               <Text style={styles.mealName} numberOfLines={1}>{titleCase(meal.name)}</Text>
               <Text style={styles.plateMaker} numberOfLines={1}>{meal.plateMakerName}</Text>
@@ -145,6 +147,27 @@ export default function ReviewsScreen() {
           {(reviewQuery.data || []).map(r => (
             <View key={r.id} style={styles.review}>
               {!!r.authorImage && <Image source={{ uri: r.authorImage }} style={styles.avatar} />}
+              {!!r.authorImage && user?.id && user.id !== r.authorId ? (
+                <GlassPressable
+                  testID={`report-profile-${r.authorId}`}
+                  accessibilityRole="button"
+                  accessibilityLabel="Report this profile photo"
+                  onPress={() => {
+                    Alert.alert('Report this photo?', 'It is hidden on every device until a moderator allows it.', [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Report', onPress: () => reportProfile.mutate({ userId: r.authorId }, {
+                        onSuccess: () => {
+                          Alert.alert('Photo reported', 'A moderator has this profile photo. It is hidden on every device until the moderator allows it.');
+                          reviewQuery.refetch();
+                        },
+                        onError: (error) => Alert.alert('Photo report', error.message),
+                      }) },
+                    ]);
+                  }}
+                >
+                  <Text style={styles.reportPhoto}>Report this photo</Text>
+                </GlassPressable>
+              ) : null}
               <View style={styles.reviewBody}>
                 <View style={styles.reviewHeader}>
                   <Text style={styles.user}>{r.authorName}</Text>
@@ -236,6 +259,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontWeight: '600', color: Colors.gray[900], marginTop: 20, marginBottom: 12, paddingHorizontal: 24 },
   list: { paddingHorizontal: 24, gap: 12 },
   review: { flexDirection: 'row', backgroundColor: Colors.gray[50], borderRadius: 12, padding: 12 },
+  reportPhoto: { color: Colors.gray[700], fontSize: 13, fontWeight: '600', marginTop: 6 },
   avatar: { width: 36, height: 36, borderRadius: 18, marginRight: 10 },
   reviewBody: { flex: 1 },
   reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },

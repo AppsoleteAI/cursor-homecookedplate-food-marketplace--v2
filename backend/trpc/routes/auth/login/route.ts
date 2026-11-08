@@ -6,6 +6,7 @@ import { assertEmailConfirmed, CONFIRMATION_EXPIRED_MESSAGE, confirmationWindowC
 import { accountAllowsSignIn, LEGAL_SAVE_FAILED_MESSAGE, LEGAL_SIGN_IN_MESSAGE, legalSafetyAgreementSchema, legalSignInDecision } from "../../../../lib/legal-gate";
 import { MEMBERSHIP_INELIGIBLE_MESSAGE, NO_ACCOUNT_MESSAGE } from "../../../../lib/sign-in-messages";
 import { readAuthIdentityKind, signInWithoutProfileMessage } from "../../../../lib/provider-profile";
+import { readProfileRow, SIGN_IN_PROFILE_COLUMNS } from "../../../../lib/profile-columns";
 import { AUTHENTICATOR_MISMATCH_MESSAGE, mfaLookupState, verifiedTotpFactorId, verifyTotpCode } from "../../../../lib/second-factor";
 
 /**
@@ -116,11 +117,11 @@ export const loginProcedure = publicProcedure
 
     // The password session is aal1. A verified factor cannot read its profile through that token.
     // The user id comes from the password sign-in, and the service role reads the row.
-    const { data: profile, error: profileError } = await ctx.supabaseAdmin
+    const { data: profile, error: profileError } = await readProfileRow(SIGN_IN_PROFILE_COLUMNS, (columns) => ctx.supabaseAdmin
       .from('profiles')
-      .select('*')
+      .select(columns as '*')
       .eq('id', data.user.id)
-      .single();
+      .single());
 
     if (profileError || !profile) {
       await ctx.supabase.auth.signOut();

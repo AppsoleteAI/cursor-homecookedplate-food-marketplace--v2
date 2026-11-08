@@ -1,9 +1,11 @@
 import { protectedProcedure } from "../../../create-context";
 import { TRPCError } from "@trpc/server";
 import { loadPublicProfiles } from "../../../../lib/public-profiles";
-import { orderBuyerId, orderTotal } from "../../../../lib/order-row";
+import { orderBuyerId, orderColumnsAfterError, orderListColumns, orderTotal } from "../../../../lib/order-row";
 import { loadPickupConfirms } from "../../../../lib/pickup-confirm";
 import { noteForViewer } from "../../../../lib/content-moderation";
+import { firstPlatePhoto } from "@/lib/food-review-clips";
+import { hiddenClipVideoAddresses, hiddenMealImages, visiblePlateMedia } from "../../../../lib/hidden-clips";
 
 /**
  * Get Incoming Orders Procedure
@@ -42,10 +44,10 @@ export const getIncomingOrdersProcedure = protectedProcedure
     // CRITICAL: Always filter by seller_id = ctx.userId to ensure data isolation
     // Filter by active order statuses: pending, accepted, preparing
     // Order by created_at ASC (chronological order, oldest first)
-    const { data: orders, error: ordersError } = await ctx.supabase
+    const loadIncoming = (columns: string) => ctx.supabase
       .from('orders')
       .select(`
-        *,
+        ${columns},
         meals:meal_id (
           id,
           name,
@@ -58,6 +60,17 @@ export const getIncomingOrdersProcedure = protectedProcedure
       .in('status', ['pending', 'accepted', 'preparing', 'ready'])
       .order('created_at', { ascending: true });
 
+    let columns = orderListColumns('buyer_id');
+    let incoming = await loadIncoming(columns);
+    for (let attempt = 0; attempt < 6 && incoming.error; attempt += 1) {
+      const next = orderColumnsAfterError(columns, incoming.error.message);
+      if (!next) break;
+      columns = next;
+      incoming = await loadIncoming(columns);
+    }
+    const orders = (incoming.data || []) as any[];
+    const ordersError = incoming.error;
+
     if (ordersError) {
       console.error('[GetIncomingOrders] Error fetching orders:', ordersError);
       throw new TRPCError({
@@ -67,7 +80,7 @@ export const getIncomingOrdersProcedure = protectedProcedure
     }
 
     // Handle edge case: no orders
-    if (!orders || orders.length === 0) {
+    if (orders.length === 0) {
       return [];
     }
 
@@ -82,11 +95,13 @@ export const getIncomingOrdersProcedure = protectedProcedure
       orders.filter((order: { status?: string }) => order.status === 'ready').map((order: { id: string }) => order.id),
     );
 
+    const hiddenVideos = await hiddenClipVideoAddresses(ctx.supabaseAdmin);
+    const hiddenStills = await hiddenMealImages(ctx.supabaseAdmin, orders.map((order: { meal_id?: string }) => order.meal_id || ''));
     return orders.map((order: any) => ({
       id: order.id,
       mealId: order.meal_id,
       mealName: order.meals?.name || 'Unknown Meal',
-      mealImage: order.meals?.images?.[0] || '',
+      mealImage: firstPlatePhoto(visiblePlateMedia(order.meals?.images, hiddenStills.get(order.meal_id), hiddenVideos)),
       mealPrice: order.meals?.price ? parseFloat(order.meals.price.toString()) : 0,
       buyerId: orderBuyerId(order),
       buyerName: buyers.get(orderBuyerId(order))?.username || 'Unknown Buyer',

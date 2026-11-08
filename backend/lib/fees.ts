@@ -113,13 +113,16 @@ export const calculateOrderSplit = (baseAmount: number) => {
 
   const platetakerFee = baseAmount * 0.10; // 10% on top
   const platemakerFee = baseAmount * 0.10; // 10% deduction
-  
+  const captured = Number.isFinite(baseAmount + platetakerFee) ? baseAmount + platetakerFee : baseAmount;
+  const revenue = Number.isFinite(platetakerFee + platemakerFee) ? platetakerFee + platemakerFee : 0;
+  const payout = Number.isFinite(baseAmount - platemakerFee) ? baseAmount - platemakerFee : baseAmount;
+
   const result = {
-    totalCaptured: Number.isFinite(baseAmount + platetakerFee) ? baseAmount + platetakerFee : baseAmount,
-    appRevenue: Number.isFinite(platetakerFee + platemakerFee) ? platetakerFee + platemakerFee : 0,
-    sellerPayout: Number.isFinite(baseAmount - platemakerFee) ? baseAmount - platemakerFee : baseAmount,
-    buyerFee: Number.isFinite(platetakerFee) ? platetakerFee : 0,
-    sellerFee: Number.isFinite(platemakerFee) ? platemakerFee : 0,
+    totalCaptured: roundMoney(captured),
+    appRevenue: roundMoney(revenue),
+    sellerPayout: roundMoney(payout),
+    buyerFee: roundMoney(Number.isFinite(platetakerFee) ? platetakerFee : 0),
+    sellerFee: roundMoney(Number.isFinite(platemakerFee) ? platemakerFee : 0),
   };
 
   // Verify no NaN values (Codeleka approach)
@@ -464,6 +467,14 @@ export const LOST_DISPUTE_FEE = 15;
 export const LOST_DISPUTE_FEE_CENTS = 1500;
 /** Returned to the cook after they block that PlateTaker from their plates. */
 export const LOST_DISPUTE_FEE_HALF_CENTS = 750;
+
+/** Cents kept from one cook payout to cover a lost-dispute balance. */
+export function withholdFromPayout(grossCents: number, owedCents: number): { withholdCents: number; transferCents: number } {
+  const gross = Number.isFinite(grossCents) ? Math.max(0, Math.round(grossCents)) : 0;
+  const owed = Number.isFinite(owedCents) ? Math.max(0, Math.round(owedCents)) : 0;
+  const withholdCents = Math.min(owed, gross);
+  return { withholdCents, transferCents: gross - withholdCents };
+}
 
 /**
  * Net payout calculation for Platemaker transparency.

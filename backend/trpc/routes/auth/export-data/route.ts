@@ -1,25 +1,36 @@
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../../create-context';
-import { missingBuyerColumn, orderBuyerId, orderTotal } from '../../../../lib/order-row';
+import { missingBuyerColumn, orderBuyerId, orderColumnsAfterError, orderListColumns, orderTotal } from '../../../../lib/order-row';
 import { unpackShopLines } from '../../../../lib/shop-fulfillment';
 
 export const exportMyDataProcedure = protectedProcedure.mutation(async ({ ctx }) => {
-  const load = async (buyerColumn: 'buyer_id' | 'platetaker_id') => ctx.supabaseAdmin
+  const load = async (columns: string, buyerColumn: 'buyer_id' | 'platetaker_id') => ctx.supabaseAdmin
     .from('orders')
-    .select('*')
+    .select(columns)
     .or(`${buyerColumn}.eq.${ctx.userId},seller_id.eq.${ctx.userId}`)
     .order('created_at', { ascending: false })
     .limit(200);
 
-  let orders = await load('buyer_id');
-  if (orders.error && missingBuyerColumn(orders.error.message)) {
-    orders = await load('platetaker_id');
+  let columns = orderListColumns('buyer_id');
+  let buyerColumn: 'buyer_id' | 'platetaker_id' = 'buyer_id';
+  let orders = await load(columns, buyerColumn);
+  for (let attempt = 0; attempt < 6 && orders.error; attempt += 1) {
+    if (missingBuyerColumn(orders.error.message) && buyerColumn === 'buyer_id') {
+      buyerColumn = 'platetaker_id';
+      columns = orderListColumns('platetaker_id');
+    } else {
+      const next = orderColumnsAfterError(columns, orders.error.message);
+      if (!next) break;
+      columns = next;
+    }
+    orders = await load(columns, buyerColumn);
   }
   if (orders.error) {
     throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Your orders could not be included.' });
   }
 
-  const orderIds = (orders.data ?? []).map((order) => order.id as string);
+  const orderRows = (orders.data ?? []) as any[];
+  const orderIds = orderRows.map((order) => order.id as string);
   const messages = orderIds.length === 0
     ? { data: [] as { order_id: string; sender_role: string; text: string; created_at: string }[], error: null }
     : await ctx.supabaseAdmin
@@ -97,7 +108,7 @@ export const exportMyDataProcedure = protectedProcedure.mutation(async ({ ctx })
         createdAt: row.created_at,
       };
     }),
-    orders: (orders.data ?? []).map((order) => ({
+    orders: orderRows.map((order) => ({
       id: order.id,
       mealId: order.meal_id,
       sellerId: order.seller_id,

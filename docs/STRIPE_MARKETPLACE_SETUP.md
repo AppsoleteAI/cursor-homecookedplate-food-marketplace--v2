@@ -1,125 +1,29 @@
-# Stripe Marketplace Setup Guide
+# Stripe marketplace
 
-## Overview
-This app uses **Stripe Connect** for marketplace payments. You only need ONE Stripe account (your platform account). Sellers create "Connected Accounts" through Stripe Connect.
+HomeCookedPlate charges the PlateTaker on the platform account. A $20 plate is $22 from the buyer, $18 for the cook, and $4 kept by the app, before the card fee and any delivery fee. Both 10% fees stay with the app. The cook’s share is a Transfer after the hold, not a charge-time destination charge.
 
-## Architecture
-- **Platform (You)**: One Stripe account with secret key
-- **PlateMaker (Seller)**: Stripe Connected Account (created via app)
-- **PlateTaker (Buyer)**: Pays through your platform
+The Worker secret is `STRIPE_SECRET_KEY` on `plate-marketplace-api`. Do not put that secret in `backend/.env`.
 
-## Setup Steps
+## Connect
 
-### 1. Get Your Stripe Secret Key
-1. Go to https://dashboard.stripe.com/apikeys
-2. Copy your **Secret key** (starts with `sk_test_` or `sk_live_`)
-3. Add it to `backend/.env`:
-   ```
-   STRIPE_SECRET_KEY=sk_test_your_key_here
-   ```
+A signed-in PlateMaker opens Payouts and responsibility, acknowledges both fees, and taps Set up Stripe payouts. The server creates one Express account for that cook, in the US, with the `transfers` capability only. It saves `stripe_account_id` and claims it so another account cannot use it. The account link return and refresh addresses are HTTPS on the Worker:
 
-### 2. Run Database Migration
-Run this SQL in your Supabase SQL Editor:
-```sql
-ALTER TABLE public.profiles
-ADD COLUMN IF NOT EXISTS stripe_account_id text;
-
-CREATE INDEX IF NOT EXISTS idx_profiles_stripe_account_id 
-ON public.profiles(stripe_account_id);
+```
+https://plate-marketplace-api.appsolete.workers.dev/stripe/connect-return
 ```
 
-Or use the migration file:
-```bash
-# Copy the SQL from backend/sql/add_stripe_account_id.sql
-# and run it in Supabase SQL Editor
+```
+https://plate-marketplace-api.appsolete.workers.dev/stripe/connect-refresh
 ```
 
-### 3. How It Works
+Selling, a plate publish, and a buyer payment require `payouts_enabled`. An account id alone does not open the store.
 
-#### For Sellers (PlateMakers):
-1. Seller signs up as a PlateMaker
-2. App calls `trpc.payments.createConnectAccount.mutate()`
-3. Seller completes Stripe onboarding via returned URL
-4. Their `stripe_account_id` is saved in the database
+A signed-out person cannot start Connect. A PlateTaker cannot start Connect.
 
-#### For Buyers (PlateTakers):
-1. Buyer adds items to cart
-2. Clicks "Place Order" in checkout
-3. App calls `trpc.payments.createPaymentIntent.mutate()` with:
-   - `amount`: Total price
-   - `sellerId`: PlateMaker's user ID
-   - `platformFeePercent`: Your commission (default 10%)
-4. Payment is processed via Stripe
-5. Money goes to seller's Connected Account minus your platform fee
+## Hold and transfer
 
-## API Usage
+The plate clock starts when both people confirm pickup. A shop clock starts when the cook clears the shop order after the buyer acknowledges it. If that clear never happens, the clock starts 7 days after the cook confirms a plate handoff, or 7 days after a shop charge that is still open. The Transfer is 7 calendar days after the clock starts.
 
-### Create Connected Account (for sellers)
-```typescript
-const result = await trpc.payments.createConnectAccount.mutate({
-  email: 'seller@example.com',
-  businessName: 'Chef John\'s Kitchen',
-  country: 'US'
-});
+The hourly release sends `source_transaction` so the Transfer is funded by that charge. Settled means the Transfer was created. It does not mean the money is in the cook’s bank. `payout.paid` and `payout.failed` update the bank line on the payout screen.
 
-// Open the onboarding URL in browser
-Linking.openURL(result.onboardingUrl);
-```
-
-### Check Account Status
-```typescript
-const status = await trpc.payments.getConnectAccountStatus.useQuery();
-
-if (status.needsOnboarding) {
-  // Show onboarding prompt
-}
-```
-
-### Create Payment (for buyers)
-```typescript
-const payment = await trpc.payments.createPaymentIntent.mutate({
-  amount: 25.00,
-  currency: 'usd',
-  sellerId: 'seller-user-id',
-  platformFeePercent: 10 // You get 10%, seller gets 90%
-});
-
-// Use payment.clientSecret with Stripe SDK
-```
-
-## Platform Fee
-The platform fee is configurable per transaction:
-- Default: 10%
-- Example: $25 order → Seller gets $22.50, Platform gets $2.50
-
-## Test vs Live Mode
-The system auto-detects based on your key:
-- `sk_test_...` → Test mode
-- `sk_live_...` → Live mode
-
-## Migration from Old System
-If you previously had `STRIPE_SECRET_KEY_MAKER` and `STRIPE_SECRET_KEY_TAKER`:
-1. Remove those environment variables
-2. Keep only `STRIPE_SECRET_KEY` (your platform account)
-3. All existing sellers need to complete Stripe Connect onboarding
-4. Checkout flow now uses `sellerId` instead of `accountType`
-
-## Security Notes
-- Seller account IDs are stored in `profiles.stripe_account_id`
-- Never expose secret keys to the frontend
-- Stripe handles all PCI compliance
-- Platform fee is enforced server-side
-
-## Troubleshooting
-
-### Error: "Seller has not completed Stripe onboarding"
-- Seller needs to complete Stripe Connect onboarding
-- Use `createConnectAccount` to generate onboarding link
-
-### Error: "Multiple Sellers"
-- Checkout only supports one seller at a time
-- Buyers must checkout items from one seller per transaction
-
-### Error: "Stripe secret key not configured"
-- Add `STRIPE_SECRET_KEY` to `backend/.env`
-- Restart your backend server
+A lost-dispute fee of $15 is withheld from a payout that is still held. If the Transfer already happened, the fee is reversed from that Transfer when the balance can cover it. Otherwise it waits on a later payout.

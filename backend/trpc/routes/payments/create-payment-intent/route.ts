@@ -6,8 +6,9 @@ import { savedDeliveryFee } from '../../../../lib/delivery-fee';
 import { recordOperationalFailure } from '../../../../lib/failure-alert';
 import { PAYOUT_HOLD_DAYS } from '../../../../lib/payout-policy';
 import { salesVolumeBlock } from '../../../../lib/stripe-marketplace';
+import { confirmCookPayouts } from '../../../../lib/connect-account';
 import { browserOrigin, openStripeCheckout } from '../../../../lib/stripe-checkout';
-import { orderBuyerId, orderTotal } from '../../../../lib/order-row';
+import { orderBuyerId, orderTotal, readOrderQuery } from '../../../../lib/order-row';
 import { applePayMerchantName, profilePayeeName } from '../../../../lib/payee-name';
 import { resolvedMembershipTier } from '../../../../lib/trial-access';
 
@@ -55,14 +56,15 @@ export const createPaymentIntentProcedure = protectedProcedure
       });
     }
 
-    const ordersResult = await ctx.supabaseAdmin
+    const orderIds = input.orderIds;
+    const ordersResult = await readOrderQuery((columns) => ctx.supabaseAdmin
       .from('orders')
-      .select('*')
-      .in('id', input.orderIds);
-    const orders = ordersResult.data;
+      .select(columns)
+      .in('id', orderIds) as PromiseLike<{ data: any; error: { message?: string } | null }>);
+    const orders = (ordersResult.data || []) as any[];
     const ordersError = ordersResult.error;
 
-    if (ordersError || !orders || orders.length !== input.orderIds.length) {
+    if (ordersError || orders.length !== orderIds.length) {
       throw new TRPCError({
         code: 'BAD_REQUEST',
         message: 'One or more orders could not be found',
@@ -91,7 +93,7 @@ export const createPaymentIntentProcedure = protectedProcedure
     }
 
     const serverBaseAmount = Math.round(
-      orders.reduce((sum, order) => sum + orderTotal(order), 0) * 100
+      orders.reduce((sum: number, order: any) => sum + orderTotal(order), 0) * 100
     ) / 100;
 
     if (!Number.isFinite(serverBaseAmount) || serverBaseAmount <= 0) {
@@ -132,6 +134,10 @@ export const createPaymentIntentProcedure = protectedProcedure
 
     if (!sellerProfile.stripe_account_id) {
       throw new Error('Seller has not completed Stripe onboarding');
+    }
+    const payouts = await confirmCookPayouts(ctx.supabaseAdmin, input.sellerId, stripeSecretKey);
+    if (!payouts.ok) {
+      throw new TRPCError({ code: 'PRECONDITION_FAILED', message: payouts.message });
     }
 
     const buyerRead = await ctx.supabaseAdmin

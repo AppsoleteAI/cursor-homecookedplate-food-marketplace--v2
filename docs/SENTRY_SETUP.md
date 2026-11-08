@@ -128,6 +128,25 @@ To test Sentry integration:
 The current setup includes basic performance tracking:
 - `tracesSampleRate` is `0.1`, so 10% of performance traces are tracked
 - Error events are still reported. The rate applies to traces, not crashes
+- `captureException` does not consult that rate. A PlateMaker and a PlateTaker each send the account id. Email, username, and IP are removed before the event is sent
+
+## Worker write cap
+
+When the KV daily write limit fills, the Worker logs `KV_DAILY_WRITE_CAP` once on that isolate and writes an admin alert when the service client is on the request. Signed in, that alert is for the shared API, so it covers a PlateMaker and a PlateTaker. Signed out, the same line covers the sign-in limit. Web, iOS, and Android use this Worker. `plate-marketplace-api` was deployed 5 November 2026, version `e48ba812-f010-4bfc-8e55-61e41b99d101`. The monitor **KV daily write cap** emails `support@homecookedplate.com` when that line appears. It was saved 5 November 2026 and checks every 1 minute.
+
+The phone check in `docs/PHONE_DIAGNOSTICS.md` is still open. A local check scrubs an orders-refresh failure for each role down to the account id. That check does not open Sentry on a phone.
+
+## Public read timing
+
+`listMeals`, `getMeal`, and `listReviews` log `PUBLIC_READ` with the milliseconds and the request id. The log has no account id and no address. One in ten timings uses the Worker crash client and the same `0.1` trace rate. A signed-in PlateMaker or PlateTaker is the account id on that event. A signed-out read has no identity. No DSN leaves the timing in the Worker log. Dashboards and paging are not part of this client. This client is on the 7 November 2026 deploy, version `202d29a1-8559-4d01-8da3-58526873e797`. Web, iOS, and Android call this Worker through the site. Signed in, a cook and a buyer share it. Signed out, sign-in and a public review read share it.
+
+## Worker crashes
+
+A Worker crash posts to Sentry when `SENTRY_DSN` or `EXPO_PUBLIC_SENTRY_DSN` is set on `plate-marketplace-api`. The same scrub as the phone keeps the account id and drops email, username, and IP. An unhandled API crash and a failed payout run use that path. With no DSN the crash stays in the Worker log.
+
+Payment, webhook, and security failures also write `admin_system_alerts`. A PlateMaker card or Connect failure and a PlateTaker payment-intent failure use `payment_error`. Stripe, App Store, and metro webhook failures use `webhook_error`. A rejected Stripe signature, a stale Stripe timestamp, and a rejected metro secret use `security_alert`. The saved text is scrubbed. Signed out, the same alerts cover the shared API. Signed in, a PlateMaker and a PlateTaker share that API. Web, iOS, and Android use this source.
+
+`plate-marketplace-api` was published 5 November 2026 with this crash reporter. The code version then was `f8a7e194-15a3-4789-9a82-083276a62f1b`. The 5 November live version was `57626efa-5136-42bc-950a-6d212c5eec72`, which is that code plus the secret `SENTRY_DSN`. The live version on 7 November 2026 is `202d29a1-8559-4d01-8da3-58526873e797`. Existing secrets stayed in place. Five checks of `/` and `/health` each returned 200. Those checks did not throw a crash. The phone check in `docs/PHONE_DIAGNOSTICS.md` is still open.
 
 ## Cost
 

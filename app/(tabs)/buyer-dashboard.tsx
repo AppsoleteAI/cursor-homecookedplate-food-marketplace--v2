@@ -18,6 +18,7 @@ import { savedFavoriteStaysOnDashboard } from '@/lib/cart-line';
 import HorizontalCarousel from '@/components/HorizontalCarousel';
 import { ScrollJumps } from '@/components/ScrollJumps';
 import { FoodImage } from '@/components/FoodImage';
+import { firstPlatePhoto } from '@/lib/food-review-clips';
 
 export default function BuyerDashboardScreen() {
   const pathname = usePathname();
@@ -256,7 +257,7 @@ export default function BuyerDashboardScreen() {
                     }}
                     activeOpacity={0.9}
                   >
-                    <FoodImage source={{ uri: m.images[0] }} style={styles.cardImage} />
+                    <FoodImage source={{ uri: firstPlatePhoto(m.images) }} style={styles.cardImage} />
                     <View style={styles.cardContent}>
                       <Text style={styles.cardTitle} numberOfLines={1}>{m.name}</Text>
                       <View style={styles.row}>

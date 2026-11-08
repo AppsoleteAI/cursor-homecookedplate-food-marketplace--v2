@@ -30,6 +30,7 @@ import { deleteReviewCommentProcedure } from "./routes/reviews/delete-comment/ro
 import { reportReviewCommentProcedure } from "./routes/reviews/report/route";
 import { uploadMediaProcedure } from "./routes/media/upload/route";
 import { uploadProfileImageProcedure } from "./routes/media/upload-profile/route";
+import { reportMealImageProcedure, reportProfileImageProcedure } from "./routes/media/report/route";
 import { createPaymentIntentProcedure } from "./routes/payments/create-payment-intent/route";
 import { abandonShopOrderProcedure, confirmShopPaymentProcedure, createShopCheckoutProcedure, listShopOrdersProcedure, shopReceiptProcedure, updateShopOrderProcedure } from "./routes/payments/create-shop-checkout/route";
 import { confirmCombinedCheckoutProcedure, createCombinedCheckoutProcedure, getAreaStoresProcedure, refundCombinedCheckoutProcedure, setAreaStoreProcedure } from "./routes/payments/combined-checkout/route";
@@ -38,7 +39,7 @@ import { deletePromotionProcedure, listMyPromotionsProcedure, savePromotionProce
 import { deleteAreaOfferProcedure, listMyAreaOffersProcedure, listMyLaneItemsProcedure, offersForListingsProcedure, saveAreaOfferProcedure } from "./routes/area-offers/route";
 import { claimGiftProcedure, listMyGiftsProcedure, listOpenGiftsProcedure, saveGiftProcedure } from "./routes/charitable/route";
 import { listLaneListingsProcedure, saveLaneListingProcedure } from "./routes/lanes/route";
-import { listClipsProcedure, publishClipLinkProcedure, publishClipProcedure, reportClipProcedure } from "./routes/clips/route";
+import { listClipsProcedure, publishClipLinkProcedure, publishClipProcedure, publishStoredClipProcedure, reportClipProcedure } from "./routes/clips/route";
 import { confirmPaymentProcedure } from "./routes/payments/confirm-payment/route";
 import { createConnectAccountProcedure } from "./routes/payments/create-connect-account/route";
 import { getConnectAccountStatusProcedure } from "./routes/payments/get-connect-account-status/route";
@@ -144,6 +145,8 @@ export const appRouter = createTRPCRouter({
   media: createTRPCRouter({
     upload: uploadMediaProcedure,
     uploadProfile: uploadProfileImageProcedure,
+    reportMealImage: reportMealImageProcedure,
+    reportProfileImage: reportProfileImageProcedure,
   }),
   payments: createTRPCRouter({
     createPaymentIntent: createPaymentIntentProcedure,
@@ -237,6 +240,7 @@ export const appRouter = createTRPCRouter({
     list: listClipsProcedure,
     publish: publishClipProcedure,
     publishLink: publishClipLinkProcedure,
+    publishStored: publishStoredClipProcedure,
     report: reportClipProcedure,
   }),
   notifications: createTRPCRouter({

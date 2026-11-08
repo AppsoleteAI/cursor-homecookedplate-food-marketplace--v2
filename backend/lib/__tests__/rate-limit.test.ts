@@ -2,10 +2,17 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { app } from "../../hono";
 import { alertKvWriteCap, KV_DAILY_WRITE_CAP } from "../kv-write-cap";
-import { API_LIMIT, AUTH_LIMIT, createRequestLimit, requestLimit, type SharedLimiter } from "../request-limit";
+import { ACCOUNT_LIMIT, API_LIMIT, AUTH_LIMIT, accountIdFromAuthorization, createRequestLimit, requestLimit, type SharedLimiter } from "../request-limit";
 
-function request(ip: string, path = "/", env?: Record<string, unknown>) {
-  return app.request(`http://localhost${path}`, { headers: { "cf-connecting-ip": ip } }, env);
+function request(ip: string, path = "/", env?: Record<string, unknown>, authorization?: string) {
+  const headers: Record<string, string> = { "cf-connecting-ip": ip };
+  if (authorization) headers.authorization = authorization;
+  return app.request(`http://localhost${path}`, { headers }, env);
+}
+
+function bearer(accountId: string): string {
+  const body = btoa(JSON.stringify({ sub: accountId })).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return `Bearer x.${body}.y`;
 }
 
 function countingLimiter(max: number): SharedLimiter {
@@ -73,6 +80,114 @@ describe.each([1, 2, 3])("request limits, run %s", () => {
     expect(last).toBe(429);
     const body = await (await request("203.0.113.21")).json();
     expect(body).toEqual({ error: "Too many requests, please try again later." });
+  });
+
+  it("logs a missing production binding once and keeps ordinary calls off KV", async () => {
+    const lines: string[] = [];
+    const spy = jest.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+      lines.push(args.map(String).join(" "));
+    });
+    let puts = 0;
+    const kv = {
+      get: async () => null,
+      put: async () => {
+        puts += 1;
+      },
+    };
+    try {
+      const local = await request("203.0.113.40", "/");
+      expect(local.status).toBe(200);
+      expect(lines.some((line) => line.includes("RATE_LIMIT_UNBOUND"))).toBe(false);
+
+      const first = await request("203.0.113.41", "/", {
+        ENVIRONMENT: "production",
+        RATE_LIMIT_KV: kv,
+      });
+      const second = await request("203.0.113.42", "/", {
+        ENVIRONMENT: "production",
+        RATE_LIMIT_KV: kv,
+      });
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+      expect(puts).toBe(0);
+      const apiNotes = lines.filter((line) => line.includes("RATE_LIMIT_UNBOUND binding=API_RATE_LIMIT"));
+      expect(apiNotes).toHaveLength(1);
+      expect(apiNotes[0]).toContain(`request_id=${first.headers.get("x-request-id")}`);
+      expect(lines.some((line) => line.includes("203.0.113"))).toBe(false);
+
+      const bound = await request("203.0.113.43", "/", {
+        ENVIRONMENT: "production",
+        API_RATE_LIMIT: countingLimiter(API_LIMIT),
+        RATE_LIMIT_KV: kv,
+      });
+      expect(bound.status).toBe(200);
+      expect(lines.filter((line) => line.includes("RATE_LIMIT_UNBOUND binding=API_RATE_LIMIT"))).toHaveLength(1);
+      expect(puts).toBe(0);
+
+      const signIn = await request("203.0.113.44", "/api/auth/login", {
+        ENVIRONMENT: "production",
+        API_RATE_LIMIT: countingLimiter(API_LIMIT),
+      });
+      expect(signIn.status).toBe(503);
+      const authNotes = lines.filter((line) => line.includes("RATE_LIMIT_UNBOUND binding=AUTH_RATE_LIMIT"));
+      expect(authNotes).toHaveLength(1);
+      expect(authNotes[0]).toContain(`request_id=${signIn.headers.get("x-request-id")}`);
+      expect(puts).toBe(0);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("limits one signed-in account across addresses and keeps sign-in at 10", async () => {
+    const cook = "11111111-1111-4111-8111-111111111111";
+    const buyer = "22222222-2222-4222-8222-222222222222";
+    expect(ACCOUNT_LIMIT).toBe(API_LIMIT);
+    expect(accountIdFromAuthorization(bearer(cook))).toBe(cook);
+    expect(accountIdFromAuthorization("Bearer not-a-token")).toBeNull();
+    expect(accountIdFromAuthorization(null)).toBeNull();
+
+    const lines: string[] = [];
+    const spy = jest.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+      lines.push(args.map(String).join(" "));
+    });
+    let puts = 0;
+    const kv = {
+      get: async () => null,
+      put: async () => {
+        puts += 1;
+      },
+    };
+    try {
+      const shared = countingLimiter(2);
+      const env = { API_RATE_LIMIT: shared, AUTH_RATE_LIMIT: countingLimiter(AUTH_LIMIT), RATE_LIMIT_KV: kv };
+      const first = await request("203.0.113.60", "/", env, bearer(cook));
+      const second = await request("203.0.113.61", "/", env, bearer(cook));
+      const third = await request("203.0.113.62", "/", env, bearer(cook));
+      const other = await request("203.0.113.63", "/", env, bearer(buyer));
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+      expect(third.status).toBe(429);
+      expect(other.status).toBe(200);
+      expect(puts).toBe(0);
+      const accountNotes = lines.filter((line) => line.includes("REQUEST_LIMIT") && line.includes("scope=account"));
+      expect(accountNotes).toHaveLength(1);
+      expect(accountNotes[0]).toContain(`request_id=${third.headers.get("x-request-id")}`);
+      expect(lines.some((line) => line.includes(cook) || line.includes(buyer))).toBe(false);
+
+      const signInEnv = {
+        API_RATE_LIMIT: countingLimiter(API_LIMIT),
+        AUTH_RATE_LIMIT: countingLimiter(AUTH_LIMIT),
+        RATE_LIMIT_KV: kv,
+      };
+      let last = 0;
+      for (let i = 0; i < AUTH_LIMIT + 1; i += 1) {
+        last = (await request("203.0.113.64", "/api/auth/login", signInEnv, bearer(cook))).status;
+      }
+      expect(last).toBe(429);
+      expect(puts).toBe(0);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("does not write KV on an ordinary request", async () => {

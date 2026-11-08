@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../../create-context';
 import { recordOperationalFailure } from '../../../../lib/failure-alert';
+import { claimStripeIdentity } from '../../../../lib/account-identifier';
+import { createAccountLink, expressAccountFields } from '../../../../lib/connect-account';
 
 const inputSchema = z.object({
   email: z.string().email(),
@@ -48,16 +50,7 @@ export const createConnectAccountProcedure = protectedProcedure
           'Authorization': `Bearer ${stripeSecretKey}`,
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: new URLSearchParams({
-          type: 'express',
-          country: input.country,
-          email: profile.email,
-          'capabilities[card_payments][requested]': 'true',
-          'capabilities[transfers][requested]': 'true',
-          'metadata[marketplace]': 'homecookedplate',
-          'metadata[payout_hold_days]': '7',
-          ...(businessName ? { 'business_profile[name]': businessName } : {}),
-        }).toString(),
+        body: expressAccountFields({ email: profile.email, businessName }).toString(),
       });
 
       if (!accountResponse.ok) {
@@ -68,13 +61,21 @@ export const createConnectAccountProcedure = protectedProcedure
       }
 
       const created = await accountResponse.json();
-      accountId = created.id;
+      const claim = await claimStripeIdentity(ctx.supabaseAdmin, {
+        stripeId: created.id,
+        kind: 'connect_account',
+        profileId: ctx.userId,
+      });
+      if (!claim.ok) {
+        throw new Error('This Stripe account cannot be used on this HomeCookedPlate account.');
+      }
+      accountId = claim.stripeId;
 
       const { error: updateError } = await ctx.supabaseAdmin
         .from('profiles')
-        .update({ stripe_account_id: accountId })
+        .update({ stripe_account_id: accountId, stripe_payouts_enabled: false })
         .eq('id', ctx.userId)
-        .select()
+        .select('id')
         .single();
 
       if (updateError) {
@@ -87,34 +88,16 @@ export const createConnectAccountProcedure = protectedProcedure
       throw new Error('Stripe account ID missing after connect setup');
     }
 
-    const account = { id: accountId };
-
-    const accountLinkResponse = await fetch('https://api.stripe.com/v1/account_links', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${stripeSecretKey}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        account: account.id,
-        refresh_url: 'homecookedplate://payout-responsibility',
-        return_url: 'homecookedplate://payout-responsibility',
-        type: 'account_onboarding',
-      }).toString(),
-    });
-
-    if (!accountLinkResponse.ok) {
-      const error = await accountLinkResponse.text();
-      console.error('[Stripe Connect] Account link creation failed:', error);
+    const accountLink = await createAccountLink(stripeSecretKey, accountId);
+    if (!accountLink.ok) {
+      console.error('[Stripe Connect] Account link creation failed:', accountLink.error);
       throw new Error('Failed to create onboarding link');
     }
 
-    const accountLink = await accountLinkResponse.json();
-
-    console.log(`[Stripe Connect] Account created: ${account.id}`);
+    console.log('[Stripe Connect] Onboarding link created');
 
     return {
-      accountId: account.id,
+      accountId,
       onboardingUrl: accountLink.url,
     };
   });

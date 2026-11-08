@@ -40,7 +40,7 @@ export default function AdminPayoutReviewScreen() {
   const restore = trpc.admin.restorePlatemakerSelling.useMutation({
     onSuccess: () => {
       review.refetch();
-      Alert.alert('Restored', 'This cook can sell again. Turn availability back on from their dashboard.');
+      Alert.alert('Restored', 'This cook can sell again. The 30-day final payout clock is cleared. Turn availability back on from their dashboard.');
     },
     onError: (error) => Alert.alert('Not restored', error.message),
   });
@@ -84,6 +84,9 @@ export default function AdminPayoutReviewScreen() {
                 {cook.sellingRemoved ? 'Selling removed' : 'Still allowed to sell'}
               </Text>
               {cook.sellingRemovedReason ? <Text style={styles.body}>{cook.sellingRemovedReason}</Text> : null}
+              {cook.sellingRemoved && cook.finalPayoutAt ? (
+                <Text style={styles.body}>{`Final payout ${new Date(cook.finalPayoutAt).toLocaleString()}, minus pending chargebacks and fees still owed.`}</Text>
+              ) : null}
               {cook.events.map((event) => (
                 <Text key={event.id} style={styles.meta}>
                   {event.kind} · {event.note || 'No note'}

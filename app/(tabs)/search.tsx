@@ -24,6 +24,7 @@ export default function SearchScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [city, setCity] = useState('');
   const [isInputFocused, setIsInputFocused] = useState<boolean>(false);
   const [isSearchActive, setIsSearchActive] = useState<boolean>(false);
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -45,8 +46,11 @@ export default function SearchScreen() {
     router.push('/filter');
   }, [router]);
 
+  const premiumBuyer = user?.role === 'platetaker' && user?.membershipTier === 'premium';
+  const place = premiumBuyer && city.trim().length >= 4 ? city.trim() : undefined;
   const { data: mealsData, isLoading, error } = trpc.meals.list.useQuery({
     metroArea: user?.metroArea || undefined,
+    place,
   });
   const meals: Meal[] = useMemo(() => {
     return (mealsData || []).filter((meal) => meal.plateMakerId !== user?.id).map((meal) => ({
@@ -68,6 +72,7 @@ export default function SearchScreen() {
       featured: meal.featured || false,
       tags: meal.tags || [],
       isSample: meal.isSample === true,
+      canOrder: meal.canOrder !== false,
     }));
   }, [mealsData, user?.id]);
 
@@ -138,6 +143,24 @@ export default function SearchScreen() {
                 <Ionicons name="funnel-outline" size={20} color={Colors.gray[800]} />
               </GlassPressable>
             </View>
+            {user?.role === 'platetaker' ? (
+              <View style={styles.cityRow}>
+                {premiumBuyer ? (
+                  <TextInput
+                    style={styles.cityInput}
+                    placeholder="Another city, such as New York"
+                    placeholderTextColor={Colors.gray[500]}
+                    value={city}
+                    onChangeText={setCity}
+                    testID="travel-city"
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                  />
+                ) : (
+                  <Text style={styles.cityLocked} testID="travel-city-locked">Another city is for Premium.</Text>
+                )}
+              </View>
+            ) : null}
             {isSearchActive && (
               <GlassPressable
                 style={styles.resetButton}
@@ -199,6 +222,24 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: 'center',
     paddingHorizontal: 16,
+  },
+  cityRow: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+  },
+  cityInput: {
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 44,
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+    fontSize: 16,
+    color: Colors.gray[900],
+  },
+  cityLocked: {
+    color: Colors.gray[700],
+    fontSize: 14,
   },
   searchBar: {
     flex: 1,

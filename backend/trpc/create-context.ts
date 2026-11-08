@@ -4,12 +4,14 @@ import superjson from "superjson";
 import { z } from "zod";
 import { readAdminRole } from "../lib/admin-role";
 import { LEGAL_SIGN_IN_MESSAGE, profileAllowsSignIn } from "../lib/legal-gate";
-import { createServerSupabaseClient, createSupabaseAdmin } from "../lib/supabase";
+import { createServerSupabaseClient, createSupabaseAdmin, readApiUrl } from "../lib/supabase";
+import { reportPublicReadTiming, workerSentryDsn, type PublicReadName } from "../lib/worker-sentry";
 import { mfaLookupState, readAccessTokenAal, SECOND_FACTOR_MESSAGE, sessionMayEnter, verifiedFactors } from "../lib/second-factor";
 import type { CloudflareAI, MediaFrameBinding } from "../lib/image-security";
 
 type EnvBindings = {
   SUPABASE_URL?: string;
+  SUPABASE_READ_REPLICA_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   EXPO_PUBLIC_SUPABASE_ANON_KEY?: string;
   EXPO_PUBLIC_WEB_URL?: string;
@@ -23,6 +25,8 @@ type EnvBindings = {
   ASC_API_KEY_ID?: string;
   ASC_API_ISSUER_ID?: string;
   ASC_API_PRIVATE_KEY?: string;
+  SENTRY_DSN?: string;
+  EXPO_PUBLIC_SENTRY_DSN?: string;
 };
 
 /**
@@ -46,7 +50,12 @@ type EnvBindings = {
  * @param env - Environment bindings (Cloudflare Workers) or undefined (Bun/Node)
  * @returns Context object with supabase (anon), supabaseAdmin (service role), and userId
  */
-export const createContext = async (opts: FetchCreateContextFnOptions, env?: EnvBindings) => {
+export const createContext = async (
+  opts: FetchCreateContextFnOptions,
+  env?: EnvBindings,
+  requestId = "",
+  defer?: (work: Promise<unknown>) => void,
+) => {
   const authHeader = opts.req.headers.get('authorization');
   const token = authHeader?.replace('Bearer ', '');
 
@@ -55,6 +64,10 @@ export const createContext = async (opts: FetchCreateContextFnOptions, env?: Env
   // User's JWT token is passed in Authorization header for RLS evaluation
   // Use ctx.supabase for ALL user-facing operations (queries, inserts, updates)
   const supabase = createServerSupabaseClient(token, env);
+  const readUrl = readApiUrl(env?.SUPABASE_URL, env?.SUPABASE_READ_REPLICA_URL);
+  const supabaseRead = readUrl === (env?.SUPABASE_URL || "").trim()
+    ? supabase
+    : createServerSupabaseClient(token, { ...env, SUPABASE_URL: readUrl });
 
   // CRITICAL: Create supabaseAdmin using SERVICE ROLE KEY - bypasses RLS policies
   // Use ONLY for admin/system operations:
@@ -105,6 +118,7 @@ export const createContext = async (opts: FetchCreateContextFnOptions, env?: Env
   return {
     req: opts.req,
     supabase, // ANON KEY - Use for all user operations (respects RLS)
+    supabaseRead, // Same anon client until SUPABASE_READ_REPLICA_URL is set
     supabaseAdmin, // SERVICE ROLE KEY - Use ONLY for admin/system operations (bypasses RLS)
     userId,
     secondFactorPending,
@@ -119,6 +133,17 @@ export const createContext = async (opts: FetchCreateContextFnOptions, env?: Env
       keyId: env?.ASC_API_KEY_ID,
       issuerId: env?.ASC_API_ISSUER_ID,
       privateKey: env?.ASC_API_PRIVATE_KEY,
+    },
+    requestId,
+    notePublicRead(read: PublicReadName, ms: number) {
+      const pending = reportPublicReadTiming({
+        read,
+        ms,
+        requestId,
+        userId,
+        dsn: workerSentryDsn(env),
+      }).catch(() => false);
+      if (defer) defer(pending);
     },
   };
 };

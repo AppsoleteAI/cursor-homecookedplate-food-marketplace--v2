@@ -102,11 +102,25 @@ export function createSupabase(env: { SUPABASE_URL?: string; EXPO_PUBLIC_SUPABAS
   return createClient(url, anonKey);
 }
 
+/**
+ * The read URL is the primary Data API until a replica HTTPS URL is set.
+ * A pooler host is not a read replica.
+ */
+export function readApiUrl(primary: string | undefined, replica: string | undefined): string {
+  const base = (primary || "").trim();
+  const next = (replica || "").trim();
+  if (!next || next === base) return base;
+  if (!next.startsWith("https://") || next.includes("pooler.supabase.com")) return base;
+  return next.replace(/\/$/, "");
+}
+
 // Keep createServerSupabaseClient for user-scoped operations with RLS
 export function createServerSupabaseClient(accessToken?: string, env?: { SUPABASE_URL?: string; EXPO_PUBLIC_SUPABASE_ANON_KEY?: string }) {
   const anonKey = env?.EXPO_PUBLIC_SUPABASE_ANON_KEY || getEnvVar('EXPO_PUBLIC_SUPABASE_ANON_KEY') || supabaseAnonKey || '';
   const url = env?.SUPABASE_URL || getEnvVar('SUPABASE_URL') || supabaseUrl || '';
   
+  // SUPABASE_URL is the HTTPS Data API. The pooler host on port 6543 is a Postgres
+  // connection and is not a client this Worker can use.
   return createClient(url, anonKey, {
     auth: {
       autoRefreshToken: false,

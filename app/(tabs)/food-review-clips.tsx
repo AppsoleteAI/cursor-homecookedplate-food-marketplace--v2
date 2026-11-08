@@ -41,6 +41,7 @@ import {
   foodReviewSurface,
   resolveFoodReviewTimelineLayout,
   seedFoodReviewClips,
+  sharedClipTimeline,
   socialClipEmbed,
   socialClipSourceLabel,
   toggleFoodReviewReaction,
@@ -49,10 +50,8 @@ import {
 } from '@/lib/food-review-clips';
 import {
   readFoodReviewBookmarks,
-  readFoodReviewClips,
   readHiddenFoodReviewClips,
   writeFoodReviewBookmarks,
-  writeFoodReviewClips,
   writeHiddenFoodReviewClips,
 } from '@/lib/food-review-clip-store';
 import { IdleChrome } from '@/components/IdleChrome';
@@ -217,7 +216,6 @@ export default function FoodReviewClips() {
     });
   }, []);
   const [clips, setClips] = useState<FoodReviewClip[]>(seedFoodReviewClips);
-  const [loaded, setLoaded] = useState(false);
   const [mealName, setMealName] = useState('');
   const [clipLink, setClipLink] = useState('');
   const [bookmarkIds, setBookmarkIds] = useState<string[]>([]);
@@ -242,25 +240,9 @@ export default function FoodReviewClips() {
   ).filter((clip) => !hiddenIds.includes(clip.id));
   const visibleClips = foodReviewTimeline(listedClips);
 
-  const loadClips = useCallback(() => {
-    let active = true;
-    readFoodReviewClips()
-      .then((stored) => {
-        if (active && stored) setClips(stored);
-      })
-      .catch((error) => {
-        console.error('[FoodReviewClips] Failed to load clips', error);
-      })
-      .finally(() => {
-        if (active) setLoaded(true);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
+  const refetchClips = sharedClips.refetch;
   useFocusEffect(useCallback(() => {
-    const stop = loadClips();
+    refetchClips().catch(() => undefined);
     readFoodReviewBookmarks()
       .then(setBookmarkIds)
       .catch((error) => {
@@ -271,23 +253,11 @@ export default function FoodReviewClips() {
       .catch((error) => {
         console.error('[FoodReviewClips] Failed to load hidden clips', error);
       });
-    return stop;
-  }, [loadClips]));
+  }, [refetchClips]));
 
   useEffect(() => {
-    if (!loaded) return;
-    writeFoodReviewClips(clips).catch((error) => {
-      console.error('[FoodReviewClips] Failed to save clips', error);
-    });
-  }, [clips, loaded]);
-
-  useEffect(() => {
-    if (!sharedClips.data?.length) return;
-    setClips((prev) => {
-      const ids = new Set(prev.map((clip) => clip.id));
-      const incoming = sharedClips.data.filter((clip) => !ids.has(clip.id));
-      return incoming.length > 0 ? [...incoming, ...prev] : prev;
-    });
+    if (!sharedClips.data) return;
+    setClips((prev) => sharedClipTimeline(sharedClips.data, prev));
   }, [sharedClips.data]);
 
   const react = useCallback((clipId: string, kind: FoodReviewReaction) => {
@@ -313,12 +283,13 @@ export default function FoodReviewClips() {
         ...saved,
         role: saved.role === 'platetaker' ? 'platetaker' : 'platemaker',
       };
-      setClips((prev) => [clip, ...prev.filter((item) => item.id !== clip.id)]);
+      setClips((prev) => sharedClipTimeline([clip, ...(sharedClips.data || [])], prev));
+      refetchClips().catch(() => undefined);
       setMealName('');
     } catch (error) {
       Alert.alert('Clip', error instanceof Error ? error.message : 'The clip could not be posted.');
     }
-  }, [mealName, publishClip]);
+  }, [mealName, publishClip, refetchClips, sharedClips.data]);
 
   const toggleBookmark = useCallback((clipId: string) => {
     setBookmarkIds((prev) => {
@@ -364,15 +335,15 @@ export default function FoodReviewClips() {
         role: saved.role === 'platetaker' ? 'platetaker' : 'platemaker',
         durationMeasured: false,
       };
-      setClips((prev) => [clip, ...prev.filter((item) => item.id !== clip.id && item.id !== localClip.id)]);
+      setClips((prev) => sharedClipTimeline([clip, ...(sharedClips.data || [])], prev));
+      refetchClips().catch(() => undefined);
     } catch (error) {
-      setClips((prev) => [localClip, ...prev.filter((item) => item.id !== localClip.id)]);
-      console.error('[FoodReviewClips] Shared link post stayed on this device', error);
+      Alert.alert('Clip link', error instanceof Error ? error.message : 'The clip could not be posted.');
     }
     setMealName('');
     setClipLink('');
     setShowBookmarks(false);
-  }, [canPostClip, clipLink, mealName, publishClipLink, role, username]);
+  }, [canPostClip, clipLink, mealName, publishClipLink, refetchClips, role, sharedClips.data, username]);
 
   const hideClip = useCallback((clipId: string) => {
     setMenuClipId(null);
@@ -391,12 +362,13 @@ export default function FoodReviewClips() {
     setMenuClipId(null);
     reportClipMutation.mutate({ clipId }, {
       onSuccess: () => {
-        setHiddenIds((prev) => (prev.includes(clipId) ? prev : [clipId, ...prev]));
-        Alert.alert('Clip reported', 'A moderator has this clip. It is hidden until the moderator allows it.');
+        setClips((prev) => prev.filter((clip) => clip.id !== clipId));
+        refetchClips().catch(() => undefined);
+        Alert.alert('Clip reported', 'A moderator has this clip. It is hidden on every device until the moderator allows it.');
       },
       onError: (error) => Alert.alert('Clip report', error.message),
     });
-  }, [reportClipMutation]);
+  }, [refetchClips, reportClipMutation]);
 
   const pickOnWeb = useCallback(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;

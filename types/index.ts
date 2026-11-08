@@ -1,5 +1,7 @@
 export interface User {
   id: string;
+  /** PlateMaker codes start with PM-. PlateTaker codes start with PT-. One code, one account. */
+  accountCode?: string;
   username: string;
   email: string;
   role: 'platemaker' | 'platetaker';
@@ -66,6 +68,7 @@ export interface Meal {
   featured?: boolean;
   tags?: string[];
   isSample?: boolean;
+  canOrder?: boolean;
   promotionalOffer?: PromotionalOffer;
   availabilityWindows?: AvailabilityWindow[];
 }

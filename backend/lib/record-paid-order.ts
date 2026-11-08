@@ -1,5 +1,5 @@
 import { appRevenueWithDelivery, buyerCardCharge, buyerServiceFeePercent, calculateFees, orderTotalWithDelivery, sharedChargeRefundCents } from './fees';
-import { orderBuyerId, orderTotal } from './order-row';
+import { orderBuyerId, orderTotal, readOrderQuery } from './order-row';
 import { notifyCookOfPayment, notifyParty } from './account-notice';
 import { portionRowHolds, portionsFromTags } from '@/lib/meal-publish';
 import { refundChargeCents } from './refund-card';
@@ -80,7 +80,7 @@ type PaidOrderRow = {
 
 /**
  * Marks every plate order on this payment as paid and records a held payout.
- * The cook still has to accept. The 7-day payout clock stays empty until pickup is confirmed.
+ * The cook still has to accept. The 7-day payout clock stays empty until the order is cleared.
  */
 export async function recordPlatePayment(
   admin: Admin,
@@ -97,10 +97,10 @@ export async function recordPlatePayment(
     stripeSecretKey?: string | null;
   },
 ): Promise<number> {
-  const { data: existing, error } = await admin
+  const { data: existing, error } = await readOrderQuery((columns) => admin
     .from('orders')
-    .select('*')
-    .eq('payment_intent_id', input.paymentIntentId);
+    .select(columns)
+    .eq('payment_intent_id', input.paymentIntentId));
 
   if (error) {
     throw new Error(error.message || 'Could not mark the order paid');
