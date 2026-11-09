@@ -1,6 +1,6 @@
 # Supabase Edge Function Deployment: `create-checkout-session`
 
-This project uses a Supabase Edge Function to create a Stripe Hosted Checkout Session for subscription membership upgrades. The mobile app calls the Edge Function directly via `supabase.functions.invoke('create-checkout-session', ...)`.
+This file describes an old Supabase Edge Function. No app file calls `supabase.functions.invoke`. Membership amounts come from `SUBSCRIPTION_PRICES` in `backend/lib/fees.ts`, and the store sheets charge the App Store and Play products. Do not deploy this function from this note.
 
 ## Prerequisites
 

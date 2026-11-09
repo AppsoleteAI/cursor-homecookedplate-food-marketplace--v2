@@ -1,6 +1,7 @@
 -- Final payout for a PlateMaker whose selling is removed.
 -- The Worker sets final_payout_at to 30 days after removal.
--- Run this in the Supabase SQL editor. It is safe to run again.
+-- Ran in the SQL editor on 8 November 2026. Result: Success, no rows.
+-- Do not run it again.
 
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS final_payout_at timestamptz;

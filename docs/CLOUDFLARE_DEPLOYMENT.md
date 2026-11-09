@@ -47,6 +47,7 @@ Set your secrets in Cloudflare (these are encrypted):
 # Supabase credentials
 npx wrangler secret put SUPABASE_URL
 npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+npx wrangler secret put EXPO_PUBLIC_SUPABASE_ANON_KEY
 
 # Stripe credentials
 npx wrangler secret put STRIPE_SECRET_KEY
@@ -81,7 +82,9 @@ Staging URL: `https://plate-marketplace-api-staging.YOUR_SUBDOMAIN.workers.dev`
 
 ### App API endpoint
 
-The tRPC client in `lib/trpc.ts` is hardcoded to `https://homecookedplate.pages.dev`. Do not set `EXPO_PUBLIC_RORK_API_BASE_URL`. When `https://homecookedplate.com/api/trpc` is live, change that constant in `lib/trpc.ts`.
+The tRPC client in `lib/trpc.ts` is hardcoded to `https://homecookedplate.com`. Do not set `EXPO_PUBLIC_RORK_API_BASE_URL`. On 8 November 2026, `meals.list` on that host and on `https://homecookedplate.pages.dev` both returned the same menu. The website publish on `main` serves that client. An installed app keeps the previous Pages host until the next store build.
+
+Signed in, a PlateMaker and a PlateTaker call `/api/trpc` through `homecookedplate.com`. Signed out, public reads use the same host. Web, iOS, and Android share this source.
 
 ### Configure Stripe Webhook
 
@@ -179,6 +182,7 @@ npx wrangler secret list
 Should show:
 - SUPABASE_URL
 - SUPABASE_SERVICE_ROLE_KEY
+- EXPO_PUBLIC_SUPABASE_ANON_KEY
 - STRIPE_SECRET_KEY
 - STRIPE_WEBHOOK_SECRET
 - RESEND_API_KEY

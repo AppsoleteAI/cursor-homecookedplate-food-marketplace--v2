@@ -19,7 +19,7 @@ const logError = (error: Error, context?: Record<string, unknown>) => {
 // The Worker copies RESEND_API_KEY onto process.env inside the request.
 // A client created at import time is empty, so confirmation mail never leaves.
 function mailDelivery(): { client: Resend; from: string } | null {
-  const key = process.env.RESEND_API_KEY || process.env.EXPO_PUBLIC_RESEND_API_KEY;
+  const key = process.env.RESEND_API_KEY;
   if (!key) return null;
   return {
     client: new Resend(key),

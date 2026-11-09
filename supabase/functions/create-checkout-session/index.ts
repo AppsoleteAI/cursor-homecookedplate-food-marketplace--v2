@@ -6,8 +6,7 @@
 // - SUPABASE_URL
 // - SUPABASE_SERVICE_ROLE_KEY
 // - STRIPE_SECRET_KEY
-// - STRIPE_PRICE_ID_EARLY_BIRD_TRIAL
-// - STRIPE_PRICE_ID_MONTHLY
+// Amounts are calculated in this file. It does not read a Stripe price id.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";

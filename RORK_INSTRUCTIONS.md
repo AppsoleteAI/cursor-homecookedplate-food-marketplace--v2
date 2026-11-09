@@ -120,7 +120,7 @@ if (profileError?.code === '23505') {
 **CRITICAL**: The platform environment variable `EXPO_PUBLIC_RORK_API_BASE_URL` is system-managed and often points to a legacy endpoint (`api.rivet.dev`). **Do not use or rely on this variable for API calls.**
 
 - **Custom Backend**: The app is routed to a custom Cloudflare Workers backend.
-- **Production URL**: `https://homecookedplate.pages.dev`
+- **Production URL**: `https://homecookedplate.com`
 - **Implementation**: The tRPC client in `lib/trpc.ts` is **hardcoded** to this URL to bypass system-managed routing.
 - **Rule**: Any modifications to API fetching or tRPC must maintain this hardcoded URL unless a new Cloudflare deployment is specified.
 

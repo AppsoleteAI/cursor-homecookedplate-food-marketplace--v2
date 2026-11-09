@@ -1,6 +1,6 @@
 # Stripe marketplace issues
 
-Resolved in the shared source. Web, iOS, and Android use that source. `plate-marketplace-api` was deployed 8 November 2026. Version `623df7e0-d9f9-4275-b97b-da82a2dc9608` is the deploy where `platetaker` listens to 12 events. The current Worker is version `f12c11b4-d5eb-4846-b202-10c69509d49d`.
+Resolved in the shared source. Web, iOS, and Android use that source. `plate-marketplace-api` was deployed 8 November 2026. Version `623df7e0-d9f9-4275-b97b-da82a2dc9608` is the deploy where `platetaker` listens to 12 events. The current Worker is version `da4d1476-55dc-4fba-973f-ade624f0463e`. That deploy includes the 30-day final payout after selling is removed. Version `f12c11b4-d5eb-4846-b202-10c69509d49d` was the prior deploy the same day.
 
 Money stays in `backend/lib/fees.ts`. A $20 plate is $22 from the PlateTaker, $18 to the PlateMaker, and $4 kept by HomeCookedPlate, before the card fee and any delivery fee. The charge sits on the platform. A later Transfer sends the cook share. Settled means that Transfer was created. It does not mean the money is in the cook’s bank.
 

@@ -18,10 +18,10 @@ function busyTrpcResponse(status: number, body: string): Response | null {
   });
 }
 
-// Hardcoded Cloudflare Pages host. Do not read EXPO_PUBLIC_RORK_API_BASE_URL;
+// Hardcoded site host. Do not read EXPO_PUBLIC_RORK_API_BASE_URL;
 // that variable is system-managed and often points at the legacy api.rivet.dev host.
-// Switch this to https://homecookedplate.com only after that domain serves /api/trpc.
-const API_BASE_URL = 'https://homecookedplate.pages.dev';
+// Checked 8 November 2026: meals.list on this host and on the Pages host both returned the same menu.
+const API_BASE_URL = 'https://homecookedplate.com';
 
 const getBaseUrl = () => {
   if (__DEV__) {
@@ -36,7 +36,7 @@ const getBaseUrl = () => {
 const baseUrl = getBaseUrl();
 // CRITICAL: URL must match backend route configuration
 // If backend mounts like this: app.use('/api/trpc/*', trpcServer({ ... }))
-// Then frontend URL MUST be: 'https://homecookedplate.pages.dev/api/trpc' (NO trailing slash)
+// Then frontend URL MUST be: 'https://homecookedplate.com/api/trpc' (NO trailing slash)
 // Define it once with trailing slash handling
 export const trpcUrl = baseUrl.endsWith('/') 
   ? `${baseUrl}api/trpc` 

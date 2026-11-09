@@ -46,7 +46,27 @@ type Bindings = {
   ASC_API_PRIVATE_KEY?: string;
   SENTRY_DSN?: string;
   EXPO_PUBLIC_SENTRY_DSN?: string;
+  RESEND_API_KEY?: string;
+  OFFICIAL_EMAIL_FROM?: string;
+  EXPO_PUBLIC_WEB_URL?: string;
+  EXPO_ACCESS_TOKEN?: string;
 };
+
+const WORKER_PROCESS_ENV = [
+  'RESEND_API_KEY',
+  'OFFICIAL_EMAIL_FROM',
+  'EXPO_PUBLIC_WEB_URL',
+  'EXPO_ACCESS_TOKEN',
+  'STRIPE_SECRET_KEY',
+] as const;
+
+function applyWorkerEnv(env: Bindings | undefined) {
+  if (!env) return;
+  for (const name of WORKER_PROCESS_ENV) {
+    const value = env[name];
+    if (typeof value === 'string' && value) process.env[name] = value;
+  }
+}
 
 export const app = new Hono<{ Bindings: Bindings }>();
 
@@ -725,8 +745,12 @@ app.onError((error, c) => {
 });
 
 export default {
-  fetch: (request: Request, env: Bindings, ctx: ExecutionContext) => app.fetch(request, env, ctx),
+  fetch: (request: Request, env: Bindings, ctx: ExecutionContext) => {
+    applyWorkerEnv(env);
+    return app.fetch(request, env, ctx);
+  },
   scheduled(_event: ScheduledEvent, env: Bindings, ctx: ExecutionContext) {
+    applyWorkerEnv(env);
     ctx.waitUntil(releaseHeldPayoutsFromEnv(env).catch((error) => reportWorkerCrash({
       error,
       method: 'SCHEDULED',

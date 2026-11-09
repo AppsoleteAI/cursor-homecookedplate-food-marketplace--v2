@@ -20,7 +20,7 @@ npx --yes supabase@2.120.0 secrets list --project-ref tsrjtiunqbocmjgozeew | gre
 
 ## Expected Secrets
 
-After verification, you should see these **standardized** secrets:
+The price-id names below are not read by the running app. Do not add them from this list. After verification, older notes expected these names:
 
 ### Required Stripe Secrets
 - ✅ `STRIPE_SECRET_KEY` - Your Stripe secret key (starts with `sk_test_` or `sk_live_`)
@@ -40,52 +40,23 @@ After verification, you should see these **standardized** secrets:
 
 ## Verification Checklist
 
-- [ ] `STRIPE_PRICE_ID_MONTHLY` is set (not `STRIPE_PRICE_ID_STANDARD_MONTHLY`)
-- [ ] No secrets with "STANDARD" in the name exist
-- [ ] `STRIPE_SECRET_KEY` is set
-- [ ] `SUBSCRIPTION_PRICE_MONTHLY` is set to `4.99`
-- [ ] `SUBSCRIPTION_PRICE_ANNUAL` is set to `39.99`
-- [ ] `STRIPE_PRICE_ID_LIFETIME_FREE` is set (if using lifetime promotions)
+Retired 8 November 2026. The running app does not read `STRIPE_PRICE_ID_MONTHLY`, `STRIPE_PRICE_ID_STANDARD_MONTHLY`, `STRIPE_PRICE_ID_STANDARD_ANNUAL`, `STRIPE_PRICE_ID_LIFETIME_FREE`, `STRIPE_PRICE_ID_EARLY_BIRD_TRIAL`, `SUBSCRIPTION_PRICE_MONTHLY`, or `SUBSCRIPTION_PRICE_ANNUAL`. Membership amounts come from `SUBSCRIPTION_PRICES` in `backend/lib/fees.ts`. Store membership uses the App Store and Play products. Do not set or unset those names from this file.
 
 ## Setting Missing Secrets
 
-If any secrets are missing, set them using:
+Do not set `STRIPE_PRICE_ID_MONTHLY`, `SUBSCRIPTION_PRICE_MONTHLY`, `SUBSCRIPTION_PRICE_ANNUAL`, or `STRIPE_PRICE_ID_LIFETIME_FREE` from this file. The running app does not read them.
 
-```bash
-test -n "$SUPABASE_ACCESS_TOKEN" || exit 1
+## Old price-id names
 
-# Monthly subscription price ID
-npx --yes supabase@2.120.0 secrets set STRIPE_PRICE_ID_MONTHLY=price_xxxxx --project-ref tsrjtiunqbocmjgozeew
-
-# Subscription price constants
-npx --yes supabase@2.120.0 secrets set SUBSCRIPTION_PRICE_MONTHLY=4.99 --project-ref tsrjtiunqbocmjgozeew
-npx --yes supabase@2.120.0 secrets set SUBSCRIPTION_PRICE_ANNUAL=39.99 --project-ref tsrjtiunqbocmjgozeew
-
-# Lifetime free price ID (after creating $0 product in Stripe)
-npx --yes supabase@2.120.0 secrets set STRIPE_PRICE_ID_LIFETIME_FREE=price_xxxxx --project-ref tsrjtiunqbocmjgozeew
-```
-
-## Removing Old Secrets
-
-If you find old `STRIPE_PRICE_ID_STANDARD_MONTHLY`, remove it:
-
-```bash
-test -n "$SUPABASE_ACCESS_TOKEN" || exit 1
-npx --yes supabase@2.120.0 secrets unset STRIPE_PRICE_ID_STANDARD_MONTHLY --project-ref tsrjtiunqbocmjgozeew
-```
+Do not unset `STRIPE_PRICE_ID_STANDARD_MONTHLY` from this note. `backend/lib/fees.ts` still names it, and nothing in the running app reads that name. The unused edge function `create-subscription` still reads it if that function is invoked. No app file calls `supabase.functions.invoke`.
 
 ## Troubleshooting
 
 **Issue**: Old "STANDARD" keys still exist
-- **Solution**: Remove them using `supabase secrets unset` command above
+- **Solution**: Leave them. Do not unset them from this note.
 
 **Issue**: Secrets not found in Edge Functions
-- **Solution**: Redeploy the Edge Functions after setting secrets:
-  ```bash
-  test -n "$SUPABASE_ACCESS_TOKEN" || exit 1
-  npx --yes supabase@2.120.0 functions deploy create-checkout-session --project-ref tsrjtiunqbocmjgozeew
-  npx --yes supabase@2.120.0 functions deploy create-subscription --project-ref tsrjtiunqbocmjgozeew
-  ```
+- **Solution**: Do not redeploy `create-checkout-session` or `create-subscription` from this note. No app file calls them.
 
 **Issue**: Function returns "Price ID not configured"
 - **Solution**: Verify the secret name matches exactly (case-sensitive) and redeploy the function
