@@ -7,7 +7,10 @@
     "production": {
       "distribution": "store",
       "autoIncrement": false,
-      "environment": "production"
+      "environment": "production",
+      "env": {
+        "EXPO_APPLE_TEAM_ID": "Y7B9AH6UF8"
+      }
     },
     "preview": {
       "distribution": "internal",
