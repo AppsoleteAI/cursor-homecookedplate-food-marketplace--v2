@@ -70,9 +70,7 @@ describe.each([1, 2, 3])('key names, run %s', () => {
     expect(read('.github/workflows/store-release.yml')).toContain('if: false');
     expect(read('.github/workflows/deploy-pages.yml')).toContain('if: false');
     const callers = sourceFiles(root).filter((file) => readFileSync(file, 'utf8').includes('getStripePriceId('));
-    expect(callers.map((file) => file.slice(root.length))).toEqual([
-      '/backend/lib/stripe-utils.ts',
-    ]);
+    expect(callers).toEqual([]);
     const invoked = sourceFiles(root).filter((file) => readFileSync(file, 'utf8').includes('functions.invoke'));
     expect(invoked).toEqual([]);
   });

@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "9",
+      "buildNumber": "10",
       "bundleIdentifier": "app.rork.homecookedplate-dynamic-gradient-food-marketplace-v1-1",
       "usesAppleSignIn": true,
       "infoPlist": {
@@ -36,7 +36,7 @@
         "backgroundColor": "#D89429"
       },
       "package": "com.rork.homecookedplate",
-      "versionCode": 9,
+      "versionCode": 10,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
@@ -148,7 +148,9 @@
       [
         "@sentry/react-native/expo",
         {
-          "url": "https://sentry.io/"
+          "url": "https://sentry.io/",
+          "organization": "appsolete-ai",
+          "project": "homecookedplate"
         }
       ],
       "expo-asset",

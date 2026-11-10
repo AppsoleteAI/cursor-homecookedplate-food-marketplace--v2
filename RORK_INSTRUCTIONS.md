@@ -441,26 +441,24 @@ These sections form a stability triangle:
 
 ## 💳 PAYMENT & REDIRECT ARCHITECTURE
 - **Secret Management:** Use `process.env` for Stripe keys in tRPC routes. Never hardcode.
-- **Price Selection:**
-  - Early Bird (SUCCESS from `increment_metro_count`) → Use Early Bird Trial Price ID.
-  - Remote/Over-cap (CAP_REACHED or OUTSIDE_ZONE) → Use Standard Monthly Price ID.
+- **Price Selection:** Membership amounts stay in `SUBSCRIPTION_PRICES` in `backend/lib/fees.ts`. Web checkout sends `price_data` from `membershipPriceCents`. Do not set a Stripe price id from this note.
 - **Remote UX:** Users outside the Early Bird slot count MUST be redirected to checkout before gaining `premium` status.
 - **Supabase Admin:** Use `supabaseAdmin` for all internal tier-flipping after successful Stripe Webhooks.
 - **Checkout Flow:** Remote users sign up → Account created as `free` → Redirected to Stripe Checkout → Webhook upgrades to `premium` on payment.
-- **Price ID Utility:** Use `getStripePriceId()` from `backend/lib/stripe-utils.ts` to select correct price based on Early Bird status and membership tier.
+- **Price ID Utility:** `getStripePriceId` is removed. Membership amounts stay in `SUBSCRIPTION_PRICES` in `backend/lib/fees.ts`.
 - **Checkout Session:** Use `trpc.payments.createCheckoutSession` to create Stripe hosted checkout for Remote users after signup.
 - **Webhook Verification:** Stripe webhooks update `membership_tier` to `premium` after successful subscription creation.
 
 ### Architecture Rules (LOCKED)
 
-- **Subscription Source:** The Supabase Edge Function (`create-checkout-session`) is the **EXCLUSIVE** route for subscription and membership creation. Disable/Remove tRPC `membership/subscribe` routes to prevent logic fragmentation.
+- **Subscription Source:** `create-checkout-session` and `create-subscription` are unused Supabase functions. No app file calls `supabase.functions.invoke`. `create-subscription` returns status 410 and must not call Stripe. Web membership uses `trpc.payments.createCheckoutSession`. iOS and Android use the store products. Do not deploy either function from this note.
 - **Trial Logic:** Always use Stripe's native `trial_period_days` for the 10,000-user promotion to automate the $4.99/mo conversion.
 
 ### Billing & Security Standards (LOCKED)
 
-- **Secret Naming:** Use `STRIPE_PRICE_ID_MONTHLY` for the standard $4.99 billing tier.
+- **Secret Naming:** The running app does not read `STRIPE_PRICE_ID_MONTHLY`. Membership amounts stay in `SUBSCRIPTION_PRICES` in `backend/lib/fees.ts`. Do not set or unset that name from this note.
 - **Financial Isolation:** No Stripe Price IDs or Secret Keys shall exist in `backend/lib/fees.ts` or the frontend. [cite: 2026-01-17]
-- **Edge Function Role:** The Supabase Edge Function is the sole handler of Stripe interactions using environment variables. [cite: 2026-01-17]
+- **Edge Function Role:** Web membership checkout runs on the Worker. `create-checkout-session` and `create-subscription` do not. [cite: 2026-01-17]
 - **Device Locking:** Lifetime memberships are hardware-bound. The `device_id` must be validated against `user_subscriptions` on app launch and via DB triggers.
 - **Navigation:** All membership logic must remain backend-side to avoid breaking the `app/index.tsx` navigation tree. [cite: 2026-01-09]
 
