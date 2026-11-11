@@ -12,6 +12,7 @@ import { getPrepCook, getPrepItem, type PrepLane } from '@/constants/meal-prep-g
 import { useMealPrep } from '@/hooks/meal-prep-store';
 import { WEEK_SIZES, laneLabel, weekMix } from '@/lib/meal-prep-go';
 import { buyerFoodCharge } from '@/backend/lib/fees';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 import { useAuth } from '@/hooks/auth-context';
 
 export default function MealPrepWeekScreen() {
@@ -38,7 +39,8 @@ export default function MealPrepWeekScreen() {
   const mix = weekMix(readyCount, cookCount);
   const cookId = items[0]?.cookId;
   const cookName = (cookId && getPrepCook(cookId)?.name) || (cookId === 'owner-kitchen' ? 'Your kitchen' : '') || 'One cook';
-  const baseAmount = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
+  const offer = useAreaOfferTotal('meal_prep', lines.map((line) => ({ id: line.itemId, unitPrice: line.price, quantity: line.quantity })));
+  const baseAmount = offer.baseAmount;
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 
   return (
@@ -69,7 +71,7 @@ export default function MealPrepWeekScreen() {
             <View key={line.itemId} style={styles.card}>
               <Text style={styles.lane}>{laneLabel(line.lane as PrepLane)}</Text>
               <Text style={styles.name}>{titleCase(line.name)}</Text>
-              <Text style={styles.meta}>{line.quantity} × ${line.price.toFixed(2)}</Text>
+              <Text style={styles.meta}>{line.quantity} × ${(offer.lineTotal(line.itemId, line.price, line.quantity) / Math.max(1, line.quantity)).toFixed(2)}</Text>
               <View style={styles.row}>
                 <GlassPressable onPress={() => setQuantity(line.itemId, line.cookId, line.quantity - 1)} testID={`week-down-${line.itemId}`}>
                   <Text style={styles.link}>Remove One</Text>

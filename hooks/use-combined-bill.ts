@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
 import { quoteCard } from '@/backend/lib/combined-checkout';
+import { chargedPlateBase } from '@/backend/lib/fees';
+import { useShopSalePrices } from '@/hooks/use-area-offer';
 import { useAuth } from '@/hooks/auth-context';
 import { getCatalogProduct } from '@/constants/farm-grown-basket';
 import { getMenuItem } from '@/constants/food-truck-popup';
@@ -54,6 +56,13 @@ export function useCombinedBill() {
     sit: sit.items,
   }), [cart.items, farm.items, prep.items, truck.items, cater.items, sit.items]);
 
+  const sales = useShopSalePrices({
+    farm: farm.items,
+    prep: prep.items,
+    truck: truck.items,
+    cater: cater.items,
+    sit: sit.items,
+  });
   const preview = useMemo(() => quoteCard(gathered.checkouts.map((checkout) => ({
     area: checkout.area,
     sellerId: checkout.sellerId || checkout.area,
@@ -63,12 +72,18 @@ export function useCombinedBill() {
     lines: checkout.area === 'home'
       ? cart.items
         .filter((item) => item.meal.plateMakerId === checkout.sellerId)
-        .map((item) => ({ name: item.meal.name, quantity: item.quantity, unitPrice: item.meal.price }))
+        .map((item) => {
+          const quantity = Math.max(1, Math.round(item.quantity));
+          const charged = chargedPlateBase(item.meal.price, quantity, item.meal.promotionalOffer);
+          return { name: item.meal.name, quantity, unitPrice: charged / quantity, lineTotal: charged };
+        })
       : checkout.lines.flatMap((line) => {
         const priced = previewLine(checkout.area, line.productId, line.quantity);
-        return priced ? [priced] : [];
+        if (!priced) return [];
+        const charged = sales.lineTotal(checkout.area, line.productId, priced.unitPrice, priced.quantity);
+        return [{ ...priced, unitPrice: charged / priced.quantity, lineTotal: charged }];
       }),
-  }))), [gathered.checkouts, cart.items, user?.membershipTier, user?.role]);
+  }))), [gathered.checkouts, cart.items, sales, user?.membershipTier, user?.role]);
 
   const openSections = [
     cart.items.length > 0,

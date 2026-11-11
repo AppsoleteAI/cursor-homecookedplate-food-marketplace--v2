@@ -12,6 +12,7 @@ import { useSitDown } from '@/hooks/sit-down-store';
 import { evaluateSitDownLicense } from '@/lib/sit-down-license';
 import { calculateOrderSplit } from '@/lib/fees';
 import { AreaStoreSwitch } from '@/components/AreaStoreSwitch';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 
 export default function SitSellerScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -21,6 +22,7 @@ export default function SitSellerScreen() {
   const licenseCheck = evaluateSitDownLicense(license);
   const [ghostOpen, setGhostOpen] = useState(false);
   const openFromStand = useReturnHere('/sit-down-delicious/seller');
+  const offer = useAreaOfferTotal('sit_down', listings.map((item) => ({ id: item.id, unitPrice: item.price, quantity: 1 })));
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
@@ -96,7 +98,7 @@ export default function SitSellerScreen() {
           image={item.image}
           title={titleCase(item.name)}
           meta={ownerOpen ? 'On the list' : 'Hidden while the shop is closed'}
-          price={`$${item.price.toFixed(2)}`}
+          price={`$${offer.lineTotal(item.id, item.price, 1).toFixed(2)}`}
           priceColor="#92400E"
           onPress={() => router.push(openFromStand('/sit-down-delicious/item/[id]', { id: item.id }))}
         />

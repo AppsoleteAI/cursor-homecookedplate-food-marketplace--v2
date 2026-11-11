@@ -10,6 +10,7 @@ import { FARM_PRODUCTS, FARM_STANDS, farmsNearZip, getFarm } from '@/constants/f
 import { useFarmBasket } from '@/hooks/farm-basket-store';
 import { trackLabel, type RegulatoryTrack } from '@/lib/cottage-food';
 import { highlightBakedCottage } from '@/lib/baked-cottage';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 
 type MarketFilter = 'all' | 'baked' | RegulatoryTrack;
 
@@ -29,6 +30,10 @@ export default function FarmMarketScreen() {
   const [zip, setZip] = useState(initialZip);
   const [filter, setFilter] = useState<MarketFilter>(openBaked ? 'baked' : 'all');
   const { listings } = useFarmBasket();
+  const offer = useAreaOfferTotal('farm', [
+    ...FARM_PRODUCTS.map((product) => ({ id: product.id, unitPrice: product.price, quantity: 1 })),
+    ...listings.map((listing) => ({ id: listing.id, unitPrice: listing.price, quantity: 1 })),
+  ]);
 
   const nearbyIds = useMemo(() => new Set(farmsNearZip(zip).map((farm) => farm.id)), [zip]);
 
@@ -91,7 +96,7 @@ export default function FarmMarketScreen() {
                 <Text style={styles.badge}>Cottage shelf</Text>
                 <Text style={styles.name}>{titleCase(listing.name)}</Text>
                 <Text style={styles.meta}>{listing.farmName} · {trackLabel(listing.track)}</Text>
-                <Text style={styles.price}>${listing.price.toFixed(2)} / {listing.unit}</Text>
+                <Text style={styles.price}>${offer.lineTotal(listing.id, listing.price, 1).toFixed(2)} / {listing.unit}</Text>
               </View>
             </GlassPressable>
           ))}
@@ -109,7 +114,7 @@ export default function FarmMarketScreen() {
                   <Text style={styles.badge}>Cottage shelf</Text>
                   <Text style={styles.name}>{titleCase(product.name)}</Text>
                   <Text style={styles.meta}>{farm?.name} · {trackLabel(product.track)}</Text>
-                  <Text style={styles.price}>${product.price.toFixed(2)} / {product.unit}</Text>
+                  <Text style={styles.price}>${offer.lineTotal(product.id, product.price, 1).toFixed(2)} / {product.unit}</Text>
                 </View>
               </GlassPressable>
             );
@@ -128,7 +133,7 @@ export default function FarmMarketScreen() {
                 <View style={styles.copy}>
                   <Text style={styles.name}>{titleCase(listing.name)}</Text>
                   <Text style={styles.meta}>{listing.farmName} · {trackLabel(listing.track)}</Text>
-                  <Text style={styles.price}>${listing.price.toFixed(2)} / {listing.unit}</Text>
+                  <Text style={styles.price}>${offer.lineTotal(listing.id, listing.price, 1).toFixed(2)} / {listing.unit}</Text>
                 </View>
               </GlassPressable>
             ))}
@@ -163,7 +168,7 @@ export default function FarmMarketScreen() {
               <View style={styles.copy}>
                 <Text style={styles.name}>{titleCase(product.name)}</Text>
                 <Text style={styles.meta}>{farm?.name} · {trackLabel(product.track)}</Text>
-                <Text style={styles.price}>${product.price.toFixed(2)} / {product.unit}</Text>
+                <Text style={styles.price}>${offer.lineTotal(product.id, product.price, 1).toFixed(2)} / {product.unit}</Text>
               </View>
             </GlassPressable>
           );

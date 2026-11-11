@@ -15,6 +15,7 @@ import { MealCard } from '@/components/MealCard';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/hooks/auth-context';
 import type { Meal } from '@/types';
+import { menuMeal } from '@/lib/menu-meal';
 import { useRouter } from 'expo-router';
 import { useConsumeBack } from '@/hooks/use-leave-screen';
 import { ScrollJumps } from '@/components/ScrollJumps';
@@ -54,24 +55,7 @@ export default function SearchScreen() {
   });
   const meals: Meal[] = useMemo(() => {
     return (mealsData || []).filter((meal) => meal.plateMakerId !== user?.id).map((meal) => ({
-      id: meal.id,
-      plateMakerId: meal.plateMakerId,
-      plateMakerName: meal.plateMakerName,
-      name: meal.name,
-      description: meal.description,
-      price: meal.price,
-      images: meal.images || [],
-      ingredients: meal.ingredients || [],
-      cuisine: meal.cuisine,
-      category: meal.category as Meal['category'],
-      dietaryOptions: meal.dietaryOptions || [],
-      preparationTime: meal.preparationTime,
-      available: meal.available,
-      rating: meal.rating,
-      reviewCount: meal.reviewCount,
-      featured: meal.featured || false,
-      tags: meal.tags || [],
-      isSample: meal.isSample === true,
+      ...menuMeal(meal),
       canOrder: meal.canOrder !== false,
     }));
   }, [mealsData, user?.id]);

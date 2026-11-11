@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../create-context';
-import { missingOffersTable, offerFromRow, type StoredOffer } from '../../../lib/active-offer';
+import { inclusiveOfferEnd, missingOffersTable, offerFromRow, type StoredOffer } from '../../../lib/active-offer';
 import { MAX_AMOUNT_OFF, MAX_PERCENT_OFF } from '../../../lib/fees';
+import { readAdminRole } from '../../../lib/admin-role';
 import { auditTextField } from '../../../lib/text-audit';
 
 const offerInput = z.object({
@@ -40,12 +41,42 @@ function present(row: Parameters<typeof offerFromRow>[0] & { is_active?: boolean
   return { ...current, isActive: row.is_active !== false, createdAt: row.created_at ?? row.start_date };
 }
 
+async function callerIsMainAdmin(ctx: { userId: string; supabaseAdmin: { from: (table: string) => any } }): Promise<boolean> {
+  const full = await ctx.supabaseAdmin.from('profiles').select('is_admin, main_admin, monitor_admin').eq('id', ctx.userId).maybeSingle();
+  const profile = full.error
+    ? (await ctx.supabaseAdmin.from('profiles').select('is_admin').eq('id', ctx.userId).maybeSingle()).data
+    : full.data;
+  return readAdminRole(profile) === 'main';
+}
+
+export const listPromotionPlatesProcedure = protectedProcedure.query(async ({ ctx }) => {
+  const main = await callerIsMainAdmin(ctx);
+  const role = await ctx.supabaseAdmin.from('profiles').select('role').eq('id', ctx.userId).maybeSingle();
+  if (!main && role.data?.role !== 'platemaker') return [];
+  const query = ctx.supabaseAdmin
+    .from('meals')
+    .select('id, name, price')
+    .order('created_at', { ascending: false })
+    .limit(main ? 40 : 100);
+  const { data, error } = main ? await query : await query.eq('user_id', ctx.userId);
+  if (error) {
+    throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Plates could not be loaded.' });
+  }
+  return (data || []).map((meal: { id: string; name: string; price: number | string }) => ({
+    id: meal.id,
+    name: meal.name,
+    listPrice: parseFloat(String(meal.price)),
+  }));
+});
+
 export const listMyPromotionsProcedure = protectedProcedure.query(async ({ ctx }) => {
-  const { data, error } = await ctx.supabase
+  const main = await callerIsMainAdmin(ctx);
+  const query = ctx.supabaseAdmin
     .from('promotional_offers')
     .select('*')
-    .eq('user_id', ctx.userId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(main ? 50 : 100);
+  const { data, error } = main ? await query : await query.eq('user_id', ctx.userId);
   if (error) {
     if (missingOffersTable(error)) return [];
     throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Promotions could not be loaded.' });
@@ -80,18 +111,25 @@ export const savePromotionProcedure = protectedProcedure
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Name the free item.' });
     }
 
-    const { data: meal, error: mealError } = await ctx.supabase
+    const main = await callerIsMainAdmin(ctx);
+    const { data: meal, error: mealError } = await ctx.supabaseAdmin
       .from('meals')
       .select('id, user_id')
       .eq('id', input.mealId)
       .maybeSingle();
-    if (mealError || !meal || meal.user_id !== ctx.userId) {
+    if (mealError || !meal || (!main && meal.user_id !== ctx.userId)) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Choose one of your plates for this promotion.' });
+    }
+    if (!main) {
+      const role = await ctx.supabaseAdmin.from('profiles').select('role').eq('id', ctx.userId).maybeSingle();
+      if (role.data?.role !== 'platemaker') {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Only a PlateMaker can set an offer.' });
+      }
     }
 
     const row = {
       meal_id: input.mealId,
-      user_id: ctx.userId,
+      user_id: meal.user_id,
       type: input.type,
       title: title.value,
       description: description.value,
@@ -101,13 +139,13 @@ export const savePromotionProcedure = protectedProcedure
       get_quantity: input.type === 'buy-x-get-y' ? input.getQuantity : null,
       free_item_name: input.type === 'free-item' ? freeItem?.value ?? null : null,
       start_date: new Date(start).toISOString(),
-      end_date: new Date(end).toISOString(),
+      end_date: inclusiveOfferEnd(new Date(end).toISOString()),
       is_active: input.isActive,
     };
 
     const write = input.id
-      ? ctx.supabase.from('promotional_offers').update(row).eq('id', input.id).eq('user_id', ctx.userId).select('*').single()
-      : ctx.supabase.from('promotional_offers').insert(row).select('*').single();
+      ? ctx.supabaseAdmin.from('promotional_offers').update(row).eq('id', input.id).eq('user_id', meal.user_id).select('*').single()
+      : ctx.supabaseAdmin.from('promotional_offers').insert(row).select('*').single();
     const { data, error } = await write;
     if (error || !data) {
       if (missingOffersTable(error)) {
@@ -121,11 +159,9 @@ export const savePromotionProcedure = protectedProcedure
 export const deletePromotionProcedure = protectedProcedure
   .input(z.object({ id: z.string().uuid() }))
   .mutation(async ({ input, ctx }) => {
-    const { error } = await ctx.supabase
-      .from('promotional_offers')
-      .delete()
-      .eq('id', input.id)
-      .eq('user_id', ctx.userId);
+    const main = await callerIsMainAdmin(ctx);
+    const remove = ctx.supabaseAdmin.from('promotional_offers').delete().eq('id', input.id);
+    const { error } = main ? await remove : await remove.eq('user_id', ctx.userId);
     if (error) {
       throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'The promotion could not be deleted.' });
     }

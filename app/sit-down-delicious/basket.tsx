@@ -11,6 +11,7 @@ import { Colors } from '@/constants/colors';
 import { getPlace, getSitItem } from '@/constants/sit-down-delicious';
 import { useSitDown } from '@/hooks/sit-down-store';
 import { buyerFoodCharge } from '@/backend/lib/fees';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 import { useAuth } from '@/hooks/auth-context';
 
 export default function SitBasketScreen() {
@@ -30,7 +31,8 @@ export default function SitBasketScreen() {
 
   const placeId = lines[0]?.placeId;
   const placeName = placeId === 'owner-place' ? 'Your restaurant' : getPlace(placeId ?? '')?.name ?? 'Restaurant';
-  const baseAmount = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
+  const offer = useAreaOfferTotal('sit_down', lines.map((line) => ({ id: line.id, unitPrice: line.price, quantity: line.quantity })));
+  const baseAmount = offer.baseAmount;
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 
   return (
@@ -56,7 +58,7 @@ export default function SitBasketScreen() {
             <View key={line.id} style={styles.row}>
               <View style={styles.copy}>
                 <Text style={styles.name}>{titleCase(line.name)}</Text>
-                <Text style={styles.meta}>${line.price.toFixed(2)}</Text>
+                <Text style={styles.meta}>${(offer.lineTotal(line.id, line.price, line.quantity) / Math.max(1, line.quantity)).toFixed(2)}</Text>
               </View>
               <View style={styles.qty}>
                 <GlassPressable onPress={() => setQuantity(line.id, line.quantity - 1)}>

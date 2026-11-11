@@ -13,6 +13,7 @@ import { evaluateListing, trackLabel } from '@/lib/cottage-food';
 import { BAKED_COTTAGE_LINK, highlightBakedCottage } from '@/lib/baked-cottage';
 import { calculateOrderSplit } from '@/lib/fees';
 import { AreaStoreSwitch } from '@/components/AreaStoreSwitch';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 
 export default function FarmSellerScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -22,6 +23,7 @@ export default function FarmSellerScreen() {
   const complianceCheck = evaluateListing(compliance);
   const [standOpen, setStandOpen] = useState(false);
   const openFromStand = useReturnHere('/farm-grown-basket/seller');
+  const offer = useAreaOfferTotal('farm', listings.map((listing) => ({ id: listing.id, unitPrice: listing.price, quantity: 1 })));
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
@@ -83,7 +85,7 @@ export default function FarmSellerScreen() {
           image={listing.image}
           title={titleCase(listing.name)}
           meta={highlightBakedCottage(listing) ? `${trackLabel(listing.track)} · Cottage shelf` : trackLabel(listing.track)}
-          price={`$${listing.price.toFixed(2)} / ${listing.unit}`}
+          price={`$${offer.lineTotal(listing.id, listing.price, 1).toFixed(2)} / ${listing.unit}`}
           onPress={() => router.push(openFromStand('/farm-grown-basket/product/[id]', { id: listing.id }))}
         />
       ))}

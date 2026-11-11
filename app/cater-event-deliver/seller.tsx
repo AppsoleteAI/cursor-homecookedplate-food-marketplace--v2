@@ -12,6 +12,7 @@ import { useCaterEvent } from '@/hooks/cater-event-store';
 import { evaluateCaterLicense } from '@/lib/cater-event-license';
 import { calculateOrderSplit } from '@/lib/fees';
 import { AreaStoreSwitch } from '@/components/AreaStoreSwitch';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 
 export default function CaterSellerScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -20,6 +21,7 @@ export default function CaterSellerScreen() {
   const split = calculateOrderSplit(baseAmount);
   const licenseCheck = evaluateCaterLicense(license);
   const openFromStand = useReturnHere('/cater-event-deliver/seller');
+  const offer = useAreaOfferTotal('catering', listings.map((item) => ({ id: item.id, unitPrice: item.pricePerPerson, quantity: 1 })));
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
@@ -82,7 +84,7 @@ export default function CaterSellerScreen() {
           image={item.image}
           title={titleCase(item.name)}
           meta={`Minimum ${item.minimumHeadcount} · ${accepting ? 'On the board' : 'Hidden while you are closed'}`}
-          price={`$${item.pricePerPerson.toFixed(2)} per person`}
+          price={`$${offer.lineTotal(item.id, item.pricePerPerson, 1).toFixed(2)} per person`}
           priceColor="#6D28D9"
           onPress={() => router.push(openFromStand('/cater-event-deliver/package/[id]', { id: item.id }))}
         />

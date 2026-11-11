@@ -11,6 +11,7 @@ import { useFarmBasket } from '@/hooks/farm-basket-store';
 import { useAuth } from '@/hooks/auth-context';
 import { HOMEMADE_DISCLAIMER, frameworkForState, regulationDuty, stateName, trackLabel } from '@/lib/cottage-food';
 import { cottageBandLabel, cottageDirectoryRow } from '@/lib/cottage-directory';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 
 export default function FarmProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -22,6 +23,8 @@ export default function FarmProductScreen() {
   const listing = listings.find((item) => item.id === productId);
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
+  const listPrice = catalog?.price ?? listing?.price ?? 0;
+  const offer = useAreaOfferTotal('farm', productId && (catalog || listing) ? [{ id: productId, unitPrice: listPrice, quantity: 1 }] : []);
 
   if (!catalog && !listing) {
     return (
@@ -46,7 +49,7 @@ export default function FarmProductScreen() {
   return (
     <FarmScreen title={name} subtitle={farm ? farm.name : listing!.farmName || 'Your farm'} testID="farm-product">
       {catalog?.image || listing?.image ? <FoodImage source={{ uri: catalog?.image || listing?.image }} style={styles.hero} /> : null}
-      <Text style={styles.price}>${price.toFixed(2)} / {unit}</Text>
+      <Text style={styles.price}>${offer.lineTotal(productId || '', price, 1).toFixed(2)} / {unit}</Text>
       <Text style={styles.track}>{stateCode ? `${trackLabel(track)} · ${stateName(stateCode)}` : trackLabel(track)}</Text>
       {cottageDirectoryRow(stateCode) ? (
         <GlassPressable onPress={() => router.push('/farm-grown-basket/directory' as Href)} testID="product-cottage-directory">

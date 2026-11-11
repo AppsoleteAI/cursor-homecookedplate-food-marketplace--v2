@@ -8,6 +8,7 @@ import { SitDownScreen } from '@/components/sit-down/SitDownScreen';
 import { Colors } from '@/constants/colors';
 import { getPlace, getSitItem } from '@/constants/sit-down-delicious';
 import { useSitDown } from '@/hooks/sit-down-store';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 
 export default function SitItemScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -17,6 +18,8 @@ export default function SitItemScreen() {
   const listing = listings.find((item) => item.id === itemId);
   const [quantity, setQuantity] = useState(1);
   const [notice, setNotice] = useState<string | null>(null);
+  const listPrice = catalog?.price ?? listing?.price ?? 0;
+  const offer = useAreaOfferTotal('sit_down', itemId && (catalog || listing) ? [{ id: itemId, unitPrice: listPrice, quantity: 1 }] : []);
 
   if (!catalog && !listing) {
     return (
@@ -39,7 +42,7 @@ export default function SitItemScreen() {
   return (
     <SitDownScreen title={name} subtitle={placeName} testID="sit-item">
       {catalog?.image || listing?.image ? <FoodImage source={{ uri: catalog?.image || listing?.image }} style={styles.hero} /> : null}
-      <Text style={styles.price}>${price.toFixed(2)}</Text>
+      <Text style={styles.price}>${offer.lineTotal(itemId || '', price, 1).toFixed(2)}</Text>
       <Text style={[styles.status, open ? styles.open : styles.closed]}>{open ? 'Open for a table or takeout' : 'Shop is closed'}</Text>
       <Text style={styles.body}>{summary}</Text>
       {place ? (

@@ -11,6 +11,7 @@ import { useCaterEvent } from '@/hooks/cater-event-store';
 import { buyerFoodCharge } from '@/backend/lib/fees';
 import { CATER_MINIMUM_HEADCOUNT } from '@/lib/cater-event-license';
 import { useAuth } from '@/hooks/auth-context';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 
 export default function CaterPackageScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -22,6 +23,9 @@ export default function CaterPackageScreen() {
   const minimum = catalog?.minimumHeadcount ?? listing?.minimumHeadcount ?? CATER_MINIMUM_HEADCOUNT;
   const [headcount, setHeadcount] = useState(minimum);
   const [notice, setNotice] = useState<string | null>(null);
+  const listPrice = catalog?.pricePerPerson ?? listing?.pricePerPerson ?? 0;
+  const peopleForOffer = Math.max(minimum, headcount);
+  const offer = useAreaOfferTotal('catering', packageId && (catalog || listing) ? [{ id: packageId, unitPrice: listPrice, quantity: peopleForOffer }] : []);
 
   if (!catalog && !listing) {
     return (
@@ -41,13 +45,13 @@ export default function CaterPackageScreen() {
   const companyId = catalog?.companyId ?? 'owner-company';
   const companyName = company?.name ?? (license ? 'Your company' : 'Catering company');
   const people = Math.max(minimum, headcount);
-  const baseAmount = pricePerPerson * people;
+  const baseAmount = offer.lineTotal(packageId || '', pricePerPerson, people);
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 
   return (
     <CaterEventScreen title={name} subtitle={companyName} testID="cater-package">
       {catalog?.image || listing?.image ? <FoodImage source={{ uri: catalog?.image || listing?.image }} style={styles.hero} /> : null}
-      <Text style={styles.price}>${pricePerPerson.toFixed(2)} per person</Text>
+      <Text style={styles.price}>${(offer.lineTotal(packageId || '', pricePerPerson, people) / people).toFixed(2)} per person</Text>
       <Text style={[styles.status, open ? styles.open : styles.closed]}>{open ? 'Accepting this drop-off' : 'Not accepting orders'}</Text>
       <Text style={styles.body}>{summary}</Text>
       {company ? (

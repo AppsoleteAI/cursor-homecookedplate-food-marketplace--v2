@@ -14,6 +14,8 @@ import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { cuisineTypes, dietaryOptions } from '@/mocks/data';
 import { trpc } from '@/lib/trpc';
 import type { Meal } from '@/types';
+import { menuMeal } from '@/lib/menu-meal';
+import { chargedPlateBase } from '@/backend/lib/fees';
 import { MealCard } from '@/components/MealCard';
 import { Ionicons } from '@expo/vector-icons';
 import HorizontalCarousel from '@/components/HorizontalCarousel';
@@ -81,26 +83,7 @@ export default function FilterScreen() {
     metroArea: user?.metroArea || undefined,
   });
   const liveMeals: Meal[] = useMemo(() => {
-    return (mealsData || []).filter((meal) => meal.plateMakerId !== user?.id).map((meal) => ({
-      id: meal.id,
-      plateMakerId: meal.plateMakerId,
-      plateMakerName: meal.plateMakerName,
-      name: meal.name,
-      description: meal.description,
-      price: meal.price,
-      images: meal.images || [],
-      ingredients: meal.ingredients || [],
-      cuisine: meal.cuisine,
-      category: meal.category as Meal['category'],
-      dietaryOptions: meal.dietaryOptions || [],
-      preparationTime: meal.preparationTime,
-      available: meal.available,
-      rating: meal.rating,
-      reviewCount: meal.reviewCount,
-      featured: meal.featured || false,
-      tags: meal.tags || [],
-      isSample: meal.isSample === true,
-    }));
+    return (mealsData || []).filter((meal) => meal.plateMakerId !== user?.id).map((meal) => menuMeal(meal));
   }, [mealsData, user?.id]);
 
   const filteredMeals = liveMeals.filter(meal => {
@@ -126,8 +109,9 @@ export default function FilterScreen() {
     }
     const minValue = minPrice.trim() === '' ? null : Number(minPrice);
     const maxValue = maxPrice.trim() === '' ? null : Number(maxPrice);
-    if (minValue != null && Number.isFinite(minValue) && meal.price < minValue) return false;
-    if (maxValue != null && Number.isFinite(maxValue) && meal.price > maxValue) return false;
+    const price = chargedPlateBase(meal.price, 1, meal.promotionalOffer);
+    if (minValue != null && Number.isFinite(minValue) && price < minValue) return false;
+    if (maxValue != null && Number.isFinite(maxValue) && price > maxValue) return false;
     return true;
   });
 

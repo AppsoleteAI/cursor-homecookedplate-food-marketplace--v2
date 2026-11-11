@@ -9,6 +9,7 @@ import { Colors } from '@/constants/colors';
 import { getPrepCook, getPrepItem } from '@/constants/meal-prep-go';
 import { useMealPrep } from '@/hooks/meal-prep-store';
 import { dietLabel, laneDetail, laneLabel } from '@/lib/meal-prep-go';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 
 export default function MealPrepItemScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -23,6 +24,8 @@ export default function MealPrepItemScreen() {
   const openForOrders = cook ? cook.accepting : accepting;
   const current = items.find((line) => line.itemId === itemId)?.quantity ?? 0;
   const [error, setError] = useState<string | null>(null);
+  const listPrice = item?.price ?? 0;
+  const offer = useAreaOfferTotal('meal_prep', item ? [{ id: itemId, unitPrice: listPrice, quantity: 1 }] : []);
 
   if (!item) {
     return <Redirect href="/meal-prep-go/cooks" />;
@@ -36,7 +39,7 @@ export default function MealPrepItemScreen() {
   return (
     <MealPrepScreen title={titleCase(item.name)} subtitle={`${laneLabel(item.lane)} · ${cookName}`} testID="prep-item">
       {catalog?.image || listing?.image ? <FoodImage source={{ uri: catalog?.image || listing?.image }} style={styles.hero} /> : null}
-      <Text style={styles.price}>${item.price.toFixed(2)}</Text>
+      <Text style={styles.price}>${offer.lineTotal(itemId, item.price, 1).toFixed(2)}</Text>
       <Text style={styles.meta}>{dietLabel(item.diet)} · {item.lane === 'addon' ? 'Rides with the week' : `${item.minutes} minutes`}</Text>
       <Text style={styles.body}>{item.summary}</Text>
       <Text style={styles.body}>{laneDetail(item.lane)}</Text>

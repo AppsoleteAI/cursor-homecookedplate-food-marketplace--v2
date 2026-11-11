@@ -12,6 +12,7 @@ import { useFoodTruck } from '@/hooks/food-truck-store';
 import { evaluateTruckPermit } from '@/lib/food-truck-permit';
 import { calculateOrderSplit } from '@/lib/fees';
 import { AreaStoreSwitch } from '@/components/AreaStoreSwitch';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 
 export default function TruckSellerScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -21,6 +22,7 @@ export default function TruckSellerScreen() {
   const permitCheck = evaluateTruckPermit(permit);
   const [cartOpen, setCartOpen] = useState(false);
   const openFromStand = useReturnHere('/food-truck-popup/seller');
+  const offer = useAreaOfferTotal('food_truck', listings.map((item) => ({ id: item.id, unitPrice: item.price, quantity: 1 })));
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
@@ -96,7 +98,7 @@ export default function TruckSellerScreen() {
           image={item.image}
           title={titleCase(item.name)}
           meta={ownerActive ? 'On the board' : 'Hidden while the window is closed'}
-          price={`$${item.price.toFixed(2)}`}
+          price={`$${offer.lineTotal(item.id, item.price, 1).toFixed(2)}`}
           priceColor="#C2410C"
           onPress={() => router.push(openFromStand('/food-truck-popup/item/[id]', { id: item.id }))}
         />

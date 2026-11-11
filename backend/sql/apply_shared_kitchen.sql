@@ -114,7 +114,13 @@ begin
         where o.meal_id = new.meal_id
           and o.is_active is not false
           and o.start_date <= now()
-          and o.end_date >= now()
+          and (
+            case
+              when (o.end_date at time zone 'utc') = date_trunc('day', o.end_date at time zone 'utc')
+              then o.end_date + interval '1 day' - interval '1 millisecond'
+              else o.end_date
+            end
+          ) >= now()
         order by o.start_date desc, o.id desc
         limit 1;
 
@@ -122,7 +128,7 @@ begin
            and discount_percentage > 0
            and discount_percentage <= 50
         then
-          charged := round(menu_total * (1 - discount_percentage / 100), 2);
+          charged := round(menu_total * (1 - discount_percentage::numeric / 100.0), 2);
         elsif offer_type = 'fixed-amount'
            and discount_amount > 0
            and discount_amount <= 100

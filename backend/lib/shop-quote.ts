@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { offerFromRow } from './active-offer';
-import { promotionalBase, type PromotionPrice } from './fees';
+import { chargedPlateBase, type PromotionPrice } from './fees';
 import { CATER_MINIMUM_HEADCOUNT } from '@/lib/cater-event-license';
 import { catalogItem, listingMenuPrice, type ShopName, type ShopQuoteLine } from './shop-catalog';
 
@@ -85,7 +85,7 @@ export async function priceShopOrder(
       throw new Error(`${name} needs at least ${minimum}.`);
     }
     const offer = sellerId ? await offerForListing(admin, shop, sellerId, productId) : null;
-    const charged = promotionalBase(unitPrice, quantity, offer);
+    const charged = chargedPlateBase(unitPrice, quantity, offer);
     if (!(charged > 0)) {
       throw new Error('This offer takes the price to zero. Use a smaller discount.');
     }

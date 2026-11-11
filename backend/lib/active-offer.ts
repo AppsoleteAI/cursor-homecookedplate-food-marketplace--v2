@@ -32,10 +32,21 @@ export function missingOffersTable(error: { code?: string; message?: string } | 
   return error.code === 'PGRST205' || error.code === '42P01' || /promotional_offers/i.test(error.message ?? '') || /schema cache/i.test(error.message ?? '');
 }
 
+/** A date-only end is midnight UTC. The sale includes that calendar day. */
+export function inclusiveOfferEnd(value: string): string {
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return value;
+  const date = new Date(parsed);
+  if (date.getUTCHours() === 0 && date.getUTCMinutes() === 0 && date.getUTCSeconds() === 0 && date.getUTCMilliseconds() === 0) {
+    date.setUTCHours(23, 59, 59, 999);
+  }
+  return date.toISOString();
+}
+
 export function offerFromRow(row: OfferRow, now = new Date()): StoredOffer | null {
   if (row.is_active === false) return null;
   const start = Date.parse(row.start_date);
-  const end = Date.parse(row.end_date);
+  const end = Date.parse(inclusiveOfferEnd(row.end_date));
   if (!Number.isFinite(start) || !Number.isFinite(end) || start > now.getTime() || end < now.getTime()) return null;
   return {
     id: row.id,
@@ -65,7 +76,8 @@ export async function loadActiveOffers(
     .from('promotional_offers')
     .select('id, meal_id, type, title, description, discount_percentage, discount_amount, buy_quantity, get_quantity, free_item_name, start_date, end_date, is_active')
     .in('meal_id', ids)
-    .eq('is_active', true);
+    .eq('is_active', true)
+    .order('start_date', { ascending: false });
   if (error) {
     if (missingOffersTable(error)) return offers;
     console.error('[Offers] Lookup failed:', error.message);

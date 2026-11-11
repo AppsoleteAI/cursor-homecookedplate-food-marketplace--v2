@@ -11,6 +11,7 @@ import { Colors } from '@/constants/colors';
 import { getCompany, getPackage } from '@/constants/cater-event-deliver';
 import { useCaterEvent } from '@/hooks/cater-event-store';
 import { buyerFoodCharge } from '@/backend/lib/fees';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 import { useAuth } from '@/hooks/auth-context';
 
 export default function CaterBasketScreen() {
@@ -31,7 +32,8 @@ export default function CaterBasketScreen() {
 
   const companyId = lines[0]?.companyId;
   const companyName = companyId === 'owner-company' ? 'Your company' : getCompany(companyId ?? '')?.name ?? 'Catering company';
-  const baseAmount = lines.reduce((sum, line) => sum + line.pricePerPerson * line.headcount, 0);
+  const offer = useAreaOfferTotal('catering', lines.map((line) => ({ id: line.id, unitPrice: line.pricePerPerson, quantity: line.headcount })));
+  const baseAmount = offer.baseAmount;
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 
   return (
@@ -57,8 +59,8 @@ export default function CaterBasketScreen() {
             <View key={line.id} style={styles.row}>
               <View style={styles.copy}>
                 <Text style={styles.name}>{titleCase(line.name)}</Text>
-                <Text style={styles.meta}>${line.pricePerPerson.toFixed(2)} per person · minimum {line.minimum}</Text>
-                <Text style={styles.meta}>Food ${(line.pricePerPerson * line.headcount).toFixed(2)}</Text>
+                <Text style={styles.meta}>${(offer.lineTotal(line.id, line.pricePerPerson, line.headcount) / Math.max(1, line.headcount)).toFixed(2)} per person · minimum {line.minimum}</Text>
+                <Text style={styles.meta}>Food ${offer.lineTotal(line.id, line.pricePerPerson, line.headcount).toFixed(2)}</Text>
               </View>
               <View style={styles.qty}>
                 <GlassPressable onPress={() => setHeadcount(line.id, line.headcount <= line.minimum ? 0 : line.headcount - 1)}>

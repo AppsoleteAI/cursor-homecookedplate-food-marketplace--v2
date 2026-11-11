@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { captureException } from '@/lib/sentry';
 import { trpc, trpcProxyClient } from '@/lib/trpc';
 import { firstPlatePhoto } from '@/lib/food-review-clips';
+import { chargedPlateBase, checkoutQuantity } from '@/lib/fees';
 
 interface OrdersState {
   orders: Order[];
@@ -337,7 +338,7 @@ export const [OrdersProvider, useOrders] = createContextHook<OrdersState>(() => 
       plateMakerName: ci.meal.plateMakerName,
       status: 'accepted',
       quantity: ci.quantity,
-      totalPrice: ci.meal.price * ci.quantity,
+      totalPrice: chargedPlateBase(ci.meal.price, checkoutQuantity(ci.quantity), ci.meal.promotionalOffer),
       paid: true,
       specialInstructions: ci.specialInstructions,
       cookingTemperature: ci.cookingTemperature,

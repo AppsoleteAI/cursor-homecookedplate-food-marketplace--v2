@@ -1,7 +1,8 @@
 import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { prepareHomePlate, thisOrderExceedsPortions } from "@/backend/lib/plate-order-rules";
+import { plateTotalsMatch } from "@/backend/lib/fees";
+import { holdChargedBase, prepareHomePlate, thisOrderExceedsPortions } from "@/backend/lib/plate-order-rules";
 import { missingColumn, noteForViewer } from "../../../../lib/content-moderation";
 import { orderBuyerId } from "../../../../lib/order-row";
 
@@ -112,6 +113,18 @@ export const createOrderProcedure = protectedProcedure
       throw new Error(error?.message || 'Failed to create order');
     }
     const order = data as any;
+    const held = await holdChargedBase(ctx.supabaseAdmin, order.id, chargedBase);
+    if (!plateTotalsMatch(held, chargedBase)) {
+      const removed = await ctx.supabaseAdmin.from('orders').delete().eq('id', order.id);
+      if (removed.error) {
+        await ctx.supabaseAdmin.from('orders').update({ status: 'cancelled', paid: false }).eq('id', order.id);
+      }
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: 'The sale price did not stay on this order. The order was not placed.',
+      });
+    }
+    order.total_price = chargedBase;
 
     const over = await thisOrderExceedsPortions(ctx.supabaseAdmin, input.mealId, order.id, portionCap);
     if (over == null || over) {

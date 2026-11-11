@@ -35,7 +35,7 @@ import { createPaymentIntentProcedure } from "./routes/payments/create-payment-i
 import { abandonShopOrderProcedure, confirmShopPaymentProcedure, createShopCheckoutProcedure, listShopOrdersProcedure, shopReceiptProcedure, updateShopOrderProcedure } from "./routes/payments/create-shop-checkout/route";
 import { confirmCombinedCheckoutProcedure, createCombinedCheckoutProcedure, getAreaStoresProcedure, refundCombinedCheckoutProcedure, setAreaStoreProcedure } from "./routes/payments/combined-checkout/route";
 import { confirmWebCheckoutProcedure } from "./routes/payments/confirm-web-checkout/route";
-import { deletePromotionProcedure, listMyPromotionsProcedure, savePromotionProcedure } from "./routes/promotions/route";
+import { deletePromotionProcedure, listMyPromotionsProcedure, listPromotionPlatesProcedure, savePromotionProcedure } from "./routes/promotions/route";
 import { deleteAreaOfferProcedure, listMyAreaOffersProcedure, listMyLaneItemsProcedure, offersForListingsProcedure, saveAreaOfferProcedure } from "./routes/area-offers/route";
 import { claimGiftProcedure, listMyGiftsProcedure, listOpenGiftsProcedure, saveGiftProcedure } from "./routes/charitable/route";
 import { listLaneListingsProcedure, saveLaneListingProcedure } from "./routes/lanes/route";
@@ -216,6 +216,7 @@ export const appRouter = createTRPCRouter({
   }),
   promotions: createTRPCRouter({
     listMine: listMyPromotionsProcedure,
+    listPlates: listPromotionPlatesProcedure,
     save: savePromotionProcedure,
     delete: deletePromotionProcedure,
   }),

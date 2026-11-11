@@ -11,6 +11,7 @@ import { Colors } from '@/constants/colors';
 import { getMenuItem, getTruck } from '@/constants/food-truck-popup';
 import { useFoodTruck } from '@/hooks/food-truck-store';
 import { buyerFoodCharge } from '@/backend/lib/fees';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 import { useAuth } from '@/hooks/auth-context';
 
 export default function TruckBasketScreen() {
@@ -30,7 +31,8 @@ export default function TruckBasketScreen() {
 
   const truckId = lines[0]?.truckId;
   const truckName = truckId === 'owner-truck' ? 'Your truck' : getTruck(truckId ?? '')?.name ?? 'Truck';
-  const baseAmount = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
+  const offer = useAreaOfferTotal('food_truck', lines.map((line) => ({ id: line.id, unitPrice: line.price, quantity: line.quantity })));
+  const baseAmount = offer.baseAmount;
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount });
 
   return (
@@ -56,7 +58,7 @@ export default function TruckBasketScreen() {
             <View key={line.id} style={styles.row}>
               <View style={styles.copy}>
                 <Text style={styles.name}>{titleCase(line.name)}</Text>
-                <Text style={styles.meta}>${line.price.toFixed(2)}</Text>
+                <Text style={styles.meta}>${(offer.lineTotal(line.id, line.price, line.quantity) / Math.max(1, line.quantity)).toFixed(2)}</Text>
               </View>
               <View style={styles.qty}>
                 <GlassPressable onPress={() => setQuantity(line.id, line.quantity - 1)}>

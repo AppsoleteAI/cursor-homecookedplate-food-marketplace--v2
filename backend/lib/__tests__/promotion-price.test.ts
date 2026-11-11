@@ -1,4 +1,7 @@
-import { producedCost, promotionalBase } from '../fees';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { inclusiveOfferEnd } from '../active-offer';
+import { chargedPlateBase, offerIsCurrent, plateTotalsMatch, producedCost, promotionalBase } from '../fees';
 import { buyerMetroCanOrder, mealVisibleInMetro } from '../metro-menu';
 
 describe('promotionalBase', () => {
@@ -30,6 +33,61 @@ describe('promotionalBase', () => {
 
   it('leaves the plate price unchanged for a free side', () => {
     expect(promotionalBase(9, 1, { type: 'free-item' })).toBe(9);
+  });
+});
+
+describe('chargedPlateBase', () => {
+  const now = new Date('2026-11-10T18:00:00.000Z');
+  const live = {
+    type: 'percentage' as const,
+    discountPercentage: 25,
+    isActive: true,
+    startDate: '2026-11-01T00:00:00.000Z',
+    endDate: '2026-11-20T23:59:59.999Z',
+  };
+
+  it('replaces the list price while the sale is on', () => {
+    expect(chargedPlateBase(20, 2, live, now)).toBe(30);
+  });
+
+  it('returns the list price after the sale ends', () => {
+    expect(chargedPlateBase(20, 2, { ...live, endDate: '2026-11-10T17:00:00.000Z' }, now)).toBe(40);
+  });
+
+  it('keeps a date-only end through that calendar day', () => {
+    expect(chargedPlateBase(20, 1, { ...live, endDate: '2026-11-10T00:00:00.000Z' }, now)).toBe(15);
+    expect(chargedPlateBase(20, 1, { ...live, endDate: '2026-11-10T00:00:00.000Z' }, new Date('2026-11-11T00:00:00.000Z'))).toBe(20);
+  });
+
+  it('returns the list price before the sale starts', () => {
+    expect(offerIsCurrent({ ...live, startDate: '2026-11-11T00:00:00.000Z' }, now)).toBe(false);
+    expect(chargedPlateBase(20, 1, { ...live, startDate: '2026-11-11T00:00:00.000Z' }, now)).toBe(20);
+  });
+
+  it('returns the list price when the sale is turned off', () => {
+    expect(chargedPlateBase(20, 1, { ...live, isActive: false }, now)).toBe(20);
+  });
+
+  it('keeps a stored sale total that matches the offer', () => {
+    expect(plateTotalsMatch(15, 15)).toBe(true);
+    expect(plateTotalsMatch(20, 15)).toBe(false);
+  });
+
+  it('includes the chosen end date', () => {
+    expect(inclusiveOfferEnd('2026-11-12T00:00:00.000Z')).toBe('2026-11-12T23:59:59.999Z');
+  });
+});
+
+describe('sale price trigger', () => {
+  const sql = readFileSync(resolve(__dirname, '../../sql/sale_price_overrides_list.sql'), 'utf8');
+
+  it('charges the active offer and leaves the list price after that offer ends', () => {
+    expect(sql).toContain('discount_percentage::numeric / 100.0');
+    expect(sql).toContain("date_trunc('day', o.end_date at time zone 'utc')");
+    expect(sql).toContain(') >= now()');
+    expect(sql).toContain('charged := menu_total');
+    expect(sql).toContain('new.total_price := charged');
+    expect(sql).toContain('new.meal_id is not distinct from old.meal_id');
   });
 });
 

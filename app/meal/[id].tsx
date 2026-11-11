@@ -25,7 +25,8 @@ import { FoodImage } from '@/components/FoodImage';
 import { FoodReviewPlayer } from '@/components/FoodReviewPlayer';
 import { isStoredVideoAddress } from '@/lib/food-review-clips';
 import { trpc } from '@/lib/trpc';
-import { buyerFoodCharge } from '@/backend/lib/fees';
+import { buyerFoodCharge, chargedPlateBase } from '@/backend/lib/fees';
+import { menuMeal } from '@/lib/menu-meal';
 import type { Meal } from '@/types';
 import { useCart } from '@/hooks/cart-context';
 import { useFavorites } from '@/hooks/favorites-context';
@@ -53,27 +54,7 @@ export default function MealDetailScreen() {
   const meal = useMemo<Meal | undefined>(() => {
     const data = mealQuery.data;
     if (!data) return undefined;
-    return {
-      id: data.id,
-      plateMakerId: data.plateMakerId,
-      plateMakerName: data.plateMakerName,
-      name: data.name,
-      description: data.description,
-      price: data.price,
-      images: data.images || [],
-      ingredients: data.ingredients || [],
-      cuisine: data.cuisine,
-      category: data.category as Meal['category'],
-      dietaryOptions: data.dietaryOptions || [],
-      preparationTime: data.preparationTime,
-      available: data.available,
-      rating: data.rating,
-      acceptingOrders: data.acceptingOrders !== false,
-      reviewCount: data.reviewCount,
-      featured: data.featured || false,
-      tags: data.tags || [],
-      isSample: data.isSample === true,
-    };
+    return { ...menuMeal(data), acceptingOrders: data.acceptingOrders !== false };
   }, [mealQuery.data]);
   const reportMealPhoto = trpc.media.reportMealImage.useMutation();
   const reportCookPhoto = trpc.media.reportProfileImage.useMutation();
@@ -375,7 +356,7 @@ export default function MealDetailScreen() {
             ) : null}
           </View>
 
-          <Text style={styles.price}>${meal.price.toFixed(2)}</Text>
+          <Text style={styles.price}>${chargedPlateBase(meal.price, 1, meal.promotionalOffer).toFixed(2)}</Text>
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Description</Text>
@@ -523,8 +504,8 @@ export default function MealDetailScreen() {
       {!isPlatemaker && !isOwnPlate && !isSample && mealQuery.data?.canOrder !== false && (
         <View style={styles.footer}>
           <View style={styles.totalSection}>
-            <Text style={styles.totalLabel}>Plate ${ (meal.price * quantity).toFixed(2) }</Text>
-            <Text style={styles.totalPrice}>${buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount: meal.price * quantity }).totalCaptured.toFixed(2)}</Text>
+            <Text style={styles.totalLabel}>Plate ${chargedPlateBase(meal.price, quantity, meal.promotionalOffer).toFixed(2)}</Text>
+            <Text style={styles.totalPrice}>${buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount: chargedPlateBase(meal.price, quantity, meal.promotionalOffer) }).totalCaptured.toFixed(2)}</Text>
           </View>
           <GradientButton
             title="Add to Plate"

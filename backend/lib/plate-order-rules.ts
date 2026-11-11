@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { promotionalBase } from './fees';
+import { chargedPlateBase, plateTotalsMatch } from './fees';
+import { orderTotal } from './order-row';
 import { loadActiveOffers } from './active-offer';
 import { isSampleMealId } from '@/lib/sample-meals';
 import { cookPermitIsSaved } from './kitchen-permit';
@@ -52,6 +53,34 @@ function isTimeZone(zone: string): boolean {
   } catch {
     return false;
   }
+}
+
+async function readStoredBase(admin: Admin, orderId: string): Promise<number | null> {
+  const full = await admin.from('orders').select('total_price, total_price_cents').eq('id', orderId).maybeSingle();
+  if (!full.error && full.data) return orderTotal(full.data);
+  const price = await admin.from('orders').select('total_price').eq('id', orderId).maybeSingle();
+  if (!price.error && price.data) return orderTotal(price.data);
+  const cents = await admin.from('orders').select('total_price_cents').eq('id', orderId).maybeSingle();
+  if (!cents.error && cents.data) return orderTotal(cents.data);
+  return null;
+}
+
+/**
+ * The insert trigger can replace a sale with the list price.
+ * Write the offer total back. A later status change does not reprice the order.
+ */
+export async function holdChargedBase(admin: Admin, orderId: string, chargedBase: number): Promise<number | null> {
+  const stored = await readStoredBase(admin, orderId);
+  if (plateTotalsMatch(stored, chargedBase)) return stored;
+  const cents = Math.round(chargedBase * 100);
+  let write = await admin.from('orders').update({ total_price: chargedBase, total_price_cents: cents }).eq('id', orderId);
+  if (write.error && /total_price_cents/i.test(write.error.message || '')) {
+    write = await admin.from('orders').update({ total_price: chargedBase }).eq('id', orderId);
+  } else if (write.error && /total_price/i.test(write.error.message || '')) {
+    write = await admin.from('orders').update({ total_price_cents: cents }).eq('id', orderId);
+  }
+  if (write.error) return stored;
+  return readStoredBase(admin, orderId);
 }
 
 export type PreparedHomePlate = {
@@ -194,7 +223,7 @@ export async function prepareHomePlate(
 
   const menuPrice = parseFloat(String(mealRow.price));
   const offer = (await loadActiveOffers(admin, [input.mealId])).get(input.mealId) ?? null;
-  const chargedBase = promotionalBase(menuPrice, quantity, offer);
+  const chargedBase = chargedPlateBase(menuPrice, quantity, offer);
   if (!(chargedBase > 0)) {
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'This offer takes the price to zero. Use a smaller discount.' });
   }

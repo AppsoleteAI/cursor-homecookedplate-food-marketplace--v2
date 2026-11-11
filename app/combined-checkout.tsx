@@ -3,7 +3,8 @@ import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, View } from '
 import { Redirect, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CHECKOUT_AREA_LABEL, quoteCard } from '@/backend/lib/combined-checkout';
-import { calculateDeliveryLevy, promotionalBase } from '@/backend/lib/fees';
+import { calculateDeliveryLevy, chargedPlateBase } from '@/backend/lib/fees';
+import { useShopSalePrices } from '@/hooks/use-area-offer';
 import { accountAccessCopy } from '@/backend/lib/sign-in-messages';
 import { checkoutAreaShop, type ShopFulfillment } from '@/backend/lib/shop-fulfillment';
 import { CombinedHandoffFields } from '@/components/CombinedHandoffFields';
@@ -168,6 +169,13 @@ export default function CombinedCheckoutScreen() {
     sit: sit.items,
   }), [cart.items, farm.items, prep.items, truck.items, cater.items, sit.items]);
 
+  const sales = useShopSalePrices({
+    farm: farm.items,
+    prep: prep.items,
+    truck: truck.items,
+    cater: cater.items,
+    sit: sit.items,
+  });
   const preview = useMemo(() => quoteCard(gathered.checkouts.map((checkout) => ({
     area: checkout.area,
     sellerId: checkout.sellerId,
@@ -179,14 +187,16 @@ export default function CombinedCheckoutScreen() {
         .filter((item) => item.meal.plateMakerId === checkout.sellerId)
         .map((item) => {
           const quantity = Math.max(1, Math.round(item.quantity));
-          const charged = promotionalBase(item.meal.price, quantity, item.meal.promotionalOffer);
+          const charged = chargedPlateBase(item.meal.price, quantity, item.meal.promotionalOffer);
           return { name: item.meal.name, quantity, unitPrice: charged / quantity, lineTotal: charged };
         })
       : checkout.lines.flatMap((line) => {
         const priced = previewLine(checkout.area, line.productId, line.quantity);
-        return priced ? [priced] : [];
+        if (!priced) return [];
+        const charged = sales.lineTotal(checkout.area, line.productId, priced.unitPrice, priced.quantity);
+        return [{ ...priced, unitPrice: charged / priced.quantity, lineTotal: charged }];
       }),
-  }))), [gathered.checkouts, cart.items, user?.membershipTier, user?.role]);
+  }))), [gathered.checkouts, cart.items, sales, user?.membershipTier, user?.role]);
 
   const onHandoff = useCallback((report: { key: string; handoff: ShopFulfillment | null; block: string | null; deliveryFee: number; deliveryLoading: boolean }) => {
     setHandoffs((current) => {

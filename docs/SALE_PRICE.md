@@ -1,0 +1,11 @@
+# Sale price and list price
+
+Web, iOS, and Android use the same source. `backend/sql/sale_price_overrides_list.sql` was run in the SQL editor on 11 November 2026. The editor returned Success with no rows. Do not run it again. The check returned one row for `calculate_order_price`: `sale_math` true, `status_keeps_sale` true, and trigger `calculate_order_price_trigger` before insert or update on `orders`. A new plate order is charged the sale while that offer is active. The Worker `plate-marketplace-api` was deployed 11 November 2026, version `49fa2149-ec91-4b7f-a12f-6732bfdb4af3`. A signed-in PlateMaker and a main admin save a plate sale through that Worker. A signed-out PlateTaker can read an area sale through that Worker. A shop order is priced there. The website publish on `main` includes the menu, cart, checkout, and shop screens. An installed phone keeps the previous bundle until the next store build.
+
+`meals.price` stays the list price. A PlateMaker saves a sale on one of their plates. A main admin saves a sale on a plate from the promotions screen. A monitor admin does not set a price. The sale does not change the list price.
+
+Signed in, a PlateMaker sees the sale as the price on the menu, the plate, the cart, and checkout while the sale is active. After the end of the chosen day, those screens show the list price again. Signed in, a PlateTaker sees that same sale price and is charged that sale price. After the sale ends, the PlateTaker sees and pays the list price.
+
+A farm, truck, food-cart, catering, meal-prep, sit-down, or ghost-kitchen sale works the same way. Signed in, the cook sets it on that area's offers and sees the sale on the seller stand. Signed in, the buyer sees and pays the sale price on the menu, the item, the basket, and checkout. A food cart uses the truck offer. A ghost kitchen uses the sit-down offer. Signed out, the plate menu and the shop item still show the sale price, because those reads are public. Signed out, neither role can save a sale or place an order.
+
+A date-only end includes that calendar day. The next day, the list price is the price again. A buy-one-get-one offer keeps the list price on one unit. The line total drops when the free units apply. A free side does not change the plate price.

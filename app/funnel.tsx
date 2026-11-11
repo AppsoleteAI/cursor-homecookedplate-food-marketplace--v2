@@ -15,6 +15,8 @@ import { cuisineTypes, dietaryOptions } from '@/mocks/data';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/hooks/auth-context';
 import type { Meal } from '@/types';
+import { menuMeal } from '@/lib/menu-meal';
+import { chargedPlateBase } from '@/backend/lib/fees';
 import { Stack } from 'expo-router';
 import { BackCircle } from '@/components/BackCircle';
 import { useLeaveScreen } from '@/hooks/use-leave-screen';
@@ -35,26 +37,7 @@ export default function FunnelScreen() {
     metroArea: user?.metroArea || undefined,
   });
   const liveMeals: Meal[] = useMemo(() => {
-    return (mealsData || []).filter((meal) => meal.plateMakerId !== user?.id).map((meal) => ({
-      id: meal.id,
-      plateMakerId: meal.plateMakerId,
-      plateMakerName: meal.plateMakerName,
-      name: meal.name,
-      description: meal.description,
-      price: meal.price,
-      images: meal.images || [],
-      ingredients: meal.ingredients || [],
-      cuisine: meal.cuisine,
-      category: meal.category as Meal['category'],
-      dietaryOptions: meal.dietaryOptions || [],
-      preparationTime: meal.preparationTime,
-      available: meal.available,
-      rating: meal.rating,
-      reviewCount: meal.reviewCount,
-      featured: meal.featured || false,
-      tags: meal.tags || [],
-      isSample: meal.isSample === true,
-    }));
+    return (mealsData || []).filter((meal) => meal.plateMakerId !== user?.id).map((meal) => menuMeal(meal));
   }, [mealsData, user?.id]);
 
   const categories = useMemo(() => {
@@ -71,7 +54,8 @@ export default function FunnelScreen() {
     const matchesDietary = selectedDietary.length === 0 ||
       selectedDietary.some(diet => meal.dietaryOptions.includes(diet));
     const matchesCategory = selectedCategories.length === 0 || selectedCategories.includes(meal.category);
-    const matchesPrice = (priceRange.min === null || meal.price >= priceRange.min) && (priceRange.max === null || meal.price <= priceRange.max);
+    const price = chargedPlateBase(meal.price, 1, meal.promotionalOffer);
+    const matchesPrice = (priceRange.min === null || price >= priceRange.min) && (priceRange.max === null || price <= priceRange.max);
     const mealTags: string[] = meal.tags ?? [];
     const matchesTags = selectedTags.length === 0 || selectedTags.some(t => mealTags.includes(t));
     const matchesRating = meal.rating >= minRating;

@@ -328,6 +328,58 @@ export function promotionalBase(unitPrice: number, quantity: number, offer: Prom
   return menu;
 }
 
+type TimedOffer = PromotionPrice & {
+  isActive?: boolean;
+  startDate?: Date | string | null;
+  endDate?: Date | string | null;
+};
+
+/** A date-only end is midnight UTC. The sale includes that calendar day. */
+function offerInstant(value: Date | string, endOfUtcDay: boolean): number {
+  const date = value instanceof Date ? new Date(value.getTime()) : new Date(String(value));
+  if (!Number.isFinite(date.getTime())) return Number.NaN;
+  if (
+    endOfUtcDay &&
+    date.getUTCHours() === 0 &&
+    date.getUTCMinutes() === 0 &&
+    date.getUTCSeconds() === 0 &&
+    date.getUTCMilliseconds() === 0
+  ) {
+    date.setUTCHours(23, 59, 59, 999);
+  }
+  return date.getTime();
+}
+
+/** True while this offer is the price. A missing window is already current. An ended offer is not. */
+export function offerIsCurrent(offer: TimedOffer | null | undefined, now = new Date()): boolean {
+  if (!offer || offer.isActive === false) return false;
+  const nowMs = now.getTime();
+  if (offer.startDate != null && offer.startDate !== '') {
+    const start = offerInstant(offer.startDate, false);
+    if (Number.isFinite(start) && start > nowMs) return false;
+  }
+  if (offer.endDate != null && offer.endDate !== '') {
+    const end = offerInstant(offer.endDate, true);
+    if (Number.isFinite(end) && end < nowMs) return false;
+  }
+  return true;
+}
+
+/** True when the stored order total is the sale total, within one cent. */
+export function plateTotalsMatch(stored: number | null, expected: number): boolean {
+  return stored != null && Number.isFinite(stored) && Math.abs(stored - expected) < 0.02;
+}
+
+/** List price times quantity, unless a current offer replaces it. After the offer ends, the list price is the charge again. */
+export function chargedPlateBase(
+  listPrice: number,
+  quantity: number,
+  offer: TimedOffer | null | undefined,
+  now = new Date(),
+): number {
+  return promotionalBase(listPrice, quantity, offerIsCurrent(offer, now) ? offer : null);
+}
+
 /**
  * Calculate order breakdown for UI display and API consistency.
  * 

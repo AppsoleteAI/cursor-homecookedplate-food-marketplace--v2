@@ -337,7 +337,13 @@ BEGIN
     WHERE o.meal_id = new.meal_id
       AND o.is_active IS NOT FALSE
       AND o.start_date <= now()
-      AND o.end_date >= now()
+      AND (
+        CASE
+          WHEN (o.end_date AT TIME ZONE 'utc') = date_trunc('day', o.end_date AT TIME ZONE 'utc')
+          THEN o.end_date + interval '1 day' - interval '1 millisecond'
+          ELSE o.end_date
+        END
+      ) >= now()
     ORDER BY o.start_date DESC, o.id DESC
     LIMIT 1;
 
@@ -345,7 +351,7 @@ BEGIN
        AND discount_percentage > 0
        AND discount_percentage <= 50
     THEN
-      charged := round(menu_total * (1 - discount_percentage / 100), 2);
+      charged := round(menu_total * (1 - discount_percentage::numeric / 100.0), 2);
     ELSIF offer_type = 'fixed-amount'
        AND discount_amount > 0
        AND discount_amount <= 100

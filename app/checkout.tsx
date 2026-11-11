@@ -33,7 +33,7 @@ import { trpc, trpcProxyClient } from '@/lib/trpc';
 import { useCart } from '@/hooks/cart-context';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
 import { CombinedCartLock } from '@/components/CombinedCartLock';
-import { buyerCardCharge, checkoutQuantity, DELIVERY_PLATFORM_RATE, orderTotalWithDelivery, promotionalBase } from '@/lib/fees';
+import { buyerCardCharge, chargedPlateBase, checkoutQuantity, DELIVERY_PLATFORM_RATE, orderTotalWithDelivery } from '@/lib/fees';
 import { buyerServiceFeePercent, calculateFees } from '@/backend/lib/fees';
 import { accountAccessCopy } from '@/backend/lib/sign-in-messages';
 import { applePayMerchantName } from '@/backend/lib/payee-name';
@@ -385,7 +385,7 @@ export default function CheckoutScreen() {
       const firstSellerId = sellerIds[0];
       const sellerItems = itemsBySeller[firstSellerId];
       const sellerTotal = sellerItems.reduce((sum, item) => (
-        sum + promotionalBase(item.meal.price, checkoutQuantity(item.quantity), item.meal.promotionalOffer)
+        sum + chargedPlateBase(item.meal.price, checkoutQuantity(item.quantity), item.meal.promotionalOffer)
       ), 0);
 
       const plateBlock = sellerItems

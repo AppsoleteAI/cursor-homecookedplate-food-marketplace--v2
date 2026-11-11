@@ -6,7 +6,7 @@ import { type ShopName } from '../../../../lib/shop-catalog';
 import { priceShopOrder } from '../../../../lib/shop-quote';
 import { checkoutAreaShop, shopFulfillmentSchema, type ShopFulfillment } from '../../../../lib/shop-fulfillment';
 import { fulfillmentIsDelivery, savedDeliveryFee } from '../../../../lib/delivery-fee';
-import { appRevenueWithDelivery, CHECKOUT_QUANTITY_MAX, orderTotalWithDelivery, sharedChargeRefundCents } from '../../../../lib/fees';
+import { appRevenueWithDelivery, CHECKOUT_QUANTITY_MAX, orderTotalWithDelivery, plateTotalsMatch, sharedChargeRefundCents } from '../../../../lib/fees';
 import { applePayMerchantName, profilePayeeName } from '../../../../lib/payee-name';
 import { resolvedMembershipTier } from '../../../../lib/trial-access';
 import { assertShopHandoff } from '@/lib/combined-handoff';
@@ -28,7 +28,7 @@ import { pickupGate } from '../../../../lib/kitchen-pin';
 import { buyerMetroCanOrder } from '../../../../lib/metro-menu';
 import { refundCookSale } from '../../../../lib/stripe-marketplace';
 import { notifyCookOfPayment, notifyParty } from '../../../../lib/account-notice';
-import { prepareHomePlate, thisOrderExceedsPortions } from '../../../../lib/plate-order-rules';
+import { holdChargedBase, prepareHomePlate, thisOrderExceedsPortions } from '../../../../lib/plate-order-rules';
 import { missingColumn } from '../../../../lib/content-moderation';
 import { refundChargeCents } from '../../../../lib/refund-card';
 import {
@@ -480,6 +480,7 @@ async function insertHomeOrders(
 ): Promise<string[]> {
   const ids: string[] = [];
   let lostPortion = false;
+  let saleMissed = false;
   for (const line of checkout.lines) {
     if (!line.productId) {
       throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'The card was charged, but the plate order was not saved. Retry confirm to finish it.' });
@@ -533,6 +534,15 @@ async function insertHomeOrders(
       throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'The card was charged, but the plate order was not saved. Retry confirm to finish it.' });
     }
     const orderId = inserted.data.id as string;
+    const held = await holdChargedBase(admin, orderId, prepared.chargedBase);
+    if (!plateTotalsMatch(held, prepared.chargedBase)) {
+      const removed = await admin.from('orders').delete().eq('id', orderId);
+      if (removed.error) {
+        await admin.from('orders').update({ status: 'cancelled', paid: false }).eq('id', orderId);
+      }
+      saleMissed = true;
+      break;
+    }
     ids.push(orderId);
     const over = await thisOrderExceedsPortions(admin, line.productId, orderId, prepared.portionCap);
     if (over == null || over) {
@@ -540,7 +550,7 @@ async function insertHomeOrders(
       break;
     }
   }
-  if (!lostPortion) return ids;
+  if (!lostPortion && !saleMissed) return ids;
 
   let refunded = false;
   try {
@@ -560,8 +570,10 @@ async function insertHomeOrders(
   }
   try {
     await notifyParty(admin, buyerId, 'paymentAlerts', {
-      title: 'Portions',
-      body: 'Those portions were already taken. This charge was refunded.',
+      title: saleMissed ? 'Sale price' : 'Portions',
+      body: saleMissed
+        ? 'The sale price did not stay on this order. This charge was refunded.'
+        : 'Those portions were already taken. This charge was refunded.',
     });
   } catch (error) {
     console.error('[CombinedCheckout] Portion notice was not sent:', error);

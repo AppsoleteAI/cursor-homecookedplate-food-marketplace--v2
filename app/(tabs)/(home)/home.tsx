@@ -31,6 +31,7 @@ import HorizontalCarousel from '@/components/HorizontalCarousel';
 import { useOrders } from '@/hooks/orders-context';
 import { trpc } from '@/lib/trpc';
 import type { Meal } from '@/types';
+import { menuMeal } from '@/lib/menu-meal';
 import { SkeletonMealList } from '@/components/SkeletonMealList';
 import { ScrollJumps } from '@/components/ScrollJumps';
 import { FoodImage } from '@/components/FoodImage';
@@ -65,26 +66,7 @@ export default function HomeScreen() {
   // Map tRPC response to Meal interface
   const meals: Meal[] = useMemo(() => {
     if (!mealsData) return [];
-    return mealsData.filter((meal) => meal.plateMakerId !== user?.id).map((meal) => ({
-      id: meal.id,
-      plateMakerId: meal.plateMakerId,
-      plateMakerName: meal.plateMakerName,
-      name: meal.name,
-      description: meal.description,
-      price: meal.price,
-      images: meal.images || [],
-      ingredients: meal.ingredients || [],
-      cuisine: meal.cuisine,
-      category: meal.category as Meal['category'],
-      dietaryOptions: meal.dietaryOptions || [],
-      preparationTime: meal.preparationTime,
-      available: meal.available,
-      rating: meal.rating,
-      reviewCount: meal.reviewCount,
-      featured: meal.featured || false,
-      tags: meal.tags || [],
-      isSample: meal.isSample === true,
-    }));
+    return mealsData.filter((meal) => meal.plateMakerId !== user?.id).map((meal) => menuMeal(meal));
   }, [mealsData, user?.id]);
 
   const recentOrders = trpc.orders.list.useQuery(

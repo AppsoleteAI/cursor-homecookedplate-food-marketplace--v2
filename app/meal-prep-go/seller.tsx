@@ -11,6 +11,7 @@ import { Colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/auth-context';
 import { useMealPrep } from '@/hooks/meal-prep-store';
 import { evaluatePrepKitchen, laneLabel } from '@/lib/meal-prep-go';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 
 export default function MealPrepSellerScreen() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -18,6 +19,7 @@ export default function MealPrepSellerScreen() {
   const check = evaluatePrepKitchen(kitchen);
   const payout = orders.reduce((sum, order) => sum + order.sellerPayout, 0);
   const openFromStand = useReturnHere('/meal-prep-go/seller');
+  const offer = useAreaOfferTotal('meal_prep', listings.map((item) => ({ id: item.id, unitPrice: item.price, quantity: 1 })));
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
@@ -57,7 +59,7 @@ export default function MealPrepSellerScreen() {
           image={item.image}
           title={titleCase(item.name)}
           meta={laneLabel(item.lane)}
-          price={`$${item.price.toFixed(2)}`}
+          price={`$${offer.lineTotal(item.id, item.price, 1).toFixed(2)}`}
           priceColor="#0E7490"
           onPress={() => router.push(openFromStand('/meal-prep-go/item/[id]', { id: item.id }))}
         />

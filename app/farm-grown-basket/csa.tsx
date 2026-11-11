@@ -8,10 +8,12 @@ import { FarmScreen } from '@/components/farm/FarmScreen';
 import { Colors } from '@/constants/colors';
 import { FARM_PRODUCTS, getFarm } from '@/constants/farm-grown-basket';
 import { useFarmBasket } from '@/hooks/farm-basket-store';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 
 export default function CsaScreen() {
   const { addItem } = useFarmBasket();
   const shares = FARM_PRODUCTS.filter((product) => product.kind === 'csa');
+  const offer = useAreaOfferTotal('farm', shares.map((share) => ({ id: share.id, unitPrice: share.price, quantity: 1 })));
 
   return (
     <FarmScreen title="CSA shares" subtitle="Pay for the current box. The farm handles pauses and the rest of the season." testID="farm-csa">
@@ -27,7 +29,7 @@ export default function CsaScreen() {
               <View style={styles.copy}>
                 <Text style={styles.name}>{titleCase(share.name)}</Text>
                 <Text style={styles.meta}>{farm?.name}</Text>
-                <Text style={styles.price}>${share.price.toFixed(2)} / {share.unit}</Text>
+                <Text style={styles.price}>${offer.lineTotal(share.id, share.price, 1).toFixed(2)} / {share.unit}</Text>
               </View>
             </View>
             <Text style={styles.body}>{share.summary}</Text>

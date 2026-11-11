@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { protectedProcedure } from '../../create-context';
-import { offerFromRow } from '../../../lib/active-offer';
+import { protectedProcedure, publicProcedure } from '../../create-context';
+import { inclusiveOfferEnd, offerFromRow } from '../../../lib/active-offer';
 import { MAX_AMOUNT_OFF, MAX_PERCENT_OFF, type PromotionPrice } from '../../../lib/fees';
 import { OFFER_AREAS } from '../../../lib/gift-areas';
 import { auditTextField } from '../../../lib/text-audit';
@@ -86,7 +86,7 @@ export const listMyAreaOffersProcedure = protectedProcedure
     return (data || []).map((row) => present(row));
   });
 
-export const offersForListingsProcedure = protectedProcedure
+export const offersForListingsProcedure = publicProcedure
   .input(z.object({
     area: z.enum(OFFER_AREAS),
     listingIds: z.array(z.string().min(1).max(80)).max(20),
@@ -172,7 +172,7 @@ export const saveAreaOfferProcedure = protectedProcedure
       get_quantity: input.type === 'buy-x-get-y' ? input.getQuantity : null,
       free_item_name: input.type === 'free-item' ? freeItem?.value ?? null : null,
       start_date: new Date(start).toISOString(),
-      end_date: new Date(end).toISOString(),
+      end_date: inclusiveOfferEnd(new Date(end).toISOString()),
       is_active: input.isActive,
     };
     const write = input.id

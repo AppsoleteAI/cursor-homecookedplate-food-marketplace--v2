@@ -11,6 +11,7 @@ import { useFarmBasket } from '@/hooks/farm-basket-store';
 import { useAuth } from '@/hooks/auth-context';
 import { frameworkForState, frameworkSummary, stateName, trackLabel } from '@/lib/cottage-food';
 import { cottageBandLabel, cottageDirectoryRow } from '@/lib/cottage-directory';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 
 export default function FarmProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -19,6 +20,8 @@ export default function FarmProfileScreen() {
   const { follows, toggleFollow } = useFarmBasket();
   const { user } = useAuth();
   const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
+  const products = farm ? productsForFarm(farm.id) : [];
+  const offer = useAreaOfferTotal('farm', products.map((product) => ({ id: product.id, unitPrice: product.price, quantity: 1 })));
 
   if (!farm) {
     return (
@@ -60,13 +63,13 @@ export default function FarmProfileScreen() {
         </View>
       ) : null}
       <Text style={styles.section}>Goods from this stand</Text>
-      {productsForFarm(farm.id).map((product) => (
+      {products.map((product) => (
         <PricedItemCard
           key={product.id}
           image={product.image}
           title={titleCase(product.name)}
           meta={trackLabel(product.track)}
-          price={`$${product.price.toFixed(2)} / ${product.unit}`}
+          price={`$${offer.lineTotal(product.id, product.price, 1).toFixed(2)} / ${product.unit}`}
           onPress={() => router.push(`/farm-grown-basket/product/${product.id}` as Href)}
           testID={`farm-product-${product.id}`}
         />

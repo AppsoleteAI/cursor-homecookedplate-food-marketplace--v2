@@ -18,7 +18,7 @@ import { CHECKOUT_AREA_LABEL } from '@/backend/lib/combined-checkout';
 import { useCart } from '@/hooks/cart-context';
 import { useCombinedBill } from '@/hooks/use-combined-bill';
 import { buyerFoodCharge } from '@/backend/lib/fees';
-import { checkoutQuantity, DELIVERY_PLATFORM_RATE } from '@/lib/fees';
+import { chargedPlateBase, checkoutQuantity, DELIVERY_PLATFORM_RATE } from '@/lib/fees';
 import { useAuth } from '@/hooks/auth-context';
 import { ScrollJumps } from '@/components/ScrollJumps';
 import { FoodImage } from '@/components/FoodImage';
@@ -109,7 +109,7 @@ export default function CartScreen() {
               <View style={styles.itemDetails}>
                 <Text style={styles.itemName}>{item.meal.name}</Text>
                 <Text style={styles.plateMaker}>{item.meal.plateMakerName}</Text>
-                <Text style={styles.itemPrice}>${item.meal.price.toFixed(2)}</Text>
+                <Text style={styles.itemPrice}>${chargedPlateBase(item.meal.price, checkoutQuantity(item.quantity), item.meal.promotionalOffer).toFixed(2)}</Text>
               </View>
               <View style={styles.actionsRow} testID="cart-item-actions">
                 <View style={styles.quantityContainer}>

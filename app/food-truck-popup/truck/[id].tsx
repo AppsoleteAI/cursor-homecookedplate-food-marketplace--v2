@@ -10,6 +10,7 @@ import { getTruck, menuForTruck } from '@/constants/food-truck-popup';
 import { useFoodTruck } from '@/hooks/food-truck-store';
 import { useAuth } from '@/hooks/auth-context';
 import { stateName } from '@/lib/cottage-food';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 
 export default function TruckProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -18,6 +19,8 @@ export default function TruckProfileScreen() {
   const { follows, toggleFollow } = useFoodTruck();
   const { user } = useAuth();
   const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
+  const menu = truck ? menuForTruck(truck.id) : [];
+  const offer = useAreaOfferTotal('food_truck', menu.map((item) => ({ id: item.id, unitPrice: item.price, quantity: 1 })));
 
   if (!truck) {
     return (
@@ -49,13 +52,13 @@ export default function TruckProfileScreen() {
         ) : null}
       </View>
       <Text style={styles.section}>Menu</Text>
-      {menuForTruck(truck.id).map((item) => (
+      {menu.map((item) => (
         <PricedItemCard
           key={item.id}
           image={item.image}
           title={titleCase(item.name)}
           meta={truck.active ? 'Order ahead' : 'Window closed'}
-          price={`$${item.price.toFixed(2)}`}
+          price={`$${offer.lineTotal(item.id, item.price, 1).toFixed(2)}`}
           priceColor="#C2410C"
           onPress={() => router.push(`/food-truck-popup/item/${item.id}` as Href)}
           testID={`truck-item-${item.id}`}

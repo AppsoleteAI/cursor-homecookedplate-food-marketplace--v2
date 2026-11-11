@@ -22,7 +22,7 @@
  */
 import { CHECKOUT_QUANTITY_MAX } from '@/backend/lib/fees';
 
-export { promotionalBase, checkoutQuantity, CHECKOUT_QUANTITY_MAX, type PromotionPrice } from '@/backend/lib/fees';
+export { chargedPlateBase, offerIsCurrent, promotionalBase, checkoutQuantity, CHECKOUT_QUANTITY_MAX, type PromotionPrice } from '@/backend/lib/fees';
 
 export const calculateOrderSplit = (baseAmount: number) => {
   // Null/NaN validation

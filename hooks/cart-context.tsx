@@ -3,7 +3,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import { CartItem, Meal } from '@/types';
 import { isSampleMealId } from '@/lib/sample-meals';
-import { checkoutQuantity, promotionalBase } from '@/lib/fees';
+import { chargedPlateBase, checkoutQuantity } from '@/lib/fees';
 import { portionsFromTags } from '@/lib/meal-publish';
 import { storedCartLineIsClosed } from '@/lib/cart-line';
 import { trpcProxyClient } from '@/lib/trpc';
@@ -146,7 +146,7 @@ export const [CartProvider, useCart] = createContextHook<CartState>(() => {
 
   const totalItems = useMemo(() => items.reduce((sum, item) => sum + item.quantity, 0), [items]);
   const totalPrice = useMemo(() => items.reduce((sum, item) => (
-    sum + promotionalBase(item.meal.price, checkoutQuantity(item.quantity), item.meal.promotionalOffer)
+    sum + chargedPlateBase(item.meal.price, checkoutQuantity(item.quantity), item.meal.promotionalOffer)
   ), 0), [items]);
 
   return useMemo(() => ({

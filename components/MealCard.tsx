@@ -11,6 +11,7 @@ import { firstPlatePhoto } from '@/lib/food-review-clips';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Star, Clock, Tag, Percent, Gift } from 'lucide-react-native';
 import { Meal } from '@/types';
+import { chargedPlateBase, offerIsCurrent } from '@/backend/lib/fees';
 import { Colors, monoGradients } from '@/constants/colors';
 import { router } from 'expo-router';
 import type { Href } from 'expo-router';
@@ -64,10 +65,9 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, onPress, sizeVariant =
     }
   };
 
-  const isPromoActive = meal.promotionalOffer && 
-    meal.promotionalOffer.isActive && 
-    new Date() >= meal.promotionalOffer.startDate && 
-    new Date() <= meal.promotionalOffer.endDate;
+  const listPrice = meal.price;
+  const salePrice = chargedPlateBase(listPrice, 1, meal.promotionalOffer);
+  const isPromoActive = Boolean(meal.promotionalOffer && offerIsCurrent(meal.promotionalOffer));
 
   const PromoIcon = getPromoIcon();
 
@@ -154,7 +154,7 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, onPress, sizeVariant =
             end={{ x: 1, y: 0 }}
             style={styles.priceGradient}
           >
-            <Text style={styles.price}>${meal.price.toFixed(2)}</Text>
+            <Text style={styles.price}>${salePrice.toFixed(2)}</Text>
           </LinearGradient>
           {isPromoActive && meal.promotionalOffer && (
             <GlassBadge style={styles.promoTag}>

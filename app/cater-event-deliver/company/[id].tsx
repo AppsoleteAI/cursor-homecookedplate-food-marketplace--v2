@@ -10,6 +10,7 @@ import { getCompany, packagesForCompany } from '@/constants/cater-event-deliver'
 import { useCaterEvent } from '@/hooks/cater-event-store';
 import { stateName } from '@/lib/cottage-food';
 import { useAuth } from '@/hooks/auth-context';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 
 export default function CaterCompanyScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -18,6 +19,8 @@ export default function CaterCompanyScreen() {
   const { follows, toggleFollow } = useCaterEvent();
   const { user } = useAuth();
   const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
+  const packages = company ? packagesForCompany(company.id) : [];
+  const offer = useAreaOfferTotal('catering', packages.map((item) => ({ id: item.id, unitPrice: item.pricePerPerson, quantity: 1 })));
 
   if (!company) {
     return (
@@ -52,13 +55,13 @@ export default function CaterCompanyScreen() {
         ) : null}
       </View>
       <Text style={styles.section}>Packages</Text>
-      {packagesForCompany(company.id).map((item) => (
+      {packages.map((item) => (
         <PricedItemCard
           key={item.id}
           image={item.image}
           title={titleCase(item.name)}
           meta={`Minimum ${item.minimumHeadcount} · ${company.accepting ? 'Order' : 'Not accepting'}`}
-          price={`$${item.pricePerPerson.toFixed(2)} per person`}
+          price={`$${offer.lineTotal(item.id, item.pricePerPerson, 1).toFixed(2)} per person`}
           priceColor="#6D28D9"
           onPress={() => router.push(`/cater-event-deliver/package/${item.id}` as Href)}
           testID={`cater-package-${item.id}`}

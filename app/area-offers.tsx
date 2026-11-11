@@ -72,7 +72,7 @@ export default function AreaOffersScreen() {
         endDate: new Date(endDate).toISOString(),
         isActive: true,
       });
-      Alert.alert('Offer saved', 'The charge uses this offer while it is active. A discount that reaches $0 is refused.');
+      Alert.alert('Offer saved', 'This sale replaces the list price until it ends. After that, the list price is the price again.');
     } catch (error) {
       Alert.alert('Offer', error instanceof Error ? error.message : 'The offer could not be saved.');
     }

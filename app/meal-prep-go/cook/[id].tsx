@@ -10,6 +10,7 @@ import { getPrepCook, itemsForCook, type PrepItem, type PrepLane } from '@/const
 import { useMealPrep, type PrepListing } from '@/hooks/meal-prep-store';
 import { dietLabel, laneLabel } from '@/lib/meal-prep-go';
 import { stateName } from '@/lib/cottage-food';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 
 const FILTERS: { id: 'all' | PrepLane; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -45,6 +46,7 @@ export default function MealPrepCookScreen() {
   }, [catalogCook, isOwner, listings]);
 
   const visible = lane === 'all' ? items : items.filter((item) => item.lane === lane);
+  const offer = useAreaOfferTotal('meal_prep', visible.map((item) => ({ id: item.id, unitPrice: item.price, quantity: 1 })));
 
   if (!cook) {
     return <Redirect href="/meal-prep-go/cooks" />;
@@ -71,7 +73,7 @@ export default function MealPrepCookScreen() {
           image={item.image}
           title={titleCase(item.name)}
           meta={`${laneLabel(item.lane)} · ${dietLabel(item.diet)} · ${item.lane === 'addon' ? 'Rides with the week' : `${item.minutes} min`}`}
-          price={`$${item.price.toFixed(2)}`}
+          price={`$${offer.lineTotal(item.id, item.price, 1).toFixed(2)}`}
           priceColor="#0E7490"
           onPress={() => router.push(`/meal-prep-go/item/${item.id}` as Href)}
           testID={`prep-item-${item.id}`}

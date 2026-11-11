@@ -8,6 +8,7 @@ import { FoodTruckScreen } from '@/components/food-truck/FoodTruckScreen';
 import { Colors } from '@/constants/colors';
 import { getMenuItem, getTruck } from '@/constants/food-truck-popup';
 import { useFoodTruck } from '@/hooks/food-truck-store';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 
 export default function TruckItemScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -17,6 +18,8 @@ export default function TruckItemScreen() {
   const listing = listings.find((item) => item.id === itemId);
   const [quantity, setQuantity] = useState(1);
   const [notice, setNotice] = useState<string | null>(null);
+  const listPrice = catalog?.price ?? listing?.price ?? 0;
+  const offer = useAreaOfferTotal('food_truck', itemId && (catalog || listing) ? [{ id: itemId, unitPrice: listPrice, quantity: 1 }] : []);
 
   if (!catalog && !listing) {
     return (
@@ -39,7 +42,7 @@ export default function TruckItemScreen() {
   return (
     <FoodTruckScreen title={name} subtitle={truckName} testID="truck-item">
       {catalog?.image || listing?.image ? <FoodImage source={{ uri: catalog?.image || listing?.image }} style={styles.hero} /> : null}
-      <Text style={styles.price}>${price.toFixed(2)}</Text>
+      <Text style={styles.price}>${offer.lineTotal(itemId || '', price, 1).toFixed(2)}</Text>
       <Text style={[styles.status, open ? styles.open : styles.closed]}>{open ? 'Window open for order-ahead' : 'Window closed'}</Text>
       <Text style={styles.body}>{summary}</Text>
       {truck ? (

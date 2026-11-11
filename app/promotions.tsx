@@ -23,13 +23,14 @@ import { useReplaceBack } from '@/hooks/use-leave-screen';
 
 export default function PromotionsScreen() {
   const { user } = useAuth();
+  const canSetSale = user?.role === 'platemaker' || user?.adminRole === 'main';
   const leave = useReplaceBack('/(tabs)/create-meal');
   const promotions = trpc.promotions.listMine.useQuery(undefined, {
-    enabled: user?.role === 'platemaker',
+    enabled: canSetSale,
     retry: false,
   });
-  const myMeals = trpc.meals.myMeals.useQuery(undefined, {
-    enabled: user?.role === 'platemaker',
+  const plates = trpc.promotions.listPlates.useQuery(undefined, {
+    enabled: canSetSale,
     retry: false,
   });
   const savePromotion = trpc.promotions.save.useMutation({
@@ -165,7 +166,7 @@ export default function PromotionsScreen() {
         endDate: new Date(formData.endDate).toISOString(),
         isActive: true,
       });
-      Alert.alert('Promotion saved', 'The price on that plate uses this offer while it is active.');
+      Alert.alert('Promotion saved', 'This sale replaces the list price until it ends. The list price is the price again after that.');
       closeModal();
     } catch (error) {
       Alert.alert('Promotion', error instanceof Error ? error.message : 'The promotion could not be saved.');
@@ -239,7 +240,7 @@ export default function PromotionsScreen() {
     }
   };
 
-  if (user?.role !== 'platemaker') {
+  if (!canSetSale) {
     return (
       <SafeAreaView style={styles.container}>
         <Stack.Screen options={{ title: 'Promotions', headerShown: false }} />
@@ -260,7 +261,7 @@ export default function PromotionsScreen() {
           <BackCircle tone="honey" onPress={leave} testID="promotions-back" />
           <View style={styles.header}>
             <Text style={styles.title}>Promotional Offers</Text>
-            <Text style={styles.subtitle}>Create special deals to attract more customers</Text>
+            <Text style={styles.subtitle}>A sale replaces the list price until it ends. The list price is the price again after that.</Text>
           </View>
 
           <GlassPressable onPress={openCreateModal} style={styles.createButton}>
@@ -382,15 +383,17 @@ export default function PromotionsScreen() {
 
               <View style={styles.formSection}>
                 <Text style={styles.label}>Plate</Text>
-                {(myMeals.data || []).length === 0 ? (
+                {(plates.data || []).length === 0 ? (
                   <Text style={styles.settingDescription}>Publish a plate before you can put an offer on it.</Text>
-                ) : (myMeals.data || []).map((meal) => (
+                ) : (plates.data || []).map((meal) => (
                   <GlassPressable
                     key={meal.id}
                     onPress={() => setFormData((prev) => ({ ...prev, mealId: meal.id }))}
                     style={[styles.typeButton, formData.mealId === meal.id && styles.typeButtonActive]}
                   >
-                    <Text style={[styles.typeButtonText, formData.mealId === meal.id && styles.typeButtonTextActive]}>{meal.name}</Text>
+                    <Text style={[styles.typeButtonText, formData.mealId === meal.id && styles.typeButtonTextActive]}>
+                      {meal.name} · list ${meal.listPrice.toFixed(2)}
+                    </Text>
                   </GlassPressable>
                 ))}
               </View>

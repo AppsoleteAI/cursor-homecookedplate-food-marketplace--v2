@@ -11,6 +11,7 @@ import { useSitDown } from '@/hooks/sit-down-store';
 import { useAuth } from '@/hooks/auth-context';
 import { stateName } from '@/lib/cottage-food';
 import { SERVICE_LABEL } from '@/lib/sit-down-license';
+import { useAreaOfferTotal } from '@/hooks/use-area-offer';
 
 export default function PlaceScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -19,6 +20,8 @@ export default function PlaceScreen() {
   const { follows, toggleFollow } = useSitDown();
   const { user } = useAuth();
   const isMaker = user?.role === 'platemaker' || user?.isAdmin === true;
+  const menu = place ? menuForPlace(place.id) : [];
+  const offer = useAreaOfferTotal('sit_down', menu.map((item) => ({ id: item.id, unitPrice: item.price, quantity: 1 })));
 
   if (!place) {
     return (
@@ -49,13 +52,13 @@ export default function PlaceScreen() {
         ) : null}
       </View>
       <Text style={styles.section}>Menu</Text>
-      {menuForPlace(place.id).map((item) => (
+      {menu.map((item) => (
         <PricedItemCard
           key={item.id}
           image={item.image}
           title={titleCase(item.name)}
           meta={place.openNow ? 'Order now' : 'Shop closed'}
-          price={`$${item.price.toFixed(2)}`}
+          price={`$${offer.lineTotal(item.id, item.price, 1).toFixed(2)}`}
           priceColor="#92400E"
           onPress={() => router.push(`/sit-down-delicious/item/${item.id}` as Href)}
           testID={`sit-item-${item.id}`}
