@@ -13,7 +13,7 @@ describe('store release', () => {
     expo: { version: string; ios: { buildNumber: string }; android: { versionCode: number } };
   };
 
-  it('matches the uploaded 1.0.0 build 10 and leaves the public review on build 8', () => {
+  it('matches the uploaded 1.0.0 iOS 12 / Android 11 pair and leaves the public review on build 8', () => {
     expect(app.expo.version).toBe(SOURCE_VERSION);
     expect(app.expo.ios.buildNumber).toBe(UPLOADED_IOS_BUILD);
     expect(app.expo.android.versionCode).toBe(UPLOADED_ANDROID_VERSION_CODE);

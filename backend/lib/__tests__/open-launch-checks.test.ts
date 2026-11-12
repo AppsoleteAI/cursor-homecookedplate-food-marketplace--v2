@@ -93,8 +93,8 @@ describe.each([1, 2, 3, 4, 5])('open launch checks, pass %s', () => {
     );
     expect(launch).toContain('The public phone apps are build 8.');
     expect(launch).toContain('Build 9 is not the public binary.');
-    expect(app.expo.ios.buildNumber).toBe('10');
-    expect(app.expo.android.versionCode).toBe(10);
+    expect(app.expo.ios.buildNumber).toBe('12');
+    expect(app.expo.android.versionCode).toBe(11);
   });
 
   it('keeps the maroon buttons and the cook and buyer phone path open', () => {
