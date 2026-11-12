@@ -38,7 +38,8 @@ describe("public read columns", () => {
     expect(PUBLIC_MEAL_PAGE_COLUMNS.startsWith(PUBLIC_MEAL_COLUMNS)).toBe(true);
     expect(PUBLIC_MEAL_PAGE_COLUMNS).toContain("expiry_date");
     expect(PUBLIC_MEAL_PAGE_COLUMNS).toContain("receipt_date");
-    expect(PUBLIC_REVIEW_COLUMNS).toContain("comment_status");
+    expect(PUBLIC_REVIEW_COLUMNS).not.toContain("comment");
+    expect(PUBLIC_REVIEW_COLUMNS).not.toContain("comment_status");
     expect(mealListSelect(false)).toBe(PUBLIC_MEAL_COLUMNS);
     expect(mealListSelect(true)).toContain("cook:profiles!meals_user_id_fkey!inner(metro_area)");
     for (const columns of [PUBLIC_MEAL_COLUMNS, PUBLIC_MEAL_PAGE_COLUMNS, PUBLIC_REVIEW_COLUMNS, mealListSelect(true)]) {

@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../../create-context';
 import { finalPlateReceipt } from '../../../../lib/fees';
-import { missingBuyerColumn, orderBuyerId, orderTotal } from '../../../../lib/order-row';
+import { orderBuyerId, orderCookId, orderListFilterAfterError, orderTotal, readOrderQuery, type OrderListFilter } from '../../../../lib/order-row';
+import { confirmedPaidIds, orderPaymentConfirmed } from '../../../../lib/order-payment';
 import { resolvedMembershipTier } from '../../../../lib/trial-access';
 import { receiptAmountForRole } from '../../../../lib/state-meal-plan';
 import { CHECKOUT_AREA_LABEL, checkoutAreaFromTags } from '../../../../lib/combined-checkout';
@@ -14,6 +15,7 @@ type OrderRow = {
   buyer_id?: string | null;
   platetaker_id?: string | null;
   seller_id?: string | null;
+  platemaker_id?: string | null;
   total_price?: number | null;
   total_price_cents?: number | null;
   status?: string | null;
@@ -36,36 +38,35 @@ type ReceiptLine = {
 export const finalReceiptProcedure = protectedProcedure
   .input(z.object({ orderId: z.string().uuid() }))
   .query(async ({ input, ctx }) => {
-    let order = await ctx.supabaseAdmin
+    const order = await readOrderQuery((columns) => ctx.supabaseAdmin
       .from('orders')
-      .select('id, buyer_id, seller_id, total_price, total_price_cents, status, paid, meal_id, quantity, payment_intent_id')
+      .select(columns)
       .eq('id', input.orderId)
-      .maybeSingle();
-    if (order.error && missingBuyerColumn(order.error.message)) {
-      order = await ctx.supabaseAdmin
-        .from('orders')
-        .select('id, platetaker_id, seller_id, total_price, total_price_cents, status, paid, meal_id, quantity, payment_intent_id')
-        .eq('id', input.orderId)
-        .maybeSingle();
-    }
+      .maybeSingle());
     if (order.error || !order.data) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Order not found' });
     }
     const orderRow = order.data as OrderRow;
-    const buyerId = orderBuyerId(orderRow);
-    const sellerId = String(orderRow.seller_id || '');
+    if (!orderRow.id) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Order not found' });
+    }
+    const paidOrder = { ...orderRow, id: orderRow.id };
+    const buyerId = orderBuyerId(paidOrder);
+    const sellerId = orderCookId(paidOrder);
     const role = ctx.userId === sellerId ? 'platemaker' : ctx.userId === buyerId ? 'platetaker' : null;
     if (!role) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'You cannot view this receipt.' });
     }
-    if (orderRow.paid !== true || orderRow.status !== 'completed') {
+    const stripeSecret = ctx.stripeSecretKey || process.env.STRIPE_SECRET_KEY;
+    const paid = await orderPaymentConfirmed(paidOrder, ctx.supabaseAdmin, stripeSecret);
+    if (!paid || orderRow.status !== 'completed') {
       throw new TRPCError({ code: 'BAD_REQUEST', message: NOT_FINAL });
     }
 
     const buyer = await loadBuyer(ctx.supabaseAdmin, buyerId);
     const tier = buyer ? resolvedMembershipTier(buyer) : 'free';
     const buyerRole = buyer?.role || 'platetaker';
-    const rows = await completedCardOrders(ctx.supabaseAdmin, orderRow);
+    const rows = await completedCardOrders(ctx.supabaseAdmin, orderRow, stripeSecret);
     const cardBase = rows.reduce((sum: number, row: OrderRow) => sum + orderTotal(row), 0);
     const priced: { row: OrderRow; fees: ReceiptFees }[] = rows.map((row: OrderRow) => ({
       row,
@@ -137,17 +138,40 @@ function mealName(
 async function completedCardOrders(
   admin: { from: (table: string) => any },
   order: OrderRow,
+  stripeSecret: string | undefined,
 ): Promise<OrderRow[]> {
   const intent = typeof order.payment_intent_id === 'string' ? order.payment_intent_id : '';
   if (!intent) return [order];
-  const rows = await admin
-    .from('orders')
-    .select('id, buyer_id, platetaker_id, seller_id, total_price, total_price_cents, status, paid, meal_id, quantity, payment_intent_id')
-    .eq('payment_intent_id', intent)
-    .eq('paid', true)
-    .eq('status', 'completed');
+  const load = (filter: OrderListFilter) => {
+    let query = admin
+      .from('orders')
+      .select(filter.columns)
+      .eq('payment_intent_id', intent)
+      .eq('status', 'completed');
+    if (filter.requirePaid) query = query.eq('paid', true);
+    return query;
+  };
+  let filter: OrderListFilter = {
+    cookColumn: 'seller_id',
+    requirePaid: true,
+    buyerColumn: 'buyer_id',
+    columns: 'id, buyer_id, platetaker_id, seller_id, platemaker_id, total_price, total_price_cents, status, paid, meal_id, quantity, payment_intent_id',
+  };
+  let rows = await load(filter);
+  for (let attempt = 0; attempt < 6 && rows.error; attempt += 1) {
+    const next = orderListFilterAfterError(filter, rows.error.message);
+    if (!next) break;
+    filter = next;
+    rows = await load(filter);
+  }
+  if (rows.error) return [order];
+  let data = (rows.data || []) as OrderRow[];
+  if (!filter.requirePaid) {
+    const paidIds = await confirmedPaidIds(data, admin, stripeSecret);
+    data = data.filter((row) => paidIds.has(String(row.id || '')));
+  }
   const buyerId = orderBuyerId(order);
-  const sameCard = ((rows.data || []) as OrderRow[]).filter((row) => orderBuyerId(row) === buyerId);
+  const sameCard = data.filter((row) => orderBuyerId(row) === buyerId);
   return sameCard.length > 0 ? sameCard : [order];
 }
 

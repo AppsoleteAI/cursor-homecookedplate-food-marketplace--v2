@@ -3,7 +3,8 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { refundCookSale } from "../../../../lib/stripe-marketplace";
 import { notifyParty } from "../../../../lib/account-notice";
-import { orderBuyerId } from "../../../../lib/order-row";
+import { orderBuyerId, orderCookColumn, orderCookId, orderTotal, readOrderQuery } from "../../../../lib/order-row";
+import { orderCancelPatch, orderPaymentConfirmed, paymentIntentId } from "../../../../lib/order-payment";
 
 /**
  * Refund Order Procedure
@@ -14,7 +15,7 @@ import { orderBuyerId } from "../../../../lib/order-row";
  * 
  * SECURITY:
  * - Only platemakers can refund their own orders
- * - Verifies order belongs to platemaker (seller_id = ctx.userId)
+ * - Verifies order belongs to platemaker (platemaker_id, or seller_id when that column is set)
  * - Only accepted/preparing/ready orders can be refunded
  */
 export const refundOrderProcedure = protectedProcedure
@@ -46,11 +47,11 @@ export const refundOrderProcedure = protectedProcedure
     }
 
     // Verify order exists and belongs to this platemaker
-    const { data: order, error: orderError } = await ctx.supabase
+    const { data: order, error: orderError } = await readOrderQuery((columns) => ctx.supabase
       .from('orders')
-      .select('id, seller_id, status, payment_intent_id, paid, total_price')
+      .select(columns)
       .eq('id', input.orderId)
-      .single();
+      .single());
 
     if (orderError || !order) {
       throw new TRPCError({
@@ -60,7 +61,7 @@ export const refundOrderProcedure = protectedProcedure
     }
 
     // CRITICAL: Ensure only the assigned platemaker (seller) can refund
-    if (order.seller_id !== ctx.userId) {
+    if (orderCookId(order) !== ctx.userId) {
       throw new TRPCError({
         code: 'FORBIDDEN',
         message: 'You are not authorized to refund this order. Only the assigned platemaker can refund orders.',
@@ -75,15 +76,17 @@ export const refundOrderProcedure = protectedProcedure
       });
     }
 
-    // Verify order is paid
-    if (!order.payment_intent_id || !order.paid) {
+    const stripeSecretKey = ctx.stripeSecretKey || process.env.STRIPE_SECRET_KEY;
+    const intentId = paymentIntentId(order);
+    const paid = await orderPaymentConfirmed(order, ctx.supabaseAdmin, stripeSecretKey);
+    if (!intentId || !paid) {
       throw new TRPCError({
         code: 'BAD_REQUEST',
         message: 'Cannot refund order. Order has not been paid.',
       });
     }
 
-    const baseAmount = parseFloat(order.total_price.toString());
+    const baseAmount = orderTotal(order);
     if (!Number.isFinite(baseAmount) || baseAmount <= 0) {
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
@@ -91,7 +94,6 @@ export const refundOrderProcedure = protectedProcedure
       });
     }
 
-    const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
     if (!stripeSecretKey) {
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
@@ -104,7 +106,7 @@ export const refundOrderProcedure = protectedProcedure
       refundResult = await refundCookSale(ctx.supabaseAdmin, stripeSecretKey, {
         orderId: input.orderId,
         sellerId: ctx.userId,
-        paymentIntentId: order.payment_intent_id,
+        paymentIntentId: intentId,
         baseAmount,
       });
     } catch (stripeError) {
@@ -118,13 +120,10 @@ export const refundOrderProcedure = protectedProcedure
     // Update order status to 'cancelled' and mark as unpaid
     const { data: updatedOrder, error: updateError } = await ctx.supabaseAdmin
       .from('orders')
-      .update({
-        status: 'cancelled',
-        paid: false,
-      })
+      .update(orderCancelPatch(order))
       .eq('id', input.orderId)
-      .eq('seller_id', ctx.userId) // Double-check: ensure only the seller can update
-      .select()
+      .eq(orderCookColumn(order), ctx.userId)
+      .select('id, status')
       .single();
 
     if (updateError || !updatedOrder) {
@@ -136,7 +135,7 @@ export const refundOrderProcedure = protectedProcedure
     }
 
     try {
-      await notifyParty(ctx.supabaseAdmin, orderBuyerId(updatedOrder), 'orderUpdates', {
+      await notifyParty(ctx.supabaseAdmin, orderBuyerId(order), 'orderUpdates', {
         title: 'Order update',
         body: 'This order was refunded.',
       });

@@ -26,6 +26,50 @@ export function noteForViewer(input: {
   return { text, status };
 }
 
+export async function loadReviewComments(
+  admin: Admin,
+  ids: string[],
+): Promise<Map<string, { comment: string | null; comment_status: string | null }>> {
+  const notes = new Map<string, { comment: string | null; comment_status: string | null }>();
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (unique.length === 0) return notes;
+  let result = await admin.from('reviews').select('id, comment, comment_status').in('id', unique);
+  if (result.error && missingColumn(result.error.message, 'comment_status')) {
+    result = await admin.from('reviews').select('id, comment').in('id', unique);
+  }
+  if (result.error) return notes;
+  for (const row of result.data || []) {
+    if (!row.id) continue;
+    notes.set(row.id, {
+      comment: typeof row.comment === 'string' ? row.comment : null,
+      comment_status: typeof row.comment_status === 'string' ? row.comment_status : null,
+    });
+  }
+  return notes;
+}
+
+export async function loadOrderNotes(
+  admin: Admin,
+  ids: string[],
+): Promise<Map<string, { text: string | null; status: string | null }>> {
+  const notes = new Map<string, { text: string | null; status: string | null }>();
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (unique.length === 0) return notes;
+  let result = await admin.from('orders').select('id, special_instructions, instructions_status').in('id', unique);
+  if (result.error && missingColumn(result.error.message, 'instructions_status')) {
+    result = await admin.from('orders').select('id, special_instructions').in('id', unique);
+  }
+  if (result.error) return notes;
+  for (const row of result.data || []) {
+    if (!row.id) continue;
+    notes.set(row.id, {
+      text: typeof row.special_instructions === 'string' ? row.special_instructions : null,
+      status: typeof row.instructions_status === 'string' ? row.instructions_status : null,
+    });
+  }
+  return notes;
+}
+
 export function commentForViewer(
   comment: string | null | undefined,
   status: string | null | undefined,

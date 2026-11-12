@@ -13,7 +13,7 @@ import { assertBuyerCanOrder } from '../../../../lib/buyer-order-access';
 import { salesVolumeBlock } from '../../../../lib/stripe-marketplace';
 import { SHOP_NAMES } from '../../../../lib/shop-catalog';
 import { priceShopOrder } from '../../../../lib/shop-quote';
-import { browserOrigin, openStripeCheckout } from '../../../../lib/stripe-checkout';
+import { browserOrigin, CHECKOUT_RETURN_MESSAGE, checkoutReturnPath, openStripeCheckout } from '../../../../lib/stripe-checkout';
 import { notifyCookOfPayment, notifyParty } from '../../../../lib/account-notice';
 import {
   packShopLines,
@@ -317,10 +317,13 @@ export const createShopCheckoutProcedure = protectedProcedure
     );
 
     if (input.webOrigin) {
-      const origin = browserOrigin(input.webOrigin);
-      const path = input.returnPath && input.returnPath.startsWith('/') && !input.returnPath.startsWith('//') && !input.returnPath.includes('..')
-        ? input.returnPath
-        : '/checkout';
+      let origin: string;
+      try {
+        origin = browserOrigin(input.webOrigin);
+      } catch {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: CHECKOUT_RETURN_MESSAGE });
+      }
+      const path = checkoutReturnPath(input.returnPath, '/checkout');
       const checkout = await openStripeCheckout({
         secretKey: stripeSecretKey,
         amountCents: Math.round(totalCharge * 100),

@@ -23,6 +23,23 @@ describe('Sentry identity', () => {
     expect(event.breadcrumbs?.[0].data).toEqual({ userId: 'user-1' });
   });
 
+  it('records source maps on production build 10 and leaves builds 8 and 9 unsymbolicated', () => {
+    const note = readFileSync(resolve(__dirname, '../../docs/SENTRY_SETUP.md'), 'utf8');
+    const app = JSON.parse(readFileSync(resolve(__dirname, '../../app.json'), 'utf8')) as {
+      expo: { plugins: unknown[] };
+    };
+    const metro = readFileSync(resolve(__dirname, '../../metro.config.js'), 'utf8');
+    const plugin = app.expo.plugins.find((entry) => Array.isArray(entry) && entry[0] === '@sentry/react-native/expo') as [string, { organization: string; project: string }];
+    expect(plugin[1].organization).toBe('appsolete-ai');
+    expect(plugin[1].project).toBe('homecookedplate');
+    expect(metro).toContain('getSentryExpoConfig');
+    expect(note).toContain('Builds 8 and 9 cannot be symbolicated.');
+    expect(note).toContain('6e2dbe8f-d1a6-4c0c-88d6-08063cbeb514');
+    expect(note).toContain('1d281df6-22ca-44e4-a051-288f2763e985');
+    expect(note).toContain('A PlateMaker crash and a PlateTaker crash on those binaries stay without a source file.');
+    expect(note).toContain('Signed out, both roles share that binary');
+  });
+
   it('keeps the account id on an orders refresh failure for both roles', () => {
     const orders = readFileSync(resolve(__dirname, '../../hooks/orders-context.tsx'), 'utf8');
     const layout = readFileSync(resolve(__dirname, '../../app/_layout.tsx'), 'utf8');

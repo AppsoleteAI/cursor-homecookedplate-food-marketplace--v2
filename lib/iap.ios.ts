@@ -11,11 +11,22 @@ import {
   requestPurchase,
   type Purchase,
 } from 'expo-iap';
+import {
+  APPLE_MEMBERSHIP_PRODUCT_IDS,
+  APPLE_PLATEMAKER_ANNUAL,
+  APPLE_PLATEMAKER_MONTHLY,
+  membershipStoreProductId,
+  type AppleMembershipProductId,
+} from '@/backend/lib/membership-products';
 
-export const MEMBERSHIP_MONTHLY_PRODUCT_ID = 'com.rork.homecookedplate.membership.monthly' as const;
-export const MEMBERSHIP_ANNUAL_PRODUCT_ID = 'com.rork.homecookedplate.membership.annual' as const;
+export const MEMBERSHIP_MONTHLY_PRODUCT_ID = APPLE_PLATEMAKER_MONTHLY;
+export const MEMBERSHIP_ANNUAL_PRODUCT_ID = APPLE_PLATEMAKER_ANNUAL;
 
-export type IAPProductId = typeof MEMBERSHIP_MONTHLY_PRODUCT_ID | typeof MEMBERSHIP_ANNUAL_PRODUCT_ID;
+export type IAPProductId = AppleMembershipProductId;
+
+export function membershipProductId(role: 'platemaker' | 'platetaker', interval: 'month' | 'year'): IAPProductId {
+  return membershipStoreProductId('apple', role, interval);
+}
 
 export interface IAPProduct {
   productId: IAPProductId;
@@ -32,10 +43,7 @@ export interface IAPPurchaseResult {
   receiptData: string;
 }
 
-const MEMBERSHIP_IDS = new Set<string>([
-  MEMBERSHIP_MONTHLY_PRODUCT_ID,
-  MEMBERSHIP_ANNUAL_PRODUCT_ID,
-]);
+const MEMBERSHIP_IDS = new Set<string>(APPLE_MEMBERSHIP_PRODUCT_IDS);
 
 const pending = new Map<string, Purchase>();
 
@@ -76,7 +84,7 @@ function remember(purchase: Purchase): IAPPurchaseResult {
 export async function getIAPProducts(): Promise<IAPProduct[]> {
   await initConnection();
   const products = await fetchProducts({
-    skus: [MEMBERSHIP_MONTHLY_PRODUCT_ID, MEMBERSHIP_ANNUAL_PRODUCT_ID],
+    skus: [...APPLE_MEMBERSHIP_PRODUCT_IDS],
     type: 'subs',
   });
   return (products ?? []).flatMap((product) => {

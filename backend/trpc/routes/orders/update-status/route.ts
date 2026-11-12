@@ -1,7 +1,8 @@
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
-import { orderBuyerId, orderTotal, readOrderQuery } from "../../../../lib/order-row";
+import { orderBuyerId, orderCookId, orderTotal, readOrderQuery } from "../../../../lib/order-row";
+import { orderCancelPatch, orderPaymentConfirmed, paymentIntentId } from "../../../../lib/order-payment";
 import { orderStatusAllowed, pickupConfirmedByBoth } from "../../../../lib/order-status";
 import { payoutReleaseAt } from "../../../../lib/payout-policy";
 import { notifyParty, ORDER_STEP_NOTICES } from "../../../../lib/account-notice";
@@ -28,27 +29,37 @@ export const updateOrderStatusProcedure = protectedProcedure
     }
 
     const buyerId = orderBuyerId(order);
-    const role = order.seller_id === ctx.userId ? 'seller' : buyerId === ctx.userId ? 'buyer' : null;
+    const cookId = orderCookId(order);
+    const role = cookId === ctx.userId ? 'seller' : buyerId === ctx.userId ? 'buyer' : null;
     if (!role) {
       throw new Error('Not authorized to update this order');
     }
     if (!orderStatusAllowed(role, order.status, input.status)) {
       throw new Error(`This order is ${order.status}. That step is not available.`);
     }
-    if ((input.status === 'ready' || input.status === 'completed') && order.paid !== true) {
+    const stripeKey = ctx.stripeSecretKey || process.env.STRIPE_SECRET_KEY;
+    const paid = await orderPaymentConfirmed(order, ctx.supabaseAdmin, stripeKey);
+    if ((input.status === 'ready' || input.status === 'completed') && !paid) {
       throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Stripe has not confirmed this payment.' });
     }
 
-    if (role === 'buyer' && input.status === 'cancelled' && order.paid === true) {
-      const paymentIntentId = typeof order.payment_intent_id === 'string' ? order.payment_intent_id : '';
-      if (!paymentIntentId) {
+    if (role === 'buyer' && input.status === 'cancelled' && paid) {
+      const intentId = paymentIntentId(order) || '';
+      if (!intentId) {
         throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'This paid order has no card charge to refund. It is still open.' });
       }
-      const shared = await ctx.supabaseAdmin
+      let shared: { data: any[] | null; error: { message?: string } | null } = await ctx.supabaseAdmin
         .from('orders')
         .select('id, status, total_price, total_price_cents')
-        .eq('payment_intent_id', paymentIntentId)
+        .eq('payment_intent_id', intentId)
         .neq('id', order.id);
+      if (shared.error && /column/i.test(shared.error.message || '') && /total_price\b/.test(shared.error.message || '')) {
+        shared = await ctx.supabaseAdmin
+          .from('orders')
+          .select('id, status, total_price_cents')
+          .eq('payment_intent_id', intentId)
+          .neq('id', order.id) as typeof shared;
+      }
       if (shared.error) {
         throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'This order could not be cancelled. It is still open.' });
       }
@@ -59,7 +70,7 @@ export const updateOrderStatusProcedure = protectedProcedure
       const shops = await ctx.supabaseAdmin
         .from('shop_orders')
         .select('base_amount, lines, paid')
-        .eq('payment_intent_id', paymentIntentId);
+        .eq('payment_intent_id', intentId);
       const shopMissing = shops.error && /shop_orders/i.test(shops.error.message || '');
       if (shops.error && !shopMissing) {
         throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'This order could not be cancelled. It is still open.' });
@@ -74,18 +85,17 @@ export const updateOrderStatusProcedure = protectedProcedure
         const base = Number(row.base_amount);
         return Number.isFinite(base) && base > 0 ? [base] : [];
       });
-      const stripeKey = ctx.stripeSecretKey || process.env.STRIPE_SECRET_KEY;
       if (!stripeKey) {
         throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'The card refund could not be started. This order is still open.' });
       }
       const sharedCharge = otherPlateBases.length > 0 || shopBases.length > 0;
       try {
-        await refundChargeCents(stripeKey, paymentIntentId, saleRefundCents(orderTotal(order)));
+        await refundChargeCents(stripeKey, intentId, saleRefundCents(orderTotal(order)));
       } catch (error) {
         const message = error instanceof Error ? error.message : '';
         if (!sharedCharge && /not ready to refund this order alone/i.test(message)) {
           try {
-            await refundOpenCharge(stripeKey, paymentIntentId);
+            await refundOpenCharge(stripeKey, intentId);
           } catch {
             throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'The card refund did not go through. This order is still open.' });
           }
@@ -95,7 +105,7 @@ export const updateOrderStatusProcedure = protectedProcedure
       }
       const closed = await ctx.supabaseAdmin
         .from('orders')
-        .update({ status: 'cancelled', paid: false })
+        .update(orderCancelPatch(order))
         .eq('id', input.orderId)
         .select('id, status')
         .single();
@@ -107,7 +117,7 @@ export const updateOrderStatusProcedure = protectedProcedure
         .update({ status: 'refunded' })
         .eq('order_id', input.orderId)
         .eq('status', 'held');
-      await notifyParty(ctx.supabaseAdmin, order.seller_id, 'orderUpdates', {
+      await notifyParty(ctx.supabaseAdmin, cookId, 'orderUpdates', {
         title: 'Order update',
         body: 'This order was cancelled.',
       });
@@ -146,7 +156,7 @@ export const updateOrderStatusProcedure = protectedProcedure
         roles.push(role);
       }
       if (!pickupConfirmedByBoth(roles)) {
-        const otherId = role === 'seller' ? buyerId : order.seller_id;
+        const otherId = role === 'seller' ? buyerId : cookId;
         try {
           await notifyParty(ctx.supabaseAdmin, otherId, 'orderUpdates', ORDER_STEP_NOTICES.confirmPickup);
         } catch (noticeError) {
@@ -168,7 +178,7 @@ export const updateOrderStatusProcedure = protectedProcedure
       throw new Error(error?.message || 'Failed to update order status');
     }
 
-    const otherId = role === 'seller' ? buyerId : order.seller_id;
+    const otherId = role === 'seller' ? buyerId : cookId;
     if (input.status === 'ready' || input.status === 'completed' || input.status === 'cancelled') {
       const notice = input.status === 'ready'
         ? ORDER_STEP_NOTICES.ready

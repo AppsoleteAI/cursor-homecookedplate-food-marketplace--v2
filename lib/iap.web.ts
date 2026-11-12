@@ -4,10 +4,21 @@
  * module resolution so the app bundle doesn't error on web builds.
  */
 
-export const MEMBERSHIP_MONTHLY_PRODUCT_ID = 'com.rork.homecookedplate.membership.monthly' as const;
-export const MEMBERSHIP_ANNUAL_PRODUCT_ID = 'com.rork.homecookedplate.membership.annual' as const;
+import {
+  APPLE_PLATEMAKER_ANNUAL,
+  APPLE_PLATEMAKER_MONTHLY,
+  membershipStoreProductId,
+  type AppleMembershipProductId,
+} from '@/backend/lib/membership-products';
 
-export type IAPProductId = typeof MEMBERSHIP_MONTHLY_PRODUCT_ID | typeof MEMBERSHIP_ANNUAL_PRODUCT_ID;
+export const MEMBERSHIP_MONTHLY_PRODUCT_ID = APPLE_PLATEMAKER_MONTHLY;
+export const MEMBERSHIP_ANNUAL_PRODUCT_ID = APPLE_PLATEMAKER_ANNUAL;
+
+export type IAPProductId = AppleMembershipProductId;
+
+export function membershipProductId(role: 'platemaker' | 'platetaker', interval: 'month' | 'year'): IAPProductId {
+  return membershipStoreProductId('apple', role, interval);
+}
 
 export interface IAPProduct {
   productId: IAPProductId;

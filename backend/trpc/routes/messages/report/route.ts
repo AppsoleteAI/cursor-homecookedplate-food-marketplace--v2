@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../../create-context';
-import { missingBuyerColumn, orderBuyerId } from '../../../../lib/order-row';
+import { orderBuyerId, orderCookId, readOrderQuery } from '../../../../lib/order-row';
 import { notifyModerators } from '../../../../lib/content-moderation';
 
 export const reportMessageProcedure = protectedProcedure
@@ -15,23 +15,17 @@ export const reportMessageProcedure = protectedProcedure
     if (message.error || !message.data) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'That message is not in this order.' });
     }
-    if (message.data.sender_id === ctx.userId) {
+    const reported = message.data;
+    if (reported.sender_id === ctx.userId) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'You cannot report your own message.' });
     }
-    let order = await ctx.supabaseAdmin
+    const order = await readOrderQuery((columns) => ctx.supabaseAdmin
       .from('orders')
-      .select('id, buyer_id, seller_id')
-      .eq('id', message.data.order_id)
-      .maybeSingle();
-    if (order.error && missingBuyerColumn(order.error.message)) {
-      order = await ctx.supabaseAdmin
-        .from('orders')
-        .select('id, platetaker_id, seller_id')
-        .eq('id', message.data.order_id)
-        .maybeSingle();
-    }
+      .select(columns)
+      .eq('id', reported.order_id)
+      .maybeSingle());
     const buyerId = orderBuyerId(order.data || {});
-    if (order.error || !order.data || (buyerId !== ctx.userId && order.data.seller_id !== ctx.userId)) {
+    if (order.error || !order.data || (buyerId !== ctx.userId && orderCookId(order.data) !== ctx.userId)) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'You are not part of this order conversation.' });
     }
     const saved = await ctx.supabaseAdmin.from('content_reports').insert({

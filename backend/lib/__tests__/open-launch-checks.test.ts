@@ -78,21 +78,23 @@ describe.each([1, 2, 3, 4, 5])('open launch checks, pass %s', () => {
     expect(read('backend/trpc/routes/platemaker/accept-order/route.ts')).toContain('protectedProcedure');
   });
 
-  it('keeps build 9 off the public phones and off the Play internal page in the notes', () => {
+  it('keeps build 9 off the public phones and records version code 9 on Internal testing', () => {
     const launch = read('docs/POST_LAUNCH_DIAGNOSTICS.md');
     const phone = read('docs/PHONE_DIAGNOSTICS.md');
     const app = JSON.parse(read('app.json')) as {
       expo: { ios: { buildNumber: string }; android: { versionCode: number } };
     };
     unchecked(phone, 'Install iOS 1.0.0 (9) from TestFlight or the App Store once that review is approved.');
-    unchecked(
-      launch,
-      'On Internal testing, the draft is version code 8 and testers still have version code 7. Version code 9 is not on that page. Production is already published. Do not use Create new release from this dashboard.',
+    expect(launch).toContain(
+      '- [x] On Internal testing, version code 9 is available to testers. Released 2 November 2026 at 7:59 PM. Production stays the published release. Do not use Create new release from the production dashboard.',
+    );
+    expect(launch).not.toContain(
+      '- [ ] On Internal testing, the draft is version code 8 and testers still have version code 7. Version code 9 is not on that page. Production is already published. Do not use Create new release from this dashboard.',
     );
     expect(launch).toContain('The public phone apps are build 8.');
     expect(launch).toContain('Build 9 is not the public binary.');
-    expect(app.expo.ios.buildNumber).toBe('9');
-    expect(app.expo.android.versionCode).toBe(9);
+    expect(app.expo.ios.buildNumber).toBe('10');
+    expect(app.expo.android.versionCode).toBe(10);
   });
 
   it('keeps the maroon buttons and the cook and buyer phone path open', () => {

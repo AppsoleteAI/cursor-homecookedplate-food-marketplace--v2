@@ -33,10 +33,11 @@ export const PUBLIC_REVIEW_COLUMNS = [
   "order_id",
   "author_id",
   "rating",
-  "comment",
-  "comment_status",
   "created_at",
 ].join(",");
+
+/** Comment text is read with the service role, then shown only when a moderator has allowed it. */
+export const REVIEW_COMMENT_COLUMNS = "id, comment, comment_status";
 
 export function mealListSelect(withCookMetro: boolean): string {
   if (!withCookMetro) return PUBLIC_MEAL_COLUMNS;

@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { protectedProcedure } from "../../../create-context";
 import { TRPCError } from "@trpc/server";
-import { missingBuyerColumn, orderBuyerId } from "../../../../lib/order-row";
+import { orderBuyerId, orderCookId, readOrderQuery } from "../../../../lib/order-row";
+import { orderPaymentConfirmed } from "../../../../lib/order-payment";
 import { auditTextField } from "../../../../lib/text-audit";
 import { missingColumn, notifyModerators } from "../../../../lib/content-moderation";
 import { paidContactDecision } from "@/lib/order-contact";
@@ -41,15 +42,16 @@ export const sendMessageProcedure = protectedProcedure
     }
 
     const buyerId = orderBuyerId(order);
-    if (buyerId !== userId && order.seller_id !== userId) {
+    if (buyerId !== userId && orderCookId(order) !== userId) {
       throw new TRPCError({
         code: "FORBIDDEN",
         message: "You are not part of this order conversation",
       });
     }
 
+    const paid = await orderPaymentConfirmed(order, ctx.supabaseAdmin, ctx.stripeSecretKey || process.env.STRIPE_SECRET_KEY);
     const decision = paidContactDecision({
-      paid: order.paid === true,
+      paid,
       role: userRole,
       etaMinutes: input.etaMinutes,
       text: input.text,
@@ -111,10 +113,7 @@ export const sendMessageProcedure = protectedProcedure
   });
 
 async function loadOrderParty(admin: { from: (table: string) => any }, orderId: string) {
-  let result = await admin.from('orders').select('id, buyer_id, seller_id, paid').eq('id', orderId).maybeSingle();
-  if (result.error && missingBuyerColumn(result.error.message)) {
-    result = await admin.from('orders').select('id, platetaker_id, seller_id, paid').eq('id', orderId).maybeSingle();
-  }
+  const result = await readOrderQuery((columns) => admin.from('orders').select(columns).eq('id', orderId).maybeSingle());
   if (result.error) return null;
   return result.data;
 }

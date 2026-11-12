@@ -1,7 +1,7 @@
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
 import { loadPublicProfiles } from "../../../../lib/public-profiles";
-import { commentForViewer } from "../../../../lib/content-moderation";
+import { commentForViewer, loadReviewComments } from "../../../../lib/content-moderation";
 import { PUBLIC_REVIEW_COLUMNS } from "../../../../lib/public-read";
 import { timePublicRead } from "../../../../lib/public-read-timing";
 import { logPublicReadFailure } from "../../../../lib/request-id";
@@ -34,6 +34,10 @@ export const listReviewsProcedure = publicProcedure
       throw new Error(error.message || 'listReviews failed');
     }
 
+    const comments = await loadReviewComments(
+      ctx.supabaseAdmin,
+      (data || []).map((review: { id?: string }) => review.id || ''),
+    );
     const authors = await loadPublicProfiles(
       ctx.supabaseAdmin,
       (data || []).map((review: { author_id: string }) => review.author_id)
@@ -56,7 +60,12 @@ export const listReviewsProcedure = publicProcedure
       authorName: authors.get(review.author_id)?.username || 'Anonymous',
       authorImage: authors.get(review.author_id)?.profile_image,
       rating: review.rating,
-      ...commentForViewer(review.comment, review.comment_status, review.author_id, ctx.userId),
+      ...commentForViewer(
+        comments.get(review.id)?.comment,
+        comments.get(review.id)?.comment_status,
+        review.author_id,
+        ctx.userId,
+      ),
       createdAt: new Date(review.created_at),
     }));
   });

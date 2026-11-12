@@ -2,7 +2,7 @@ import { z } from "zod";
 import { protectedProcedure } from "../../../create-context";
 import { TRPCError } from "@trpc/server";
 import { loadPublicProfiles } from "../../../../lib/public-profiles";
-import { missingBuyerColumn, orderBuyerId } from "../../../../lib/order-row";
+import { orderBuyerId, orderCookId, orderListColumns, orderListFilterAfterError, type OrderListFilter } from "../../../../lib/order-row";
 import { messageVisible, missingColumn } from "../../../../lib/content-moderation";
 import { firstPlatePhoto } from "@/lib/food-review-clips";
 import { hiddenClipVideoAddresses, hiddenMealImages, visiblePlateMedia } from "../../../../lib/hidden-clips";
@@ -30,17 +30,26 @@ export const listConversationsProcedure = protectedProcedure
       ? "platetaker"
       : profile.role as "platemaker" | "platetaker";
 
-    const loadOrders = (buyerColumn: "buyer_id" | "platetaker_id") => {
+    const loadOrders = (filter: OrderListFilter) => {
       const query = ctx.supabaseAdmin
         .from("orders")
-        .select(`id, ${buyerColumn}, seller_id, status, created_at, meals!inner(id, name, images)`)
+        .select(`${filter.columns}, meals!inner(id, name, images)`)
         .order("created_at", { ascending: false });
-      return userRole === "platemaker" ? query.eq("seller_id", userId) : query.eq(buyerColumn, userId);
+      return userRole === "platemaker" ? query.eq(filter.cookColumn, userId) : query.eq(filter.buyerColumn, userId);
     };
 
-    let orderResult = await loadOrders("buyer_id");
-    if (orderResult.error && missingBuyerColumn(orderResult.error.message)) {
-      orderResult = await loadOrders("platetaker_id");
+    let filter: OrderListFilter = {
+      cookColumn: "seller_id",
+      requirePaid: false,
+      buyerColumn: "buyer_id",
+      columns: orderListColumns("buyer_id"),
+    };
+    let orderResult = await loadOrders(filter);
+    for (let attempt = 0; attempt < 6 && orderResult.error; attempt += 1) {
+      const next = orderListFilterAfterError(filter, orderResult.error.message);
+      if (!next) break;
+      filter = next;
+      orderResult = await loadOrders(filter);
     }
     const orders = orderResult.data;
     const ordersError = orderResult.error;
@@ -57,7 +66,8 @@ export const listConversationsProcedure = protectedProcedure
       return [];
     }
 
-    const orderIds = orders.map((o) => o.id);
+    const orderRows = orders as any[];
+    const orderIds = orderRows.map((o) => o.id);
 
     let messagesResult = await ctx.supabase
       .from("order_messages")
@@ -99,7 +109,7 @@ export const listConversationsProcedure = protectedProcedure
 
     const profiles = await loadPublicProfiles(
       ctx.supabaseAdmin,
-      orders.flatMap((o) => [orderBuyerId(o), o.seller_id])
+      orderRows.flatMap((o) => [orderBuyerId(o), orderCookId(o)])
     );
 
     const mealIdOf = (meals: { id?: string } | { id?: string }[] | null | undefined) => {
@@ -107,10 +117,10 @@ export const listConversationsProcedure = protectedProcedure
       return Array.isArray(meals) ? meals[0]?.id || "" : meals.id || "";
     };
     const hiddenVideos = await hiddenClipVideoAddresses(ctx.supabaseAdmin);
-    const hiddenStills = await hiddenMealImages(ctx.supabaseAdmin, orders.map((order) => mealIdOf(order.meals as { id?: string } | { id?: string }[] | null)));
-    return orders.map((order) => {
+    const hiddenStills = await hiddenMealImages(ctx.supabaseAdmin, orderRows.map((order) => mealIdOf(order.meals as { id?: string } | { id?: string }[] | null)));
+    return orderRows.map((order) => {
       const buyerId = orderBuyerId(order);
-      const otherUserId = userRole === "platemaker" ? buyerId : order.seller_id;
+      const otherUserId = userRole === "platemaker" ? buyerId : orderCookId(order);
       const otherUser = profiles.get(otherUserId);
       const latestMessage = latestMessageByOrder[order.id];
 

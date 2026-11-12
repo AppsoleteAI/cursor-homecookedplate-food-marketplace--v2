@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { readActiveGoogleSubscription } from '../../../../lib/google-play';
+import { assertMembershipProductRole } from '../../../../lib/membership-products';
 import { missingStoreDateColumn } from '../../../../lib/store-membership';
 import { protectedProcedure } from '../../../create-context';
 
@@ -50,6 +51,26 @@ export const confirmGoogleProcedure = protectedProcedure
       throw new TRPCError({
         code: 'CONFLICT',
         message: 'This Play subscription is already linked to another account.',
+      });
+    }
+
+    const { data: account, error: accountError } = await ctx.supabaseAdmin
+      .from('profiles')
+      .select('role')
+      .eq('id', ctx.userId)
+      .maybeSingle();
+    if (accountError) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Could not check the Play subscription.',
+      });
+    }
+    try {
+      assertMembershipProductRole(subscription.productId, account?.role);
+    } catch (error) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: error instanceof Error ? error.message : 'This subscription does not match this account.',
       });
     }
 

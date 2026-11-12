@@ -20,7 +20,7 @@ import { Colors, monoGradients } from '@/constants/colors';
 import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '@/constants/urls';
 import { GradientButton } from '@/components/GradientButton';
 import { MembershipPromoBanner } from '@/components/MembershipPromoBanner';
-import { finishIAP, IAP_REQUIRED, MEMBERSHIP_ANNUAL_PRODUCT_ID, MEMBERSHIP_MONTHLY_PRODUCT_ID, purchaseIAP, restoreIAPPurchases } from '@/lib/iap';
+import { finishIAP, IAP_REQUIRED, membershipProductId, purchaseIAP, restoreIAPPurchases } from '@/lib/iap';
 import { useAuth } from '@/hooks/auth-context';
 import { supabase } from '@/lib/supabase';
 import { trpc } from '@/lib/trpc';
@@ -271,7 +271,7 @@ export default function MembershipScreen() {
       setChargeLock('charging');
       let paid = false;
       try {
-        const productId = interval === 'year' ? MEMBERSHIP_ANNUAL_PRODUCT_ID : MEMBERSHIP_MONTHLY_PRODUCT_ID;
+        const productId = membershipProductId(isPlateTaker ? 'platetaker' : 'platemaker', interval);
         const purchase = await purchaseIAP(productId, user.id);
         await confirmStorePurchase(purchase.receiptData);
         try {
@@ -315,7 +315,7 @@ export default function MembershipScreen() {
       setProcessing(false);
       if (!opened) setChargeLock('idle');
     }
-  }, [user, confirmStorePurchase, refetchMe, router, storeName, createCheckout]);
+  }, [user, confirmStorePurchase, refetchMe, router, storeName, createCheckout, isPlateTaker]);
 
   const handleEarlyBird = useCallback(async () => {
     setProcessing(true);
@@ -348,7 +348,10 @@ export default function MembershipScreen() {
     let paid = false;
     try {
       const purchases = await restoreIAPPurchases();
-      const purchase = purchases[0];
+      const role = isPlateTaker ? 'platetaker' : 'platemaker';
+      const monthly = membershipProductId(role, 'month');
+      const yearly = membershipProductId(role, 'year');
+      const purchase = purchases.find((item) => item.productId === monthly || item.productId === yearly) ?? purchases[0];
       if (!purchase) {
         Alert.alert('No Subscription Found', `${storeName} has no active HomeCookedPlate membership for this account.`);
         return;
@@ -371,7 +374,7 @@ export default function MembershipScreen() {
       setProcessing(false);
       if (!paid) setChargeLock('idle');
     }
-  }, [user, confirmStorePurchase, refetchMe, router, storeName]);
+  }, [user, confirmStorePurchase, refetchMe, router, storeName, isPlateTaker]);
 
   const openSignIn = useCallback(() => {
     if (user) {

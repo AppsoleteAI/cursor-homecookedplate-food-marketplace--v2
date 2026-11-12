@@ -2,13 +2,14 @@ import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { notifyParty, ORDER_STEP_NOTICES } from "../../../../lib/account-notice";
-import { orderBuyerId } from "../../../../lib/order-row";
+import { orderBuyerId, orderCookColumn, orderCookId, readOrderQuery } from "../../../../lib/order-row";
+import { orderHasHeldTransaction, orderPaidState, paymentIntentId, readStripeIntent, stripeSucceeded } from "../../../../lib/order-payment";
 
 /**
  * Mark Order as Ready Procedure
  * 
  * Allows platemakers (sellers) to mark their orders as "ready" for pickup/delivery.
- * Security: Only the assigned seller (seller_id) can update their own orders.
+ * Security: Only the assigned cook (platemaker_id, or seller_id when that column is set) can update their own orders.
  */
 export const markAsReadyProcedure = protectedProcedure
   .input(
@@ -18,11 +19,11 @@ export const markAsReadyProcedure = protectedProcedure
   )
   .mutation(async ({ ctx, input }) => {
     // First, verify the order exists and the user is the seller
-    const { data: order, error: checkError } = await ctx.supabase
+    const { data: order, error: checkError } = await readOrderQuery((columns) => ctx.supabase
       .from('orders')
-      .select('id, seller_id, status, buyer_id, platetaker_id, paid')
+      .select(columns)
       .eq('id', input.orderId)
-      .single();
+      .single());
 
     if (checkError || !order) {
       throw new TRPCError({
@@ -32,7 +33,7 @@ export const markAsReadyProcedure = protectedProcedure
     }
 
     // Security: Ensure only the assigned platemaker (seller) can mark as ready
-    if (order.seller_id !== ctx.userId) {
+    if (orderCookId(order) !== ctx.userId) {
       throw new TRPCError({
         code: 'FORBIDDEN',
         message: 'You are not authorized to update this order. Only the assigned platemaker can mark orders as ready.',
@@ -41,11 +42,26 @@ export const markAsReadyProcedure = protectedProcedure
 
     // Verify the order is in a valid state to be marked as ready
     // Orders should be in 'accepted' or 'preparing' status before being marked 'ready'
-    if (order.paid !== true) {
+    const paidState = orderPaidState(order);
+    if (paidState === 'unpaid') {
       throw new TRPCError({
         code: 'PRECONDITION_FAILED',
         message: 'Stripe has not confirmed this payment.',
       });
+    }
+    if (paidState === 'absent') {
+      const intentId = paymentIntentId(order);
+      const stripeSecretKey = ctx.stripeSecretKey || process.env.STRIPE_SECRET_KEY;
+      const paymentIntent = intentId && stripeSecretKey ? await readStripeIntent(stripeSecretKey, intentId) : null;
+      const held = stripeSucceeded(paymentIntent)
+        ? false
+        : await orderHasHeldTransaction(ctx.supabaseAdmin, order.id);
+      if (!stripeSucceeded(paymentIntent) && !held) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'Stripe has not confirmed this payment.',
+        });
+      }
     }
 
     if (order.status !== 'accepted' && order.status !== 'preparing') {
@@ -60,8 +76,8 @@ export const markAsReadyProcedure = protectedProcedure
       .from('orders')
       .update({ status: 'ready' })
       .eq('id', input.orderId)
-      .eq('seller_id', ctx.userId) // Double-check: ensure only the seller can update
-      .select()
+      .eq(orderCookColumn(order), ctx.userId)
+      .select('id, status')
       .single();
 
     if (error || !data) {
@@ -72,13 +88,13 @@ export const markAsReadyProcedure = protectedProcedure
       });
     }
 
-    await notifyParty(ctx.supabaseAdmin, orderBuyerId(data), 'orderUpdates', ORDER_STEP_NOTICES.ready);
+    await notifyParty(ctx.supabaseAdmin, orderBuyerId(order), 'orderUpdates', ORDER_STEP_NOTICES.ready);
 
     return {
       id: data.id,
       status: data.status,
-      sellerId: data.seller_id,
-      buyerId: data.buyer_id,
+      sellerId: orderCookId(order),
+      buyerId: orderBuyerId(order),
       message: 'Order has been marked as ready for pickup/delivery',
     };
   });

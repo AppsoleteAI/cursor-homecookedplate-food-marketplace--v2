@@ -1,7 +1,8 @@
 import { lostPortionOrderCloses, platePaymentCovers } from '../record-paid-order';
 import { buyerCardCharge, buyerServiceFeePercent, calculateFees, orderTotalWithDelivery } from '../fees';
 import { shopClearAllowed } from '../shop-order-status';
-import { missingBuyerColumn, orderBuyerId, orderTotal } from '../order-row';
+import { confirmedPaidIds, orderCancelPatch, orderHasHeldTransaction, orderPaidState, paymentIntentId, stripeSucceeded } from '../order-payment';
+import { missingBuyerColumn, orderBuyerId, orderCookColumn, orderCookId, orderListColumns, orderListFilterAfterError, orderTotal } from '../order-row';
 import { orderStatusAllowed, pickupConfirmedByBoth } from '../order-status';
 import { orderCloseout } from '@/lib/order-closeout';
 import { pickupTags } from '@/lib/meal-publish';
@@ -89,9 +90,91 @@ describe('order row columns', () => {
   it('reads the live buyer column and a cents total', () => {
     expect(orderBuyerId({ platetaker_id: 'buyer-1' })).toBe('buyer-1');
     expect(orderBuyerId({ buyer_id: 'buyer-2', platetaker_id: 'other' })).toBe('buyer-2');
+    expect(orderCookId({ platemaker_id: 'cook-1' })).toBe('cook-1');
+    expect(orderCookColumn({ platemaker_id: 'cook-1' })).toBe('platemaker_id');
+    expect(orderCookId({ seller_id: 'cook-2', platemaker_id: 'other' })).toBe('cook-2');
+    expect(orderCookColumn({ seller_id: 'cook-2' })).toBe('seller_id');
     expect(orderTotal({ total_price_cents: 1599 })).toBe(15.99);
     expect(missingBuyerColumn('column orders.buyer_id does not exist')).toBe(true);
     expect(missingBuyerColumn('permission denied')).toBe(false);
+  });
+
+  it('treats a missing paid column as unpaid until Stripe or a held transaction', () => {
+    expect(orderPaidState({})).toBe('absent');
+    expect(orderPaidState({ paid: true })).toBe('paid');
+    expect(orderPaidState({ paid: false })).toBe('unpaid');
+    expect(paymentIntentId({ payment_intent_id: 'pi_123' })).toBe('pi_123');
+    expect(paymentIntentId({ payment_intent_id: 'pi' })).toBeNull();
+    expect(stripeSucceeded({ status: 'succeeded' })).toBe(true);
+    expect(stripeSucceeded({ status: 'processing' })).toBe(false);
+  });
+
+  it('moves a cook list onto platemaker_id when seller_id and paid are missing', () => {
+    const start = {
+      cookColumn: 'seller_id' as const,
+      requirePaid: true,
+      buyerColumn: 'buyer_id' as const,
+      columns: orderListColumns('buyer_id'),
+    };
+    const cook = orderListFilterAfterError(start, 'column orders.seller_id does not exist');
+    expect(cook?.cookColumn).toBe('platemaker_id');
+    const paid = orderListFilterAfterError(cook!, 'column orders.paid does not exist');
+    expect(paid?.requirePaid).toBe(false);
+    const dropped = orderListFilterAfterError(paid!, 'column orders.paid does not exist');
+    expect(dropped?.columns.includes('paid')).toBe(false);
+    expect(dropped?.requirePaid).toBe(false);
+  });
+
+  it('keeps a buyer list on platetaker_id without restoring seller_id', () => {
+    const dropped = orderListFilterAfterError({
+      cookColumn: 'platemaker_id',
+      requirePaid: false,
+      buyerColumn: 'buyer_id',
+      columns: 'id, buyer_id, platetaker_id, platemaker_id',
+    }, 'column orders.buyer_id does not exist');
+    expect(dropped?.buyerColumn).toBe('platetaker_id');
+    expect(dropped?.columns.includes('seller_id')).toBe(false);
+  });
+
+  it('omits paid from a cancel when that column is absent', () => {
+    expect(orderCancelPatch({})).toEqual({ status: 'cancelled' });
+    expect(orderCancelPatch({ paid: true })).toEqual({ status: 'cancelled', paid: false });
+    expect(orderCancelPatch({ paid: false })).toEqual({ status: 'cancelled', paid: false });
+  });
+
+  it('keeps a plate with a held transaction and leaves an unpaid plate out', async () => {
+    const admin = {
+      from: () => ({
+        select: () => ({
+          in: () => ({
+            in: async () => ({ data: [{ order_id: 'order-1' }], error: null }),
+          }),
+        }),
+      }),
+    };
+    const ids = await confirmedPaidIds([
+      { id: 'order-1', payment_intent_id: 'pi_123' },
+      { id: 'order-2', paid: false, payment_intent_id: 'pi_456' },
+      { id: 'order-3', paid: true },
+    ], admin, undefined);
+    expect(ids.has('order-1')).toBe(true);
+    expect(ids.has('order-2')).toBe(false);
+    expect(ids.has('order-3')).toBe(true);
+  });
+
+  it('reads a held or settled transaction as payment', async () => {
+    const admin = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            in: () => ({
+              limit: async () => ({ data: [{ id: 'txn-1' }], error: null }),
+            }),
+          }),
+        }),
+      }),
+    };
+    expect(await orderHasHeldTransaction(admin, 'order-1')).toBe(true);
   });
 });
 

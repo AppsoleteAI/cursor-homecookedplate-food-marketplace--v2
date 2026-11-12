@@ -7,7 +7,7 @@ import { recordOperationalFailure } from '../../../../lib/failure-alert';
 import { PAYOUT_HOLD_DAYS } from '../../../../lib/payout-policy';
 import { salesVolumeBlock } from '../../../../lib/stripe-marketplace';
 import { confirmCookPayouts } from '../../../../lib/connect-account';
-import { browserOrigin, openStripeCheckout } from '../../../../lib/stripe-checkout';
+import { browserOrigin, CHECKOUT_RETURN_MESSAGE, openStripeCheckout } from '../../../../lib/stripe-checkout';
 import { orderBuyerId, orderTotal, readOrderQuery } from '../../../../lib/order-row';
 import { applePayMerchantName, profilePayeeName } from '../../../../lib/payee-name';
 import { resolvedMembershipTier } from '../../../../lib/trial-access';
@@ -170,7 +170,12 @@ export const createPaymentIntentProcedure = protectedProcedure
     // Charge stays on the platform for PAYOUT_HOLD_DAYS. A later Transfer
     // pays the cook's connected account their seller share directly.
     if (input.webOrigin) {
-      const origin = browserOrigin(input.webOrigin);
+      let origin: string;
+      try {
+        origin = browserOrigin(input.webOrigin);
+      } catch {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: CHECKOUT_RETURN_MESSAGE });
+      }
       const checkout = await openStripeCheckout({
         secretKey: stripeSecretKey,
         amountCents: totalChargeInCents,

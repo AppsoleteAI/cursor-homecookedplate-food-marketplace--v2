@@ -78,6 +78,12 @@ describe('Play Billing subscriptions', () => {
     expect(calls.some((call) => call.startsWith('POST ') && call.endsWith(':acknowledge'))).toBe(true);
   });
 
+  it('verifies a PlateTaker membership at the buyer product', async () => {
+    const { read } = harness({ productId: 'com.rork.hcp.platetaker.annual' });
+    const subscription = await read();
+    expect(subscription.productId).toBe('com.rork.hcp.platetaker.annual');
+  });
+
   it('skips acknowledge when Play already recorded it', async () => {
     const { calls, read } = harness({ acknowledgementState: 'ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED' });
     await read();

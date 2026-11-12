@@ -1,6 +1,8 @@
 import { protectedProcedure } from "../../../create-context";
 import { TRPCError } from "@trpc/server";
 import { sellerTakeHome } from "../../../../lib/fees";
+import { orderListFilterAfterError, orderTotal, type OrderListFilter } from "../../../../lib/order-row";
+import { confirmedPaidIds } from "../../../../lib/order-payment";
 
 /**
  * Get Dashboard Stats Procedure
@@ -45,43 +47,46 @@ export const getDashboardStatsProcedure = protectedProcedure
     startOfWeek.setHours(0, 0, 0, 0);
 
     const completedTotals = async (since?: string) => {
-      let aggregate = ctx.supabase
-        .from('orders')
-        .select('total_price.sum(),id.count()')
-        .eq('seller_id', ctx.userId)
-        .eq('status', 'completed')
-        .eq('paid', true);
-      if (since) aggregate = aggregate.gte('created_at', since);
-      const summed = await aggregate;
-      const row = (Array.isArray(summed.data) ? summed.data[0] : summed.data) as { sum?: number | string | null; count?: number | string | null } | null;
-      if (!summed.error && row && (row.sum !== undefined || row.count !== undefined)) {
-        const revenue = Number(row.sum ?? 0);
-        const count = Number(row.count ?? 0);
-        return {
-          revenue: Number.isFinite(revenue) && revenue > 0 ? revenue : 0,
-          count: Number.isFinite(count) && count > 0 ? count : 0,
-        };
+      const load = (filter: OrderListFilter) => {
+        let listed = ctx.supabase
+          .from('orders')
+          .select(filter.columns)
+          .eq(filter.cookColumn, ctx.userId)
+          .eq('status', 'completed');
+        if (filter.requirePaid) listed = listed.eq('paid', true);
+        if (since) listed = listed.gte('created_at', since);
+        return listed;
+      };
+      let filter: OrderListFilter = {
+        cookColumn: 'seller_id',
+        requirePaid: true,
+        buyerColumn: 'buyer_id',
+        columns: 'id, total_price, total_price_cents, paid, payment_intent_id',
+      };
+      let listed = await load(filter);
+      for (let attempt = 0; attempt < 6 && listed.error; attempt += 1) {
+        const next = orderListFilterAfterError(filter, listed.error.message);
+        if (!next) break;
+        filter = next;
+        listed = await load(filter);
       }
-
-      let listed = ctx.supabase
-        .from('orders')
-        .select('total_price')
-        .eq('seller_id', ctx.userId)
-        .eq('status', 'completed')
-        .eq('paid', true);
-      if (since) listed = listed.gte('created_at', since);
-      const { data, error } = await listed;
-      if (error) {
-        console.error('[GetDashboardStats] Error fetching orders:', error);
+      if (listed.error) {
+        console.error('[GetDashboardStats] Error fetching orders:', listed.error);
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: 'Failed to fetch orders',
         });
       }
+      let rows = (listed.data || []) as unknown as { id: string; total_price?: unknown; total_price_cents?: unknown; paid?: boolean | null; payment_intent_id?: string | null }[];
+      if (!filter.requirePaid) {
+        const stripeSecret = ctx.stripeSecretKey || process.env.STRIPE_SECRET_KEY;
+        const paidIds = await confirmedPaidIds(rows, ctx.supabaseAdmin, stripeSecret);
+        rows = rows.filter((order) => paidIds.has(order.id));
+      }
       let revenue = 0;
       let count = 0;
-      for (const order of data || []) {
-        const amount = parseFloat(String(order.total_price));
+      for (const order of rows) {
+        const amount = orderTotal(order);
         if (!Number.isFinite(amount) || amount < 0) continue;
         revenue += amount;
         count += 1;

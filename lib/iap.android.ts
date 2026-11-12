@@ -11,12 +11,23 @@ import {
   requestPurchase,
   type Purchase,
 } from 'expo-iap';
+import {
+  GOOGLE_MEMBERSHIP_PRODUCT_IDS,
+  GOOGLE_PLATEMAKER_ANNUAL,
+  GOOGLE_PLATEMAKER_MONTHLY,
+  membershipStoreProductId,
+  type GoogleMembershipProductId,
+} from '@/backend/lib/membership-products';
 
 // Play product ids are capped at 40 characters. Apple keeps the longer ids in iap.ios.ts.
-export const MEMBERSHIP_MONTHLY_PRODUCT_ID = 'com.rork.hcp.membership.monthly' as const;
-export const MEMBERSHIP_ANNUAL_PRODUCT_ID = 'com.rork.hcp.membership.annual' as const;
+export const MEMBERSHIP_MONTHLY_PRODUCT_ID = GOOGLE_PLATEMAKER_MONTHLY;
+export const MEMBERSHIP_ANNUAL_PRODUCT_ID = GOOGLE_PLATEMAKER_ANNUAL;
 
-export type IAPProductId = typeof MEMBERSHIP_MONTHLY_PRODUCT_ID | typeof MEMBERSHIP_ANNUAL_PRODUCT_ID;
+export type IAPProductId = GoogleMembershipProductId;
+
+export function membershipProductId(role: 'platemaker' | 'platetaker', interval: 'month' | 'year'): IAPProductId {
+  return membershipStoreProductId('google', role, interval);
+}
 
 export interface IAPProduct {
   productId: IAPProductId;
@@ -33,10 +44,7 @@ export interface IAPPurchaseResult {
   receiptData: string;
 }
 
-const MEMBERSHIP_IDS = new Set<string>([
-  MEMBERSHIP_MONTHLY_PRODUCT_ID,
-  MEMBERSHIP_ANNUAL_PRODUCT_ID,
-]);
+const MEMBERSHIP_IDS = new Set<string>(GOOGLE_MEMBERSHIP_PRODUCT_IDS);
 
 const pending = new Map<string, Purchase>();
 
@@ -112,7 +120,7 @@ function remember(purchase: Purchase): IAPPurchaseResult {
 async function loadSubscriptions(): Promise<PlaySubscription[]> {
   await initConnection();
   const products = await fetchProducts({
-    skus: [MEMBERSHIP_MONTHLY_PRODUCT_ID, MEMBERSHIP_ANNUAL_PRODUCT_ID],
+    skus: [...GOOGLE_MEMBERSHIP_PRODUCT_IDS],
     type: 'subs',
   });
   return (products ?? []) as PlaySubscription[];

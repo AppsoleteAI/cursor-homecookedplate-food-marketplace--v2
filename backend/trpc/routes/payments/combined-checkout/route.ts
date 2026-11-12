@@ -37,7 +37,7 @@ import {
   cancelledShopLines,
   shopOrderMatchesCombinedRefund,
 } from '../../../../lib/shop-order-status';
-import { browserOrigin, openStripeCheckout } from '../../../../lib/stripe-checkout';
+import { browserOrigin, CHECKOUT_RETURN_MESSAGE, checkoutReturnPath, openStripeCheckout } from '../../../../lib/stripe-checkout';
 
 const lineSchema = z.object({
   productId: z.string().min(1).max(80),
@@ -730,10 +730,13 @@ export const createCombinedCheckoutProcedure = protectedProcedure
     const merchantDisplayName = applePayMerchantName(sellerIds.map((id) => payeeById.get(id)));
 
     if (input.webOrigin) {
-      const origin = browserOrigin(input.webOrigin);
-      const path = input.returnPath && input.returnPath.startsWith('/') && !input.returnPath.startsWith('//') && !input.returnPath.includes('..')
-        ? input.returnPath
-        : '/combined-checkout';
+      let origin: string;
+      try {
+        origin = browserOrigin(input.webOrigin);
+      } catch {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: CHECKOUT_RETURN_MESSAGE });
+      }
+      const path = checkoutReturnPath(input.returnPath, '/combined-checkout');
       const checkout = await openStripeCheckout({
         secretKey: stripeSecretKey,
         amountCents: Math.round(receipt.combinedBuyerPays * 100),

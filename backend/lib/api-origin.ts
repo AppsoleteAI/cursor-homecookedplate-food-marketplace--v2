@@ -1,4 +1,4 @@
-const PRODUCTION_ORIGINS = new Set([
+export const PRODUCTION_ORIGINS = new Set([
   'https://homecookedplate.com',
   'https://www.homecookedplate.com',
   'https://homecookedplate.pages.dev',

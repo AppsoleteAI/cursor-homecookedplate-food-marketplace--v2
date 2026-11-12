@@ -1,9 +1,42 @@
+import { PRODUCTION_ORIGINS } from './api-origin';
+
+export const CHECKOUT_RETURN_MESSAGE = 'Checkout can only return to HomeCookedPlate.';
+
+const SAFE_RETURN_PATH = /^\/[A-Za-z0-9/_-]{0,160}$/;
+
+/** Stripe success and cancel pages stay on HomeCookedPlate. */
 export function browserOrigin(value: string): string {
   const url = new URL(value);
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
-    throw new Error('Checkout can only return to an http page.');
+  if (url.username || url.password || url.protocol !== 'https:' || !PRODUCTION_ORIGINS.has(url.origin)) {
+    throw new Error(CHECKOUT_RETURN_MESSAGE);
   }
   return url.origin;
+}
+
+/** A return path is a site path. A query, a hash, or another host is ignored. */
+export function checkoutReturnPath(value: string | undefined, fallback: string): string {
+  if (!value || !SAFE_RETURN_PATH.test(value) || value.includes('//')) return fallback;
+  return value;
+}
+
+/** Membership returns to /membership on this website, or to the app when no page was sent. */
+export function membershipReturnUrls(value: string | undefined): { successUrl: string; cancelUrl: string } {
+  if (!value) {
+    return {
+      successUrl: 'homecookedplate://payment-success',
+      cancelUrl: 'homecookedplate://payment-cancel',
+    };
+  }
+  const origin = browserOrigin(value);
+  const url = new URL(value);
+  const path = url.pathname.replace(/\/+$/, '') || '/';
+  if (path !== '/membership' || url.search || url.hash) {
+    throw new Error(CHECKOUT_RETURN_MESSAGE);
+  }
+  return {
+    successUrl: `${origin}/membership?session_id={CHECKOUT_SESSION_ID}`,
+    cancelUrl: `${origin}/membership`,
+  };
 }
 
 export async function openStripeCheckout(args: {

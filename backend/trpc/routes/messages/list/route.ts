@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { protectedProcedure } from "../../../create-context";
 import { TRPCError } from "@trpc/server";
-import { missingBuyerColumn, orderBuyerId } from "../../../../lib/order-row";
+import { orderBuyerId, orderCookId, readOrderQuery } from "../../../../lib/order-row";
 import { messageVisible } from "../../../../lib/content-moderation";
 
 export const listMessagesProcedure = protectedProcedure
@@ -14,18 +14,11 @@ export const listMessagesProcedure = protectedProcedure
     const { orderId } = input;
     const userId = ctx.userId;
 
-    let orderResult = await ctx.supabaseAdmin
+    const orderResult = await readOrderQuery((columns) => ctx.supabaseAdmin
       .from("orders")
-      .select("id, buyer_id, seller_id")
+      .select(columns)
       .eq("id", orderId)
-      .maybeSingle();
-    if (orderResult.error && missingBuyerColumn(orderResult.error.message)) {
-      orderResult = await ctx.supabaseAdmin
-        .from("orders")
-        .select("id, platetaker_id, seller_id")
-        .eq("id", orderId)
-        .maybeSingle();
-    }
+      .maybeSingle());
     const order = orderResult.data;
 
     if (orderResult.error || !order) {
@@ -35,7 +28,7 @@ export const listMessagesProcedure = protectedProcedure
       });
     }
 
-    if (orderBuyerId(order) !== userId && order.seller_id !== userId) {
+    if (orderBuyerId(order) !== userId && orderCookId(order) !== userId) {
       throw new TRPCError({
         code: "FORBIDDEN",
         message: "You are not part of this order conversation",

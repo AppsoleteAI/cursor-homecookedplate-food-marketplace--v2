@@ -1,6 +1,8 @@
 import { z } from 'zod';
+import { TRPCError } from '@trpc/server';
 import { membershipPriceCents, membershipProductName, type MembershipInterval, type MembershipRole } from '../../../../lib/fees';
 import { saveOwnedStripeCustomer } from '../../../../lib/account-identifier';
+import { CHECKOUT_RETURN_MESSAGE, membershipReturnUrls } from '../../../../lib/stripe-checkout';
 import { protectedProcedure } from '../../../create-context';
 
 const inputSchema = z.object({
@@ -64,10 +66,13 @@ export const createCheckoutSessionProcedure = protectedProcedure
       customerId = saved.stripeId;
     }
 
-    // Determine return URLs
-    const defaultSuccessUrl = input.returnUrl || 'homecookedplate://payment-success';
-    const defaultCancelUrl = input.returnUrl || 'homecookedplate://payment-cancel';
-    
+    let returnUrls;
+    try {
+      returnUrls = membershipReturnUrls(input.returnUrl);
+    } catch {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: CHECKOUT_RETURN_MESSAGE });
+    }
+
     // Build checkout session parameters
     const sessionParams = new URLSearchParams({
       customer: customerId,
@@ -77,8 +82,8 @@ export const createCheckoutSessionProcedure = protectedProcedure
       'line_items[0][price_data][unit_amount]': String(unitAmount),
       'line_items[0][price_data][recurring][interval]': interval,
       'line_items[0][price_data][product_data][name]': productName,
-      success_url: `${defaultSuccessUrl}?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: defaultCancelUrl,
+      success_url: returnUrls.successUrl,
+      cancel_url: returnUrls.cancelUrl,
       'metadata[user_id]': profile.id,
       'metadata[role]': role,
       'metadata[interval]': interval,

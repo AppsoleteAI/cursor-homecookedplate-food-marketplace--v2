@@ -2,7 +2,7 @@ import React from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { WebView } from '@/lib/clip-webview';
 import { useVideoPlayer, VideoView } from '@/lib/expo-video';
-import { clipFrameAllowsNavigation, socialClipEmbed } from '@/lib/food-review-clips';
+import { clipFrameAllowsNavigation, socialClipEmbed, youtubePlayerPage, youtubeVideoId } from '@/lib/food-review-clips';
 import { glassSurface } from '@/components/glass-surface';
 
 type FoodReviewPlayerProps = {
@@ -14,6 +14,8 @@ type FoodReviewPlayerProps = {
 
 export function FoodReviewPlayer({ uri, width, height }: FoodReviewPlayerProps) {
   const embed = socialClipEmbed(uri, width, height);
+  const videoId = embed.source === 'youtube' ? youtubeVideoId(uri) : null;
+  const youtubePage = videoId ? youtubePlayerPage(videoId, Platform.OS) : null;
   const player = useVideoPlayer(embed.embedUrl ? '' : uri, (instance) => {
     if (instance && !embed.embedUrl) {
       instance.loop = true;
@@ -25,7 +27,7 @@ export function FoodReviewPlayer({ uri, width, height }: FoodReviewPlayerProps) 
       <View style={[styles.frame, { width, height }]} testID="food-review-player">
         <View style={[styles.clip, embed.letterbox && styles.letterbox]}>
           <WebView
-            source={{ uri: embed.embedUrl }}
+            source={youtubePage ? { html: youtubePage.html, baseUrl: youtubePage.baseUrl } : { uri: embed.embedUrl }}
             style={embed.letterbox ? styles.letterboxVideo : styles.video}
             allowsInlineMediaPlayback
             mediaPlaybackRequiresUserAction={false}

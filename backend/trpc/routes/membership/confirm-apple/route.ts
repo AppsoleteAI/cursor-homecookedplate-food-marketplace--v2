@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { readActiveAppleSubscription, readAppleTransactionClaims } from '../../../../lib/apple-transaction';
+import { assertMembershipProductRole } from '../../../../lib/membership-products';
 import { missingStoreDateColumn } from '../../../../lib/store-membership';
 import { resolvedMembershipTier } from '../../../../lib/trial-access';
 import { protectedProcedure } from '../../../create-context';
@@ -57,6 +58,14 @@ export const confirmAppleProcedure = protectedProcedure
       .select('role, membership_tier, trial_ends_at, stripe_subscription_id, google_purchase_token, google_expires_at')
       .eq('id', ctx.userId)
       .maybeSingle();
+    try {
+      assertMembershipProductRole(subscription.productId, current?.role);
+    } catch (error) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: error instanceof Error ? error.message : 'This subscription does not match this account.',
+      });
+    }
     const nextTier = ended
       ? resolvedMembershipTier({
         ...(current ?? { role: null, membership_tier: 'free', trial_ends_at: null }),

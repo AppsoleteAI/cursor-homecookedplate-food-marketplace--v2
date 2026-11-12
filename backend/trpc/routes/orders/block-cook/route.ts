@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../../create-context';
-import { missingBuyerColumn, orderBuyerId } from '../../../../lib/order-row';
+import { orderBuyerId, orderCookId, readOrderQuery } from '../../../../lib/order-row';
 import { notifyParty } from '../../../../lib/account-notice';
 import { notifyModerators } from '../../../../lib/content-moderation';
 
@@ -11,23 +11,16 @@ export const blockCookProcedure = protectedProcedure
     action: z.enum(['block', 'report', 'unblock']),
   }))
   .mutation(async ({ ctx, input }) => {
-    let order = await ctx.supabaseAdmin
+    const order = await readOrderQuery((columns) => ctx.supabaseAdmin
       .from('orders')
-      .select('seller_id, buyer_id')
+      .select(columns)
       .eq('id', input.orderId)
-      .maybeSingle();
-    if (order.error && missingBuyerColumn(order.error.message)) {
-      order = await ctx.supabaseAdmin
-        .from('orders')
-        .select('seller_id, platetaker_id')
-        .eq('id', input.orderId)
-        .maybeSingle();
-    }
+      .maybeSingle());
     const buyerId = orderBuyerId(order.data || {});
     if (order.error || !order.data || buyerId !== ctx.userId) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Only the PlateTaker on this order can do that.' });
     }
-    const cookId = order.data.seller_id;
+    const cookId = orderCookId(order.data);
     if (!cookId || cookId === ctx.userId) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'This order has no cook to report.' });
     }

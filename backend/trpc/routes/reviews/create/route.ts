@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
 import { notifyParty } from "../../../../lib/account-notice";
-import { missingBuyerColumn, orderBuyerId } from "../../../../lib/order-row";
+import { orderBuyerId, orderCookId, readOrderQuery } from "../../../../lib/order-row";
 import { reviewAverage } from "../../../../lib/review-stars";
 import { screenReviewComment } from "../../../../lib/comment-language";
 import { missingColumn, notifyModerators } from "../../../../lib/content-moderation";
@@ -43,23 +43,16 @@ export const createReviewProcedure = protectedProcedure
     if (meal.data.user_id === ctx.userId) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'A cook cannot review their own plate.' });
     }
-    let order = await ctx.supabaseAdmin
+    const order = await readOrderQuery((columns) => ctx.supabaseAdmin
       .from('orders')
-      .select('seller_id, status, meal_id, buyer_id')
+      .select(columns)
       .eq('id', input.orderId)
-      .maybeSingle();
-    if (order.error && missingBuyerColumn(order.error.message)) {
-      order = await ctx.supabaseAdmin
-        .from('orders')
-        .select('seller_id, status, meal_id, platetaker_id')
-        .eq('id', input.orderId)
-        .maybeSingle();
-    }
+      .maybeSingle());
     const buyerId = orderBuyerId(order.data || {});
     if (order.error || !order.data || order.data.meal_id !== input.mealId || buyerId !== ctx.userId || order.data.status !== 'completed') {
       throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'A review needs a completed order for this plate.' });
     }
-    if (order.data.seller_id === ctx.userId) {
+    if (orderCookId(order.data) === ctx.userId) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'A cook cannot review their own plate.' });
     }
 

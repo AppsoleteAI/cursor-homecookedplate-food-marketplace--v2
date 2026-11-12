@@ -54,6 +54,14 @@ function memoryAdmin(tables: Record<string, Row[]>) {
           patch = next;
           return chain;
         },
+        insert(row: Row) {
+          const saved = { ...row };
+          rows.push(saved);
+          filters.length = 0;
+          filters.push((item) => item === saved);
+          mode = 'select';
+          return chain;
+        },
         then(resolve: (value: { data: unknown; error: null }) => unknown) {
           return Promise.resolve(run()).then(resolve);
         },
@@ -153,11 +161,22 @@ describe.each(RUNS)('four membership payments and premium access, run %s', () =>
         interval: plan.interval,
         returnUrl: 'https://homecookedplate.com/membership',
       })).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      const signedOutClaims = await tables.from('stripe_identity_claims').select();
+      expect(signedOutClaims.data).toEqual([]);
 
       const session = await caller(plan.userId, tables).payments.createCheckoutSession({
         interval: plan.interval,
         returnUrl: 'https://homecookedplate.com/membership',
       });
+      const claim = await tables.from('stripe_identity_claims').select().eq('profile_id', plan.userId).eq('kind', 'customer').maybeSingle();
+      expect(claim.data).toMatchObject({
+        stripe_id: 'cus_local',
+        kind: 'customer',
+        profile_id: plan.userId,
+      });
+      const saved = await tables.from('profiles').select().eq('id', plan.userId);
+      const row = (saved.data as Row[])[0];
+      expect(row.stripe_customer_id).toBe('cus_local');
       expect(session.role).toBe(plan.role);
       expect(session.interval).toBe(plan.interval);
       expect(session.unitAmount).toBe(plan.cents);
@@ -165,9 +184,6 @@ describe.each(RUNS)('four membership payments and premium access, run %s', () =>
       const other = plan.role === 'platemaker' ? 799 : 499;
       expect(session.unitAmount).not.toBe(other);
 
-      const saved = await tables.from('profiles').select().eq('id', plan.userId);
-      const row = (saved.data as Row[])[0];
-      expect(row.stripe_customer_id).toBe('cus_local');
       expect(resolvedMembershipTier(row as never)).toBe('free');
       expect(clipPostAllowed({
         role: plan.role,

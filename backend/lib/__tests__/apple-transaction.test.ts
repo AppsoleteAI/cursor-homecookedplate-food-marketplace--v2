@@ -52,6 +52,15 @@ describe('App Store signed transactions', () => {
     environment: 'Sandbox',
   });
 
+  it('accepts a PlateTaker membership signed by the provided root', () => {
+    const subscription = readActiveAppleSubscription(
+      signedTransaction(chain, { ...activePayload(), productId: 'com.rork.homecookedplate.platetaker.monthly' }),
+      Date.now(),
+      chain.rootPem,
+    );
+    expect(subscription.productId).toBe('com.rork.homecookedplate.platetaker.monthly');
+  });
+
   it('accepts a membership signed by the provided root', () => {
     const subscription = readActiveAppleSubscription(
       signedTransaction(chain, activePayload()),

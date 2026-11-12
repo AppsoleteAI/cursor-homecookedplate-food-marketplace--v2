@@ -139,6 +139,42 @@ export function youtubeEmbedUrl(videoId: string): string {
   return `https://www.youtube.com/embed/${videoId}?rel=0&controls=1&playsinline=1&fs=1`;
 }
 
+/**
+ * YouTube error 153 is a player with no HTTP Referer.
+ * The phone page address is the store app id from app.json.
+ * The website sends the page the browser already has open.
+ */
+export const YOUTUBE_IOS_ORIGIN = 'https://app.rork.homecookedplate-dynamic-gradient-food-marketplace-v1-1';
+export const YOUTUBE_ANDROID_ORIGIN = 'https://com.rork.homecookedplate';
+export const YOUTUBE_WEB_ORIGIN = 'https://homecookedplate.com';
+export const CLIP_FRAME_REFERRER_POLICY = 'strict-origin-when-cross-origin';
+
+const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
+
+export function youtubeEmbedOrigin(platformOs: string): string {
+  if (platformOs === 'ios') return YOUTUBE_IOS_ORIGIN;
+  if (platformOs === 'android') return YOUTUBE_ANDROID_ORIGIN;
+  return YOUTUBE_WEB_ORIGIN;
+}
+
+/** Local page whose address is the app id, so the embed request carries a Referer. */
+export function youtubePlayerPage(videoId: string, platformOs: string): { html: string; baseUrl: string } | null {
+  if (!YOUTUBE_ID.test(videoId)) return null;
+  const baseUrl = youtubeEmbedOrigin(platformOs);
+  const src = `${youtubeEmbedUrl(videoId)}&origin=${encodeURIComponent(baseUrl)}`;
+  const html = [
+    '<!DOCTYPE html><html><head>',
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">',
+    `<meta name="referrer" content="${CLIP_FRAME_REFERRER_POLICY}">`,
+    '<style>html,body{margin:0;padding:0;height:100%;background:#000;overflow:hidden}iframe{position:absolute;inset:0;width:100%;height:100%;border:0}</style>',
+    '</head><body>',
+    `<iframe src="${src}" title="Food review clip" referrerpolicy="${CLIP_FRAME_REFERRER_POLICY}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen></iframe>`,
+    '</body></html>',
+  ].join('');
+  return { html, baseUrl };
+}
+
 export type SocialClipSource = 'youtube' | 'facebook' | 'instagram' | 'tiktok' | 'reddit' | 'x' | 'file';
 
 export function socialClipSourceLabel(source: SocialClipSource): string {

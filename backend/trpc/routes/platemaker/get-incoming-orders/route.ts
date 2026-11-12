@@ -1,9 +1,10 @@
 import { protectedProcedure } from "../../../create-context";
 import { TRPCError } from "@trpc/server";
 import { loadPublicProfiles } from "../../../../lib/public-profiles";
-import { orderBuyerId, orderColumnsAfterError, orderListColumns, orderTotal } from "../../../../lib/order-row";
+import { orderBuyerId, orderCookId, orderListColumns, orderListFilterAfterError, orderTotal, type OrderListFilter } from "../../../../lib/order-row";
+import { confirmedPaidIds } from "../../../../lib/order-payment";
 import { loadPickupConfirms } from "../../../../lib/pickup-confirm";
-import { noteForViewer } from "../../../../lib/content-moderation";
+import { loadOrderNotes, noteForViewer } from "../../../../lib/content-moderation";
 import { firstPlatePhoto } from "@/lib/food-review-clips";
 import { hiddenClipVideoAddresses, hiddenMealImages, visiblePlateMedia } from "../../../../lib/hidden-clips";
 
@@ -15,7 +16,7 @@ import { hiddenClipVideoAddresses, hiddenMealImages, visiblePlateMedia } from ".
  * 
  * SECURITY:
  * - Only platemakers can view their own incoming orders
- * - Verifies role and filters by seller_id = ctx.userId
+ * - Verifies role and filters by the cook column (platemaker_id, or seller_id when that column is set)
  * - Orders sorted by created_at ASC (chronological order)
  */
 export const getIncomingOrdersProcedure = protectedProcedure
@@ -41,34 +42,40 @@ export const getIncomingOrdersProcedure = protectedProcedure
       });
     }
 
-    // CRITICAL: Always filter by seller_id = ctx.userId to ensure data isolation
-    // Filter by active order statuses: pending, accepted, preparing
-    // Order by created_at ASC (chronological order, oldest first)
-    const loadIncoming = (columns: string) => ctx.supabase
-      .from('orders')
-      .select(`
-        ${columns},
-        meals:meal_id (
-          id,
-          name,
-          images,
-          price
-        )
-      `)
-      .eq('seller_id', ctx.userId)
-      .eq('paid', true)
-      .in('status', ['pending', 'accepted', 'preparing', 'ready'])
-      .order('created_at', { ascending: true });
+    // Filter by the cook's own rows. The live table uses platemaker_id and has no paid column.
+    const loadIncoming = (filter: OrderListFilter) => {
+      let query = ctx.supabase
+        .from('orders')
+        .select(`
+          ${filter.columns},
+          meals:meal_id (
+            id,
+            name,
+            images,
+            price
+          )
+        `)
+        .eq(filter.cookColumn, ctx.userId)
+        .in('status', ['pending', 'accepted', 'preparing', 'ready'])
+        .order('created_at', { ascending: true });
+      if (filter.requirePaid) query = query.eq('paid', true);
+      return query;
+    };
 
-    let columns = orderListColumns('buyer_id');
-    let incoming = await loadIncoming(columns);
+    let filter: OrderListFilter = {
+      cookColumn: 'seller_id',
+      requirePaid: true,
+      buyerColumn: 'buyer_id',
+      columns: orderListColumns('buyer_id'),
+    };
+    let incoming = await loadIncoming(filter);
     for (let attempt = 0; attempt < 6 && incoming.error; attempt += 1) {
-      const next = orderColumnsAfterError(columns, incoming.error.message);
+      const next = orderListFilterAfterError(filter, incoming.error.message);
       if (!next) break;
-      columns = next;
-      incoming = await loadIncoming(columns);
+      filter = next;
+      incoming = await loadIncoming(filter);
     }
-    const orders = (incoming.data || []) as any[];
+    let orders = (incoming.data || []) as any[];
     const ordersError = incoming.error;
 
     if (ordersError) {
@@ -80,6 +87,12 @@ export const getIncomingOrdersProcedure = protectedProcedure
     }
 
     // Handle edge case: no orders
+    if (!filter.requirePaid) {
+      const stripeSecret = ctx.stripeSecretKey || process.env.STRIPE_SECRET_KEY;
+      const paidIds = await confirmedPaidIds(orders, ctx.supabaseAdmin, stripeSecret);
+      orders = orders.filter((order: { id: string }) => paidIds.has(order.id));
+    }
+
     if (orders.length === 0) {
       return [];
     }
@@ -95,6 +108,7 @@ export const getIncomingOrdersProcedure = protectedProcedure
       orders.filter((order: { status?: string }) => order.status === 'ready').map((order: { id: string }) => order.id),
     );
 
+    const notes = await loadOrderNotes(ctx.supabaseAdmin, orders.map((order: { id: string }) => order.id));
     const hiddenVideos = await hiddenClipVideoAddresses(ctx.supabaseAdmin);
     const hiddenStills = await hiddenMealImages(ctx.supabaseAdmin, orders.map((order: { meal_id?: string }) => order.meal_id || ''));
     return orders.map((order: any) => ({
@@ -110,13 +124,13 @@ export const getIncomingOrdersProcedure = protectedProcedure
       pickupConfirmedBy: confirms.get(order.id) ?? [],
       quantity: order.quantity,
       totalPrice: orderTotal(order),
-      paid: order.paid,
+      paid: true,
       paymentIntentId: order.payment_intent_id,
       specialInstructions: noteForViewer({
-        text: order.special_instructions,
-        status: order.instructions_status,
+        text: notes.get(order.id)?.text ?? order.special_instructions,
+        status: notes.get(order.id)?.status ?? order.instructions_status,
         buyerId: orderBuyerId(order),
-        sellerId: order.seller_id,
+        sellerId: orderCookId(order),
         viewerId: ctx.userId,
       }).text ?? undefined,
       instructionsStatus: order.instructions_status ?? null,

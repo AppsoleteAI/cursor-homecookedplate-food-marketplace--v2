@@ -1,6 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
-import { socialClipEmbed } from '@/lib/food-review-clips';
+import { CLIP_FRAME_REFERRER_POLICY, socialClipEmbed } from '@/lib/food-review-clips';
 import { glassSurface } from '@/components/glass-surface';
 
 type FoodReviewPlayerProps = {
@@ -19,8 +19,9 @@ export function FoodReviewPlayer({ uri, posterUri, width, height }: FoodReviewPl
           ? React.createElement('iframe', {
               src: embed.embedUrl,
               title: 'Food review clip',
-              sandbox: 'allow-scripts allow-same-origin allow-presentation',
-              allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share',
+              referrerPolicy: CLIP_FRAME_REFERRER_POLICY,
+              ...(embed.source === 'youtube' ? {} : { sandbox: 'allow-scripts allow-same-origin allow-presentation' }),
+              allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen',
               allowFullScreen: true,
               style: {
                 width: '100%',

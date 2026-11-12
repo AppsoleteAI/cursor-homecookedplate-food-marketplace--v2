@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { buyerCardCharge, buyerServiceFeePercent, calculateFees, orderTotalWithDelivery } from '../fees';
 import { cookPermitIsSaved } from '../kitchen-permit';
-import { GOOGLE_MEMBERSHIP_PRODUCT_IDS } from '../google-play';
+import { membershipStoreProductId } from '../membership-products';
 import { recordPlatePayment } from '../record-paid-order';
 import { withinPickupRadius } from '../pickup-radius';
 import { pickupConfirmedByBoth } from '../order-status';
@@ -163,11 +163,9 @@ function businessNameOnProfile(role: string): boolean {
   return role === 'platemaker';
 }
 
-function playProductOnPhone(token: string | null | undefined): string | null {
+function playProductOnPhone(token: string | null | undefined, role: 'platemaker' | 'platetaker'): string | null {
   if (!token) return null;
-  return token.includes('annual')
-    ? GOOGLE_MEMBERSHIP_PRODUCT_IDS[1]
-    : GOOGLE_MEMBERSHIP_PRODUCT_IDS[0];
+  return membershipStoreProductId('google', role, token.includes('annual') ? 'year' : 'month');
 }
 
 describe.each([1, 2, 3])('diagnostic flows, run %s', () => {
@@ -285,8 +283,8 @@ describe.each([1, 2, 3])('diagnostic flows, run %s', () => {
       membershipTier: resolvedMembershipTier(expiredBuyer, now),
       baseAmount: 20,
     })).toBe(10);
-    expect(playProductOnPhone(plateMaker.google_purchase_token)).toBe('com.rork.hcp.membership.monthly');
-    expect(playProductOnPhone(plateTaker.google_purchase_token)).toBe('com.rork.hcp.membership.annual');
+    expect(playProductOnPhone(plateMaker.google_purchase_token, 'platemaker')).toBe('com.rork.hcp.membership.monthly');
+    expect(playProductOnPhone(plateTaker.google_purchase_token, 'platetaker')).toBe('com.rork.hcp.platetaker.annual');
     expect(appleDeletionBlock(null, { configured: true, renewing: true }, now)).toBeNull();
   });
 

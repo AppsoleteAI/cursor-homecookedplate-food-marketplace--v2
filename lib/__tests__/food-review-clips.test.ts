@@ -1,5 +1,8 @@
 import {
+  CLIP_FRAME_REFERRER_POLICY,
   FOOD_INFLUENCER_MARK,
+  YOUTUBE_ANDROID_ORIGIN,
+  YOUTUBE_IOS_ORIGIN,
   clipFrameAllowsNavigation,
   foodReviewClipMeta,
   foodReviewLinkClip,
@@ -10,6 +13,7 @@ import {
   storedMealVideoAddress,
   socialClipEmbed,
   withSeedClips,
+  youtubePlayerPage,
 } from '../food-review-clips';
 
 const INSTAGRAM_REEL = 'https://www.instagram.com/reel/DMWBHRruXvj/?hl=en';
@@ -35,6 +39,17 @@ describe('social clip links', () => {
     const short = socialClipEmbed('https://www.youtube.com/shorts/BNtYg_hnO7E');
     expect(short.source).toBe('youtube');
     expect(short.embedUrl).toContain('https://www.youtube.com/embed/BNtYg_hnO7E');
+  });
+
+  it('loads a YouTube clip from the store app id so the player has a referrer', () => {
+    const android = youtubePlayerPage('BNtYg_hnO7E', 'android');
+    const ios = youtubePlayerPage('BNtYg_hnO7E', 'ios');
+    expect(android?.baseUrl).toBe(YOUTUBE_ANDROID_ORIGIN);
+    expect(ios?.baseUrl).toBe(YOUTUBE_IOS_ORIGIN);
+    expect(android?.html).toContain(`referrerpolicy="${CLIP_FRAME_REFERRER_POLICY}"`);
+    expect(android?.html).toContain(`origin=${encodeURIComponent(YOUTUBE_ANDROID_ORIGIN)}`);
+    expect(android?.html).toContain('https://www.youtube.com/embed/BNtYg_hnO7E');
+    expect(youtubePlayerPage('not an id', 'android')).toBeNull();
   });
 
   it('plays Instagram, TikTok, Reddit, and X links inside the clip frame', () => {

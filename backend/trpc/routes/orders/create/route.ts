@@ -82,13 +82,11 @@ export const createOrderProcedure = protectedProcedure
         'quantity',
         'total_price',
         'paid',
-        'special_instructions',
         'cooking_temperature',
         'allergies',
         'delivery_address',
         'pickup_time',
         'created_at',
-        ...(withNote ? ['instructions_status'] : []),
         ...(withZone && pickupTimeZone ? ['pickup_timezone'] : []),
       ].join(', '))
       .single();
@@ -150,13 +148,13 @@ export const createOrderProcedure = protectedProcedure
       totalPrice: parseFloat(order.total_price), // Final price from DB (after trigger)
       paid: order.paid,
       specialInstructions: noteForViewer({
-        text: order.special_instructions,
-        status: order.instructions_status,
+        text: instructions,
+        status: withNote ? 'pending' : null,
         buyerId: orderBuyerId(order),
         sellerId: order.seller_id,
         viewerId: ctx.userId,
       }).text ?? undefined,
-      instructionsStatus: order.instructions_status ?? null,
+      instructionsStatus: withNote ? 'pending' : null,
       cookingTemperature: order.cooking_temperature,
       allergies: order.allergies,
       deliveryAddress: order.delivery_address,

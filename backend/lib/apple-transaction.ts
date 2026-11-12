@@ -1,14 +1,10 @@
 import { X509Certificate, verify as verifySignature } from 'node:crypto';
 import { APPLE_ROOT_CA_G3_PEM } from './apple-root-ca';
+import { APPLE_MEMBERSHIP_PRODUCT_IDS, type AppleMembershipProductId } from './membership-products';
+
+export { APPLE_MEMBERSHIP_PRODUCT_IDS, type AppleMembershipProductId };
 
 export const APPLE_BUNDLE_ID = 'app.rork.homecookedplate-dynamic-gradient-food-marketplace-v1-1';
-
-export const APPLE_MEMBERSHIP_PRODUCT_IDS = [
-  'com.rork.homecookedplate.membership.monthly',
-  'com.rork.homecookedplate.membership.annual',
-] as const;
-
-export type AppleMembershipProductId = (typeof APPLE_MEMBERSHIP_PRODUCT_IDS)[number];
 
 export interface AppleSubscription {
   bundleId: string;

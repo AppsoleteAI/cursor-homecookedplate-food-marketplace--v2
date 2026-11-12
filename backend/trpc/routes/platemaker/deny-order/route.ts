@@ -2,7 +2,8 @@ import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { notifyParty } from "../../../../lib/account-notice";
-import { orderBuyerId } from "../../../../lib/order-row";
+import { orderBuyerId, orderCookColumn, orderCookId, readOrderQuery } from "../../../../lib/order-row";
+import { orderCancelPatch, orderPaymentConfirmed, paymentIntentId } from "../../../../lib/order-payment";
 
 /**
  * Deny Order Procedure
@@ -13,7 +14,7 @@ import { orderBuyerId } from "../../../../lib/order-row";
  * 
  * SECURITY:
  * - Only platemakers can deny their own orders
- * - Verifies order belongs to platemaker (seller_id = ctx.userId)
+ * - Verifies order belongs to platemaker (platemaker_id, or seller_id when that column is set)
  * - Only pending orders can be denied
  */
 export const denyOrderProcedure = protectedProcedure
@@ -45,11 +46,11 @@ export const denyOrderProcedure = protectedProcedure
     }
 
     // Verify order exists and belongs to this platemaker
-    const { data: order, error: orderError } = await ctx.supabase
+    const { data: order, error: orderError } = await readOrderQuery((columns) => ctx.supabase
       .from('orders')
-      .select('id, seller_id, status, payment_intent_id, paid, total_price')
+      .select(columns)
       .eq('id', input.orderId)
-      .single();
+      .single());
 
     if (orderError || !order) {
       throw new TRPCError({
@@ -59,7 +60,7 @@ export const denyOrderProcedure = protectedProcedure
     }
 
     // CRITICAL: Ensure only the assigned platemaker (seller) can deny
-    if (order.seller_id !== ctx.userId) {
+    if (orderCookId(order) !== ctx.userId) {
       throw new TRPCError({
         code: 'FORBIDDEN',
         message: 'You are not authorized to deny this order. Only the assigned platemaker can deny orders.',
@@ -74,9 +75,11 @@ export const denyOrderProcedure = protectedProcedure
       });
     }
 
+    const stripeSecretKey = ctx.stripeSecretKey || process.env.STRIPE_SECRET_KEY;
+    const paid = await orderPaymentConfirmed(order, ctx.supabaseAdmin, stripeSecretKey);
+    const intentId = paymentIntentId(order);
     let refundStatus: 'none' | 'cancelled' | 'refunded' = 'none';
-    if (order.payment_intent_id && order.paid) {
-      const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+    if (intentId && paid) {
       if (!stripeSecretKey) {
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
@@ -84,7 +87,7 @@ export const denyOrderProcedure = protectedProcedure
         });
       }
       const paymentIntentResponse = await fetch(
-        `https://api.stripe.com/v1/payment_intents/${order.payment_intent_id}`,
+        `https://api.stripe.com/v1/payment_intents/${intentId}`,
         { headers: { Authorization: `Bearer ${stripeSecretKey}` } },
       );
       if (!paymentIntentResponse.ok) {
@@ -96,7 +99,7 @@ export const denyOrderProcedure = protectedProcedure
       const paymentIntent = await paymentIntentResponse.json() as { status?: string; amount?: number };
       if (paymentIntent.status === 'requires_capture' || paymentIntent.status === 'requires_payment_method') {
         const cancelResponse = await fetch(
-          `https://api.stripe.com/v1/payment_intents/${order.payment_intent_id}/cancel`,
+          `https://api.stripe.com/v1/payment_intents/${intentId}/cancel`,
           { method: 'POST', headers: { Authorization: `Bearer ${stripeSecretKey}` } },
         );
         if (!cancelResponse.ok) {
@@ -114,7 +117,7 @@ export const denyOrderProcedure = protectedProcedure
             'Content-Type': 'application/x-www-form-urlencoded',
           },
           body: new URLSearchParams({
-            payment_intent: order.payment_intent_id,
+            payment_intent: intentId,
             amount: String(paymentIntent.amount),
           }).toString(),
         });
@@ -138,13 +141,10 @@ export const denyOrderProcedure = protectedProcedure
     // Update order status to 'cancelled' and mark as unpaid
     const { data: updatedOrder, error: updateError } = await ctx.supabaseAdmin
       .from('orders')
-      .update({
-        status: 'cancelled',
-        paid: false,
-      })
+      .update(orderCancelPatch(order))
       .eq('id', input.orderId)
-      .eq('seller_id', ctx.userId) // Double-check: ensure only the seller can update
-      .select()
+      .eq(orderCookColumn(order), ctx.userId)
+      .select('id, status')
       .single();
 
     if (updateError || !updatedOrder) {
@@ -156,7 +156,7 @@ export const denyOrderProcedure = protectedProcedure
     }
 
     try {
-      await notifyParty(ctx.supabaseAdmin, orderBuyerId(updatedOrder), 'orderUpdates', {
+      await notifyParty(ctx.supabaseAdmin, orderBuyerId(order), 'orderUpdates', {
         title: 'Order update',
         body: 'This order was denied.',
       });
