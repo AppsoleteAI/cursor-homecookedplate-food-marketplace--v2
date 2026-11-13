@@ -2,7 +2,7 @@ import { lostPortionOrderCloses, platePaymentCovers } from '../record-paid-order
 import { buyerCardCharge, buyerServiceFeePercent, calculateFees, orderTotalWithDelivery } from '../fees';
 import { shopClearAllowed } from '../shop-order-status';
 import { confirmedPaidIds, orderCancelPatch, orderHasHeldTransaction, orderPaidState, paymentIntentId, stripeSucceeded } from '../order-payment';
-import { missingBuyerColumn, orderBuyerId, orderCookColumn, orderCookId, orderListColumns, orderListFilterAfterError, orderTotal } from '../order-row';
+import { missingBuyerColumn, orderBuyerId, orderCookColumn, orderCookId, orderInsertShapeAfterError, orderListColumns, orderListFilterAfterError, orderPatchAfterError, orderTotal, plateInsertRow } from '../order-row';
 import { orderStatusAllowed, pickupConfirmedByBoth } from '../order-status';
 import { orderCloseout } from '@/lib/order-closeout';
 import { pickupTags } from '@/lib/meal-publish';
@@ -134,6 +134,35 @@ describe('order row columns', () => {
     }, 'column orders.buyer_id does not exist');
     expect(dropped?.buyerColumn).toBe('platetaker_id');
     expect(dropped?.columns.includes('seller_id')).toBe(false);
+  });
+
+  it('writes a live plate insert when buyer, cook, price, and paid columns are missing', () => {
+    const start = {
+      buyerColumn: 'buyer_id' as const,
+      cookColumn: 'seller_id' as const,
+      priceColumn: 'total_price' as const,
+      writePaid: true,
+    };
+    const buyer = orderInsertShapeAfterError(start, 'column orders.buyer_id does not exist');
+    const cook = orderInsertShapeAfterError(buyer!, 'column orders.seller_id does not exist');
+    const price = orderInsertShapeAfterError(cook!, 'column orders.total_price does not exist');
+    const paid = orderInsertShapeAfterError(price!, 'column orders.paid does not exist');
+    expect(plateInsertRow(paid!, {
+      buyerId: 'buyer-1',
+      cookId: 'cook-1',
+      chargedBase: 15.5,
+      paid: false,
+      rest: { meal_id: 'meal-1', status: 'pending' },
+    })).toEqual({
+      meal_id: 'meal-1',
+      status: 'pending',
+      platetaker_id: 'buyer-1',
+      platemaker_id: 'cook-1',
+      total_price_cents: 1550,
+    });
+    expect(orderPatchAfterError({ status: 'cancelled', paid: false }, 'column orders.paid does not exist')).toEqual({
+      status: 'cancelled',
+    });
   });
 
   it('omits paid from a cancel when that column is absent', () => {

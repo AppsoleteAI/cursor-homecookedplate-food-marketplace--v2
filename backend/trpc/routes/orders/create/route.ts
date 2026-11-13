@@ -4,7 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { plateTotalsMatch } from "@/backend/lib/fees";
 import { holdChargedBase, prepareHomePlate, thisOrderExceedsPortions } from "@/backend/lib/plate-order-rules";
 import { missingColumn, noteForViewer } from "../../../../lib/content-moderation";
-import { orderBuyerId } from "../../../../lib/order-row";
+import { orderInsertShapeAfterError, plateInsertRow, writeOrderPatch, type OrderInsertShape } from "../../../../lib/order-row";
 
 /**
  * Create Order Procedure
@@ -54,54 +54,49 @@ export const createOrderProcedure = protectedProcedure
     // Calculate fees based on the unit price provided (matches UI calculation)
     // SQL trigger will overwrite this if it's wrong, but we calculate here for consistency
     const noteHeld = Boolean(prepared.instructions && input.specialInstructions?.trim());
-    const insertOrder = (withZone: boolean, withNote: boolean) => ctx.supabase
+    let shape: OrderInsertShape = {
+      buyerColumn: 'buyer_id',
+      cookColumn: 'seller_id',
+      priceColumn: 'total_price',
+      writePaid: true,
+    };
+    const insertOrder = (withZone: boolean, withNote: boolean, insertShape: OrderInsertShape) => ctx.supabase
       .from('orders')
-      .insert({
-        meal_id: input.mealId,
-        buyer_id: ctx.userId,
-        seller_id: input.sellerId,
-        quantity,
-        total_price: chargedBase,
+      .insert(plateInsertRow(insertShape, {
+        buyerId: ctx.userId,
+        cookId: input.sellerId,
+        chargedBase,
         paid: false,
-        special_instructions: instructions || null,
-        cooking_temperature: prepared.cookingTemperature,
-        allergies: prepared.allergies,
-        delivery_address: prepared.deliveryAddress,
-        pickup_time: prepared.pickupTime,
-        ...(withZone && pickupTimeZone ? { pickup_timezone: pickupTimeZone } : {}),
-        ...(withNote ? { instructions_status: 'pending' } : {}),
-        status: 'pending',
-        payment_intent_id: null,
-      })
-      .select([
-        'id',
-        'meal_id',
-        'buyer_id',
-        'seller_id',
-        'status',
-        'quantity',
-        'total_price',
-        'paid',
-        'cooking_temperature',
-        'allergies',
-        'delivery_address',
-        'pickup_time',
-        'created_at',
-        ...(withZone && pickupTimeZone ? ['pickup_timezone'] : []),
-      ].join(', '))
+        rest: {
+          meal_id: input.mealId,
+          quantity,
+          special_instructions: instructions || null,
+          cooking_temperature: prepared.cookingTemperature,
+          allergies: prepared.allergies,
+          delivery_address: prepared.deliveryAddress,
+          pickup_time: prepared.pickupTime,
+          ...(withZone && pickupTimeZone ? { pickup_timezone: pickupTimeZone } : {}),
+          ...(withNote ? { instructions_status: 'pending' } : {}),
+          status: 'pending',
+          payment_intent_id: null,
+        },
+      }))
+      .select('id')
       .single();
     let withZone = true;
     let withNote = noteHeld;
-    let { data, error } = await insertOrder(withZone, withNote);
-    if (error && withNote && missingColumn(error.message, 'instructions_status')) {
-      withNote = false;
-      const retry = await insertOrder(withZone, withNote);
-      data = retry.data;
-      error = retry.error;
-    }
-    if (error && withZone && pickupTimeZone && /pickup_timezone/.test(error.message || '')) {
-      withZone = false;
-      const retry = await insertOrder(withZone, withNote);
+    let { data, error } = await insertOrder(withZone, withNote, shape);
+    for (let attempt = 0; attempt < 8 && error; attempt += 1) {
+      if (withNote && missingColumn(error.message, 'instructions_status')) {
+        withNote = false;
+      } else if (withZone && pickupTimeZone && /pickup_timezone/.test(error.message || '')) {
+        withZone = false;
+      } else {
+        const next = orderInsertShapeAfterError(shape, error.message);
+        if (!next) break;
+        shape = next;
+      }
+      const retry = await insertOrder(withZone, withNote, shape);
       data = retry.data;
       error = retry.error;
     }
@@ -115,7 +110,10 @@ export const createOrderProcedure = protectedProcedure
     if (!plateTotalsMatch(held, chargedBase)) {
       const removed = await ctx.supabaseAdmin.from('orders').delete().eq('id', order.id);
       if (removed.error) {
-        await ctx.supabaseAdmin.from('orders').update({ status: 'cancelled', paid: false }).eq('id', order.id);
+        await writeOrderPatch(
+          (patch) => ctx.supabaseAdmin.from('orders').update(patch).eq('id', order.id),
+          { status: 'cancelled', paid: false },
+        );
       }
       throw new TRPCError({
         code: 'PRECONDITION_FAILED',
@@ -140,26 +138,26 @@ export const createOrderProcedure = protectedProcedure
 
     return {
       id: order.id,
-      mealId: order.meal_id,
-      buyerId: order.buyer_id,
-      sellerId: order.seller_id,
-      status: order.status,
-      quantity: order.quantity,
-      totalPrice: parseFloat(order.total_price), // Final price from DB (after trigger)
-      paid: order.paid,
+      mealId: input.mealId,
+      buyerId: ctx.userId,
+      sellerId: input.sellerId,
+      status: 'pending',
+      quantity,
+      totalPrice: chargedBase,
+      paid: false,
       specialInstructions: noteForViewer({
         text: instructions,
         status: withNote ? 'pending' : null,
-        buyerId: orderBuyerId(order),
-        sellerId: order.seller_id,
+        buyerId: ctx.userId,
+        sellerId: input.sellerId,
         viewerId: ctx.userId,
       }).text ?? undefined,
       instructionsStatus: withNote ? 'pending' : null,
-      cookingTemperature: order.cooking_temperature,
-      allergies: order.allergies,
-      deliveryAddress: order.delivery_address,
-      pickupTime: order.pickup_time ? new Date(order.pickup_time) : undefined,
-      pickupTimeZone: typeof order.pickup_timezone === 'string' ? order.pickup_timezone : pickupTimeZone || undefined,
-      createdAt: new Date(order.created_at),
+      cookingTemperature: prepared.cookingTemperature,
+      allergies: prepared.allergies,
+      deliveryAddress: prepared.deliveryAddress,
+      pickupTime: prepared.pickupTime ? new Date(prepared.pickupTime) : undefined,
+      pickupTimeZone: pickupTimeZone || undefined,
+      createdAt: new Date(),
     };
   });

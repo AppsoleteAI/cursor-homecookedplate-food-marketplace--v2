@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../../create-context';
-import { orderBuyerId, readOrderQuery } from '../../../../lib/order-row';
+import { orderBuyerId, readOrderQuery, writeOrderPatch } from '../../../../lib/order-row';
+import { orderPaidState, orderPaymentConfirmed } from '../../../../lib/order-payment';
 
 export const abandonUnpaidOrdersProcedure = protectedProcedure
   .input(z.object({
@@ -16,15 +17,20 @@ export const abandonUnpaidOrdersProcedure = protectedProcedure
       throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Could not close the unpaid order.' });
     }
 
-    const ids = ((data || []) as any[])
-      .filter((order: any) => orderBuyerId(order) === ctx.userId && order.paid !== true && order.status === 'pending')
-      .map((order: any) => order.id as string);
+    const stripeSecret = ctx.stripeSecretKey || process.env.STRIPE_SECRET_KEY;
+    const ids: string[] = [];
+    for (const order of (data || []) as any[]) {
+      if (orderBuyerId(order) !== ctx.userId || order.status !== 'pending') continue;
+      if (orderPaidState(order) === 'paid') continue;
+      if (orderPaidState(order) === 'absent' && await orderPaymentConfirmed(order, ctx.supabaseAdmin, stripeSecret)) continue;
+      ids.push(order.id as string);
+    }
     if (ids.length === 0) return { cancelled: 0 };
 
-    const update = await ctx.supabaseAdmin
-      .from('orders')
-      .update({ status: 'cancelled', paid: false })
-      .in('id', ids);
+    const update = await writeOrderPatch(
+      (patch) => ctx.supabaseAdmin.from('orders').update(patch).in('id', ids),
+      { status: 'cancelled', paid: false },
+    );
     if (update.error) {
       throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Could not close the unpaid order.' });
     }

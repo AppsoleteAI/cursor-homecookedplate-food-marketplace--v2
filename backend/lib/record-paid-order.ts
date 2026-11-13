@@ -1,7 +1,8 @@
 import { appRevenueWithDelivery, buyerCardCharge, buyerServiceFeePercent, calculateFees, orderTotalWithDelivery, sharedChargeRefundCents } from './fees';
-import { orderBuyerId, orderTotal, readOrderQuery } from './order-row';
+import { missingOrderColumn, orderBuyerId, orderCookId, orderTotal, readOrderQuery, writeOrderPatch } from './order-row';
+import { portionsAlreadyTaken } from './plate-order-rules';
 import { notifyCookOfPayment, notifyParty } from './account-notice';
-import { portionRowHolds, portionsFromTags } from '@/lib/meal-publish';
+import { portionsFromTags } from '@/lib/meal-publish';
 import { refundChargeCents } from './refund-card';
 
 /** A lost portion closes only after that charge is refunded. */
@@ -71,7 +72,8 @@ type PaidOrderRow = {
   id: string;
   buyer_id?: string | null;
   platetaker_id?: string | null;
-  seller_id: string;
+  seller_id?: string | null;
+  platemaker_id?: string | null;
   meal_id?: string | null;
   quantity?: number | null;
   total_price?: number | string | null;
@@ -146,22 +148,17 @@ export async function recordPlatePayment(
     }
     const tagValue = order.meal_id ? tags.get(order.meal_id) : undefined;
     const cap = portionsFromTags(Array.isArray(tagValue) ? tagValue.filter((tag): tag is string => typeof tag === 'string') : undefined);
-    const held = await admin.from('orders').select('id, quantity, status, paid, created_at').eq('meal_id', order.meal_id).eq('paid', true);
-    const taken = held.error
-      ? null
-      : (held.data || []).reduce((sum: number, row: { status?: string; paid?: boolean; quantity?: number }) => (
-        portionRowHolds(row) ? sum + Math.max(0, Math.round(Number(row.quantity) || 0)) : sum
-      ), 0);
+    const taken = order.meal_id ? await portionsAlreadyTaken(admin, order.meal_id) : null;
     const quantity = Math.max(0, Math.round(Number(order.quantity) || 0));
     if (taken == null || taken + quantity > cap) {
       rejected.push(order);
       continue;
     }
-    const marked = await admin.from('orders').update({
-      paid: true,
-      updated_at: new Date().toISOString(),
-    }).eq('id', order.id);
-    if (marked.error) {
+    const marked = await writeOrderPatch(
+      (patch) => admin.from('orders').update(patch).eq('id', order.id),
+      { paid: true, updated_at: new Date().toISOString() },
+    );
+    if (marked.error && !missingOrderColumn(marked.error.message, 'paid')) {
       rejected.push(order);
       continue;
     }
@@ -181,7 +178,10 @@ export async function recordPlatePayment(
           if (cents <= 0) continue;
           await refundChargeCents(input.stripeSecretKey, input.paymentIntentId, cents);
           if (!lostPortionOrderCloses(true)) continue;
-          const closed = await admin.from('orders').update({ status: 'cancelled', paid: false }).eq('id', order.id);
+          let closed = await admin.from('orders').update({ status: 'cancelled', paid: false }).eq('id', order.id);
+          if (closed.error && missingOrderColumn(closed.error.message, 'paid')) {
+            closed = await admin.from('orders').update({ status: 'cancelled' }).eq('id', order.id);
+          }
           if (closed.error) {
             console.error('[PaidOrder] The refund went through and the order is still open:', closed.error?.message);
             continue;
@@ -237,7 +237,7 @@ export async function recordPlatePayment(
       payment_intent_id: input.paymentIntentId,
       order_id: order.id,
       buyer_id: orderBuyerId(order),
-      seller_id: order.seller_id,
+      seller_id: orderCookId(order),
       meal_id: order.meal_id,
       base_price: Number(basePrice.toFixed(2)),
       buyer_payment: withDelivery.buyerPays,
@@ -257,7 +257,7 @@ export async function recordPlatePayment(
     if (transactionError) {
       console.error('[PaidOrder] Payout hold was not recorded:', transactionError.message);
     }
-    await notifyCookOfPayment(admin, order.seller_id, withDelivery.buyerPays);
+    await notifyCookOfPayment(admin, orderCookId(order), withDelivery.buyerPays);
   }
 
   return updatedOrders.length;

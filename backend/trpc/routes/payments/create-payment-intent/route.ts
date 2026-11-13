@@ -8,7 +8,7 @@ import { PAYOUT_HOLD_DAYS } from '../../../../lib/payout-policy';
 import { salesVolumeBlock } from '../../../../lib/stripe-marketplace';
 import { confirmCookPayouts } from '../../../../lib/connect-account';
 import { browserOrigin, CHECKOUT_RETURN_MESSAGE, openStripeCheckout } from '../../../../lib/stripe-checkout';
-import { orderBuyerId, orderTotal, readOrderQuery } from '../../../../lib/order-row';
+import { missingOrderColumn, orderBuyerId, orderCookId, orderTotal, readOrderQuery } from '../../../../lib/order-row';
 import { applePayMerchantName, profilePayeeName } from '../../../../lib/payee-name';
 import { resolvedMembershipTier } from '../../../../lib/trial-access';
 
@@ -17,11 +17,17 @@ async function attachPlatePaymentIntent(
   orderIds: string[],
   paymentIntentId: string,
 ) {
-  const saved = await admin
+  let saved = await admin
     .from('orders')
     .update({ payment_intent_id: paymentIntentId })
     .in('id', orderIds)
     .eq('paid', false);
+  if (saved.error && missingOrderColumn(saved.error.message, 'paid')) {
+    saved = await admin
+      .from('orders')
+      .update({ payment_intent_id: paymentIntentId })
+      .in('id', orderIds);
+  }
   if (saved.error) {
     throw new TRPCError({
       code: 'INTERNAL_SERVER_ERROR',
@@ -78,7 +84,7 @@ export const createPaymentIntentProcedure = protectedProcedure
           message: 'You can only pay for your own orders',
         });
       }
-      if (order.seller_id !== input.sellerId) {
+      if (orderCookId(order) !== input.sellerId) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message: 'All orders in one payment must be from the same cook',

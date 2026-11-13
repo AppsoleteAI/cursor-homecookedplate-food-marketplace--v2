@@ -30,6 +30,7 @@ import { refundCookSale } from '../../../../lib/stripe-marketplace';
 import { notifyCookOfPayment, notifyParty } from '../../../../lib/account-notice';
 import { holdChargedBase, prepareHomePlate, thisOrderExceedsPortions } from '../../../../lib/plate-order-rules';
 import { missingColumn } from '../../../../lib/content-moderation';
+import { missingOrderColumn, orderInsertShapeAfterError, orderPatchAfterError, plateInsertRow, type OrderInsertShape } from '../../../../lib/order-row';
 import { refundChargeCents } from '../../../../lib/refund-card';
 import {
   auditShopMatchesCombinedRefund,
@@ -467,6 +468,29 @@ async function applyHomeDelivery(
   };
 }
 
+async function cancelCookOrders(
+  _admin: SupabaseClient,
+  apply: (
+    patch: Record<string, unknown>,
+    cookColumn: 'seller_id' | 'platemaker_id',
+  ) => PromiseLike<{ error: { message?: string } | null }>,
+): Promise<{ error: { message?: string } | null }> {
+  let cookColumn: 'seller_id' | 'platemaker_id' = 'seller_id';
+  let patch: Record<string, unknown> = { status: 'cancelled', paid: false };
+  let result = await apply(patch, cookColumn);
+  for (let attempt = 0; attempt < 4 && result.error; attempt += 1) {
+    if (missingOrderColumn(result.error.message, 'seller_id') && cookColumn === 'seller_id') {
+      cookColumn = 'platemaker_id';
+    } else {
+      const next = orderPatchAfterError(patch, result.error.message);
+      if (!next) return result;
+      patch = next;
+    }
+    result = await apply(patch, cookColumn);
+  }
+  return result;
+}
+
 async function insertHomeOrders(
   admin: SupabaseClient,
   stripeSecretKey: string,
@@ -501,33 +525,45 @@ async function insertHomeOrders(
     });
     const chargedBase = Math.round(quotedLineAmount(line) * 100) / 100;
     const noteHeld = Boolean(prepared.instructions && source?.specialInstructions?.trim());
-    const insertOrder = (withZone: boolean, withNote: boolean) => admin.from('orders').insert({
-      meal_id: line.productId,
-      buyer_id: buyerId,
-      seller_id: checkout.sellerId,
-      quantity: prepared.quantity,
-      total_price: chargedBase,
+    let shape: OrderInsertShape = {
+      buyerColumn: 'buyer_id',
+      cookColumn: 'seller_id',
+      priceColumn: 'total_price',
+      writePaid: true,
+    };
+    const insertOrder = (withZone: boolean, withNote: boolean, insertShape: OrderInsertShape) => admin.from('orders').insert(plateInsertRow(insertShape, {
+      buyerId,
+      cookId: checkout.sellerId,
+      chargedBase,
       paid: true,
-      status: 'pending',
-      payment_intent_id: paymentIntentId,
-      special_instructions: prepared.instructions || null,
-      cooking_temperature: prepared.cookingTemperature,
-      allergies: prepared.allergies,
-      delivery_address: prepared.deliveryAddress,
-      pickup_time: prepared.pickupTime,
-      ...(withZone && prepared.pickupTimeZone ? { pickup_timezone: prepared.pickupTimeZone } : {}),
-      ...(withNote ? { instructions_status: 'pending' } : {}),
-    }).select('id').single();
+      rest: {
+        meal_id: line.productId,
+        quantity: prepared.quantity,
+        status: 'pending',
+        payment_intent_id: paymentIntentId,
+        special_instructions: prepared.instructions || null,
+        cooking_temperature: prepared.cookingTemperature,
+        allergies: prepared.allergies,
+        delivery_address: prepared.deliveryAddress,
+        pickup_time: prepared.pickupTime,
+        ...(withZone && prepared.pickupTimeZone ? { pickup_timezone: prepared.pickupTimeZone } : {}),
+        ...(withNote ? { instructions_status: 'pending' } : {}),
+      },
+    })).select('id').single();
     let withZone = true;
     let withNote = noteHeld;
-    let inserted = await insertOrder(withZone, withNote);
-    if (inserted.error && withNote && missingColumn(inserted.error.message, 'instructions_status')) {
-      withNote = false;
-      inserted = await insertOrder(withZone, withNote);
-    }
-    if (inserted.error && withZone && prepared.pickupTimeZone && /pickup_timezone/.test(inserted.error.message || '')) {
-      withZone = false;
-      inserted = await insertOrder(withZone, withNote);
+    let inserted = await insertOrder(withZone, withNote, shape);
+    for (let attempt = 0; attempt < 8 && inserted.error; attempt += 1) {
+      if (withNote && missingColumn(inserted.error.message, 'instructions_status')) {
+        withNote = false;
+      } else if (withZone && prepared.pickupTimeZone && /pickup_timezone/.test(inserted.error.message || '')) {
+        withZone = false;
+      } else {
+        const next = orderInsertShapeAfterError(shape, inserted.error.message);
+        if (!next) break;
+        shape = next;
+      }
+      inserted = await insertOrder(withZone, withNote, shape);
     }
     if (inserted.error || !inserted.data) {
       console.error('[CombinedCheckout] Home order insert failed:', inserted.error);
@@ -538,7 +574,7 @@ async function insertHomeOrders(
     if (!plateTotalsMatch(held, prepared.chargedBase)) {
       const removed = await admin.from('orders').delete().eq('id', orderId);
       if (removed.error) {
-        await admin.from('orders').update({ status: 'cancelled', paid: false }).eq('id', orderId);
+        await cancelCookOrders(admin, (patch, cookColumn) => admin.from('orders').update(patch).eq('id', orderId).eq(cookColumn, checkout.sellerId));
       }
       saleMissed = true;
       break;
@@ -563,7 +599,7 @@ async function insertHomeOrders(
     console.error('[CombinedCheckout] A portion refund was not finished. The order stays open:', error);
   }
   if (!refunded) return ids;
-  const closed = await admin.from('orders').update({ status: 'cancelled', paid: false }).in('id', ids);
+  const closed = await cancelCookOrders(admin, (patch) => admin.from('orders').update(patch).in('id', ids));
   if (closed.error) {
     console.error('[CombinedCheckout] The refund went through and the plate order is still open:', closed.error.message);
     return ids;
@@ -993,20 +1029,20 @@ export const refundCombinedCheckoutProcedure = protectedProcedure
       platformFeeKept += result.platformFeeKept;
       refundId = result.refundId;
       if (row.order_id) {
-        await ctx.supabaseAdmin
+        await cancelCookOrders(ctx.supabaseAdmin, (patch, cookColumn) => ctx.supabaseAdmin
           .from('orders')
-          .update({ status: 'cancelled', paid: false })
+          .update(patch)
           .eq('id', row.order_id)
-          .eq('seller_id', input.sellerId);
+          .eq(cookColumn, input.sellerId));
       }
     }
 
     if (refunded && input.area === 'home') {
-      await ctx.supabaseAdmin
+      await cancelCookOrders(ctx.supabaseAdmin, (patch, cookColumn) => ctx.supabaseAdmin
         .from('orders')
-        .update({ status: 'cancelled', paid: false })
+        .update(patch)
         .eq('payment_intent_id', input.paymentIntentId)
-        .eq('seller_id', input.sellerId);
+        .eq(cookColumn, input.sellerId));
     }
     if (refunded && input.area !== 'home') {
       await cancelCombinedShopOrder(ctx.supabaseAdmin, input.paymentIntentId, input.area, input.sellerId);

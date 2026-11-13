@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../../create-context';
-import { missingBuyerColumn } from '../../../../lib/order-row';
+import { orderListFilterAfterError, writeOrderPatch, type OrderListFilter } from '../../../../lib/order-row';
+import { orderPaidState, orderPaymentConfirmed } from '../../../../lib/order-payment';
 import { refundOpenCharge } from '../../../../lib/refund-card';
 import { moveMetroHeadcount, undoMetroHeadcount } from '../../../../lib/metro-headcount';
 import { unpackShopLines } from '../../../../lib/shop-fulfillment';
@@ -236,15 +237,24 @@ async function closeOpenOrders(
   userId: string,
   stripeSecretKey: string | undefined,
 ): Promise<void> {
-  const load = async (buyerColumn: 'buyer_id' | 'platetaker_id') => admin
+  let filter: OrderListFilter = {
+    cookColumn: 'seller_id',
+    requirePaid: false,
+    buyerColumn: 'buyer_id',
+    columns: 'id, paid, payment_intent_id, status',
+  };
+  const load = (current: OrderListFilter) => admin
     .from('orders')
-    .select('id, paid, payment_intent_id, status')
-    .or(`${buyerColumn}.eq.${userId},seller_id.eq.${userId}`)
+    .select(current.columns)
+    .or(`${current.buyerColumn}.eq.${userId},${current.cookColumn}.eq.${userId}`)
     .in('status', OPEN_STATUSES);
 
-  let orders = await load('buyer_id');
-  if (orders.error && missingBuyerColumn(orders.error.message)) {
-    orders = await load('platetaker_id');
+  let orders = await load(filter);
+  for (let attempt = 0; attempt < 6 && orders.error; attempt += 1) {
+    const next = orderListFilterAfterError(filter, orders.error.message);
+    if (!next) break;
+    filter = next;
+    orders = await load(filter);
   }
   if (orders.error) {
     throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Open orders could not be closed. This account was not deleted.' });
@@ -270,7 +280,9 @@ async function closeOpenOrders(
   const refunded = new Set<string>();
   for (const order of orders.data ?? []) {
     const intent = order.payment_intent_id as string | null;
-    if (order.paid && intent && !refunded.has(intent)) {
+    const paid = orderPaidState(order) === 'paid'
+      || (orderPaidState(order) === 'absent' && await orderPaymentConfirmed(order, admin, stripeSecretKey));
+    if (paid && intent && !refunded.has(intent)) {
       await assertChargeBelongsToClosing(admin, intent, closingOrderIds, closingShopIds);
       if (!stripeSecretKey) {
         throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'The card refund could not be started. This account was not deleted.' });
@@ -285,11 +297,14 @@ async function closeOpenOrders(
       }
       refunded.add(intent);
     }
-    const closed = await admin.from('orders').update({ status: 'cancelled', paid: false }).eq('id', order.id);
+    const closed = await writeOrderPatch(
+      (patch) => admin.from('orders').update(patch).eq('id', order.id),
+      { status: 'cancelled', paid: false },
+    );
     if (closed.error) {
       throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'An open order could not be closed. This account was not deleted.' });
     }
-    if (order.paid) {
+    if (paid) {
       await admin.from('transactions').update({ status: 'refunded' }).eq('order_id', order.id).eq('status', 'held');
     }
   }

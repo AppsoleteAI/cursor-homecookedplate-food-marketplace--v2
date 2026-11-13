@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
-import { orderBuyerId, orderTotal, readOrderQuery } from "../../../../lib/order-row";
+import { missingOrderColumn, orderBuyerId, orderTotal, readOrderQuery } from "../../../../lib/order-row";
 import { listedPlateMetadata, platePaymentCovers } from "../../../../lib/record-paid-order";
 
 export const updatePaymentIntentProcedure = protectedProcedure
@@ -79,11 +79,17 @@ export const updatePaymentIntentProcedure = protectedProcedure
       });
     }
 
-    const saved = await ctx.supabaseAdmin
+    let saved = await ctx.supabaseAdmin
       .from('orders')
       .update({ payment_intent_id: input.paymentIntentId })
       .in('id', input.orderIds)
       .eq('paid', false);
+    if (saved.error && missingOrderColumn(saved.error.message, 'paid')) {
+      saved = await ctx.supabaseAdmin
+        .from('orders')
+        .update({ payment_intent_id: input.paymentIntentId })
+        .in('id', input.orderIds);
+    }
     if (saved.error) {
       throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'The payment could not be linked to these orders.' });
     }

@@ -3,6 +3,7 @@ import { TRPCError } from '@trpc/server';
 import { sessionProcedure } from '../../../create-context';
 import { providerProfileAction, usernameCandidates, type AccountRole } from '../../../../lib/provider-profile';
 import { ensureAccountIdentifier } from '../../../../lib/account-identifier';
+import { missingOrderColumn } from '../../../../lib/order-row';
 
 export const finishProviderAccountProcedure = sessionProcedure
   .input(z.object({
@@ -24,11 +25,15 @@ export const finishProviderAccountProcedure = sessionProcedure
     }
 
     const profile = profileRead.data;
-    const [meals, buyerOrders, sellerOrders] = await Promise.all([
-      ctx.supabaseAdmin.from('meals').select('id').eq('user_id', ctx.userId).limit(1),
-      ctx.supabaseAdmin.from('orders').select('id').eq('buyer_id', ctx.userId).limit(1),
-      ctx.supabaseAdmin.from('orders').select('id').eq('seller_id', ctx.userId).limit(1),
-    ]);
+    const meals = await ctx.supabaseAdmin.from('meals').select('id').eq('user_id', ctx.userId).limit(1);
+    let buyerOrders = await ctx.supabaseAdmin.from('orders').select('id').eq('buyer_id', ctx.userId).limit(1);
+    if (buyerOrders.error && missingOrderColumn(buyerOrders.error.message, 'buyer_id')) {
+      buyerOrders = await ctx.supabaseAdmin.from('orders').select('id').eq('platetaker_id', ctx.userId).limit(1);
+    }
+    let sellerOrders = await ctx.supabaseAdmin.from('orders').select('id').eq('seller_id', ctx.userId).limit(1);
+    if (sellerOrders.error && missingOrderColumn(sellerOrders.error.message, 'seller_id')) {
+      sellerOrders = await ctx.supabaseAdmin.from('orders').select('id').eq('platemaker_id', ctx.userId).limit(1);
+    }
     if (meals.error || buyerOrders.error || sellerOrders.error) {
       throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'That sign-in could not be checked.' });
     }

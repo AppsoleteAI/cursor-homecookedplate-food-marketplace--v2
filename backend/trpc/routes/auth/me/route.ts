@@ -6,6 +6,8 @@ import { platemakerMayEnter, platemakerTrialCountdownDays, trialCloseoutKeepsKit
 import { verifiedFactors } from "../../../../lib/second-factor";
 import { sessionProcedure } from "../../../create-context";
 import { ensureAccountIdentifier } from "../../../../lib/account-identifier";
+import { confirmedPaidIds } from "../../../../lib/order-payment";
+import { orderListFilterAfterError, type OrderListFilter } from "../../../../lib/order-row";
 
 export const meProcedure = sessionProcedure
   .query(async ({ ctx }) => {
@@ -29,25 +31,48 @@ export const meProcedure = sessionProcedure
     const trialExpired = unpaidPlatemakerTrialEnded({ ...current, membership_tier: membershipTier });
 
     const claimMetro = await readEarlyBirdClaim(ctx.supabaseAdmin, profile.id);
-    const openOrders = await ctx.supabaseAdmin
-      .from('orders')
-      .select('id')
-      .eq('seller_id', profile.id)
-      .in('status', ['pending', 'accepted', 'preparing', 'ready'])
-      .limit(1);
-    const hasOpenOrder = Boolean(openOrders.error) || (openOrders.data || []).length > 0;
+    const openStatuses = ['pending', 'accepted', 'preparing', 'ready'];
+    const loadCookOrders = async (requirePaid: boolean) => {
+      let filter: OrderListFilter = {
+        cookColumn: 'seller_id',
+        requirePaid,
+        buyerColumn: 'platetaker_id',
+        columns: 'id, paid, payment_intent_id',
+      };
+      const load = (current: OrderListFilter) => {
+        let query = ctx.supabaseAdmin
+          .from('orders')
+          .select(current.columns)
+          .eq(current.cookColumn, profile.id)
+          .in('status', openStatuses)
+          .limit(requirePaid ? 50 : 1);
+        if (current.requirePaid) query = query.eq('paid', true);
+        return query;
+      };
+      let result = await load(filter);
+      for (let attempt = 0; attempt < 6 && result.error; attempt += 1) {
+        const next = orderListFilterAfterError(filter, result.error.message);
+        if (!next) break;
+        filter = next;
+        result = await load(filter);
+      }
+      return { result, filter };
+    };
+    const openOrders = await loadCookOrders(false);
+    const hasOpenOrder = Boolean(openOrders.result.error) || (openOrders.result.data || []).length > 0;
     const trialApplies = earlyBirdCoversThisMetro(claimMetro, profile.metro_area, hasOpenOrder);
-    const closeoutOrders = await ctx.supabaseAdmin
-      .from('orders')
-      .select('id')
-      .eq('seller_id', profile.id)
-      .eq('paid', true)
-      .in('status', ['pending', 'accepted', 'preparing', 'ready'])
-      .limit(1);
-    const keepKitchen = trialCloseoutKeepsKitchen(
-      trialExpired,
-      !closeoutOrders.error && (closeoutOrders.data || []).length > 0,
-    );
+    const closeoutOrders = await loadCookOrders(true);
+    let closeoutCount = 0;
+    if (!closeoutOrders.result.error) {
+      const rows = (closeoutOrders.result.data || []) as { id: string; paid?: boolean | null; payment_intent_id?: string | null }[];
+      if (closeoutOrders.filter.requirePaid) {
+        closeoutCount = rows.length;
+      } else {
+        const paidIds = await confirmedPaidIds(rows, ctx.supabaseAdmin, ctx.stripeSecretKey || process.env.STRIPE_SECRET_KEY);
+        closeoutCount = rows.filter((row) => paidIds.has(row.id)).length;
+      }
+    }
+    const keepKitchen = trialCloseoutKeepsKitchen(trialExpired, closeoutCount > 0);
 
     let twoFactorEnabled = Boolean(profile.two_factor_enabled);
     const factors = await ctx.supabaseAdmin.auth.admin.mfa.listFactors({ userId: profile.id });

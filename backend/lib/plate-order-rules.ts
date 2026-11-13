@@ -1,7 +1,8 @@
 import { TRPCError } from '@trpc/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { chargedPlateBase, plateTotalsMatch } from './fees';
-import { orderTotal } from './order-row';
+import { confirmedPaidIds } from './order-payment';
+import { orderColumnsAfterError, orderTotal } from './order-row';
 import { loadActiveOffers } from './active-offer';
 import { isSampleMealId } from '@/lib/sample-meals';
 import { cookPermitIsSaved } from './kitchen-permit';
@@ -15,10 +16,26 @@ import { auditTextField, auditTextList } from './text-audit';
 
 type Admin = SupabaseClient;
 
+async function portionRows(admin: { from: (table: string) => any }, mealId: string) {
+  let columns = 'id, quantity, status, paid, payment_intent_id, created_at';
+  let result = await admin.from('orders').select(columns).eq('meal_id', mealId);
+  for (let attempt = 0; attempt < 4 && result.error; attempt += 1) {
+    const next = orderColumnsAfterError(columns, result.error.message);
+    if (!next) return null;
+    columns = next;
+    result = await admin.from('orders').select(columns).eq('meal_id', mealId);
+  }
+  if (result.error) return null;
+  const rows = (result.data || []) as { id: string; paid?: boolean | null; payment_intent_id?: string | null; quantity?: number; status?: string; created_at?: string }[];
+  if (columns.split(', ').includes('paid')) return rows;
+  const paidIds = await confirmedPaidIds(rows, admin, undefined);
+  return rows.map((row) => ({ ...row, paid: paidIds.has(row.id) }));
+}
+
 export async function portionsAlreadyTaken(admin: { from: (table: string) => any }, mealId: string): Promise<number | null> {
-  const { data, error } = await admin.from('orders').select('id, quantity, status, paid, created_at').eq('meal_id', mealId);
-  if (error) return null;
-  return (data || []).reduce((sum: number, row: { status?: string; paid?: boolean; quantity?: number }) => {
+  const data = await portionRows(admin, mealId);
+  if (!data) return null;
+  return data.reduce((sum: number, row: { status?: string; paid?: boolean; quantity?: number }) => {
     if (!portionRowHolds(row)) return sum;
     return sum + Math.max(0, Math.round(Number(row.quantity) || 0));
   }, 0);
@@ -30,9 +47,9 @@ export async function thisOrderExceedsPortions(
   orderId: string,
   portionCap: number,
 ): Promise<boolean | null> {
-  const { data, error } = await admin.from('orders').select('id, quantity, status, paid, created_at').eq('meal_id', mealId);
-  if (error) return null;
-  const rows = (data || [])
+  const data = await portionRows(admin, mealId);
+  if (!data) return null;
+  const rows = data
     .filter((row: { status?: string; paid?: boolean }) => portionRowHolds(row))
     .sort((a: { created_at?: string; id: string }, b: { created_at?: string; id: string }) => {
       const byTime = String(a.created_at || '').localeCompare(String(b.created_at || ''));
