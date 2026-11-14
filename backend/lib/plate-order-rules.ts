@@ -35,7 +35,7 @@ async function portionRows(admin: { from: (table: string) => any }, mealId: stri
 export async function portionsAlreadyTaken(admin: { from: (table: string) => any }, mealId: string): Promise<number | null> {
   const data = await portionRows(admin, mealId);
   if (!data) return null;
-  return data.reduce((sum: number, row: { status?: string; paid?: boolean; quantity?: number }) => {
+  return data.reduce((sum, row) => {
     if (!portionRowHolds(row)) return sum;
     return sum + Math.max(0, Math.round(Number(row.quantity) || 0));
   }, 0);
@@ -50,8 +50,8 @@ export async function thisOrderExceedsPortions(
   const data = await portionRows(admin, mealId);
   if (!data) return null;
   const rows = data
-    .filter((row: { status?: string; paid?: boolean }) => portionRowHolds(row))
-    .sort((a: { created_at?: string; id: string }, b: { created_at?: string; id: string }) => {
+    .filter((row) => portionRowHolds(row))
+    .sort((a, b) => {
       const byTime = String(a.created_at || '').localeCompare(String(b.created_at || ''));
       return byTime === 0 ? a.id.localeCompare(b.id) : byTime;
     });

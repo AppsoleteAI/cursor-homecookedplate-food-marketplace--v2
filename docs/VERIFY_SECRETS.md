@@ -14,7 +14,7 @@ test -n "$SUPABASE_ACCESS_TOKEN" || exit 1
 # List all secrets and filter for Stripe/Subscription related ones
 npx --yes supabase@2.120.0 secrets list --project-ref tsrjtiunqbocmjgozeew | grep -E "(STRIPE_PRICE_ID|SUBSCRIPTION_PRICE|STRIPE_SECRET)"
 
-# Verify no old "STANDARD" keys exist (should return empty)
+# List older STANDARD names. Leave them. Do not unset them from this file.
 npx --yes supabase@2.120.0 secrets list --project-ref tsrjtiunqbocmjgozeew | grep "STANDARD"
 ```
 
@@ -23,14 +23,11 @@ npx --yes supabase@2.120.0 secrets list --project-ref tsrjtiunqbocmjgozeew | gre
 The price-id names below are not read by the running app. Do not add them from this list. After verification, older notes expected these names:
 
 ### Required Stripe Secrets
-- ✅ `STRIPE_SECRET_KEY` - Your Stripe secret key (starts with `sk_test_` or `sk_live_`)
-- ✅ `STRIPE_PRICE_ID_MONTHLY` - Monthly subscription price ID (replaces old `STRIPE_PRICE_ID_STANDARD_MONTHLY`)
-- ⚠️ `STRIPE_PRICE_ID_LIFETIME_FREE` - $0 lifetime product price ID (set after creating product in Stripe)
-- ⚠️ `STRIPE_PRICE_ID_EARLY_BIRD_TRIAL` - Early Bird trial price ID (optional, for trial promotions)
+- ✅ `STRIPE_SECRET_KEY` - Stripe secret key on the Worker `plate-marketplace-api`. Do not paste the value here.
+- `STRIPE_PRICE_ID_MONTHLY`, `STRIPE_PRICE_ID_STANDARD_MONTHLY`, `STRIPE_PRICE_ID_STANDARD_ANNUAL`, `STRIPE_PRICE_ID_LIFETIME_FREE`, and `STRIPE_PRICE_ID_EARLY_BIRD_TRIAL` are not read by the running app. Do not set them from this file.
 
 ### Subscription Price Constants
-- ✅ `SUBSCRIPTION_PRICE_MONTHLY` - Monthly price value (e.g., `4.99`)
-- ✅ `SUBSCRIPTION_PRICE_ANNUAL` - Annual price value (e.g., `39.99`)
+- `SUBSCRIPTION_PRICE_MONTHLY` and `SUBSCRIPTION_PRICE_ANNUAL` are not read by the running app. Amounts stay in `SUBSCRIPTION_PRICES` in `backend/lib/fees.ts`. Do not set them from this file.
 
 ### Supabase Secrets (Auto-configured)
 - `SUPABASE_URL` - Your Supabase project URL
@@ -48,7 +45,7 @@ Do not set `STRIPE_PRICE_ID_MONTHLY`, `SUBSCRIPTION_PRICE_MONTHLY`, `SUBSCRIPTIO
 
 ## Old price-id names
 
-Do not unset `STRIPE_PRICE_ID_STANDARD_MONTHLY` from this note. `backend/lib/fees.ts` still names it, and nothing in the running app reads that name. The unused edge function `create-subscription` still reads it if that function is invoked. No app file calls `supabase.functions.invoke`.
+Do not unset `STRIPE_PRICE_ID_STANDARD_MONTHLY` from this note. `backend/lib/fees.ts` still names it, and nothing in the running app reads that name. The local `create-subscription` source returns status 410 and does not read it. No app file calls `supabase.functions.invoke`. Do not deploy that function from this note.
 
 ## Troubleshooting
 
@@ -59,4 +56,4 @@ Do not unset `STRIPE_PRICE_ID_STANDARD_MONTHLY` from this note. `backend/lib/fee
 - **Solution**: Do not redeploy `create-checkout-session` or `create-subscription` from this note. No app file calls them.
 
 **Issue**: Function returns "Price ID not configured"
-- **Solution**: Verify the secret name matches exactly (case-sensitive) and redeploy the function
+- **Solution**: Leave it. The local `create-subscription` source returns status 410 and does not read a price id. Do not set a price id from this note, and do not redeploy the function.

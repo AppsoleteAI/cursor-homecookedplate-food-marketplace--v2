@@ -81,75 +81,11 @@ This test verifies that the app detects hardware mismatches and shows the error 
 - `profiles.device_id` for that account equals this install’s token after sign-in.
 - A PlateMaker stays on the kitchen. A PlateTaker stays on home.
 
-## 3. Testing the Stripe Trial ($4.99 Auto-Pay)
+## 3. Membership on the emulator
 
-### Test the "10,000 Slot" Free Trial Flow
+The phone does not call `create-subscription`. That source returns status 410 and must not call Stripe. Do not select `FREE_TRIAL_AUTO_PAY` or `LIFETIME_PROMO`. Do not set a Stripe price id from this note. Do not deploy the function.
 
-**Steps:**
-
-1. **Choose a test metro** (e.g., "Austin")
-2. **Sign up** as a new user in that metro
-3. **Select FREE_TRIAL_AUTO_PAY** promotion type
-4. **Stripe Checkout:**
-   - Use test card: `4242 4242 4242 4242`
-   - Expiry: Any future date (e.g., `12/25`)
-   - CVC: Any 3 digits (e.g., `123`)
-   - ZIP: Any 5 digits (e.g., `12345`)
-
-**Verification Checklist:**
-
-- [ ] Stripe Checkout page explicitly mentions **"30 days free, then $4.99/month"**
-- [ ] Checkout completes successfully
-- [ ] Database check: `metro_name` is correctly recorded in `profiles.metro_area`
-- [ ] Database check: `membership_tier` is set to `'premium'`
-- [ ] Database check: `trial_ends_at` is set to 30 days from now
-- [ ] Database check: `stripe_subscription_id` is populated
-
-**SQL to verify:**
-```sql
-SELECT 
-  id, 
-  email, 
-  metro_area, 
-  membership_tier, 
-  trial_ends_at, 
-  stripe_subscription_id,
-  device_id
-FROM profiles 
-WHERE email = '<test-email>'
-ORDER BY created_at DESC 
-LIMIT 1;
-```
-
-### Test Lifetime Promo Flow
-
-**Steps:**
-
-1. **Sign up** as a new user
-2. **Select LIFETIME_PROMO** promotion type
-3. **Stripe Checkout:**
-   - Use test card: `4242 4242 4242 4242`
-   - Complete checkout (should be $0.00)
-
-**Verification Checklist:**
-
-- [ ] Checkout completes successfully
-- [ ] Database check: `membership_tier` is set to `'lifetime'`
-- [ ] Database check: `device_id` is the binding token for this install
-
-**SQL to verify:**
-```sql
-SELECT 
-  id, 
-  email, 
-  membership_tier, 
-  device_id,
-  metro_area
-FROM profiles 
-WHERE email = '<test-email>'
-ORDER BY created_at DESC 
-LIMIT 1;
-```
+Signed in, a PlateMaker plan and a PlateTaker plan on Android use the Play products. The amounts shown in the app come from `SUBSCRIPTION_PRICES` in `backend/lib/fees.ts`. Signed out, both roles join from Membership. Web, iOS, and Android use the same source. A lifetime account still replaces `device_id` on this install, and a second account cannot store that token. Those checks are in the sections above.
 
 ## 4. Testing Metro Cap Enforcement
 
@@ -188,9 +124,9 @@ WHERE metro_name = 'Austin';
 **Issue:** Checkout page doesn't mention "30 days free"
 
 **Solution:**
-- Verify Edge Function `create-subscription` is deployed
-- Check that `subscription_data[trial_period_days]` is set to `30` in Edge Function
-- Verify Stripe Price ID is configured correctly in Supabase secrets
+- The phone does not call `create-subscription`. That source returns status 410.
+- Do not deploy the function, and do not set a Stripe price id from this note.
+- Signed in, a PlateMaker plan and a PlateTaker plan on Android use the Play products. The amounts shown in the app come from `SUBSCRIPTION_PRICES`.
 
 ### Database Trigger Not Firing
 
@@ -208,9 +144,9 @@ Before publishing, verify:
 - [ ] The same lifetime account can replace `device_id` after a re-download
 - [ ] A second account cannot store that same token
 - [ ] A re-download stays on the kitchen for a PlateMaker and on home for a PlateTaker
-- [ ] Stripe trial checkout shows "30 days free, then $4.99/month"
+- [ ] Signed in, a PlateMaker plan and a PlateTaker plan use the Play products
 - [ ] Metro name is correctly recorded after signup
-- [ ] Lifetime promo sets `device_id` and `membership_tier = 'lifetime'`
+- [ ] A lifetime account replaces `device_id` on this install, and a second account cannot store that token
 - [ ] Metro cap enforcement works (100 users per metro)
 
 ## 7. Production Readiness
@@ -218,9 +154,8 @@ Before publishing, verify:
 Before going live:
 
 1. **Switch Stripe to live mode:**
-   - Update `STRIPE_SECRET_KEY` to live key
-   - Update Stripe Price IDs to live prices
-   - Test with real card (small amount)
+   - The Worker secret `STRIPE_SECRET_KEY` is the live key when Stripe is in live mode. Do not paste the value here.
+   - Leave Stripe price ids unset from this note. Amounts stay in `SUBSCRIPTION_PRICES`. Android membership uses the Play products.
 
 2. **Verify a re-download:**
    - Sign in on a lifetime account, note `device_id`, delete the app, install it again, and sign in.

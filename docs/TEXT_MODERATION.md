@@ -22,6 +22,8 @@ Cooking temperature, allergy names, and the delivery address are refused when th
 
 Signed out. The buyer cannot send a message or place an order.
 
+A held review comment is not on the public review columns. The review list reads the words with the service role and shows them to the author, and to everyone else only after a moderator allows them. A plate note is read the same way for the buyer and the cook. On 11 November 2026 the SQL editor ran `backend/sql/hold_moderated_text.sql` and returned Success with no rows. Do not run it again. A signed-in PlateTaker or PlateMaker cannot read a held comment or a held note with the anon key, and cannot release their own comment. Signed out, that key cannot read a held comment. Web, iOS, and Android use the same source. `plate-marketplace-api` was deployed 11 November 2026. Version `c30c059c-70b8-4ad6-9f83-d87959649fcd`. A PlateMaker accept and a PlateTaker review list use this Worker.
+
 ## Admin
 
 An `is_admin` account opens Moderator from the profile. Allow releases the message, note, or comment and then tells the other person. Remove keeps it hidden. Check saved text hides stored messages and notes that the text check blocks, and takes a blocked plate off the menu. It does not unsend a notification that already went out.

@@ -118,7 +118,7 @@ export default function RecoverScreen() {
                     size={18}
                     color={mode === 'password' ? AuthColors.ink : AuthColors.ink}
                   />
-                  <Text style={[styles.modeText, mode === 'password' && styles.modeTextOn]} numberOfLines={2}>Reset password</Text>
+                  <Text style={[styles.modeText, mode === 'password' && styles.modeTextOn]} numberOfLines={1}>Reset password</Text>
                 </GlassPressable>
                 <GlassPressable
                   style={[styles.modeButton, mode === 'reactivate' && styles.modeButtonOn]}
@@ -127,7 +127,7 @@ export default function RecoverScreen() {
                   accessibilityLabel="Reactivate account"
                 >
                   <Ionicons name="refresh-outline" size={18} color={AuthColors.ink} />
-                  <Text style={[styles.modeText, mode === 'reactivate' && styles.modeTextOn]} numberOfLines={2}>Reactivate</Text>
+                  <Text style={[styles.modeText, mode === 'reactivate' && styles.modeTextOn]} numberOfLines={1}>Reactivate</Text>
                 </GlassPressable>
                 <GlassPressable
                   style={[styles.modeButton, mode === 'confirm' && styles.modeButtonOn]}
@@ -137,7 +137,7 @@ export default function RecoverScreen() {
                   testID="recover-confirm-mode"
                 >
                   <Ionicons name="mail-outline" size={18} color={AuthColors.ink} />
-                  <Text style={[styles.modeText, mode === 'confirm' && styles.modeTextOn]} numberOfLines={2}>Confirm email</Text>
+                  <Text style={[styles.modeText, mode === 'confirm' && styles.modeTextOn]} numberOfLines={1}>Confirm email</Text>
                 </GlassPressable>
               </View>
 
@@ -238,21 +238,19 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   modeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    width: '100%',
     gap: 8,
   },
   modeButton: {
-    flexGrow: 1,
-    flexBasis: '30%',
+    width: '100%',
     minHeight: 48,
     borderRadius: 16,
     backgroundColor: AuthColors.field,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
+    gap: 8,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as unknown as ViewStyle) : null),
   },

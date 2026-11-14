@@ -14,7 +14,9 @@ Farm, food truck, sit-down, catering, and meal prep use the same six acknowledge
 
 A catering package is priced per person. The cook’s minimum is at least 6. A PlateTaker cannot place that package for fewer people than the minimum on the package. Sample catering packages keep the higher minimums already printed on them.
 
-Web, iOS, and Android use the same source. The website publish on `main` includes this UI on https://homecookedplate.com and https://homecookedplate.pages.dev. The column is already on the live table. Build 9 includes this screen. The public reviews are still build 8, which does not. A signed-in PlateMaker on build 8 saves the agreement on the website. A signed-in PlateTaker on build 8 orders after that save. Signed out, both roles use the public site.
+Web, iOS, and Android use the same source. The website publish on `main` includes this UI on https://homecookedplate.com and https://homecookedplate.pages.dev. The column is already on the live table. Build 9 includes this screen. The public reviews are still build 8, which does not.
+
+The public phone app is the store binary a person installs. That binary is build 8 on iOS and build 8 on Android. It is not the website, and it is not build 9. Email sign-in is in that binary. Apple sign-in and Google sign-in are not in that binary. A PlateMaker signed in with email saves the agreement on the website, because that binary has no agreement screen. The save is `profiles.kitchen_permit`. iOS, Android, and the website all read that same record. A PlateTaker signed in with email can order after that save, on the phone or on the website. Signed out, both roles use the public site. Email sign-in is the sign-in that reaches this save and this order. Apple sign-in and Google sign-in are not required for either. This source saves the same agreement from `/kitchen-permit` on web, iOS, and Android after email sign-in. Build 9 and build 10 include that screen. Build 10 also includes Apple sign-in and Google sign-in. Neither build is the public binary.
 
 ## PlateMaker
 

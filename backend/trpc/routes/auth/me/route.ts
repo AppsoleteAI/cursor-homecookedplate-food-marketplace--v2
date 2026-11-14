@@ -64,7 +64,7 @@ export const meProcedure = sessionProcedure
     const closeoutOrders = await loadCookOrders(true);
     let closeoutCount = 0;
     if (!closeoutOrders.result.error) {
-      const rows = (closeoutOrders.result.data || []) as { id: string; paid?: boolean | null; payment_intent_id?: string | null }[];
+      const rows = (closeoutOrders.result.data || []) as unknown as { id: string; paid?: boolean | null; payment_intent_id?: string | null }[];
       if (closeoutOrders.filter.requirePaid) {
         closeoutCount = rows.length;
       } else {

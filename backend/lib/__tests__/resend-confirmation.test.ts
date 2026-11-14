@@ -1,6 +1,6 @@
 import { sendEmailConfirmation } from '@/backend/lib/email';
 import { appRouter } from '../../trpc/app-router';
-import { confirmationExpiresAt, RESEND_CONFIRMATION_MESSAGE } from '../email-confirmation';
+import { ALREADY_CONFIRMED_SIGN_IN_MESSAGE, confirmationExpiresAt, CONFIRMATION_SEND_FAILED_MESSAGE, RESEND_CONFIRMATION_MESSAGE } from '../email-confirmation';
 
 jest.mock('@/backend/lib/email', () => ({
   resendFailure: jest.fn(() => null),
@@ -125,7 +125,7 @@ describe.each(['platemaker', 'platetaker'] as const)('confirmation resend for a 
 
     const confirmed = harness({ role, profile: true, confirmedAt: '2026-11-01T00:00:00.000Z' });
     const confirmedResult = await confirmed.caller.auth.resendVerificationEmail({ email: confirmed.email });
-    expect(confirmedResult).toEqual({ success: true, message: RESEND_CONFIRMATION_MESSAGE });
+    expect(confirmedResult).toEqual({ success: true, message: ALREADY_CONFIRMED_SIGN_IN_MESSAGE });
     expect(confirmedResult).not.toHaveProperty('alreadyConfirmed');
     expect(sendEmailConfirmation).not.toHaveBeenCalled();
 
@@ -144,9 +144,9 @@ describe.each(['platemaker', 'platetaker'] as const)('confirmation resend for a 
 
     (sendEmailConfirmation as jest.Mock).mockRejectedValueOnce(new Error('not sent'));
     const failed = harness({ role, profile: true });
-    await expect(failed.caller.auth.resendVerificationEmail({ email: failed.email })).resolves.toEqual({
-      success: true,
-      message: RESEND_CONFIRMATION_MESSAGE,
+    await expect(failed.caller.auth.resendVerificationEmail({ email: failed.email })).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+      message: CONFIRMATION_SEND_FAILED_MESSAGE,
     });
   });
 });

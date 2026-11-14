@@ -8,7 +8,7 @@ Live secrets belong only on the Worker `plate-marketplace-api`, under **Settings
 
 The deployed Worker reads them in `backend/hono.ts` from `c.env` first. `nodejs_compat_populate_process_env` copies those bindings into `process.env` on the Worker. Checked 12 Oct 2026: `https://plate-marketplace-api.appsolete.workers.dev/health` reports Supabase credentials present and connected.
 
-`npm run dev:api` starts `wrangler dev --local` on port 3000. That process does not receive Worker secrets. `wrangler dev` and `wrangler dev --remote` both stop on this account with "Could not create remote preview session" (the preview token exchange returns HTTP 400). Until that preview session starts, Supabase admin, Stripe, Resend, and the metro webhook run on the deployed Worker.
+`npm run dev:api` starts `wrangler dev --remote` on port 3000 with Wrangler 4.159.0. Wrangler 4.54.0 stopped when a temporary `appsolete.workers.dev` host returned HTTP 400, Cloudflare error 1031. That response is from the account preview session, not from `*-plate-marketplace-api.appsolete.workers.dev`. On 9 November 2026 at 10:42 PM Wrangler 4.159.0 reached Ready on port 3994, and health reported Supabase credentials present and the database connected. That session uses the live Worker secrets. Signed in, a buyer card charge and a cook Connect or payout call on that local port use the live Stripe names. Signed out, a PlateMaker and a PlateTaker on `https://homecookedplate.com` use the deployed Worker. Current Version ID `ee2e4a41-04a7-4c3f-9d12-bcd764915a4f`.
 
 `SUPABASE_ACCESS_TOKEN` is a shell variable for the Supabase CLI. See `.cursor/rules/supabase-cli.mdc`. It is not an app secret and it does not go in a file.
 

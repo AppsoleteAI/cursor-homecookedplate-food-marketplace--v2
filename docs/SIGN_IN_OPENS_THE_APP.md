@@ -38,9 +38,11 @@ Signed in, a PlateMaker and a PlateTaker whose account already holds a complete 
 
 ## Confirmation link
 
-Signed out, a PlateMaker and a PlateTaker use the same Confirm email control. A known address, an unknown address, an address that is already confirmed, and a send that did not go out all return the same sentence: if an account exists with this email, a new verification link has been sent. Each request stores a new link that lasts 24 hours from that request. An older unused link is expired and is not sent again.
+Signed out, a PlateMaker and a PlateTaker use the same Confirm email control. An unknown address, and an address that still needs a link, get the same sentence when a new link was stored and sent: if an account exists with this email, a new verification link has been sent. Each request stores a new link that lasts 24 hours from that request. An older unused link is expired and is not sent again. An address that is already confirmed is told to sign in with email and password. No second link is sent. A link that cannot be stored, or a send the mail host refuses, says the confirmation email could not be sent. That failure does not confirm the address. Sign-in still waits for the link when the address is not confirmed. `plate-marketplace-api` version `29e6f426-c259-4601-8ab7-7ca3ac2deb07` is live. Five checks of `/health` each returned 200. Health reported the database connected at `2026-11-13T08:16:50.873Z`. The installed phone apps show this server sentence without a new store build.
 
-Signed in, neither role uses that control.
+Reset password, Reactivate, and Confirm email each use their own full-width row on that screen. The label stays on one line. Signed out, both roles can open all three. Signed in, neither role uses that screen.
+
+Web, iOS, and Android use the same source. The website publish on `main` serves this Recover screen and Confirm email path. An installed app keeps the previous Recover layout until the next store build.
 
 ## Authenticator code
 

@@ -166,7 +166,7 @@ export function orderPatchAfterError(
 }
 
 export async function writeOrderPatch(
-  run: (patch: Record<string, unknown>) => Promise<{ error: { message?: string } | null }>,
+  run: (patch: Record<string, unknown>) => PromiseLike<{ error: { message?: string } | null }>,
   patch: Record<string, unknown>,
 ): Promise<{ error: { message?: string } | null }> {
   let current = patch;

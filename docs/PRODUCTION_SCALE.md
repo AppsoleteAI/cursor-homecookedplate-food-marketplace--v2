@@ -239,6 +239,8 @@ The editor returned Success with no rows for the files below. Do not run them ag
 
 `backend/sql/migration_add_cascade_to_profiles.sql` returned one row, `profiles_id_fkey` with `ON DELETE CASCADE`. `backend/sql/confirm_live_gates.sql` returned 7 order policies. Those two are done. They are not a no-rows result. Do not run them again.
 
+`backend/sql/add_metro_counts_updated_at.sql` was run on 10 November 2026. The editor returned Success with no rows. Do not run it again. Create Account inside a metro and Get GPS into a named metro can write the count for a PlateMaker and a PlateTaker.
+
 These files stay unrun. A success from one of them would fight the live `orders` columns or the 7 November order policies: `schema.sql`, `security_enhancements.sql`, `test_security.sql`, `complete_setup.sql`, `add_transactions_table.sql`, `add_revenue_summary_view.sql`, `area_offers_and_charitable_gifts.sql`, `add_metro_area_counts.sql`, `migrate_rename_count_columns.sql`, `add_metro_cap_trigger.sql`, `add_membership_schema.sql`, and `storage.sql`.
 
 ### PlateMaker

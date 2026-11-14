@@ -148,6 +148,14 @@ Payment, webhook, and security failures also write `admin_system_alerts`. A Plat
 
 `plate-marketplace-api` was published 5 November 2026 with this crash reporter. The code version then was `f8a7e194-15a3-4789-9a82-083276a62f1b`. The 5 November live version was `57626efa-5136-42bc-950a-6d212c5eec72`, which is that code plus the secret `SENTRY_DSN`. The live version on 7 November 2026 is `202d29a1-8559-4d01-8da3-58526873e797`. Existing secrets stayed in place. Five checks of `/` and `/health` each returned 200. Those checks did not throw a crash. The phone check in `docs/PHONE_DIAGNOSTICS.md` is still open.
 
+## Source maps
+
+Builds 8 and 9 cannot be symbolicated. The iOS 1.0.0 (8) bundle has no debug id and no source map. A PlateMaker crash and a PlateTaker crash on those binaries stay without a source file. Signed out, both roles share that binary. A later build does not rewrite those two binaries.
+
+The next production build uploaded source maps. iOS 1.0.0 (10) `a7bdfb38-d84b-41dc-a2d5-9063e1830fc6` and Android 1.0.0 (10) `98635aca-5ec6-4f9f-b0c0-28ca7fc4344e` finished on 10 November 2026 from commit `1e7a9a6`. The iOS Source Map Upload Report names `main.jsbundle` debug id `6e2dbe8f-d1a6-4c0c-88d6-08063cbeb514`. The Android report names `index.android.bundle` debug id `1d281df6-22ca-44e4-a051-288f2763e985`. The organization on both logs is `appsolete-ai`. The auth token was present and was not read.
+
+Signed in, a PlateMaker crash and a PlateTaker crash on build 10 can show the source file. Signed out, both roles share that binary, and a crash on it can show the source file with no account id. Web uses the same scrub. This note is local. No new production build was started for this check.
+
 ## Cost
 
 - Sentry offers a generous free tier (5,000 errors/month)

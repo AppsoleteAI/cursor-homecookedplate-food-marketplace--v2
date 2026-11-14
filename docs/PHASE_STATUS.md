@@ -8,7 +8,16 @@ A **completed task** is code that is in this repo and covered by the checks name
 
 A **statement** is a review finding. It is not done. No phase still has a statement.
 
-Phases 1–26 are completed tasks in the local repo. They are not on the live Worker or the live site. `lib/trpc.ts` calls `https://homecookedplate.com`. The published website and builds 8 and 9 still call `https://homecookedplate.pages.dev` until the next website publish and a later phone build. A full launch of both stores is not ready. Those completed tasks do not close the open checks in `docs/POST_LAUNCH_DIAGNOSTICS.md`. Those open checks are the launch.
+Phases 1–26 are completed tasks in the local repo. The Worker `plate-marketplace-api` was deployed 11 November 2026, version `c30c059c-70b8-4ad6-9f83-d87959649fcd`. That deploy is the API. It does not publish the website, and it does not replace a phone binary. `lib/trpc.ts` calls `https://homecookedplate.com`. The published website is the last push of `main`. This working tree is ahead of that push, so a page that exists only here is not on https://homecookedplate.com or https://homecookedplate.pages.dev. The public store binaries are still the older builds. A full launch of both stores is not ready. Those completed tasks do not close the open checks in `docs/POST_LAUNCH_DIAGNOSTICS.md`. Those open checks are the launch.
+
+## Still open after that Worker
+
+Web, iOS, and Android use the same source. Signed out, a PlateMaker and a PlateTaker share the public site and the API. Signed in, the cook path and the buyer path stay separate. Staging is not one of these steps. `[env.staging]` has no KV, AI, Media, or secrets, and there is no staging database. Do not deploy it.
+
+1. Publish the website only when this working tree is committed and `main` is pushed. Cloudflare Pages publishes that push. Wait until the new deployment succeeds, then open the changed page on both hosts.
+2. Install the newer phone binary before a phone check. iOS 1.0.0 (11) was submitted 11 November 2026 and was still processing. Install it from TestFlight after Apple finishes that upload. Leave Submit unclicked on a version already in review. Android internal testers already have version code 10. Install that internal release. Do not promote it to production. Public Play stays the older production release until a later production release.
+3. Run the open boxes in `docs/PHONE_DIAGNOSTICS.md` on those installed binaries. A website check does not close a phone box. One PlateMaker account and one PlateTaker account. Signed out is a separate pass.
+4. Charge one live card only inside that phone pass. A PlateTaker pays for one plate. That plate’s PlateMaker accepts it on the other phone. Event deliveries shows `payment_intent.succeeded` with 200. Leave the webhook secret as it is.
 
 ## Completed tasks
 
@@ -109,7 +118,7 @@ Completed in this repo. Not exercised: a signed-in 30 minutes outside a circle, 
 
 ### Phase 9 — order chat, pickup, and portions
 
-Completed in this repo. Not on the live Worker. Not exercised on two phones, with two card payments, or with a second buyer racing the last portion.
+Completed in this repo. On the live Worker as of 11 November 2026, version `c30c059c-70b8-4ad6-9f83-d87959649fcd`. Not exercised on two phones, with two card payments, or with a second buyer racing the last portion.
 
 1. The open order screen redraws when messages are loaded or sent.
 2. One pickup confirmation leaves the order ready. The second confirmation completes it and starts the payout clock.
@@ -122,7 +131,7 @@ Completed in this repo. Not on the live Worker. Not exercised on two phones, wit
 
 ### Phase 10 — stars, sign-in code, pay, and notes
 
-Completed in this repo. Not on the live Worker. Not exercised with a real sign-in email, a card payment on a `platetaker_id` row, or a lifetime account on a second phone.
+Completed in this repo. On the live Worker as of 11 November 2026, version `c30c059c-70b8-4ad6-9f83-d87959649fcd`. Not exercised with a real sign-in email, a card payment on a `platetaker_id` row, or a lifetime account on a second phone.
 
 1. Plate cards and the plate page show the rating and review count stored on the plate. A new review updates those numbers. The phone no longer loads a shared review list for the stars.
 2. Five wrong sign-in codes close that code. A later try asks for a new code.
@@ -132,7 +141,7 @@ Completed in this repo. Not on the live Worker. Not exercised with a real sign-i
 
 ### Phase 11 — reorder, metro, and refund notices
 
-Completed in this repo. Not on the live Worker. Not exercised with a past order on a phone, a plate from another metro, or a real deny or refund email.
+Completed in this repo. On the live Worker as of 11 November 2026, version `c30c059c-70b8-4ad6-9f83-d87959649fcd`. Not exercised with a past order on a phone, a plate from another metro, or a real deny or refund email.
 
 1. Order history and the buyer dashboard keep a pickup time on reorder only when that time is still ahead.
 2. A signed-in buyer's saved metro is checked on the plate link, on checkout, and in `orders.create`. A plate outside that metro is not opened and is not paid. The same check applies to a home plate on a combined checkout.
@@ -140,7 +149,7 @@ Completed in this repo. Not on the live Worker. Not exercised with a past order 
 
 ### Phase 12 — paused cooks, the cart, and a shared charge
 
-Completed in this repo. Not on the live Worker. Not exercised with a paused cook, a cook who turns orders off, or two orders on one card.
+Completed in this repo. On the live Worker as of 11 November 2026, version `c30c059c-70b8-4ad6-9f83-d87959649fcd`. Not exercised with a paused cook, a cook who turns orders off, or two orders on one card.
 
 1. A paused cook's plates are left off the public menu and the plate link. `orders.create` and a combined checkout reject that cook.
 2. The cart does not take a plate when Available For Orders is off. Checkout stops before payment. Reorder checks the plate again before adding it.
@@ -148,7 +157,7 @@ Completed in this repo. Not on the live Worker. Not exercised with a paused cook
 
 ### Phase 13 — membership, fees, metro, and notices
 
-Completed in this repo. Not on the live Worker. Not exercised with a closed app, a premium card, a shared refund, or an admin rename.
+Completed in this repo. On the live Worker as of 11 November 2026, version `c30c059c-70b8-4ad6-9f83-d87959649fcd`. Not exercised with a closed app, a premium card, a shared refund, or an admin rename.
 
 1. A cook with an Early Bird claim city is sent to Membership when that city and the current metro differ and the server says membership is required. An opened kitchen still skips that gate only when there is no claim city.
 2. A gap with no location reading starts the 30 minutes over. The first reading after that gap does not save the metro.
@@ -166,7 +175,7 @@ Completed in this repo. Not on the live Worker. Not exercised with a closed app,
 
 ### Phase 14 — portions, pickup, and blocks
 
-Completed in this repo. Not on the live Worker. Not exercised with two buyers paying for the last portion, or with a pickup confirmation on two phones.
+Completed in this repo. On the live Worker as of 11 November 2026, version `c30c059c-70b8-4ad6-9f83-d87959649fcd`. Not exercised with two buyers paying for the last portion, or with a pickup confirmation on two phones.
 
 1. The later plate details screen saves a new portion count on the plate.
 2. An unpaid order does not hold portions. A payment that is past the count is cancelled and that charge is refunded.
@@ -176,14 +185,14 @@ Completed in this repo. Not on the live Worker. Not exercised with two buyers pa
 
 ### Phase 15 — review text and sign-in codes
 
-Completed in this repo. Not on the live Worker. Not exercised with a real inbox or five wrong codes on a phone.
+Completed in this repo. On the live Worker as of 11 November 2026, version `c30c059c-70b8-4ad6-9f83-d87959649fcd`. Not exercised with a real inbox or five wrong codes on a phone.
 
 1. A review comment is saved only after the same text check used on a chat message and a checkout note.
 2. Signing in again keeps the open code. Five wrong tries still close that code. A new code is emailed after it expires or after those five tries.
 
 ### Phase 16 — plate links, metro pay, and shop notices
 
-Completed in this repo. Not on the live Worker. Not exercised with a signed-out phone, a buyer with no saved metro, or a combined refund.
+Completed in this repo. On the live Worker as of 11 November 2026, version `c30c059c-70b8-4ad6-9f83-d87959649fcd`. Not exercised with a signed-out phone, a buyer with no saved metro, or a combined refund.
 
 1. A signed-out plate link does not open.
 2. A buyer with no saved metro cannot pay for a plate. A saved metro still has to match the cook.
@@ -192,14 +201,14 @@ Completed in this repo. Not on the live Worker. Not exercised with a signed-out 
 
 ### Phase 17 — menu and cart when orders are off
 
-Completed in this repo. Not on the live Worker. Not exercised with a cook who turns Available For Orders off while a buyer is on the menu.
+Completed in this repo. On the live Worker as of 11 November 2026, version `c30c059c-70b8-4ad6-9f83-d87959649fcd`. Not exercised with a cook who turns Available For Orders off while a buyer is on the menu.
 
 1. The public menu leaves out a plate after the cook turns Available For Orders off. The cook's own plate list still shows it.
 2. A plate already in the cart is removed after the cook pauses or turns Available For Orders off.
 
 ### Phase 18 — buyer fee, metro scope, shop refund, and notices
 
-Completed in this repo. Not on the live Worker. Not exercised with a Premium PlateTaker basket, a signed-out menu, or a pending shop refund.
+Completed in this repo. On the live Worker as of 11 November 2026, version `c30c059c-70b8-4ad6-9f83-d87959649fcd`. Not exercised with a Premium PlateTaker basket, a signed-out menu, or a pending shop refund.
 
 1. The farm, truck, catering, meal-prep, and sit-down baskets, and the catering package page, use the buyer's fee. A Premium PlateTaker pays 5% on an order of $20 or more.
 2. The lane intros say the service fee is 10%, and that a Premium PlateTaker pays 5% on an order of $20 or more.
@@ -209,14 +218,14 @@ Completed in this repo. Not on the live Worker. Not exercised with a Premium Pla
 
 ### Phase 19 — old pickup clocks and a lost portion
 
-Completed in this repo. Not on the live Worker. Not exercised with an old plate or a failed card refund.
+Completed in this repo. On the live Worker as of 11 November 2026, version `c30c059c-70b8-4ad6-9f83-d87959649fcd`. Not exercised with an old plate or a failed card refund.
 
 1. A plate saved before a cook time zone was stored is not checked in UTC. Checkout waits until the cook saves that clock. Saving plate details stores the cook's time zone.
 2. A payment that loses the last portion stays open until that charge is refunded. The order is cancelled after the refund.
 
 ### Phase 20 — reports, reactivation, sign-in codes, and which order is reviewed
 
-Completed in this repo. Not on the live Worker. Not exercised with a reported comment, a paused account, five wrong codes, or two completed orders.
+Completed in this repo. On the live Worker as of 11 November 2026, version `c30c059c-70b8-4ad6-9f83-d87959649fcd`. Not exercised with a reported comment, a paused account, five wrong codes, or two completed orders.
 
 1. A review report tells each admin, including the plate name. The review page and the reviews dashboard let an admin remove the words.
 2. Reactivate asks for the password. Email alone does not turn a paused account back on.
@@ -225,27 +234,27 @@ Completed in this repo. Not on the live Worker. Not exercised with a reported co
 
 ### Phase 21 — shop refund and shop completion
 
-Completed in this repo. Not on the live Worker. Not exercised with a combined refund or a completed shop order.
+Completed in this repo. On the live Worker as of 11 November 2026, version `c30c059c-70b8-4ad6-9f83-d87959649fcd`. Not exercised with a combined refund or a completed shop order.
 
 1. Refunding a farm, truck, catering, meal-prep, or sit-down area of a combined checkout cancels that shop order. A food cart and a ghost kitchen on that same charge are cancelled the same way. The other areas on the charge stay paid.
 2. Marking a farm, truck, catering, meal-prep, or sit-down order complete emails and pushes the buyer. Accept and refund on those same screens already did.
 
 ### Phase 22 — plate links and saved favorites when orders are off
 
-Completed in this repo. Not on the live Worker. Not exercised with a cook turning Available For Orders off while a buyer has that plate open or saved.
+Completed in this repo. On the live Worker as of 11 November 2026, version `c30c059c-70b8-4ad6-9f83-d87959649fcd`. Not exercised with a cook turning Available For Orders off while a buyer has that plate open or saved.
 
 1. A plate link does not open after the cook turns Available For Orders off. The cook can still open their own plate. Home, search, and the order-again shelf only keep plates that are still taking orders.
 2. A saved favorite leaves the buyer dashboard after the cook turns Available For Orders off. It returns when that cook is taking orders again.
 
 ### Phase 23 — combined shop orders on the lane screens
 
-Completed in this repo. Not on the live Worker. Not exercised with a combined checkout on a phone.
+Completed in this repo. On the live Worker as of 11 November 2026, version `c30c059c-70b8-4ad6-9f83-d87959649fcd`. Not exercised with a combined checkout on a phone.
 
 1. A farm, truck, catering, meal-prep, or sit-down order paid inside a combined checkout appears on that area's order screen. A food cart appears with the truck orders. A ghost kitchen appears with the sit-down orders. The screen says the order was paid on a combined checkout.
 
 ### Phase 24 — combined checkout handoff
 
-Completed in this repo. Not on the live Worker. Not exercised with a paid combined checkout where the buyer picks a handoff.
+Completed in this repo. On the live Worker as of 11 November 2026, version `c30c059c-70b8-4ad6-9f83-d87959649fcd`. Not exercised with a paid combined checkout where the buyer picks a handoff.
 
 1. A farm, truck, catering, meal-prep, or sit-down order paid inside a combined checkout keeps the pickup, drop-off, or table the buyer chose. A food cart uses the truck pickup time. A ghost kitchen is takeout and has no table. The order screen shows that choice. An older combined order that was saved before a choice existed still says it was paid on a combined checkout.
 
@@ -257,7 +266,7 @@ Completed in this repo. Not on the live site. Not exercised with a card payment 
 
 ### Phase 26 — plate rules on a combined charge, and the cook payment notice
 
-Completed in this repo. Not on the live Worker. Not exercised with a card payment.
+Completed in this repo. On the live Worker as of 11 November 2026, version `c30c059c-70b8-4ad6-9f83-d87959649fcd`. Not exercised with a card payment.
 
 1. A home plate paid inside a combined checkout is its own order. It keeps the pickup time, the cook's time zone, the note, the allergies, the cooking temperature, and the delivery address. The offer price is the charged base. A plate that is unpublished, outside the saved metro, or past its portions is rejected. A lost portion refunds that home section, cancels those plate orders, tells the buyer, and leaves that plate in the cart. The cook's 10% stays.
 2. The same plate checkout stops for pickup, portions, and a sample plate run before the combined charge.

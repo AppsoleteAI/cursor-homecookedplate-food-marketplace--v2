@@ -69,9 +69,54 @@ Device back on the Legal step returns to Your Account, the previous step. It doe
 
 `https://homecookedplate.com/information` is the Marketing URL on iOS version 1.0. Apple’s subscription screens have a display name and a description. Membership monthly is `Membership monthly` and `Premium membership for HomeCookedPlate.` Membership yearly uses that same description and the display name `Membership yearly`. The page is `pages/legal/membership.html`, served at `/information`. After Membership it shows the tablet row. After Who it is for it shows the headline and the PlateTaker card. After Price it shows sign-in for both roles, the herb chicken plate, and the PlateMaker card. The earlier eight pictures remain under In the app. It shows a PlateMaker card at $4.99 a month and $39.99 a year and a PlateTaker card at $7.99 a month and $75.99 a year. The PlateTaker card says the app is free. PlateTaker Premium cuts the service fee from 10% to 5% on orders of $20 or more. Early Bird stays in the app and is not on that page. Signed in and signed out see the same public page. The app membership screen stays at `/membership` for a PlateMaker and a PlateTaker, signed in and signed out. The website publish includes this page. An app already on a phone keeps the previous membership screen until the next store build. Web, iOS, and Android still share the app.
 
-## This store build
+## Store charge
 
-iPhone Build 8 buys `com.rork.homecookedplate.membership.monthly` and `com.rork.homecookedplate.membership.annual` for both roles. Those Apple products are $4.99 and $39.99. The PlateTaker screen still shows $7.99 and $75.99. Android build 8 does the same with `com.rork.hcp.membership.monthly` and `com.rork.hcp.membership.annual`. Web checkout charges the role price from `membershipPriceCents()`. Do not add PlateTaker Apple products for the Build 8 submit. A new product id would be rejected by `confirmApple`. Charging a PlateTaker $7.99 or $75.99 on the store needs a new build. The iPhone screenshot for the buyer prices is `store-assets/screenshot-membership-platetaker-1320.png`.
+Web, iOS, and Android use the same prices. Signed out, neither purchase starts. Signed in, the charge follows `profiles.role`.
+
+| Role, signed in | Monthly | Yearly | Apple product | Play product |
+| --- | --- | --- | --- | --- |
+| PlateMaker | $4.99 | $39.99 | `com.rork.homecookedplate.membership.monthly` and `.annual` | `com.rork.hcp.membership.monthly` and `.annual` |
+| PlateTaker | $7.99 | $75.99 | `com.rork.homecookedplate.platetaker.monthly` and `.annual` | `com.rork.hcp.platetaker.monthly` and `.annual` |
+
+The website charges those amounts through `membershipPriceCents()`. Membership on the phone asks the store for the product in that row. Play already lists the two PlateTaker products at $7.99 and $75.99. Apple still has to list the two PlateTaker products in the existing Membership group before an iPhone purchase can finish. On 11 November 2026 the Worker `plate-marketplace-api` was deployed as version `e5c616b8-2aca-430b-b822-eb8a84418b39`. It accepts those product ids. It still accepts the PlateMaker product ids, including a receipt from a binary compiled before this change. iOS 1.0.0 (11), EAS build `541353a4-7c72-4d16-b3eb-ed176fc98648`, was submitted to App Store Connect the same afternoon. Apple was still processing that upload. That binary asks the store for the PlateTaker products when the signed-in role is PlateTaker. Binaries through 1.0.0 (10), and Android version code 10, still ask the store for the PlateMaker products for a PlateTaker. `ios.buildNumber` `11` is saved on this machine and is not committed. The iPhone screenshot for the buyer prices is `store-assets/screenshot-membership-platetaker-1320.png`.
+
+## List the PlateTaker products on iPhone
+
+Do this on the app record. Open the existing Membership group. The create form has no level box. Apple ranks a level on the group page after the products exist, and that rank is not the price. Enter the United States price on each product. Leave the version already with App Review as it is. Family Sharing stays off: leave Turn On unclicked. Review Notes stay empty. English (U.S.) is the only localization. The description on both new products is `Premium membership for HomeCookedPlate.` The review image is `store-assets/screenshot-membership-platetaker-1320.png`. Keep `membership-review.jpg` on the two PlateMaker products.
+
+| Reference name | Product ID | Duration | United States price | Display name |
+| --- | --- | --- | --- | --- |
+| PlateTaker monthly | `com.rork.homecookedplate.platetaker.monthly` | 1 month | $7.99 | PlateTaker monthly |
+| PlateTaker yearly | `com.rork.homecookedplate.platetaker.annual` | 1 year | $75.99 | PlateTaker yearly |
+
+On 11 November 2026 the PlateTaker monthly page showed Unable to Add for Review. The two missing answers are below. PlateTaker yearly uses the same two answers. Leave Membership monthly and Membership yearly as they are.
+
+| Field on that page | Answer |
+| --- | --- |
+| Review Information screenshot | `store-assets/screenshot-membership-platetaker-1320.png`. It is 1320 × 2868, PNG, 72 dpi, no transparency. It shows the app is free, Monthly $7.99, and Yearly $75.99. |
+| Review Notes | Empty. |
+| Availability | Every country or region where the app is already sold. Membership monthly is the match. The repo has no separate country list for this subscription. |
+
+Save. The blue line on that page says a subscription goes out with an app version. Leave the version already with App Review unchanged. Add for Review on these two products waits for the new build.
+
+On 11 November 2026 at 3:30 PM the iOS submission page listed PlateTaker monthly as Ready to Submit and said Unable to Submit for Review until an app version is added for iOS. That version is the one already with App Review, so it is not offered on this page. Leave Submit unclicked.
+
+At 3:39 PM the Membership group showed PlateTaker monthly, 1 month, Ready for Review, and PlateTaker yearly, 1 year, Prepare for Submission. Yearly still needs the review screenshot and the availability from the table above. After those are saved it can show Ready for Review. Leave Submit unclicked on both.
+
+At 3:43 PM the group numbered PlateTaker monthly as level 2 and PlateTaker yearly as level 3. Those two durations are one membership, so they share one level. Membership monthly and Membership yearly already share level 1. The price stays $7.99 and $75.99. The level is not the price.
+
+At 3:48 PM both PlateTaker rows showed Ready for Review, still on levels 2 and 3. At 3:46 PM the Draft Submission listed both subscriptions. Edit Level stays grey while they are in that draft.
+
+At 3:56 PM the Membership group showed this table. Edit Level stays grey because the two level 1 products are Waiting for Review. Leave that review as it is. Leave PlateTaker yearly on level 3 until that review ends. Leave Submit unclicked.
+
+| Level | Reference name | Duration | Status at 3:56 PM |
+| --- | --- | --- | --- |
+| 1 | Membership monthly | 1 month | Waiting for Review |
+| 1 | Membership yearly | 1 year | Waiting for Review |
+| 2 | PlateTaker monthly | 1 month | Ready for Review |
+| 3 | PlateTaker yearly | 1 year | Ready for Review | A signed-in PlateTaker is billed from these products only after a later iOS version includes them and a build that requests them. A signed-in PlateMaker stays on the version already in review. Signed out, neither purchase starts.
+
+A signed-in PlateMaker keeps the existing products at $4.99 and $39.99. A signed-in PlateTaker is billed $7.99 or $75.99 from the price on these two products after Apple lists them and iOS 1.0.0 (11) is installed. The Worker that accepts those ids is deployed. That iOS binary is submitted and was still processing. Android version code 10 still bills a PlateTaker $4.99 or $39.99. Signed out, neither purchase starts. Web, iOS, and Android use the same prices. This listing is done in App Store Connect. Leave Submit unclicked on the version already in review.
 
 ## Privacy Policy and Terms of Use
 
@@ -119,7 +164,7 @@ Checked 5 November 2026 from the retention-messaging banner. Apple can show one 
 
 The Retention Messaging API limits a header to 66 characters and a body to 144. The Connect form’s own counter is the one to follow if it differs. Header and body cannot name a price, a discount, or a free period. English (U.S.) is the only localization on this app.
 
-Membership monthly and Membership yearly are the two products on the iOS 1.0 submission. A PlateMaker and a PlateTaker both buy those same two product ids on iPhone. One message is attached to both products. It states only what is true for both roles: when the subscription ends, Premium ends on the HomeCookedPlate account that bought it, and the download stays free. The kitchen closing is the PlateMaker outcome. The buyer fee returning to 10% is the PlateTaker outcome. Apple does not know which role bought the product, so the message leaves both of those out.
+Membership monthly and Membership yearly are the two products on the iOS 1.0 submission. Binaries through 1.0.0 (10) buy those two product ids for both roles. The source now buys the PlateTaker products for a signed-in PlateTaker. One message is attached to the two products already in review. It states only what is true for both roles: when the subscription ends, Premium ends on the HomeCookedPlate account that bought it, and the download stays free. The kitchen closing is the PlateMaker outcome. The buyer fee returning to 10% is the PlateTaker outcome. The message leaves both of those out. Attach that same message when the PlateTaker products are added.
 
 Reference name, not shown to the subscriber:
 
