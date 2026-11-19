@@ -260,9 +260,9 @@ const isAuthenticated = t.middleware(async ({ ctx, next }) => {
   });
 });
 
-/** PlateMaker and PlateTaker API calls require the agreement stored on the profile. */
+/** A restored session stays signed in. Legal & Safety is checked when signing in. */
 const requireLegalSafety = t.middleware(async ({ ctx, next }) => {
-  if (!ctx.userId || !(await profileAllowsSignIn(ctx.supabaseAdmin, ctx.userId))) {
+  if (!ctx.userId) {
     throw new TRPCError({
       code: 'FORBIDDEN',
       message: LEGAL_SIGN_IN_MESSAGE,

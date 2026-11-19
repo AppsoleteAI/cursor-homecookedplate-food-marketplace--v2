@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
+import * as SecureStore from '@/lib/expo-secure-store';
+import { chunkedSecureStorage, SESSION_STORAGE_KEY } from '@/lib/session-store';
 
 const supabaseUrl = Constants.expoConfig?.extra?.supabaseUrl || process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = Constants.expoConfig?.extra?.supabaseAnonKey || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -22,5 +24,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
+    storageKey: SESSION_STORAGE_KEY,
+    storage: chunkedSecureStorage(SecureStore),
   },
 });

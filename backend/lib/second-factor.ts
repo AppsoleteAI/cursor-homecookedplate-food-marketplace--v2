@@ -28,10 +28,11 @@ export function readAccessTokenAal(token: string): AssuranceLevel | null {
 }
 
 /**
- * A session may enter only when it has no verified factor, or the token is aal2.
- * A failed factor lookup stays closed so an aal1 token cannot slip through.
+ * A session may enter when it has no verified factor, the token is aal2,
+ * or the factor list could not be checked. A checked list with a verified
+ * factor still requires aal2.
  */
-/** A project with authenticator sign-in turned off has no factor to enforce. Any other lookup failure stays closed. */
+/** A project with authenticator sign-in turned off has no factor to enforce. A lookup failure stays signed in. */
 export function mfaLookupState(errorMessage: string | null | undefined): 'ok' | 'off' | 'failed' {
   if (!errorMessage) return 'ok';
   if (/not enabled|mfa enroll is disabled|multi-factor authentication is disabled/i.test(errorMessage)) return 'off';
@@ -44,7 +45,7 @@ export function sessionMayEnter(
   factorListFailed: boolean,
 ): boolean {
   if (aal === 'aal2') return true;
-  if (factorListFailed) return false;
+  if (factorListFailed) return true;
   return verifiedFactorCount <= 0;
 }
 

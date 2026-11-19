@@ -21,6 +21,7 @@ import { Alert, Platform } from 'react-native';
 import { navLogger } from '@/lib/nav-logger';
 import { recoveryScreenIsOpen } from '@/lib/verification-link';
 import { rememberAccessToken } from '@/lib/access-token';
+import { LEGACY_SESSION_KEY, refreshTokenWasRevoked, SESSION_STORAGE_KEY, chunkedSecureStorage } from '@/lib/session-store';
 import { SESSION_RESTORE_MS, settleWithin } from '@/lib/settle-within';
 
 interface AuthState {
@@ -79,9 +80,7 @@ async function keepDeviceCopy(stamped: NonNullable<Awaited<ReturnType<typeof pen
 
 const STORAGE_KEY = 'auth_user_v2';
 const orderingKey = (userId: string) => `ordering_as_buyer:${userId}`;
-// CRITICAL: Session stored in SecureStore (encrypted Keychain/Keystore) for production-grade security
-// This prevents session tokens from being accessible in device backups or by other apps
-const SESSION_KEY = 'rork_secure_session';
+const sessionStorage = chunkedSecureStorage(SecureStore);
 
 export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const [user, setUser] = useState<User | null>(null);
@@ -128,11 +127,11 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const persistSession = useCallback(async (session: Session | null) => {
     try {
       if (session) {
-        // Encrypt and store the WHOLE session object in SecureStore
-        await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session));
-      } else {
-        await SecureStore.deleteItemAsync(SESSION_KEY);
+        await sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+        return;
       }
+      await sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      await SecureStore.deleteItemAsync(LEGACY_SESSION_KEY).catch(() => undefined);
     } catch (e) {
       captureException(e as Error, { context: 'persistSession' });
     }
@@ -164,30 +163,29 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     let userStr: string | null = null;
 
     try {
-      // 1. Bootstrap: Pull encrypted session from SecureStore (async operation)
-      // CRITICAL: SecureStore is asynchronous - must await before proceeding
-      // This prevents navigation tree from mounting until session is hydrated
-      [sessionStr, userStr] = await Promise.all([
-        SecureStore.getItemAsync(SESSION_KEY).catch(() => null), // Gracefully handle if not found
-        AsyncStorage.getItem(STORAGE_KEY), // User data can stay in AsyncStorage (less sensitive)
-      ]);
-
-      // 2. Restore session if found. A profile without a token is not signed in.
-      // The call is allowed to finish. A late answer is still this person's session.
+      // One stored session. The call is allowed to finish. A late answer stays signed in.
+      userStr = await AsyncStorage.getItem(STORAGE_KEY);
+      const current = await supabase.auth.getSession().catch(() => ({ data: { session: null }, error: null }));
       let sessionOk = false;
-      if (sessionStr) {
+      if (current.data.session?.access_token) {
+        sessionStr = 'stored';
+        rememberAccessToken(current.data.session.access_token);
+        if (mountedRef.current) setSession(current.data.session);
+        sessionOk = true;
+        await SecureStore.deleteItemAsync(LEGACY_SESSION_KEY).catch(() => undefined);
+      } else {
+        const stored = await sessionStorage.getItem(SESSION_STORAGE_KEY).catch(() => null);
+        const legacy = stored ? null : await SecureStore.getItemAsync(LEGACY_SESSION_KEY).catch(() => null);
+        sessionStr = stored || legacy;
         let sessionData: Session | null = null;
-        try {
-          sessionData = JSON.parse(sessionStr) as Session;
-        } catch (parseError) {
-          rememberAccessToken(null);
-          await Promise.all([
-            SecureStore.deleteItemAsync(SESSION_KEY).catch(() => {}),
-            AsyncStorage.removeItem(STORAGE_KEY),
-          ]);
-          navLogger.error('hooks/auth-context.tsx:LOAD_USER', 'Session restore did not finish', undefined, {
-            error: parseError instanceof Error ? parseError.message : String(parseError),
-          });
+        if (sessionStr) {
+          try {
+            sessionData = JSON.parse(sessionStr) as Session;
+          } catch (parseError) {
+            navLogger.error('hooks/auth-context.tsx:LOAD_USER', 'Session restore did not finish', undefined, {
+              error: parseError instanceof Error ? parseError.message : String(parseError),
+            });
+          }
         }
         if (sessionData?.access_token && sessionData.refresh_token) {
           rememberAccessToken(sessionData.access_token);
@@ -196,18 +194,15 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
               access_token: sessionData.access_token,
               refresh_token: sessionData.refresh_token,
             });
-
-            if (error || !data.session) {
+            const restored = data.session ?? sessionData;
+            if (error && refreshTokenWasRevoked(error)) {
               rememberAccessToken(null);
-              // Session invalid - clean up corrupted state
-              await Promise.all([
-                SecureStore.deleteItemAsync(SESSION_KEY).catch(() => {}), // Graceful cleanup
-                AsyncStorage.removeItem(STORAGE_KEY),
-              ]);
+              await persistSession(null);
+              await AsyncStorage.removeItem(STORAGE_KEY);
               navLogger.warn('hooks/auth-context.tsx:LOAD_USER', 'Session restore failed, cleared storage', undefined, {
-                error: error?.message,
+                error: error.message,
               });
-            } else {
+            } else if (!error && data.session) {
               let secondFactorPending = false;
               try {
                 const level = await supabase.auth.mfa?.getAuthenticatorAssuranceLevel?.();
@@ -218,26 +213,30 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
               if (secondFactorPending) {
                 rememberAccessToken(null);
                 await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
-                await Promise.all([
-                  SecureStore.deleteItemAsync(SESSION_KEY).catch(() => {}),
-                  AsyncStorage.removeItem(STORAGE_KEY),
-                ]);
+                await persistSession(null);
+                await AsyncStorage.removeItem(STORAGE_KEY);
                 navLogger.warn('hooks/auth-context.tsx:LOAD_USER', 'Stored session has not finished the authenticator', undefined, {
                   userId: data.session.user?.id,
                 });
               } else {
-                if (mountedRef.current) {
-                  setSession(data.session);
-                }
+                if (mountedRef.current) setSession(data.session);
                 sessionOk = true;
                 await persistSession(data.session);
+                await SecureStore.deleteItemAsync(LEGACY_SESSION_KEY).catch(() => undefined);
                 navLogger.stateChange('hooks/auth-context.tsx:LOAD_USER', 'session_restored', undefined, {
                   userId: data.session.user?.id,
                 });
               }
+            } else if (mountedRef.current) {
+              setSession(restored);
+              sessionOk = true;
+              navLogger.error('hooks/auth-context.tsx:LOAD_USER', 'Session restore did not finish', undefined, {
+                error: error?.message,
+              });
             }
           } catch (restoreError) {
-            // Keep the stored session. A failed network call is not a sign-out.
+            if (mountedRef.current) setSession(sessionData);
+            sessionOk = true;
             navLogger.error('hooks/auth-context.tsx:LOAD_USER', 'Session restore did not finish', undefined, {
               error: restoreError instanceof Error ? restoreError.message : String(restoreError),
             });
@@ -278,16 +277,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         error: error instanceof Error ? error.message : String(error),
       });
       captureException(error as Error, { context: 'loadUser' });
-      
-      // Clean up potentially corrupted state
-      try {
-        await Promise.all([
-          SecureStore.deleteItemAsync(SESSION_KEY).catch(() => {}), // Graceful cleanup
-          AsyncStorage.removeItem(STORAGE_KEY),
-        ]);
-      } catch {
-        // Ignore cleanup errors
-      }
     } finally {
       // 4. Mark hydration complete - no timeout needed
       // The promise settles naturally, and navigation context is guaranteed ready
@@ -450,18 +439,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   }, [meError, persistSession, persistUser]);
 
   useEffect(() => {
-    const legalMissing = Boolean(
-      meData && !accountAllowsSignIn(meData.legalSafetyAgreement, new Date(meData.createdAt)),
-    );
-    if ((meData?.orderingRemoved || legalMissing) && mountedRef.current) {
-      rememberAccessToken(null);
-      settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
-      setUser(null);
-      setSession(null);
-      persistUser(null).catch(() => undefined);
-      persistSession(null).catch(() => undefined);
-      return;
-    }
     if (meData && mountedRef.current) {
       setUser((current) => {
         const remote = !meData.metroArea || meData.metroArea === 'Remote/Other';
@@ -480,7 +457,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         );
       }
     }
-  }, [meData, persistSession, persistUser]);
+  }, [meData, persistUser]);
 
   // Hardware audit: run when user is authenticated
   useEffect(() => {
@@ -523,7 +500,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       }
       const createdAt = new Date(result.user.createdAt);
       if (await applySignInLegal(createdAt, result.legalSafetyAgreement) === 'block') {
-        await settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
+        await settleWithin(supabase.auth.signOut({ scope: 'local' }), 2000).catch(() => undefined);
         throw new Error(LEGAL_SIGN_IN_MESSAGE);
       }
       await keepDeviceCopy(stamped);
@@ -602,7 +579,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       email_confirmed_at: nextSession.user.email_confirmed_at,
     } : null);
     if (block || !profile) {
-      await settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
+      await settleWithin(supabase.auth.signOut({ scope: 'local' }), 2000).catch(() => undefined);
       throw new Error(block || 'Choose Order a Plate or Start Cooking to finish this account.');
     }
     const signedInUser = {
@@ -620,7 +597,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       twoFactorEnabled: profile.two_factor_enabled,
     };
     if (await applySignInLegal(signedInUser.createdAt, profile.legal_safety_agreement) === 'block') {
-      await settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
+      await settleWithin(supabase.auth.signOut({ scope: 'local' }), 2000).catch(() => undefined);
       throw new Error(LEGAL_SIGN_IN_MESSAGE);
     }
     const stamped = await pendingLegalAgreement();
@@ -632,13 +609,13 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         await keepDeviceCopy(stamped);
       } catch {
         rememberAccessToken(null);
-        await settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
+        await settleWithin(supabase.auth.signOut({ scope: 'local' }), 2000).catch(() => undefined);
         throw new Error(LEGAL_SAVE_FAILED_MESSAGE);
       }
     }
     if (!accountAllowsSignIn(gateRecord, signedInUser.createdAt)) {
       rememberAccessToken(null);
-      await settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
+      await settleWithin(supabase.auth.signOut({ scope: 'local' }), 2000).catch(() => undefined);
       throw new Error(LEGAL_SIGN_IN_MESSAGE);
     }
     const latest = await supabase.auth.getSession();
@@ -665,7 +642,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       )).catch(() => null);
       return await acceptProviderSession(chosen, provider);
     } catch (error) {
-      await settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
+      await settleWithin(supabase.auth.signOut({ scope: 'local' }), 2000).catch(() => undefined);
       holdProviderRef.current = false;
       if (error instanceof Error && (error.message.includes('Complete the Legal & Safety page') || error.message.includes('could not be saved') || error.message === 'Sign-in was cancelled.')) {
         throw error;
@@ -812,7 +789,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     } catch (error) {
       captureException(error as Error, { context: 'logout' });
     }
-    await settleWithin(supabase.auth.signOut(), 2000).catch(() => undefined);
+    await settleWithin(supabase.auth.signOut({ scope: 'local' }), 2000).catch(() => undefined);
     if (mountedRef.current) {
       setUser(null);
       setSession(null);
@@ -893,6 +870,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
   const deleteAccount = useCallback(async () => {
     await deleteAccountMutation.mutateAsync(undefined);
+    await settleWithin(supabase.auth.signOut({ scope: 'local' }), 2000).catch(() => undefined);
     if (mountedRef.current) {
       setUser(null);
       setSession(null);

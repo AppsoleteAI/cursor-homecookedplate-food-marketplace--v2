@@ -101,7 +101,7 @@ export const loginProcedure = publicProcedure
     try {
       assertEmailConfirmed(data.user.email_confirmed_at);
     } catch (confirmationError) {
-      await ctx.supabase.auth.signOut();
+      await ctx.supabase.auth.signOut({ scope: 'local' });
       const expired = await confirmationExpired(ctx.supabaseAdmin, input.email, data.user.id, data.user.created_at);
       throw new TRPCError({
         code: 'FORBIDDEN',
@@ -122,7 +122,7 @@ export const loginProcedure = publicProcedure
       .single());
 
     if (profileError || !profile) {
-      await ctx.supabase.auth.signOut();
+      await ctx.supabase.auth.signOut({ scope: 'local' });
       const identity = await readAuthIdentityKind(ctx.supabaseAdmin, input.email);
       const unfinished = signInWithoutProfileMessage(identity);
       throw new TRPCError({
@@ -132,7 +132,7 @@ export const loginProcedure = publicProcedure
     }
 
     if (profile.is_paused) {
-      await ctx.supabase.auth.signOut();
+      await ctx.supabase.auth.signOut({ scope: 'local' });
       throw new TRPCError({
         code: 'FORBIDDEN',
         message: 'This account is paused. Reactivate it to sign in.',
@@ -146,7 +146,7 @@ export const loginProcedure = publicProcedure
       createdAt,
     });
     if (legalDecision === 'refuse') {
-      await ctx.supabase.auth.signOut();
+      await ctx.supabase.auth.signOut({ scope: 'local' });
       throw new TRPCError({ code: 'FORBIDDEN', message: LEGAL_SIGN_IN_MESSAGE });
     }
     if (legalDecision === 'save') {
@@ -157,7 +157,7 @@ export const loginProcedure = publicProcedure
         .select('legal_safety_agreement')
         .single();
       if (saved.error || !accountAllowsSignIn(saved.data?.legal_safety_agreement, createdAt)) {
-        await ctx.supabase.auth.signOut();
+        await ctx.supabase.auth.signOut({ scope: 'local' });
         throw new TRPCError({ code: 'PRECONDITION_FAILED', message: LEGAL_SAVE_FAILED_MESSAGE });
       }
       profile.legal_safety_agreement = saved.data.legal_safety_agreement;
@@ -200,7 +200,7 @@ export const loginProcedure = publicProcedure
     }
 
     if (profile.ordering_removed) {
-      await ctx.supabase.auth.signOut();
+      await ctx.supabase.auth.signOut({ scope: 'local' });
       throw new TRPCError({
         code: 'FORBIDDEN',
         message: MEMBERSHIP_INELIGIBLE_MESSAGE,

@@ -35,11 +35,11 @@ export const reactivateAccountProcedure = publicProcedure
       .eq('id', data.user.id)
       .maybeSingle();
     if (lookup.error || !lookup.data) {
-      await ctx.supabase.auth.signOut();
+      await ctx.supabase.auth.signOut({ scope: 'local' });
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Profile not found' });
     }
     if (!reactivateTurnsAccountOn(true, lookup.data.is_paused === true)) {
-      await ctx.supabase.auth.signOut();
+      await ctx.supabase.auth.signOut({ scope: 'local' });
       throw new TRPCError({
         code: 'BAD_REQUEST',
         message: 'This account is not paused. Sign in normally.',
@@ -50,7 +50,7 @@ export const reactivateAccountProcedure = publicProcedure
       .from('profiles')
       .update({ is_paused: false })
       .eq('id', lookup.data.id);
-    await ctx.supabase.auth.signOut();
+    await ctx.supabase.auth.signOut({ scope: 'local' });
     if (updateError) {
       console.error('[Reactivate Account] Error:', updateError);
       throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'The account could not be turned back on.' });

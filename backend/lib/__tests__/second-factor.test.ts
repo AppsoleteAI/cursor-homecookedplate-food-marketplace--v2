@@ -19,7 +19,8 @@ describe.each(['platemaker', 'platetaker'] as const)('second factor for a %s', (
     expect(sessionMayEnter('aal2', 1, false)).toBe(true);
     expect(sessionMayEnter('aal1', 1, false)).toBe(false);
     expect(sessionMayEnter(null, 1, false)).toBe(false);
-    expect(sessionMayEnter('aal1', 0, true)).toBe(false);
+    expect(sessionMayEnter('aal1', 0, true)).toBe(true);
+    expect(sessionMayEnter('aal1', 1, true)).toBe(true);
     expect(mfaLookupState(undefined)).toBe('ok');
     expect(mfaLookupState('MFA enroll is disabled')).toBe('off');
     expect(mfaLookupState('fetch failed')).toBe('failed');
