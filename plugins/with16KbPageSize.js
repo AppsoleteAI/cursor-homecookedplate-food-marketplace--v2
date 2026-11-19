@@ -11,28 +11,36 @@ const PACKAGING_BLOCK = `packaging {
 const SUBPROJECTS = `
 // 16 KB memory pages. Native libraries stay uncompressed and page-aligned.
 subprojects { subproject ->
-    subproject.afterEvaluate {
-        def androidExtension = subproject.extensions.findByName("android")
-        if (androidExtension == null) {
-            return
-        }
-        def cmakePath = null
+    def configurePageSize = {
         try {
-            cmakePath = androidExtension.externalNativeBuild.cmake.path
+            def androidExtension = subproject.extensions.findByName("android")
+            if (androidExtension == null) {
+                return
+            }
+            def cmake = androidExtension.defaultConfig.externalNativeBuild.cmake
+            if (cmake == null) {
+                return
+            }
+            def arguments = cmake.arguments
+            if (arguments == null) {
+                return
+            }
+            def alreadySet = false
+            arguments.each { value ->
+                if (value.toString().startsWith("-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES")) {
+                    alreadySet = true
+                }
+            }
+            if (!alreadySet) {
+                arguments.add("${PAGE_SIZE_FLAG}")
+            }
         } catch (Exception ignored) {
-            return
         }
-        if (cmakePath == null) {
-            return
-        }
-        def arguments = androidExtension.defaultConfig.externalNativeBuild.cmake.arguments
-        if (arguments == null) {
-            return
-        }
-        def alreadySet = arguments.any { it.toString().startsWith("-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES") }
-        if (!alreadySet) {
-            arguments.add("${PAGE_SIZE_FLAG}")
-        }
+    }
+    if (subproject.state.executed) {
+        configurePageSize()
+    } else {
+        subproject.afterEvaluate { configurePageSize() }
     }
 }
 `;
