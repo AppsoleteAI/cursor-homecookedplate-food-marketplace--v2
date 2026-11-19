@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
 import { reactivateTurnsAccountOn } from "../../../../lib/account-security";
+import { readProviderButtonMessage } from "../../../../lib/provider-profile";
 
 export const reactivateAccountProcedure = publicProcedure
   .input(
@@ -16,9 +17,15 @@ export const reactivateAccountProcedure = publicProcedure
       password: input.password,
     });
     if (error || !data.user) {
+      const { data: existingAccount } = await ctx.supabaseAdmin
+        .from('profiles')
+        .select('id')
+        .ilike('email', input.email.trim())
+        .maybeSingle();
+      const buttonMessage = await readProviderButtonMessage(ctx.supabaseAdmin, input.email.trim(), existingAccount?.id);
       throw new TRPCError({
-        code: 'UNAUTHORIZED',
-        message: 'That email or password does not match.',
+        code: buttonMessage ? 'CONFLICT' : 'UNAUTHORIZED',
+        message: buttonMessage || 'That email or password does not match.',
       });
     }
 

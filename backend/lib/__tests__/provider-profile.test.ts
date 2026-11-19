@@ -1,11 +1,19 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { appRouter } from '../../trpc/app-router';
 import {
+  APPLE_AND_GOOGLE_BUTTON_MESSAGE,
+  APPLE_BUTTON_MESSAGE,
   EMAIL_ALREADY_REGISTERED_MESSAGE,
+  GOOGLE_BUTTON_MESSAGE,
   PROVIDER_CONTINUE_MESSAGE,
   UNFINISHED_PROFILE_MESSAGE,
+  providerButtonMessage,
   providerProfileAction,
   providerUsernameBase,
+  readPasswordResetBlock,
+  readProviderButtonMessage,
+  UNCONFIRMED_RESET_MESSAGE,
   signupAlreadyRegisteredMessage,
   signInWithoutProfileMessage,
   usernameCandidates,
@@ -115,8 +123,107 @@ describe('provider profile repair', () => {
       identity: 'email',
     })).toBe(EMAIL_ALREADY_REGISTERED_MESSAGE);
     expect(signInWithoutProfileMessage('provider')).toBe(PROVIDER_CONTINUE_MESSAGE);
+    expect(signInWithoutProfileMessage('google')).toBe(GOOGLE_BUTTON_MESSAGE);
+    expect(signInWithoutProfileMessage('apple')).toBe(APPLE_BUTTON_MESSAGE);
+    expect(signInWithoutProfileMessage('apple_google')).toBe(APPLE_AND_GOOGLE_BUTTON_MESSAGE);
     expect(signInWithoutProfileMessage('email')).toBe(UNFINISHED_PROFILE_MESSAGE);
     expect(signInWithoutProfileMessage('none')).toBeNull();
+    expect(providerButtonMessage(['google'])).toBe(GOOGLE_BUTTON_MESSAGE);
+    expect(providerButtonMessage(['apple'])).toBe(APPLE_BUTTON_MESSAGE);
+    expect(providerButtonMessage(['apple', 'google'])).toBe(APPLE_AND_GOOGLE_BUTTON_MESSAGE);
+    expect(providerButtonMessage(['email'])).toBeNull();
+  });
+
+  it('reads the button from the identity row for either role', async () => {
+    const admin = {
+      rpc: async () => ({ data: 'provider', error: null }),
+      auth: {
+        admin: {
+          getUserById: async () => ({
+            data: { user: { identities: [{ provider: 'google' }] } },
+            error: null,
+          }),
+        },
+      },
+    };
+    await expect(readProviderButtonMessage(admin, 'cook@example.com', 'account-1')).resolves.toBe(GOOGLE_BUTTON_MESSAGE);
+    admin.auth.admin.getUserById = async () => ({
+      data: { user: { identities: [{ provider: 'apple' }] } },
+      error: null,
+    });
+    await expect(readProviderButtonMessage(admin, 'buyer@example.com', 'account-2')).resolves.toBe(APPLE_BUTTON_MESSAGE);
+    const unconfirmed: {
+      rpc: () => Promise<{ data: string; error: null }>;
+      auth: {
+        admin: {
+          getUserById: () => Promise<{
+            data: { user: { identities: { provider: string }[]; email_confirmed_at: string | null } };
+            error: null;
+          }>;
+        };
+      };
+    } = {
+      rpc: async () => ({ data: 'email', error: null }),
+      auth: {
+        admin: {
+          getUserById: async () => ({
+            data: { user: { identities: [{ provider: 'email' }], email_confirmed_at: null } },
+            error: null,
+          }),
+        },
+      },
+    };
+    await expect(readPasswordResetBlock(unconfirmed, 'cook@example.com', 'account-1')).resolves.toBe(UNCONFIRMED_RESET_MESSAGE);
+    unconfirmed.auth.admin.getUserById = async () => ({
+      data: { user: { identities: [{ provider: 'email' }], email_confirmed_at: '2026-11-10T20:49:22.000Z' } },
+      error: null,
+    });
+    await expect(readPasswordResetBlock(unconfirmed, 'buyer@example.com', 'account-2')).resolves.toBeNull();
+  });
+});
+
+describe.each(['platemaker', 'platetaker'] as const)('password sign-in for a %s', (role) => {
+  it.each(['google', 'apple'] as const)('names the %s button instead of the confirmation link', async (provider) => {
+    const caller = appRouter.createCaller({
+      req: { headers: new Headers() },
+      supabase: {
+        auth: {
+          signInWithPassword: async () => ({
+            data: { user: null, session: null },
+            error: { message: 'Email not confirmed', code: 'email_not_confirmed' },
+          }),
+        },
+      },
+      supabaseAdmin: {
+        from() {
+          const chain = {
+            select() { return chain; },
+            ilike() { return chain; },
+            maybeSingle: async () => ({ data: { id: `${role}-account` }, error: null }),
+          };
+          return chain;
+        },
+        auth: {
+          admin: {
+            getUserById: async () => ({
+              data: { user: { identities: [{ provider }] } },
+              error: null,
+            }),
+          },
+        },
+        rpc: async () => ({ data: 'provider', error: null }),
+      },
+      userId: null,
+      webUrl: 'https://homecookedplate.com',
+    } as never);
+
+    await expect(caller.auth.login({
+      email: `${role}@example.com`,
+      password: 'local-password',
+    })).rejects.toMatchObject({
+      code: 'CONFLICT',
+      message: provider === 'google' ? GOOGLE_BUTTON_MESSAGE : APPLE_BUTTON_MESSAGE,
+    });
   });
 
   it('does not default a provider user to PlateTaker or swallow a taken username', () => {

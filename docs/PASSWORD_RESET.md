@@ -4,7 +4,7 @@ Forgot password is the same screen for a PlateMaker and a PlateTaker. Web, iOS, 
 
 ## Signed out
 
-Both roles open Forgot Password from sign-in, enter an email, and get a reset link if that address has an account.
+Both roles open Forgot Password from sign-in, enter an email, and get a reset link if that address has an account and the email is already verified. An address that is still waiting for verification does not get a reset link. The screen says to confirm the email first. A Google account must use the Google button. An Apple account must use the Apple button. A link that does not open a recovery session stays on Invalid Link and does not save a password.
 
 - On the website, the link returns to `https://homecookedplate.com/reset-password`. The page applies that link, then asks for a new password.
 - In the iOS app and the Android app, the link opens the app. The tokens after `#` stay with that screen. The same new-password form is shown after those tokens are applied.

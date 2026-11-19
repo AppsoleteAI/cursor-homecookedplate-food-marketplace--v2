@@ -116,6 +116,8 @@ At 3:56 PM the Membership group showed this table. Edit Level stays grey because
 | 2 | PlateTaker monthly | 1 month | Ready for Review |
 | 3 | PlateTaker yearly | 1 year | Ready for Review | A signed-in PlateTaker is billed from these products only after a later iOS version includes them and a build that requests them. A signed-in PlateMaker stays on the version already in review. Signed out, neither purchase starts.
 
+On 17 November 2026 at 12:55 AM the App Review page still showed the 2 November 2026 10:11 PM submission, iOS 1.0, 4 items, Waiting for Review. The Wednesday 3:54 PM row is the two PlateTaker products, Ready for Review, with no version. Leave Submit unclicked on that row. Apple Support’s 12 November 2026 mail is the receipt for the contact request. That sender is no-reply, so the follow-up is a new Contact Us email from App Review Status. It does not move the submission. A signed-in PlateMaker stays on the version in review. A signed-in PlateTaker is not billed from the two Ready for Review products until a later submitted version includes them. Signed out, neither purchase starts.
+
 A signed-in PlateMaker keeps the existing products at $4.99 and $39.99. A signed-in PlateTaker is billed $7.99 or $75.99 from the price on these two products after Apple lists them and iOS 1.0.0 (11) is installed. The Worker that accepts those ids is deployed. That iOS binary is submitted and was still processing. Android version code 10 still bills a PlateTaker $4.99 or $39.99. Signed out, neither purchase starts. Web, iOS, and Android use the same prices. This listing is done in App Store Connect. Leave Submit unclicked on the version already in review.
 
 ## Privacy Policy and Terms of Use

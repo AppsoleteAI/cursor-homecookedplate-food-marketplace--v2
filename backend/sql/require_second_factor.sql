@@ -42,8 +42,28 @@ AS $$
       FROM auth.users AS account
       JOIN auth.identities AS identity ON identity.user_id = account.id
       WHERE lower(account.email) = lower(target_email)
-        AND identity.provider IN ('apple', 'google')
-    ) THEN 'provider'
+        AND identity.provider = 'apple'
+    ) AND EXISTS (
+      SELECT 1
+      FROM auth.users AS account
+      JOIN auth.identities AS identity ON identity.user_id = account.id
+      WHERE lower(account.email) = lower(target_email)
+        AND identity.provider = 'google'
+    ) THEN 'apple_google'
+    WHEN EXISTS (
+      SELECT 1
+      FROM auth.users AS account
+      JOIN auth.identities AS identity ON identity.user_id = account.id
+      WHERE lower(account.email) = lower(target_email)
+        AND identity.provider = 'google'
+    ) THEN 'google'
+    WHEN EXISTS (
+      SELECT 1
+      FROM auth.users AS account
+      JOIN auth.identities AS identity ON identity.user_id = account.id
+      WHERE lower(account.email) = lower(target_email)
+        AND identity.provider = 'apple'
+    ) THEN 'apple'
     ELSE 'email'
   END;
 $$;

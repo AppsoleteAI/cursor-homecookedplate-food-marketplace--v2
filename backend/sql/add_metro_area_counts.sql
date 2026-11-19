@@ -50,6 +50,7 @@ CREATE OR REPLACE FUNCTION public.find_metro_by_location(
 )
 RETURNS text
 LANGUAGE plpgsql
+SET search_path = public, extensions
 AS $$
 DECLARE
   result_metro text;
@@ -168,6 +169,7 @@ RETURNS TABLE (
   trial_days integer
 )
 LANGUAGE plpgsql
+SET search_path = public, extensions
 AS $$
 DECLARE
   result_metro text;

@@ -3,9 +3,10 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { randomBytes } from "node:crypto";
 import { sendEmailConfirmation } from "@/backend/lib/email";
-import { readAuthIdentityKind, signupAlreadyRegisteredMessage } from "@/backend/lib/provider-profile";
+import { readProviderButtonMessage, signupAlreadyRegisteredMessage } from "@/backend/lib/provider-profile";
 import { saveKitchenPin } from "../../../../lib/kitchen-pin";
 import { SIGN_UP_PROFILE_COLUMNS } from "../../../../lib/profile-columns";
+import { legalSafetyAgreementSchema, signupAgreement } from "../../../../lib/legal-gate";
 import { abandonFailedSignup, isDuplicateAuthError, planSignupMetro } from "../../../../lib/signup-account";
 import { ensureAccountIdentifier } from "../../../../lib/account-identifier";
 // Strict password validation schema - matches frontend PasswordStrengthMeter requirements
@@ -27,6 +28,7 @@ export const signupProcedure = publicProcedure
         lat: z.number().nullish(),
         lng: z.number().nullish(),
         foodSafetyAcknowledged: z.boolean().optional().default(false),
+        legalSafetyAgreement: legalSafetyAgreementSchema.optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -71,13 +73,17 @@ export const signupProcedure = publicProcedure
             .select('id')
             .ilike('email', input.email)
             .maybeSingle();
-          const identity = await readAuthIdentityKind(ctx.supabaseAdmin, input.email);
+          const buttonMessage = await readProviderButtonMessage(
+            ctx.supabaseAdmin,
+            input.email,
+            registeredProfile?.id,
+          );
           throw new TRPCError({
             code: 'BAD_REQUEST',
-            message: signupAlreadyRegisteredMessage({
+            message: buttonMessage || signupAlreadyRegisteredMessage({
               profileExists: Boolean(registeredProfile),
               passwordAccepted: false,
-              identity,
+              identity: 'email',
             }) || 'An account with this email already exists. Please use login instead.',
           });
         }
@@ -184,6 +190,19 @@ export const signupProcedure = publicProcedure
         process.stdout.write(`[SIGNUP_V4] UPDATE completed. metro_area=${profile?.metro_area}, trial_ends_at=${profile?.trial_ends_at || 'null'}, membership_tier=${profile?.membership_tier}\n`);
       }
 
+
+      if (!profileError && profile?.created_at) {
+        const keptAgreement = signupAgreement(input.legalSafetyAgreement, new Date(profile.created_at));
+        if (keptAgreement) {
+          const savedAgreement = await ctx.supabaseAdmin
+            .from('profiles')
+            .update({ legal_safety_agreement: keptAgreement })
+            .eq('id', createdUserId);
+          if (savedAgreement.error) {
+            console.error('[Signup] Legal & Safety agreement was not saved:', savedAgreement.error);
+          }
+        }
+      }
 
       if (profileError || !profile) {
         console.error('[Signup] Profile upsert failed:', profileError);

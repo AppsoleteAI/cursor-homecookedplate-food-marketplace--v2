@@ -769,6 +769,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
     try {
+      const storedAgreement = toCompletedLegalAgreement(await readLegalAgreement());
       const result = await trpcProxyClient.auth.signup.mutate({
         username,
         email,
@@ -777,6 +778,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         lat: location?.lat,
         lng: location?.lng,
         foodSafetyAcknowledged: foodSafetyAcknowledged || false,
+        legalSafetyAgreement: storedAgreement ?? undefined,
       }, { signal: controller.signal });
 
       // A new signup has no session. The confirmation link is what allows sign-in.
@@ -805,8 +807,6 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
   const logout = useCallback(async () => {
     rememberAccessToken(null);
     clearLoginLegalBox();
-    await clearLegalAgreement().catch(() => undefined);
-    await clearLegalReadyForSignIn().catch(() => undefined);
     try {
       await logoutMutation.mutateAsync();
     } catch (error) {

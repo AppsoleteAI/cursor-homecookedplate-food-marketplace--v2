@@ -6,6 +6,7 @@ import {
   LEGAL_SIGN_IN_MESSAGE,
   legalSignInDecision,
   SIGNED_LEGAL_RECORD,
+  signupAgreement,
 } from '../legal-gate';
 
 const created = new Date('2026-10-01T12:00:00.000Z');
@@ -44,6 +45,19 @@ describe.each(['platemaker', 'platetaker'] as const)('legal sign-in gate for a %
       submitted: SIGNED_LEGAL_RECORD,
       createdAt: created,
     })).toBe('save');
+  });
+
+  it('keeps the entered date on the new account', () => {
+    const entered = {
+      ...SIGNED_LEGAL_RECORD,
+      acknowledgedOn: '2026-11-10',
+      acknowledgedAt: '2026-11-10T20:49:00.000Z',
+    };
+    const accountCreated = new Date('2026-11-10T20:49:22.000Z');
+    const kept = signupAgreement(entered, accountCreated) as { acknowledgedOn: string; acknowledgedAt: string };
+    expect(kept.acknowledgedOn).toBe('2026-11-10');
+    expect(kept.acknowledgedAt).toBe(accountCreated.toISOString());
+    expect(accountAllowsSignIn(kept, accountCreated)).toBe(true);
   });
 });
 

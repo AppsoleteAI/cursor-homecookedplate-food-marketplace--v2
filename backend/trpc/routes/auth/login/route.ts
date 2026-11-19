@@ -5,7 +5,7 @@ import { readAdminRole } from "../../../../lib/admin-role";
 import { assertEmailConfirmed, CONFIRMATION_EXPIRED_MESSAGE, confirmationWindowClosed } from "../../../../lib/email-confirmation";
 import { accountAllowsSignIn, LEGAL_SAVE_FAILED_MESSAGE, LEGAL_SIGN_IN_MESSAGE, legalSafetyAgreementSchema, legalSignInDecision } from "../../../../lib/legal-gate";
 import { MEMBERSHIP_INELIGIBLE_MESSAGE, NO_ACCOUNT_MESSAGE } from "../../../../lib/sign-in-messages";
-import { readAuthIdentityKind, signInWithoutProfileMessage } from "../../../../lib/provider-profile";
+import { readAuthIdentityKind, readProviderButtonMessage, signInWithoutProfileMessage } from "../../../../lib/provider-profile";
 import { readProfileRow, SIGN_IN_PROFILE_COLUMNS } from "../../../../lib/profile-columns";
 import { AUTHENTICATOR_MISMATCH_MESSAGE, mfaLookupState, verifiedTotpFactorId, verifyTotpCode } from "../../../../lib/second-factor";
 
@@ -66,6 +66,15 @@ export const loginProcedure = publicProcedure
     if (error || !data.user || !data.session) {
       const authError = error as { message?: string; code?: string } | null;
       const authText = `${authError?.code ?? ''} ${authError?.message ?? ''}`.toLowerCase();
+      const { data: existingAccount, error: lookupError } = await ctx.supabaseAdmin
+        .from('profiles')
+        .select('id')
+        .ilike('email', input.email)
+        .maybeSingle();
+      const buttonMessage = await readProviderButtonMessage(ctx.supabaseAdmin, input.email, existingAccount?.id);
+      if (buttonMessage) {
+        throw new TRPCError({ code: 'CONFLICT', message: buttonMessage });
+      }
       if (authText.includes('email_not_confirmed') || authText.includes('email not confirmed')) {
         const expired = await confirmationExpired(ctx.supabaseAdmin, input.email);
         throw new TRPCError({
@@ -75,23 +84,12 @@ export const loginProcedure = publicProcedure
             : 'Confirm your email before signing in. The link in that email lasts 24 hours.',
         });
       }
-      const { data: existingAccount, error: lookupError } = await ctx.supabaseAdmin
-        .from('profiles')
-        .select('id')
-        .ilike('email', input.email)
-        .maybeSingle();
       const identity = await readAuthIdentityKind(ctx.supabaseAdmin, input.email);
       if (!lookupError && !existingAccount) {
         const unfinished = signInWithoutProfileMessage(identity);
         throw new TRPCError({
           code: unfinished ? 'CONFLICT' : 'NOT_FOUND',
           message: unfinished || NO_ACCOUNT_MESSAGE,
-        });
-      }
-      if (identity === 'provider') {
-        throw new TRPCError({
-          code: 'CONFLICT',
-          message: signInWithoutProfileMessage('provider') || NO_ACCOUNT_MESSAGE,
         });
       }
       throw new TRPCError({

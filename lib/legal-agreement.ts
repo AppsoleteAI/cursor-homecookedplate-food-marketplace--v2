@@ -220,12 +220,7 @@ export function chooseLegalForm(input: {
   if (accountOk) return 'account';
 
   const deviceComplete = toCompletedLegalAgreement(input.device);
-  const deviceToday = Boolean(
-    deviceComplete &&
-    input.legalReady &&
-    deviceComplete.acknowledgedOn === input.today,
-  );
-  if (deviceToday) return 'device';
+  if (deviceComplete && input.legalReady) return 'device';
   return 'empty';
 }
 

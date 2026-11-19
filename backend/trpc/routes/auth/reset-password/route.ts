@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
+import { readPasswordResetBlock } from "../../../../lib/provider-profile";
 
 /**
  * Determines the appropriate redirect URL based on platform.
@@ -33,7 +34,16 @@ export const resetPasswordProcedure = publicProcedure
     // Determine redirect URL based on platform hint or default to mobile
     // Use webUrl from context (set via Cloudflare Workers vars or process.env)
     const redirectTo = getRedirectUrl(input.platform, ctx.webUrl);
-    
+    const { data: existingAccount } = await ctx.supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .ilike('email', input.email.trim())
+      .maybeSingle();
+    const blocked = await readPasswordResetBlock(ctx.supabaseAdmin, input.email.trim(), existingAccount?.id);
+    if (blocked) {
+      throw new TRPCError({ code: 'CONFLICT', message: blocked });
+    }
+
     const { error } = await ctx.supabase.auth.resetPasswordForEmail(input.email, {
       redirectTo,
     });

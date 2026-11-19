@@ -4,6 +4,16 @@ export const FRESH_PROVIDER_ACCOUNT_MS = 10 * 60 * 1000;
 export const PROVIDER_CONTINUE_MESSAGE =
   'This email already uses Apple or Google. Continue with that sign-in, then choose Order a Plate or Start Cooking.';
 
+export const GOOGLE_BUTTON_MESSAGE = 'You must sign in with the Google button.';
+
+export const APPLE_BUTTON_MESSAGE = 'You must sign in with the Apple button.';
+
+export const APPLE_AND_GOOGLE_BUTTON_MESSAGE =
+  'You must sign in with the Apple button or the Google button.';
+
+export const UNCONFIRMED_RESET_MESSAGE =
+  'Confirm this email before changing the password. A reset link cannot set a password until the address is verified.';
+
 export const UNFINISHED_PROFILE_MESSAGE =
   'This email is registered, and the profile is not finished. Reset the password, or continue with Apple or Google if that is how you signed up.';
 
@@ -11,7 +21,7 @@ export const EMAIL_ALREADY_REGISTERED_MESSAGE =
   'An account with this email already exists. Please use login instead.';
 
 export type AccountRole = 'platemaker' | 'platetaker';
-export type AuthIdentityKind = 'none' | 'provider' | 'email' | 'unknown';
+export type AuthIdentityKind = 'none' | 'provider' | 'email' | 'apple' | 'google' | 'apple_google' | 'unknown';
 
 export function isAccountRole(value: unknown): value is AccountRole {
   return value === 'platemaker' || value === 'platetaker';
@@ -88,8 +98,76 @@ export function signupAlreadyRegisteredMessage(input: {
 }
 
 export function signInWithoutProfileMessage(identity: AuthIdentityKind): string | null {
+  if (identity === 'google') return GOOGLE_BUTTON_MESSAGE;
+  if (identity === 'apple') return APPLE_BUTTON_MESSAGE;
+  if (identity === 'apple_google') return APPLE_AND_GOOGLE_BUTTON_MESSAGE;
   if (identity === 'provider') return PROVIDER_CONTINUE_MESSAGE;
   if (identity === 'email') return UNFINISHED_PROFILE_MESSAGE;
+  return null;
+}
+
+export function providerButtonMessage(providers: Iterable<string | null | undefined> | null | undefined): string | null {
+  const names = new Set(providers ?? []);
+  const apple = names.has('apple');
+  const google = names.has('google');
+  if (apple && google) return APPLE_AND_GOOGLE_BUTTON_MESSAGE;
+  if (google) return GOOGLE_BUTTON_MESSAGE;
+  if (apple) return APPLE_BUTTON_MESSAGE;
+  return null;
+}
+
+type ProviderIdentityAdmin = {
+  rpc: (fn: string, args: { target_email: string }) => PromiseLike<{ data: unknown; error: { message?: string } | null }>;
+  auth?: {
+    admin?: {
+      getUserById?: (id: string) => PromiseLike<{
+        data: { user: { identities?: { provider?: string | null }[] | null; email_confirmed_at?: string | null } | null } | null;
+        error: { message?: string } | null;
+      }>;
+    };
+  };
+};
+
+/** Names the button when this email is an Apple or Google identity. */
+export async function readProviderButtonMessage(
+  admin: ProviderIdentityAdmin,
+  email: string,
+  userId?: string | null,
+): Promise<string | null> {
+  const lookup = userId ? admin.auth?.admin?.getUserById : undefined;
+  if (userId && lookup) {
+    try {
+      const { data, error } = await lookup(userId);
+      if (!error) {
+        const named = providerButtonMessage(data?.user?.identities?.map((identity) => identity.provider));
+        if (named) return named;
+      }
+    } catch {
+      // The identity function below still names a known Apple or Google account.
+    }
+  }
+  const kind = await readAuthIdentityKind(admin, email);
+  if (kind === 'email' || kind === 'none' || kind === 'unknown') return null;
+  return signInWithoutProfileMessage(kind);
+}
+
+/** A Google or Apple account must use that button. An unverified email cannot set a password from a reset link. */
+export async function readPasswordResetBlock(
+  admin: ProviderIdentityAdmin,
+  email: string,
+  userId?: string | null,
+): Promise<string | null> {
+  const button = await readProviderButtonMessage(admin, email, userId);
+  if (button) return button;
+  const lookup = userId ? admin.auth?.admin?.getUserById : undefined;
+  if (!userId || !lookup) return null;
+  try {
+    const { data, error } = await lookup(userId);
+    if (error || !data?.user) return null;
+    if (!data.user.email_confirmed_at) return UNCONFIRMED_RESET_MESSAGE;
+  } catch {
+    return null;
+  }
   return null;
 }
 
@@ -100,7 +178,14 @@ export async function readAuthIdentityKind(
   try {
     const { data, error } = await admin.rpc('auth_identity_kind', { target_email: email });
     if (error) return 'unknown';
-    if (data === 'provider' || data === 'email' || data === 'none') return data;
+    if (
+      data === 'provider'
+      || data === 'email'
+      || data === 'none'
+      || data === 'apple'
+      || data === 'google'
+      || data === 'apple_google'
+    ) return data;
     if (data == null) return 'none';
     return 'unknown';
   } catch {

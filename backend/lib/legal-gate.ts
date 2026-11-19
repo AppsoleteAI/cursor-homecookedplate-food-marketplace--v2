@@ -115,6 +115,16 @@ export function accountAllowsSignIn(value: unknown, createdAt: Date): boolean {
   return needsAppleLicenseRecheck(value, createdAt);
 }
 
+/** Keeps the date the person entered. A timestamp from before the new account is moved to that account's creation time. */
+export function signupAgreement(value: unknown, createdAt: Date): unknown | null {
+  if (!value || typeof value !== 'object' || Number.isNaN(createdAt.getTime())) return null;
+  const record = value as { acknowledgedAt?: string };
+  if (submittedAgreementAllows(value, createdAt)) return value;
+  if (typeof record.acknowledgedAt !== 'string') return null;
+  const kept = { ...record, acknowledgedAt: createdAt.toISOString() };
+  return submittedAgreementAllows(kept, createdAt) ? kept : null;
+}
+
 export function submittedAgreementAllows(value: unknown, createdAt: Date): boolean {
   const completed = completedAgreement(value);
   if (!completed) return false;

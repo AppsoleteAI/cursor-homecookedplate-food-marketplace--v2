@@ -68,6 +68,18 @@ describe('chooseLegalForm', () => {
     })).toBe('empty');
   });
 
+  it('keeps a finished agreement after the day it was signed', () => {
+    const earlier = record('2026-11-10', '2026-11-10T20:49:00.000Z');
+    expect(chooseLegalForm({
+      signedIn: false,
+      createdAt: null,
+      account: null,
+      device: earlier,
+      legalReady: true,
+      today: '2026-11-18',
+    })).toBe('device');
+  });
+
   it('keeps a confirmation finished today before sign-in', () => {
     const today = record('2026-10-25', '2026-10-25T17:30:00.000Z');
     expect(chooseLegalForm({
