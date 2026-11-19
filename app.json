@@ -36,7 +36,7 @@
         "backgroundColor": "#D89429"
       },
       "package": "com.rork.homecookedplate",
-      "versionCode": 12,
+      "versionCode": 13,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
@@ -145,6 +145,7 @@
       ],
       "expo-iap",
       "./plugins/withLegacyStorage.js",
+      "./plugins/with16KbPageSize.js",
       [
         "@sentry/react-native/expo",
         {
