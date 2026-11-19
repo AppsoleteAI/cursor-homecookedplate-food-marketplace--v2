@@ -152,33 +152,19 @@ describe('provider profile repair', () => {
       error: null,
     });
     await expect(readProviderButtonMessage(admin, 'buyer@example.com', 'account-2')).resolves.toBe(APPLE_BUTTON_MESSAGE);
-    const unconfirmed: {
-      rpc: () => Promise<{ data: string; error: null }>;
-      auth: {
-        admin: {
-          getUserById: () => Promise<{
-            data: { user: { identities: { provider: string }[]; email_confirmed_at: string | null } };
-            error: null;
-          }>;
-        };
-      };
-    } = {
+    const makeEmailAdmin = (emailConfirmedAt: string | null) => ({
       rpc: async () => ({ data: 'email', error: null }),
       auth: {
         admin: {
           getUserById: async () => ({
-            data: { user: { identities: [{ provider: 'email' }], email_confirmed_at: null } },
+            data: { user: { identities: [{ provider: 'email' }], email_confirmed_at: emailConfirmedAt } },
             error: null,
           }),
         },
       },
-    };
-    await expect(readPasswordResetBlock(unconfirmed, 'cook@example.com', 'account-1')).resolves.toBe(UNCONFIRMED_RESET_MESSAGE);
-    unconfirmed.auth.admin.getUserById = async () => ({
-      data: { user: { identities: [{ provider: 'email' }], email_confirmed_at: '2026-11-10T20:49:22.000Z' } },
-      error: null,
     });
-    await expect(readPasswordResetBlock(unconfirmed, 'buyer@example.com', 'account-2')).resolves.toBeNull();
+    await expect(readPasswordResetBlock(makeEmailAdmin(null), 'cook@example.com', 'account-1')).resolves.toBe(UNCONFIRMED_RESET_MESSAGE);
+    await expect(readPasswordResetBlock(makeEmailAdmin('2026-11-10T20:49:22.000Z'), 'buyer@example.com', 'account-2')).resolves.toBeNull();
   });
 });
 

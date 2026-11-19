@@ -11,6 +11,8 @@ supabase/functions/**/.env
 *.env
 supabase_key.txt
 service-role-key.json
+*-firebase-adminsdk-*.json
+homecookedplate-fcm*.json
 
 # Allow .env.example files (templates should be committed)
 !.env.example
@@ -43,6 +45,7 @@ supabase/.temp/
 Thumbs.db
 
 # --- BUILD OUTPUTS ---
+coverage/
 backend/dist/
 *.log
 npm-debug.log*
@@ -106,6 +109,7 @@ docs/STORE_LISTING.md
 docs/STORE_REMAINING_FORMS.md
 docs/STRIPE_LIVE_WEBHOOK.md
 docs/STRIPE_WHAT_YOU_SELL.md
+docs/SUPABASE_POSTGIS_SUPPORT.md
 docs/TESTING.md
 docs/advertise/
 docs/receipts/
