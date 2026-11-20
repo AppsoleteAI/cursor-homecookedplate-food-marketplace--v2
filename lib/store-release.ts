@@ -1,7 +1,7 @@
-/** iOS 13 was uploaded 18 November 2026. Android 13 is the 16 KB page package. */
+/** Source tree for the binaries uploaded on 19 November 2026. */
 export const SOURCE_VERSION = '1.0.0';
-export const UPLOADED_IOS_BUILD = '13';
-export const UPLOADED_ANDROID_VERSION_CODE = 13;
+export const UPLOADED_IOS_BUILD = '14';
+export const UPLOADED_ANDROID_VERSION_CODE = 14;
 
 /**
  * Public phone app: the store binary a person installs, build 8, on iOS and
