@@ -5,6 +5,8 @@ import {
   isMissingAccountMessage,
   MEMBERSHIP_INELIGIBLE_MESSAGE,
   NO_ACCOUNT_MESSAGE,
+  REVOKED_SESSION_MESSAGE,
+  REVOKED_SESSION_NOTICE_KEY,
   WRONG_SIGN_IN_MESSAGE,
 } from '../sign-in-messages';
 
@@ -25,6 +27,11 @@ describe('sign-in account messages', () => {
     expect(isIneligibleAccountMessage(MEMBERSHIP_INELIGIBLE_MESSAGE)).toBe(true);
     expect(isIneligibleAccountMessage('This account is permanently banned after lost card disputes.')).toBe(true);
     expect(isIneligibleAccountMessage(NO_ACCOUNT_MESSAGE)).toBe(false);
+  });
+
+  it('tells both roles when a saved sign-in has ended', () => {
+    expect(REVOKED_SESSION_MESSAGE).toBe('This saved sign-in has ended. Sign in again.');
+    expect(REVOKED_SESSION_NOTICE_KEY).toBe('hcp_sign_in_notice');
   });
 
   it('reads the same failure on email, Apple, and Google', () => {

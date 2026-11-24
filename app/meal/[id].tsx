@@ -32,7 +32,6 @@ import { useCart } from '@/hooks/cart-context';
 import { useFavorites } from '@/hooks/favorites-context';
 import StarRating from '@/components/StarRating';
 import { useAuth } from '@/hooks/auth-context';
-import { GuestLimit } from '@/components/GuestLimit';
 import { navLogger } from '@/lib/nav-logger';
 import { captureException } from '@/lib/sentry';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -108,7 +107,6 @@ export default function MealDetailScreen() {
   }, [meal, mealId, mealQuery.isLoading, id]);
 
   if (authLoading) return null;
-  if (!isAuthenticated) return <GuestLimit screen="meal" />;
 
   if (mealQuery.isLoading) {
     return (
@@ -141,7 +139,14 @@ export default function MealDetailScreen() {
 
   const isSample = meal.isSample === true || isSampleMealId(meal.id);
 
+  const requireAccount = (action: string) => {
+    if (isAuthenticated) return true;
+    Alert.alert('Sign in', `Sign in to ${action}.`);
+    return false;
+  };
+
   const handleAddToCart = () => {
+    if (!requireAccount('add this plate')) return;
     if (isSample) return;
     if (meal.acceptingOrders === false) {
       Alert.alert('Orders', 'This cook is not taking orders.');
@@ -161,6 +166,7 @@ export default function MealDetailScreen() {
   };
 
   const openReviews = () => {
+    if (!requireAccount('review this plate')) return;
     if (!meal) return;
     router.push({ pathname: `/reviews/[mealId]` as const, params: { mealId: meal.id, next: `/meal/${meal.id}` } });
   };
@@ -315,7 +321,10 @@ export default function MealDetailScreen() {
             {!isPlatemaker && (
               <GlassPressable 
                 style={styles.favoriteButton}
-                onPress={() => meal && toggleFavorite(meal)}
+                onPress={() => {
+                  if (!requireAccount('save a favorite')) return;
+                  if (meal) toggleFavorite(meal);
+                }}
                 testID="favorite-button"
               >
                 <Heart 
@@ -341,6 +350,7 @@ export default function MealDetailScreen() {
                   baseColor="yellow"
                   size={20}
                   onChange={(val) => {
+                    if (!requireAccount('review this plate')) return;
                     if (!meal) return;
                     router.push({ pathname: `/reviews/[mealId]` as const, params: { mealId: meal.id, next: `/meal/${meal.id}`, initialRating: String(val) } });
                   }}

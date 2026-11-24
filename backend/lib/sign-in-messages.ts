@@ -1,3 +1,8 @@
+/** Shown on Sign In after a saved refresh token was already used or revoked. */
+export const REVOKED_SESSION_MESSAGE = 'This saved sign-in has ended. Sign in again.';
+
+export const REVOKED_SESSION_NOTICE_KEY = 'hcp_sign_in_notice';
+
 /** Shown when the email or password does not match. */
 export const WRONG_SIGN_IN_MESSAGE =
   'That email or password does not match. Check both and try again, or tap Forgot Password to set a new one.';

@@ -20,11 +20,11 @@ A PlateTaker sees Home, Search, Cart, Orders, Clips, and Profile. A PlateMaker s
 
 ## Signed out
 
-The greeting is Hello, Guest! The location line is Pickup near you.
+The greeting is Hello, Guest! The location line is Pickup near you. The card uses the honey background and the maroon buttons. It is on screen only while that person is signed out. Signing in removes it and opens the real screen. Signing out brings it back.
 
-A signed-out PlateMaker sees this card on Dashboard, Create Meal, Search, a meal page, and each option inside FarmGrownBasket, FoodTruckPopup, CaterEventDeliver, SitDownDelicious, and MealPrepGo. Home, Clips, Profile, and the section menus stay open.
+A signed-out PlateMaker sees this card on Dashboard, Create Meal, the cook's plate-details form, and each option inside FarmGrownBasket, FoodTruckPopup, CaterEventDeliver, SitDownDelicious, and MealPrepGo. Home, Search, a plate page, Clips, Profile, and the section menus stay open. Add to Plate, a favorite, and a review ask for Sign In.
 
-A signed-out PlateTaker sees this card on Orders, Cart, Search, a meal page, and each option inside those same sections. Home, Clips, Profile, and the section menus stay open.
+A signed-out PlateTaker sees this card on Orders, Cart, the cook's plate-details form, and each option inside those same sections. Home, Search, a plate page, Clips, Profile, and the section menus stay open. Add to Plate, a favorite, and a review ask for Sign In.
 
 Profile offers Create an account, Sign in, and Limited browsing. The line above those choices is Create an account, sign in, or limited browsing. Limited browsing returns to that role’s home. Create an account skips Home-Cooked Plates, Near You and Food handling. Food handling stays on Home-Cooked Plates, Near You only. A PlateTaker opens A Few Notes Before You Order, then Location and Account. A PlateMaker opens Cottage Food Rules, then Location and Account. Sign in opens the Sign in screen. A signed-in PlateTaker returns to home. A signed-in PlateMaker opens the kitchen dashboard.
 

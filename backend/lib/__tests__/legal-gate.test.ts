@@ -34,17 +34,23 @@ describe.each(['platemaker', 'platetaker'] as const)('legal sign-in gate for a %
     expect(legalSignInDecision({ stored: prior, createdAt: created })).toBe('allow');
   });
 
-  it('does not keep the session when the agreement being saved is refused', () => {
+  it('keeps an accepted account agreement when the copy being saved is refused', () => {
+    const refused = { ...prior, sections: SIGNED_LEGAL_RECORD.sections, acknowledgedAt: '2026-10-01T00:00:00.000Z' };
     expect(legalSignInDecision({
       stored: SIGNED_LEGAL_RECORD,
-      submitted: { ...prior, sections: SIGNED_LEGAL_RECORD.sections, acknowledgedAt: '2026-10-01T00:00:00.000Z' },
+      submitted: refused,
       createdAt: created,
-    })).toBe('refuse');
+    })).toBe('allow');
     expect(legalSignInDecision({
       stored: null,
       submitted: SIGNED_LEGAL_RECORD,
       createdAt: created,
     })).toBe('save');
+    expect(legalSignInDecision({
+      stored: null,
+      submitted: refused,
+      createdAt: created,
+    })).toBe('refuse');
   });
 
   it('keeps the entered date on the new account', () => {

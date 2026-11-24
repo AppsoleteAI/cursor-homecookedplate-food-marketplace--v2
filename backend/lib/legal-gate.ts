@@ -132,18 +132,18 @@ export function submittedAgreementAllows(value: unknown, createdAt: Date): boole
 }
 
 /**
- * `save` must be written before the session is returned. A failed write is a refusal
- * even when an older row would have allowed sign-in.
+ * An accepted agreement on the account opens sign-in. A refused copy on the device
+ * does not sign that account out. A just-finished page is saved only when the
+ * account does not already have an accepted agreement.
  */
 export function legalSignInDecision(input: {
   stored: unknown;
   submitted?: unknown;
   createdAt: Date;
 }): 'save' | 'allow' | 'refuse' {
-  if (input.submitted != null) {
-    return submittedAgreementAllows(input.submitted, input.createdAt) ? 'save' : 'refuse';
-  }
-  return accountAllowsSignIn(input.stored, input.createdAt) ? 'allow' : 'refuse';
+  if (accountAllowsSignIn(input.stored, input.createdAt)) return 'allow';
+  if (input.submitted != null && submittedAgreementAllows(input.submitted, input.createdAt)) return 'save';
+  return 'refuse';
 }
 
 export async function profileAllowsSignIn(

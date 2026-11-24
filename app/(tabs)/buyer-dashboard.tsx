@@ -10,7 +10,7 @@ import StarRating from '@/components/StarRating';
 import { useFavorites } from '@/hooks/favorites-context';
 import { useCart } from '@/hooks/cart-context';
 import { useOrders } from '@/hooks/orders-context';
-import { router, useFocusEffect, usePathname, type Href } from 'expo-router';
+import { Redirect, router, useFocusEffect, usePathname, type Href } from 'expo-router';
 import { openFoodHandling } from '@/components/FoodHandlingLink';
 import { trpc, trpcProxyClient } from '@/lib/trpc';
 import { reorderPickup } from '@/lib/pickup-time';
@@ -19,10 +19,15 @@ import HorizontalCarousel from '@/components/HorizontalCarousel';
 import { ScrollJumps } from '@/components/ScrollJumps';
 import { FoodImage } from '@/components/FoodImage';
 import { firstPlatePhoto } from '@/lib/food-review-clips';
+import { useAuth } from '@/hooks/auth-context';
+import { useGuestRole } from '@/hooks/use-guest-role';
+import { GuestLimit } from '@/components/GuestLimit';
 
 export default function BuyerDashboardScreen() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const guestRole = useGuestRole();
   const { favorites } = useFavorites();
   const favoriteIds = favorites.map((meal) => meal.id).join(',');
   const [openFavoriteIds, setOpenFavoriteIds] = useState<string[]>([]);
@@ -143,6 +148,12 @@ export default function BuyerDashboardScreen() {
   const contentTopPadding = useMemo(() => {
     return insets.top + 76 + 12;
   }, [insets.top]);
+
+  if (authLoading || (!isAuthenticated && guestRole === undefined)) return null;
+  if (!isAuthenticated) {
+    if (guestRole === 'platemaker') return <Redirect href="/(tabs)/dashboard" />;
+    return <GuestLimit screen="orders" />;
+  }
 
   return (
     <BuyerOnly>

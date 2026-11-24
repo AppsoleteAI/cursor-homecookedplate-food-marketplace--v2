@@ -25,6 +25,7 @@ import {
   classifySignInFailure,
   MEMBERSHIP_INELIGIBLE_MESSAGE,
   NO_ACCOUNT_MESSAGE,
+  REVOKED_SESSION_NOTICE_KEY,
   WRONG_SIGN_IN_MESSAGE,
 } from '@/backend/lib/sign-in-messages';
 import { agreementFromUnknown, chooseLegalForm, clearLegalAgreement, clearLegalReadyForSignIn, isLegalReadyForSignIn, isLoginLegalBoxChecked, LEGAL_BOX_MESSAGE, LEGAL_SIGN_IN_MESSAGE, readLegalAgreement, setLoginLegalBoxChecked, todayStamp, toCompletedLegalAgreement } from '@/lib/legal-agreement';
@@ -97,6 +98,12 @@ export default function LoginScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
+      AsyncStorage.getItem(REVOKED_SESSION_NOTICE_KEY).then(async (notice) => {
+        if (!active || !notice) return;
+        await AsyncStorage.removeItem(REVOKED_SESSION_NOTICE_KEY);
+        if (!active) return;
+        setError(notice);
+      }).catch(() => undefined);
       readLegalAgreement().then(async (record) => {
         const ready = await isLegalReadyForSignIn();
         const finished = agreementFromUnknown(record);

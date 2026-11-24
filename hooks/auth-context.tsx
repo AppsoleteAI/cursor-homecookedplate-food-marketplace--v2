@@ -7,6 +7,7 @@ import { requestProviderSession } from '@/lib/provider-sign-in';
 import { providerAccountBlock } from '@/backend/lib/provider-account';
 import { isAccountRole, PROVIDER_ROLE_STORAGE_KEY, type AccountRole } from '@/backend/lib/provider-profile';
 import { SECOND_FACTOR_MESSAGE } from '@/backend/lib/second-factor';
+import { REVOKED_SESSION_MESSAGE, REVOKED_SESSION_NOTICE_KEY } from '@/backend/lib/sign-in-messages';
 // Import expo-secure-store with platform-specific shim for web compatibility
 // Metro will automatically resolve to lib/expo-secure-store.web.ts on web platform
 import * as SecureStore from '@/lib/expo-secure-store';
@@ -199,6 +200,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
               rememberAccessToken(null);
               await persistSession(null);
               await AsyncStorage.removeItem(STORAGE_KEY);
+              await AsyncStorage.setItem(REVOKED_SESSION_NOTICE_KEY, REVOKED_SESSION_MESSAGE).catch(() => undefined);
               navLogger.warn('hooks/auth-context.tsx:LOAD_USER', 'Session restore failed, cleared storage', undefined, {
                 error: error.message,
               });
@@ -596,11 +598,12 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       isPaused: profile.is_paused,
       twoFactorEnabled: profile.two_factor_enabled,
     };
-    if (await applySignInLegal(signedInUser.createdAt, profile.legal_safety_agreement) === 'block') {
+    const accountAccepted = accountAllowsSignIn(profile.legal_safety_agreement, signedInUser.createdAt);
+    if (!accountAccepted && await applySignInLegal(signedInUser.createdAt, profile.legal_safety_agreement) === 'block') {
       await settleWithin(supabase.auth.signOut({ scope: 'local' }), 2000).catch(() => undefined);
       throw new Error(LEGAL_SIGN_IN_MESSAGE);
     }
-    const stamped = await pendingLegalAgreement();
+    const stamped = accountAccepted ? undefined : await pendingLegalAgreement();
     let gateRecord: unknown = profile.legal_safety_agreement;
     if (stamped) {
       try {
