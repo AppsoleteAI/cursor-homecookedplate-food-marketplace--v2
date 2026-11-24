@@ -42,6 +42,9 @@ const READY_KEY = 'hcp_legal_ready';
 export const LEGAL_SIGN_IN_MESSAGE =
   'Complete the Legal & Safety page before signing in. Open that page, check each section, and enter today\'s date. Then return here and sign in.';
 
+/** The sign-in checkbox is empty. The Legal & Safety page stays on the screen. */
+export const LEGAL_BOX_MESSAGE = 'Check the Legal & Safety box, then sign in.';
+
 let loginLegalBoxChecked = false;
 
 export function isLoginLegalBoxChecked(): boolean {

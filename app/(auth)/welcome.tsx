@@ -21,6 +21,9 @@ import { PLATEMAKER_LOST_DISPUTE_SIGNUP, PLATETAKER_LOST_DISPUTE_SIGNUP } from '
 import { BUYER_AFTER_NOTE, BUYER_FOOD_NOTE, BUYER_MEETING_NOTE } from '@/lib/buyer-safety';
 import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { PROVIDER_ROLE_STORAGE_KEY } from '@/backend/lib/provider-profile';
+import { writeGuestRole } from '@/lib/guest-role';
+import { classifySignInFailure, MEMBERSHIP_INELIGIBLE_MESSAGE, NO_ACCOUNT_MESSAGE, WRONG_SIGN_IN_MESSAGE } from '@/backend/lib/sign-in-messages';
+import { LEGAL_SIGN_IN_MESSAGE } from '@/lib/legal-agreement';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, GlassTop, glassSurface } from '@/components/glass-surface';
 
@@ -96,12 +99,12 @@ function stepParam(value: string | string[] | undefined): number {
   return step === 1 || step === 2 || step === 3 ? step : 0;
 }
 
-function welcomeReturn(role: Role | undefined, step: number) {
+function welcomeReturn(role: Role | undefined, step: number, entry?: string) {
   const query = new URLSearchParams();
   if (role) query.set('role', role);
-  if (step > 0) query.set('step', String(step));
-  const text = query.toString();
-  return text ? `/welcome?${text}` : '/welcome';
+  if (entry) query.set('entry', entry);
+  query.set('step', String(step));
+  return `/welcome?${query.toString()}`;
 }
 
 function markWelcomeSeen() {
@@ -109,13 +112,15 @@ function markWelcomeSeen() {
 }
 
 export default function WelcomeScreen() {
-  const { user } = useAuth();
-  const params = useLocalSearchParams<{ role?: string | string[]; entry?: string | string[]; step?: string | string[] }>();
+  const { user, finishProviderAccount } = useAuth();
+  const params = useLocalSearchParams<{ role?: string | string[]; entry?: string | string[]; step?: string | string[]; pending?: string | string[] }>();
   const role = roleParam(params.role);
   const openedStep = stepParam(params.step);
   const [pickedRole, setPickedRole] = useState<Role | undefined>(openedStep >= 2 ? role : undefined);
   const chosenRole = pickedRole;
   const isGate = firstParam(params.entry) === 'gate';
+  const isSignup = firstParam(params.entry) === 'signup';
+  const fromLanding = firstParam(params.entry) === 'landing';
   const isMaker = chosenRole === 'platemaker';
   const stepLabels = ['Benefits', 'Membership', isMaker ? 'Cottage food' : 'Safety'];
   const [step, setStep] = useState(openedStep);
@@ -135,8 +140,11 @@ export default function WelcomeScreen() {
       return next;
     });
   }, []);
-  const stepBack = useWizardBack(step, setWizardStep);
+  const backToNearYou = fromLanding && step === 1;
+  const backToLanding = fromLanding && step === 0;
+  const stepBack = useWizardBack(step, setWizardStep, backToNearYou || backToLanding || isSignup);
   const [gate, setGate] = useState<'show' | 'login'>('show');
+  const [finishNotice, setFinishNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isGate) return;
@@ -181,13 +189,56 @@ export default function WelcomeScreen() {
   };
 
   const chooseRole = (next: Role) => {
-    AsyncStorage.setItem(PROVIDER_ROLE_STORAGE_KEY, next).catch(() => undefined);
-    setPickedRole(next);
-    setStep(2);
+    const finishSignIn = firstParam(params.pending) === 'provider';
+    writeGuestRole(next).then(async () => {
+      setPickedRole(next);
+      if (isSignup) {
+        setStep(3);
+        return;
+      }
+      if (finishSignIn) {
+        try {
+          await finishProviderAccount(next);
+          router.replace('/');
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'The account could not be finished.';
+          const failure = classifySignInFailure(message);
+          const notice = failure.kind === 'legal'
+            ? LEGAL_SIGN_IN_MESSAGE
+            : failure.kind === 'ineligible'
+              ? MEMBERSHIP_INELIGIBLE_MESSAGE
+              : failure.kind === 'missing'
+                ? NO_ACCOUNT_MESSAGE
+                : failure.kind === 'password'
+                  ? WRONG_SIGN_IN_MESSAGE
+                  : failure.kind === 'network'
+                    ? 'Network error. Check your connection and try again.'
+                    : failure.kind === 'validation'
+                      ? 'Check the email address, then try again.'
+                      : failure.kind === 'other'
+                        ? failure.message
+                        : message;
+          setFinishNotice(notice);
+          console.error('[Welcome] Role choice did not finish sign-in', message);
+        }
+        return;
+      }
+      router.push('/(tabs)/(home)/home');
+    }).catch(() => undefined);
   };
 
   const continueForward = () => {
     if (step === 0) {
+      if (fromLanding) {
+        router.replace({ pathname: '/(auth)/welcome', params: { step: '1', entry: 'landing' } });
+        return;
+      }
+      const known = pickedRole ?? role;
+      if (isSignup && known) {
+        setPickedRole(known);
+        setStep(3);
+        return;
+      }
       setPickedRole(undefined);
       setStep(1);
       return;
@@ -217,17 +268,33 @@ export default function WelcomeScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {step > 0 ? <BackCircle tone="honey" onPress={stepBack} testID="welcome-back" /> : null}
+          {step > 0 || backToLanding ? (
+            <BackCircle
+              tone="honey"
+              onPress={
+                backToLanding
+                  ? () => router.replace('/(auth)/limited-browsing')
+                  : backToNearYou
+                    ? () => router.replace({ pathname: '/(auth)/welcome', params: { step: '0', entry: 'landing' } })
+                    : isSignup
+                      ? () => router.replace('/(tabs)/(home)/home')
+                      : step === 1
+                        ? () => router.replace('/(auth)/login')
+                        : stepBack
+              }
+              testID="welcome-back"
+            />
+          ) : null}
 
-          <AuthBrand />
-          <View style={styles.steps}>
+          <AuthBrand toLanding={step === 0 || step === 1} toSignIn={step !== 0 && step !== 1} />
+          {step === 1 ? null : <View style={styles.steps}>
             {stepLabels.map((label, index) => (
               <View key={label} style={styles.stepItem}>
                 <View style={[styles.stepDot, index <= shownStep && styles.stepDotOn]} />
                 <Text style={[styles.stepLabel, index === shownStep && styles.stepLabelOn]}>{label}</Text>
               </View>
             ))}
-          </View>
+          </View>}
 
           <View style={styles.sheet}>
             <View style={styles.panel}>
@@ -248,6 +315,7 @@ export default function WelcomeScreen() {
                       </View>
                     </View>
                   ))}
+                  <FoodHandlingLink color="#3D7EBE" returnTo={welcomeReturn(undefined, 0, 'landing')} />
                 </>
               ) : null}
 
@@ -287,6 +355,7 @@ export default function WelcomeScreen() {
                           <Text style={styles.choiceRole}>PlateMaker</Text>
                         </GlassPressable>
                       </View>
+                      {finishNotice ? <Text style={styles.help}>{finishNotice}</Text> : null}
                     </>
                   ) : null}
                   {step === 2 && chosenRole ? MEMBERSHIP_PRICES.filter((plan) => plan.id.startsWith(isMaker ? 'platemaker' : 'platetaker')).map((plan) => {
@@ -344,7 +413,7 @@ export default function WelcomeScreen() {
                 <>
                   <Text style={styles.panelTitle}>A Few Notes Before You Order</Text>
                   <Text style={styles.help}>
-                    You are here to find food and eat it. These notes cover the pickup. Temperatures, leftovers, and containers are on Food handling.
+                    You are here to find food and eat it. These notes cover the pickup.
                   </Text>
                   <View style={styles.benefit}>
                     <Text style={styles.benefitEmoji}>🥣</Text>
@@ -368,7 +437,6 @@ export default function WelcomeScreen() {
                     </View>
                   </View>
                   <Text style={styles.help}>{PLATETAKER_LOST_DISPUTE_SIGNUP}</Text>
-                  <FoodHandlingLink color="#3D7EBE" returnTo={welcomeReturn(chosenRole, 3)} />
                 </>
               ) : null}
 
@@ -415,16 +483,17 @@ export default function WelcomeScreen() {
                     </Text>
                     <Text style={[styles.checkText, { marginTop: 8 }]}>{PLATEMAKER_LOST_DISPUTE_SIGNUP}</Text>
                   </View>
-                  <FoodHandlingLink color="#3D7EBE" label="Food handling temperatures for the kitchen" returnTo={welcomeReturn(chosenRole, 3)} />
                 </>
               ) : null}
 
+              {step === 1 ? null : (
               <AuthGoldButton
                 title={step === 3 ? 'Continue to your account' : 'Continue'}
                 onPress={continueForward}
                 testID={step === 3 ? 'welcome-continue-account' : 'welcome-continue'}
                 style={styles.action}
               />
+              )}
               {step === 0 ? (
                 <GlassPressable onPress={goToSignIn} testID="welcome-sign-in" style={styles.signIn}>
                   <Text style={styles.signInText}>I Already Have an Account</Text>

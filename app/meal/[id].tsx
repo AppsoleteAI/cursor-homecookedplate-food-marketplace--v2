@@ -32,6 +32,7 @@ import { useCart } from '@/hooks/cart-context';
 import { useFavorites } from '@/hooks/favorites-context';
 import StarRating from '@/components/StarRating';
 import { useAuth } from '@/hooks/auth-context';
+import { GuestLimit } from '@/components/GuestLimit';
 import { navLogger } from '@/lib/nav-logger';
 import { captureException } from '@/lib/sentry';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -46,7 +47,7 @@ export default function MealDetailScreen() {
   const mealId = typeof id === 'string' ? id : Array.isArray(id) ? id[0] : '';
   const { addToCart } = useCart();
   const { isFavorite, toggleFavorite } = useFavorites();
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const mealQuery = trpc.meals.get.useQuery(
     { id: mealId, metroArea: user?.metroArea || undefined },
     { enabled: mealId.length > 0 }
@@ -105,6 +106,9 @@ export default function MealDetailScreen() {
       });
     }
   }, [meal, mealId, mealQuery.isLoading, id]);
+
+  if (authLoading) return null;
+  if (!isAuthenticated) return <GuestLimit screen="meal" />;
 
   if (mealQuery.isLoading) {
     return (

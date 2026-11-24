@@ -60,7 +60,7 @@ export function AuthBackButton({ onPress, hitSlop }: { onPress: () => void; hitS
   );
 }
 
-export function AuthBrand({ toSignIn = true }: { toSignIn?: boolean }) {
+export function AuthBrand({ toSignIn = true, toLanding = false }: { toSignIn?: boolean; toLanding?: boolean }) {
   const mark = (
     <View style={styles.brandRow}>
       <View style={styles.brandMarkWrap}>
@@ -85,6 +85,19 @@ export function AuthBrand({ toSignIn = true }: { toSignIn?: boolean }) {
       <Text style={[styles.brandWord, brandDepth as TextStyle]}>HomeCookedPlate</Text>
     </View>
   );
+  if (toLanding) {
+    return (
+      <Pressable
+        style={styles.brandHit}
+        onPress={() => router.replace('/(auth)/limited-browsing')}
+        accessibilityRole="link"
+        accessibilityLabel="HomeCookedPlate, back to the start"
+        testID="brand-to-landing"
+      >
+        {mark}
+      </Pressable>
+    );
+  }
   if (!toSignIn) return <View style={styles.brandHit}>{mark}</View>;
   return (
     <Pressable

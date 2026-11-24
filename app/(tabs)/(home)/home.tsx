@@ -37,7 +37,7 @@ import { ScrollJumps } from '@/components/ScrollJumps';
 import { FoodImage } from '@/components/FoodImage';
 import { firstPlatePhoto } from '@/lib/food-review-clips';
 import { BackCircle } from '@/components/BackCircle';
-import { useLeaveScreen } from '@/hooks/use-leave-screen';
+import { useLeaveScreen, useRefreshBack } from '@/hooks/use-leave-screen';
 import { BAKED_COTTAGE_LINK, BAKED_COTTAGE_NOTE, isCottageSearch } from '@/lib/baked-cottage';
 import { isVegetableLeatherSearch, VEGETABLE_LEATHER_ALSO, VEGETABLE_LEATHER_PARAGRAPHS, VEGETABLE_LEATHER_TITLE } from '@/lib/cottage-directory';
 export default function HomeScreen() {
@@ -45,7 +45,8 @@ export default function HomeScreen() {
   const openedFrom = useLocalSearchParams<{ returnTo?: string | string[] }>();
   const returnTo = Array.isArray(openedFrom.returnTo) ? openedFrom.returnTo[0] : openedFrom.returnTo;
   const fromProfile = typeof returnTo === 'string' && returnTo.startsWith('/') && !returnTo.startsWith('//');
-  const leaveProfile = useLeaveScreen('/(tabs)/profile', fromProfile);
+  const signedIn = Boolean(user);
+  const leaveProfile = useLeaveScreen('/(tabs)/profile', fromProfile && !signedIn);
   const insets = useSafeAreaInsets();
   const { bellCount, markBellSeen, refresh } = useOrders();
   useFocusEffect(useCallback(() => {
@@ -58,7 +59,7 @@ export default function HomeScreen() {
   const dietaryBrowse: string[] = useMemo(() => dietaryOptions, []);
 
   // Fetch meals from tRPC backend
-  const { data: mealsData, isLoading: mealsLoading, error: mealsError } = trpc.meals.list.useQuery({
+  const { data: mealsData, isLoading: mealsLoading, error: mealsError, refetch: refetchMeals } = trpc.meals.list.useQuery({
     cuisine: selectedCuisine || undefined,
     metroArea: user?.metroArea || undefined,
   });
@@ -120,6 +121,12 @@ export default function HomeScreen() {
 
   const scrollRef = useRef<ScrollView | null>(null);
   const { onScroll } = useScrollRestoration('homeScroll', scrollRef);
+  useRefreshBack(() => {
+    refetchMeals().catch(() => undefined);
+    recentOrders.refetch().catch(() => undefined);
+    refresh().catch(() => undefined);
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, signedIn);
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     onScroll(e.nativeEvent.contentOffset.x, e.nativeEvent.contentOffset.y);
   };
@@ -168,7 +175,7 @@ export default function HomeScreen() {
           end={{ x: 1, y: 1 }}
           style={[styles.headerCard, { paddingTop: insets.top }]}
         >
-          {fromProfile ? <BackCircle tone="frost" onPress={leaveProfile} testID="home-back-to-profile" /> : null}
+          {fromProfile && !signedIn ? <BackCircle tone="frost" onPress={leaveProfile} testID="home-back-to-profile" /> : null}
           <View style={styles.headerTop}>
             <View>
               <Text style={styles.greeting}>Hello, {screenName(user?.username)}!</Text>

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { hydrateCaterEvent } from '@/hooks/cater-event-store';
+import { SectionGuestGate } from '@/components/GuestLimit';
 
 export default function CaterEventDeliverLayout() {
   useEffect(() => {
@@ -8,6 +9,7 @@ export default function CaterEventDeliverLayout() {
   }, []);
 
   return (
+    <SectionGuestGate root="/cater-event-deliver">
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="board" />
@@ -22,5 +24,6 @@ export default function CaterEventDeliverLayout() {
       <Stack.Screen name="list" />
       <Stack.Screen name="license" />
     </Stack>
+    </SectionGuestGate>
   );
 }

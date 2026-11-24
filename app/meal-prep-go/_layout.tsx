@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { hydrateMealPrep } from '@/hooks/meal-prep-store';
+import { SectionGuestGate } from '@/components/GuestLimit';
 
 export default function MealPrepGoLayout() {
   useEffect(() => {
@@ -8,6 +9,7 @@ export default function MealPrepGoLayout() {
   }, []);
 
   return (
+    <SectionGuestGate root="/meal-prep-go">
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="board" />
@@ -21,5 +23,6 @@ export default function MealPrepGoLayout() {
       <Stack.Screen name="list" />
       <Stack.Screen name="kitchen" />
     </Stack>
+    </SectionGuestGate>
   );
 }

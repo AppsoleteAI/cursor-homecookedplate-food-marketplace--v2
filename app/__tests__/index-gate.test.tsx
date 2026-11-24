@@ -1,7 +1,14 @@
 import React from 'react';
 import { act, render } from '@testing-library/react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/hooks/auth-context';
 import Index from '@/app/index';
+
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(() => Promise.resolve(null)),
+  setItem: jest.fn(() => Promise.resolve()),
+  removeItem: jest.fn(() => Promise.resolve()),
+}));
 
 jest.mock('@/hooks/auth-context', () => ({
   useAuth: jest.fn(),
@@ -72,10 +79,34 @@ describe('index gate', () => {
     expect(view.getByText('redirect:/(tabs)/(home)/home')).toBeTruthy();
   });
 
-  it('a signed-out PlateMaker or PlateTaker reaches welcome', () => {
+  it('a signed-out person with no role reaches the image landing', async () => {
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
     signedOut();
     const view = render(<Index />);
-    expect(view.getByText('redirect:/(auth)/welcome')).toBeTruthy();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(view.getByText('redirect:/(auth)/limited-browsing')).toBeTruthy();
+  });
+
+  it('a signed-out PlateTaker who already chose a role reaches home', async () => {
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue('platetaker');
+    signedOut();
+    const view = render(<Index />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(view.getByText('redirect:/(tabs)/(home)/home')).toBeTruthy();
+  });
+
+  it('a signed-out PlateMaker who already chose a role reaches home', async () => {
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue('platemaker');
+    signedOut();
+    const view = render(<Index />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(view.getByText('redirect:/(tabs)/(home)/home')).toBeTruthy();
   });
 
   it('a signed-in PlateMaker reaches the dashboard', () => {

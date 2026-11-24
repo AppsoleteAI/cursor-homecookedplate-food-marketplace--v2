@@ -14,6 +14,7 @@ import { Colors, inAppHeaderBand, monoGradients, pagePastel } from '@/constants/
 import { MealCard } from '@/components/MealCard';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/hooks/auth-context';
+import { GuestLimit } from '@/components/GuestLimit';
 import type { Meal } from '@/types';
 import { menuMeal } from '@/lib/menu-meal';
 import { useRouter } from 'expo-router';
@@ -23,7 +24,7 @@ import { ScrollJumps } from '@/components/ScrollJumps';
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [city, setCity] = useState('');
   const [isInputFocused, setIsInputFocused] = useState<boolean>(false);
@@ -72,6 +73,9 @@ export default function SearchScreen() {
         || diet.includes(query);
     });
   }, [meals, searchQuery, isSearchActive]);
+
+  if (authLoading) return null;
+  if (!isAuthenticated) return <GuestLimit screen="search" />;
 
   return (
     <View style={styles.container}>

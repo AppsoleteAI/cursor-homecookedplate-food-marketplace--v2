@@ -6,9 +6,14 @@ export function sellerScreenEntry(input: {
   signedIn: boolean;
   role: string | null | undefined;
   isAdmin?: boolean;
+  browsing?: string | null;
 }): ScreenEntry {
   if (input.loading) return "wait";
-  if (!input.signedIn) return "sign-in";
+  if (!input.signedIn) {
+    if (input.browsing === "platemaker") return "open";
+    if (input.browsing === "platetaker") return "home";
+    return "sign-in";
+  }
   if (input.role === "platemaker" || input.isAdmin === true) return "open";
   return "home";
 }

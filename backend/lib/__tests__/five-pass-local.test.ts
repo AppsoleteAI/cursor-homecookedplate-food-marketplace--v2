@@ -301,7 +301,7 @@ describe.each([1, 2, 3, 4, 5])('five-pass local diagnostic, pass %s', () => {
 
     const reviewScreen = read('app/reviews/[mealId].tsx');
     expect(reviewScreen).toContain('if (!isAuthenticated)');
-    expect(reviewScreen).toContain('<Redirect href="/(auth)/login" />');
+    expect(reviewScreen).toContain('<GuestLimit screen="meal-reviews" />');
     expect(reviewScreen).toContain('!isPlatemaker');
     expect(reviewScreen).toContain('You can review a plate after that order is completed.');
   });

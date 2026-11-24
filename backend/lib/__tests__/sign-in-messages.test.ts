@@ -1,9 +1,11 @@
 import {
   accountAccessCopy,
+  classifySignInFailure,
   isIneligibleAccountMessage,
   isMissingAccountMessage,
   MEMBERSHIP_INELIGIBLE_MESSAGE,
   NO_ACCOUNT_MESSAGE,
+  WRONG_SIGN_IN_MESSAGE,
 } from '../sign-in-messages';
 
 describe('sign-in account messages', () => {
@@ -23,5 +25,19 @@ describe('sign-in account messages', () => {
     expect(isIneligibleAccountMessage(MEMBERSHIP_INELIGIBLE_MESSAGE)).toBe(true);
     expect(isIneligibleAccountMessage('This account is permanently banned after lost card disputes.')).toBe(true);
     expect(isIneligibleAccountMessage(NO_ACCOUNT_MESSAGE)).toBe(false);
+  });
+
+  it('reads the same failure on email, Apple, and Google', () => {
+    expect(classifySignInFailure('Complete the Legal & Safety page before signing in.').kind).toBe('legal');
+    expect(classifySignInFailure('The Legal & Safety agreement could not be saved.').kind).toBe('save');
+    expect(classifySignInFailure('No account found. Create an account.').kind).toBe('missing');
+    expect(classifySignInFailure('missing', 'NOT_FOUND').kind).toBe('missing');
+    expect(classifySignInFailure(MEMBERSHIP_INELIGIBLE_MESSAGE).kind).toBe('ineligible');
+    expect(classifySignInFailure('Invalid login credentials').kind).toBe('password');
+    expect(classifySignInFailure('').kind).toBe('password');
+    expect(WRONG_SIGN_IN_MESSAGE).toContain('Forgot Password');
+    expect(classifySignInFailure('Confirm your email before signing in.')).toEqual({ kind: 'confirmation', expired: false });
+    expect(classifySignInFailure('This confirmation link expired after 24 hours.')).toEqual({ kind: 'confirmation', expired: true });
+    expect(classifySignInFailure('Network error. Check your connection and try again.').kind).toBe('network');
   });
 });

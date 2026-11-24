@@ -21,7 +21,6 @@ import { useWizardBack } from '@/hooks/use-leave-screen';
 import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 import { useSignupForm } from '@/hooks/useSignupForm';
-import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { BUYER_AFTER_NOTE } from '@/lib/buyer-safety';
 import { SUBSCRIPTION_PRICES } from '@/backend/lib/fees';
 import { PLATEMAKER_LOST_DISPUTE_SIGNUP, PLATETAKER_LOST_DISPUTE_SIGNUP } from '@/backend/lib/payout-policy';
@@ -458,7 +457,6 @@ export default function OnboardingScreen() {
                       <Text style={[styles.checkText, { marginTop: 8 }]}>
                         {BUYER_AFTER_NOTE}
                       </Text>
-                      <FoodHandlingLink returnTo={`/onboarding?step=2${role ? `&role=${role}` : ''}`} />
                     </View>
                     <CheckRow
                       checked={foodSafetyAcknowledged}

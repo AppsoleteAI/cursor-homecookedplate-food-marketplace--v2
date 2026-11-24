@@ -1,11 +1,27 @@
+import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { userNeedsMembership } from '@/backend/lib/trial-access';
 import { useAuth } from '@/hooks/auth-context';
+import { useGuestRole } from '@/hooks/use-guest-role';
+import { readHasAccount } from '@/lib/guest-role';
 import { navLogger } from '@/lib/nav-logger';
 
 export default function Index() {
   const { isAuthenticated, isLoading, user, session } = useAuth();
+  const guestRole = useGuestRole();
+  const [hasAccount, setHasAccount] = useState<boolean | undefined>(undefined);
+
+  useEffect(() => {
+    if (isLoading || isAuthenticated) return;
+    let live = true;
+    readHasAccount().then((value) => {
+      if (live) setHasAccount(value);
+    });
+    return () => {
+      live = false;
+    };
+  }, [isLoading, isAuthenticated]);
 
   // Log entry point for debugging (Issue #4: Code Clarity)
   if (__DEV__) {
@@ -27,8 +43,20 @@ export default function Index() {
   // Phase 5: Index Redirect Decision - Only renders AFTER Phase 3 (Auth) and Phase 4 (Navigation) are complete
   // The <Redirect /> component is "safe" because it only renders AFTER the RootLayout's appIsReady check has passed
   if (!isAuthenticated) {
-    navLogger.authDecision('app/index.tsx:REDIRECT_CHECK', false, undefined, '/(auth)/welcome');
-    return <Redirect href={{ pathname: '/(auth)/welcome', params: { entry: 'gate' } }} />;
+    if (guestRole === undefined || hasAccount === undefined) {
+      if (Platform.OS === 'web') return null;
+      return <View style={styles.launch} />;
+    }
+    if (guestRole) {
+      navLogger.authDecision('app/index.tsx:REDIRECT_CHECK', false, guestRole, '/(tabs)/(home)/home');
+      return <Redirect href="/(tabs)/(home)/home" />;
+    }
+    if (hasAccount) {
+      navLogger.authDecision('app/index.tsx:REDIRECT_CHECK', false, undefined, '/(auth)/login');
+      return <Redirect href="/(auth)/login" />;
+    }
+    navLogger.authDecision('app/index.tsx:REDIRECT_CHECK', false, undefined, '/(auth)/limited-browsing');
+    return <Redirect href="/(auth)/limited-browsing" />;
   }
 
   // 4. Null check for user before accessing role

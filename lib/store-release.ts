@@ -1,7 +1,7 @@
-/** Source tree for the binaries uploaded on 19 November 2026. */
+/** Source tree for the binaries uploaded on 23 November 2026. */
 export const SOURCE_VERSION = '1.0.0';
-export const UPLOADED_IOS_BUILD = '14';
-export const UPLOADED_ANDROID_VERSION_CODE = 14;
+export const UPLOADED_IOS_BUILD = '15';
+export const UPLOADED_ANDROID_VERSION_CODE = 15;
 
 /**
  * Public phone app: the store binary a person installs, build 8, on iOS and

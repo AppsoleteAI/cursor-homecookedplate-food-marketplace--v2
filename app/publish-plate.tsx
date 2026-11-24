@@ -18,6 +18,7 @@ import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { GradientButton } from '@/components/GradientButton';
 import { useReplaceBack } from '@/hooks/use-leave-screen';
 import { useAuth } from '@/hooks/auth-context';
+import { GuestLimit } from '@/components/GuestLimit';
 import { useMeals } from '@/hooks/meals-context';
 import { trpc } from '@/lib/trpc';
 import { readLocalMedia } from '@/lib/read-local-media';
@@ -33,7 +34,7 @@ const EMPTY: PlateDraft = { name: '', price: '', preparationMinutes: '', media: 
 export default function PublishPlateScreen() {
   const leave = useReplaceBack('/(tabs)/create-meal');
   const scrollRef = useRef<ScrollView>(null);
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { addMeal } = useMeals();
   const createMeal = trpc.meals.create.useMutation();
   const kitchenPermit = trpc.meals.kitchenPermit.useQuery();
@@ -156,6 +157,9 @@ export default function PublishPlateScreen() {
       setSaving(false);
     }
   }, [isValid, saving, createMeal, draft, priceNumber, preparationMinutes, uploadMedia, addMeal, publishStoredClip, user?.id]);
+
+  if (authLoading) return null;
+  if (!isAuthenticated) return <GuestLimit screen="publish-plate" />;
 
   return (
     <SellerOnly>

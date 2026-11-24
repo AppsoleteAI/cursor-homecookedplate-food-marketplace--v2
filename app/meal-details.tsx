@@ -22,6 +22,8 @@ import { trpc } from '@/lib/trpc';
 import { parseIngredientList, portionsFromTags } from '@/lib/meal-publish';
 import { deviceTimeZone } from '@/lib/pickup-time';
 import { useMeals } from '@/hooks/meals-context';
+import { useAuth } from '@/hooks/auth-context';
+import { GuestLimit } from '@/components/GuestLimit';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -41,6 +43,7 @@ export default function MealDetailsScreen() {
   const kitchenPermit = trpc.meals.kitchenPermit.useQuery();
   const permitSaved = kitchenPermit.data?.saved === true;
   const { updateMealDetails } = useMeals();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [cuisine, setCuisine] = useState('');
   const [ingredients, setIngredients] = useState('');
   const [expiry, setExpiry] = useState('');
@@ -125,6 +128,9 @@ export default function MealDetailsScreen() {
       setErrorText(message);
     }
   };
+
+  if (authLoading) return null;
+  if (!isAuthenticated) return <GuestLimit screen="meal-details" />;
 
   return (
     <SellerOnly>

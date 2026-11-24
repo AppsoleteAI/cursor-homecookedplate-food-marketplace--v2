@@ -38,6 +38,21 @@ function memoryAdmin(tables: Record<string, Row[]>) {
           return chain;
         },
         gte() { return chain; },
+        or(expression: string) {
+          const clauses = expression.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/);
+          filters.push((row) => clauses.some((clause) => {
+            const match = clause.match(/^([A-Za-z0-9_]+)\.(is|lte|gte|eq)\.(.*)$/);
+            if (!match) return true;
+            const [, key, op, raw] = match;
+            const value = raw.replace(/^"|"$/g, '');
+            if (op === 'is' && value === 'null') return row[key] == null;
+            if (row[key] == null) return false;
+            if (op === 'lte') return String(row[key]) <= value;
+            if (op === 'gte') return String(row[key]) >= value;
+            return String(row[key]) === value;
+          }));
+          return chain;
+        },
         in(key: string, values: unknown[]) {
           filters.push((row) => values.includes(row[key]));
           return chain;

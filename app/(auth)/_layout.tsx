@@ -23,6 +23,13 @@ export default function AuthLayout() {
         }}
       />
       <Stack.Screen
+        name="limited-browsing"
+        options={{
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen
         name="onboarding"
         options={{
           headerShown: false,

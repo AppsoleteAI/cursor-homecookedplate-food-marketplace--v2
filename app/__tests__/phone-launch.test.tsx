@@ -158,7 +158,7 @@ describe.each(['ios', 'android'] as const)('phone launch on %s', (os) => {
     jest.useRealTimers();
   });
 
-  it('a fresh install leaves the splash and opens Welcome', async () => {
+  it('a fresh install leaves the splash and opens the landing', async () => {
     const view = await boot(os);
     expect(view.getByTestId('launch-cover')).toBeTruthy();
     expect(hideAsync).not.toHaveBeenCalled();
@@ -169,7 +169,7 @@ describe.each(['ios', 'android'] as const)('phone launch on %s', (os) => {
 
     expect(hideAsync).toHaveBeenCalled();
     expect(view.queryByTestId('launch-cover')).toBeNull();
-    expect(view.getByText('redirect:/(auth)/welcome')).toBeTruthy();
+    expect(view.getByText('redirect:/(auth)/limited-browsing')).toBeTruthy();
   });
 
   it('a saved sign-in that has not answered stays off Welcome', async () => {

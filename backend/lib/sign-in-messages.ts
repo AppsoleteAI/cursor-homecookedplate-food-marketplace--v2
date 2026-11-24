@@ -23,3 +23,31 @@ export function accountAccessCopy(message: string): string | null {
   if (isMissingAccountMessage(message)) return NO_ACCOUNT_MESSAGE;
   return null;
 }
+
+export type SignInFailure =
+  | { kind: 'legal' }
+  | { kind: 'save' }
+  | { kind: 'ineligible' }
+  | { kind: 'missing' }
+  | { kind: 'validation' }
+  | { kind: 'network' }
+  | { kind: 'confirmation'; expired: boolean }
+  | { kind: 'password' }
+  | { kind: 'other'; message: string };
+
+/** Email, Apple, and Google share this reading of a failed sign-in. */
+export function classifySignInFailure(message: string, code = ''): SignInFailure {
+  const expired = /expired after 24 hours/i.test(message);
+  const confirmation = expired || /confirm your email|email not confirmed/i.test(message);
+  if (message.includes('Complete the Legal & Safety page')) return { kind: 'legal' };
+  if (message.includes('could not be saved')) return { kind: 'save' };
+  if (isIneligibleAccountMessage(message)) return { kind: 'ineligible' };
+  if (isMissingAccountMessage(message) || code === 'NOT_FOUND') return { kind: 'missing' };
+  if (message.includes('invalid_format')) return { kind: 'validation' };
+  if (/fetch|network|timeout|Failed to fetch/i.test(message)) return { kind: 'network' };
+  if (confirmation) return { kind: 'confirmation', expired };
+  if (/password does not match|invalid login credentials|invalid credentials/i.test(message) || !message.trim()) {
+    return { kind: 'password' };
+  }
+  return { kind: 'other', message };
+}

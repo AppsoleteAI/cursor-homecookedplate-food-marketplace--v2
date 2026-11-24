@@ -21,7 +21,6 @@ import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
 import { MetroProgressBar } from '@/components/Registration/MetroProgressBar';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 import { useSignupForm } from '@/hooks/useSignupForm';
-import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { BUYER_AFTER_NOTE } from '@/lib/buyer-safety';
 import { SUBSCRIPTION_PRICES } from '@/backend/lib/fees';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
@@ -358,7 +357,6 @@ export default function SignupScreen() {
                     <Text style={[styles.foodSafetyInfoText, { marginTop: 8 }]}>
                       {BUYER_AFTER_NOTE}
                     </Text>
-                    <FoodHandlingLink returnTo="/signup" />
                   </View>
                 </View>
                 <Pressable

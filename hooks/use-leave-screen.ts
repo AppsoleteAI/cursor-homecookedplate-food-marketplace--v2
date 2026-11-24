@@ -277,7 +277,27 @@ export function useReplaceBack(href: Href, enabled = true) {
   return go;
 }
 
-/** Keep the screen. The device back button does not return to the previous page. */
+/** Keep this screen and run a refresh. The device back button does not open the previous page. */
+export function useRefreshBack(refresh: () => void, enabled = true) {
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  const run = useCallback(() => {
+    if (!enabled) return false;
+    refreshRef.current();
+    return true;
+  }, [enabled]);
+  useHardware(run, enabled);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !enabled) return;
+    armTrap('refresh');
+  }, [enabled]);
+  useWebHandler(() => {
+    if (!enabled) return 'ignore';
+    restoreUrl();
+    refreshRef.current();
+    return 'handled';
+  }, enabled);
+}
 export function useStayBack(enabled = true) {
   const stay = useCallback(() => enabled, [enabled]);
   useHardware(stay, enabled);

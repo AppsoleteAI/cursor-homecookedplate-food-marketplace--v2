@@ -17,6 +17,8 @@ import { GradientButton } from '@/components/GradientButton';
 import { router , type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/auth-context';
+import { useGuestRole } from '@/hooks/use-guest-role';
+import { GuestLimit } from '@/components/GuestLimit';
 import { Ionicons } from '@expo/vector-icons';
 import { calculateOrderBreakdown, calculateOrderSplit, DELIVERY_PLATFORM_RATE } from '@/lib/fees';
 import { onPlatePublished, writePlateDraft } from '@/lib/plate-draft';
@@ -86,6 +88,7 @@ interface FormState {
 export default function CreateMealScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const { user, isLoading: authLoading, requestPlatemakerRole } = useAuth();
+  const guestRole = useGuestRole();
   const insets = useSafeAreaInsets();
   const [headerHeight, setHeaderHeight] = useState(0);
   const [form, setForm] = useState<FormState>({
@@ -99,8 +102,8 @@ export default function CreateMealScreen() {
   });
   const [countdown, setCountdown] = useState<number>(0);
 
-  const isPlatemaker = user?.role === 'platemaker';
-  const showOnboarding = !authLoading && !isPlatemaker;
+  const isPlatemaker = user?.role === 'platemaker' || (!user && guestRole === 'platemaker');
+  const showOnboarding = !authLoading && guestRole !== undefined && !isPlatemaker;
 
   const handleBecomeSeller = useCallback(async () => {
     if (!user?.foodSafetyAcknowledged) {
@@ -369,6 +372,10 @@ export default function CreateMealScreen() {
   }), []);
 
   const openPublish = useCallback(() => {
+    if (!user) {
+      router.push('/(tabs)/profile');
+      return;
+    }
     writePlateDraft({
       name: form.name,
       price: form.price,
@@ -379,13 +386,13 @@ export default function CreateMealScreen() {
       postVideoToTimeline: form.postVideoToTimeline && form.media.some((item) => item.type === 'video'),
     });
     router.push('/publish-plate' as Href);
-  }, [form.name, form.price, form.preparationMinutes, form.media, form.availabilityWindows, form.portions, form.postVideoToTimeline]);
+  }, [form.name, form.price, form.preparationMinutes, form.media, form.availabilityWindows, form.portions, form.postVideoToTimeline, user]);
 
   const deliveryPercent = Math.round(DELIVERY_PLATFORM_RATE * 100);
   const serviceDisclosure = `Fee Structure: The customer pays the listed price plus 10%. A Premium PlateTaker pays 5% on an order of $20 or more. You receive the listed price minus 10%. If you set a delivery fee, the customer pays that amount plus ${deliveryPercent}%, and you receive the amount you set.`;
 
   // Show loading state
-  if (authLoading) {
+  if (authLoading || (!user && guestRole === undefined)) {
     return (
       <View style={styles.container}>
         <View style={styles.loadingContainer}>
@@ -393,6 +400,10 @@ export default function CreateMealScreen() {
         </View>
       </View>
     );
+  }
+
+  if (!user && guestRole === 'platemaker') {
+    return <GuestLimit screen="create-meal" />;
   }
 
   // Show onboarding for non-sellers

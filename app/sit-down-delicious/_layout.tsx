@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { hydrateSitDown } from '@/hooks/sit-down-store';
+import { SectionGuestGate } from '@/components/GuestLimit';
 
 export default function SitDownDeliciousLayout() {
   useEffect(() => {
@@ -8,6 +9,7 @@ export default function SitDownDeliciousLayout() {
   }, []);
 
   return (
+    <SectionGuestGate root="/sit-down-delicious">
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="places" />
@@ -20,5 +22,6 @@ export default function SitDownDeliciousLayout() {
       <Stack.Screen name="list" />
       <Stack.Screen name="license" />
     </Stack>
+    </SectionGuestGate>
   );
 }

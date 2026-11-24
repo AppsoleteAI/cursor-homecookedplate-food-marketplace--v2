@@ -2,6 +2,7 @@ import React, { PropsWithChildren } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuth } from '@/hooks/auth-context';
+import { useGuestRole } from '@/hooks/use-guest-role';
 import { sellerScreenEntry } from '@/lib/role-entry';
 import { Colors } from '@/constants/colors';
 
@@ -17,11 +18,13 @@ function LoadingFallback() {
 
 export function useSellerGate() {
   const { isLoading, isAuthenticated, user } = useAuth();
+  const guestRole = useGuestRole();
   const entry = sellerScreenEntry({
-    loading: isLoading,
+    loading: isLoading || (!isAuthenticated && guestRole === undefined),
     signedIn: isAuthenticated,
     role: user?.role,
     isAdmin: user?.isAdmin === true,
+    browsing: guestRole,
   });
   if (entry === 'wait') return <LoadingFallback />;
   if (entry === 'sign-in') return <Redirect href="/(auth)/login" />;
@@ -37,10 +40,13 @@ export function SellerOnly({ children }: GuardProps) {
 
 export function BuyerOnly({ children }: GuardProps) {
   const { isLoading, isAuthenticated, user } = useAuth();
+  const guestRole = useGuestRole();
 
-  if (isLoading) return <LoadingFallback />;
+  if (isLoading || (!isAuthenticated && guestRole === undefined)) return <LoadingFallback />;
 
   if (!isAuthenticated) {
+    if (guestRole === 'platetaker') return <>{children}</>;
+    if (guestRole === 'platemaker') return <Redirect href="/(tabs)/dashboard" />;
     return <Redirect href="/(auth)/login" />;
   }
 

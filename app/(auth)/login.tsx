@@ -15,23 +15,23 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
-import { Redirect, router, useFocusEffect, type Href } from 'expo-router';
+import { Redirect, router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import { useAuth } from '@/hooks/auth-context';
 import { isAccountRole, PROVIDER_ROLE_STORAGE_KEY } from '@/backend/lib/provider-profile';
 import {
-  isIneligibleAccountMessage,
-  isMissingAccountMessage,
+  classifySignInFailure,
   MEMBERSHIP_INELIGIBLE_MESSAGE,
   NO_ACCOUNT_MESSAGE,
   WRONG_SIGN_IN_MESSAGE,
 } from '@/backend/lib/sign-in-messages';
-import { chooseLegalForm, clearLegalAgreement, clearLegalReadyForSignIn, isLegalReadyForSignIn, isLoginLegalBoxChecked, LEGAL_SIGN_IN_MESSAGE, readLegalAgreement, setLoginLegalBoxChecked, todayStamp, toCompletedLegalAgreement } from '@/lib/legal-agreement';
+import { agreementFromUnknown, chooseLegalForm, clearLegalAgreement, clearLegalReadyForSignIn, isLegalReadyForSignIn, isLoginLegalBoxChecked, LEGAL_BOX_MESSAGE, LEGAL_SIGN_IN_MESSAGE, readLegalAgreement, setLoginLegalBoxChecked, todayStamp, toCompletedLegalAgreement } from '@/lib/legal-agreement';
 import { AuthColors, preAppFont } from '@/constants/auth-palette';
 import { AuthBackground, AuthBrand, MaroonButtonFill } from '@/components/auth/AuthChrome';
+import { BackCircle } from '@/components/BackCircle';
+import { useReplaceBack } from '@/hooks/use-leave-screen';
 import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { ResendConfirmation } from '@/components/auth/ResendConfirmation';
@@ -41,8 +41,6 @@ const COOK_PHOTO = require('../../assets/start-cooking.png');
 const APPSOLETE_MARK = require('../../assets/appsolete-mark.jpg');
 const APPLE_LOGO = require('../../assets/logo-apple.png');
 const GOOGLE_LOGO = require('../../assets/logo-google.png');
-
-type SignupRole = 'platetaker' | 'platemaker';
 
 function readLoginError(error: unknown): string {
   if (!error || typeof error !== 'object') return '';
@@ -57,6 +55,9 @@ function readLoginError(error: unknown): string {
 }
 
 export default function LoginScreen() {
+  const params = useLocalSearchParams<{ from?: string | string[] }>();
+  const fromLanding = (Array.isArray(params.from) ? params.from[0] : params.from) === 'landing';
+  const backToLanding = useReplaceBack('/(auth)/limited-browsing', fromLanding);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [signInCode, setSignInCode] = useState('');
@@ -70,9 +71,8 @@ export default function LoginScreen() {
   const [retryCount, setRetryCount] = useState(0);
   const [providerNotice, setProviderNotice] = useState<string | null>(null);
   const [legalChecked, setLegalChecked] = useState(isLoginLegalBoxChecked);
-  const [agreementOnFile, setAgreementOnFile] = useState(false);
   const [legalNotice, setLegalNotice] = useState<string | null>(null);
-  const { login, loginWithProvider, verifyProviderCode, finishProviderAccount, user } = useAuth();
+  const { login, loginWithProvider, verifyProviderCode, user } = useAuth();
   const scrollRef = useRef<ScrollView>(null);
   const [legalPrompt, setLegalPrompt] = useState(false);
 
@@ -99,6 +99,7 @@ export default function LoginScreen() {
       let active = true;
       readLegalAgreement().then(async (record) => {
         const ready = await isLegalReadyForSignIn();
+        const finished = agreementFromUnknown(record);
         const choice = chooseLegalForm({
           signedIn: false,
           createdAt: null,
@@ -108,18 +109,16 @@ export default function LoginScreen() {
           today: todayStamp(),
         });
         if (!active) return;
-        if (choice !== 'device') {
-          if (toCompletedLegalAgreement(record)) {
-            await clearLegalAgreement();
-            await clearLegalReadyForSignIn();
-          }
-          setAgreementOnFile(false);
+        if (finished || choice === 'device') {
+          setLegalChecked(true);
+          setLoginLegalBoxChecked(true);
+          setLegalNotice(null);
           return;
         }
-        setAgreementOnFile(true);
-        setLegalChecked(true);
-        setLoginLegalBoxChecked(true);
-        setLegalNotice(null);
+        if (toCompletedLegalAgreement(record)) {
+          await clearLegalAgreement();
+          await clearLegalReadyForSignIn();
+        }
       });
       return () => {
         active = false;
@@ -132,31 +131,41 @@ export default function LoginScreen() {
     router.replace('/');
   };
 
-  const openSignup = (role?: SignupRole) => {
-    if (role) {
-      AsyncStorage.setItem(PROVIDER_ROLE_STORAGE_KEY, role).catch(() => undefined);
-    }
-    if (providerPending === 'role' && role) {
-      setLoading(true);
-      setError(null);
-      setLegalPrompt(false);
-      finishProviderAccount(role)
-        .then(() => enterApp())
-        .catch((finishError: unknown) => {
-          reveal(readLoginError(finishError) || (finishError instanceof Error ? finishError.message : 'The account could not be finished.'));
-        })
-        .finally(() => setLoading(false));
-      return;
-    }
-    const href = (
-      role
-        ? { pathname: '/(auth)/welcome', params: { role } }
-        : '/(auth)/welcome'
-    ) as unknown as Href;
-    router.push(href);
+  const directToBox = () => {
+    setLegalPrompt(false);
+    setError(LEGAL_BOX_MESSAGE);
+    setLegalNotice(LEGAL_BOX_MESSAGE);
+    Keyboard.dismiss();
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+  };
+
+  const openAccountSignup = () => {
+    AsyncStorage.getItem(PROVIDER_ROLE_STORAGE_KEY).then((stored) => {
+      router.push({
+        pathname: '/(auth)/onboarding',
+        params: {
+          step: '1',
+          ...(isAccountRole(stored) ? { role: stored } : {}),
+        },
+      });
+    }).catch(() => {
+      router.push({ pathname: '/(auth)/onboarding', params: { step: '1' } });
+    });
+  };
+
+  const openProviderRole = () => {
+    setProviderPending('role');
+    router.push({
+      pathname: '/(auth)/welcome',
+      params: { step: '1', pending: 'provider' },
+    });
   };
 
   const handleProvider = async (provider: 'Apple' | 'Google') => {
+    if (!legalChecked) {
+      directToBox();
+      return;
+    }
     setProviderNotice(null);
     setError(null);
     setLegalPrompt(false);
@@ -172,8 +181,7 @@ export default function LoginScreen() {
         return;
       }
       if ('needsRole' in result) {
-        setProviderPending('role');
-        setError('Choose Order a Plate or Start Cooking to finish this account.');
+        openProviderRole();
         return;
       }
       setProviderPending(null);
@@ -187,25 +195,79 @@ export default function LoginScreen() {
         : '';
       if (serverMessage === 'Sign-in was cancelled.') {
         reveal('Sign-in was cancelled.');
-      } else if (serverMessage.includes('Complete the Legal & Safety page')) {
-        reveal(LEGAL_SIGN_IN_MESSAGE, true);
-      } else if (isIneligibleAccountMessage(serverMessage)) {
-        reveal(MEMBERSHIP_INELIGIBLE_MESSAGE);
-      } else if (isMissingAccountMessage(serverMessage) || loginCode === 'NOT_FOUND') {
-        reveal(`${NO_ACCOUNT_MESSAGE} Tap Create an Account.`);
-      } else if (/confirm your email|email not confirmed/i.test(serverMessage)) {
-        setNeedsConfirmation(true);
-        setConfirmationExpired(/expired after 24 hours/i.test(serverMessage));
       } else {
-        reveal(serverMessage || 'That sign-in did not finish.');
+        presentFailure(serverMessage, loginCode);
       }
     } finally {
       setLoading(false);
     }
   };
 
+  const presentFailure = (serverMessage: string, loginCode = '') => {
+    const failure = classifySignInFailure(serverMessage, loginCode);
+    if (failure.kind === 'legal') {
+      setNeedsConfirmation(false);
+      setConfirmationExpired(false);
+      reveal(LEGAL_SIGN_IN_MESSAGE, true);
+      return;
+    }
+    if (failure.kind === 'save') {
+      setNeedsConfirmation(false);
+      setConfirmationExpired(false);
+      reveal(serverMessage);
+      return;
+    }
+    if (failure.kind === 'ineligible') {
+      setNeedsConfirmation(false);
+      setConfirmationExpired(false);
+      reveal(MEMBERSHIP_INELIGIBLE_MESSAGE);
+      return;
+    }
+    if (failure.kind === 'missing') {
+      setNeedsConfirmation(false);
+      setConfirmationExpired(false);
+      reveal(`${NO_ACCOUNT_MESSAGE} Tap Create an Account.`);
+      return;
+    }
+    if (failure.kind === 'validation') {
+      setNeedsConfirmation(false);
+      setConfirmationExpired(false);
+      reveal('Check the email address, then try again.');
+      return;
+    }
+    if (failure.kind === 'network') {
+      setNeedsConfirmation(false);
+      setConfirmationExpired(false);
+      reveal('Network error. Check your connection and try again.');
+      return;
+    }
+    if (failure.kind === 'confirmation') {
+      setNeedsConfirmation(true);
+      setConfirmationExpired(failure.expired);
+      setLegalPrompt(false);
+      setError(null);
+      Keyboard.dismiss();
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+      return;
+    }
+    if (failure.kind === 'password') {
+      setNeedsConfirmation(false);
+      setConfirmationExpired(false);
+      reveal(WRONG_SIGN_IN_MESSAGE);
+      return;
+    }
+    setNeedsConfirmation(false);
+    setConfirmationExpired(false);
+    reveal(failure.message || 'That sign-in did not finish.');
+  };
+
   const handleLogin = async (isRetry = false) => {
     console.log('Sign-in triggered', { isRetry, retryCount });
+
+    if (!legalChecked) {
+      directToBox();
+      return;
+    }
 
     if (providerPending === 'code') {
       if (signInCode.length !== 6) {
@@ -217,15 +279,15 @@ export default function LoginScreen() {
       try {
         const verified = await verifyProviderCode(signInCode);
         if ('needsRole' in verified) {
-          setProviderPending('role');
           setNeedsCode(false);
-          setError('Choose Order a Plate or Start Cooking to finish this account.');
+          openProviderRole();
           return;
         }
         setProviderPending(null);
         await enterApp();
       } catch (providerError: unknown) {
-        reveal(readLoginError(providerError) || (providerError instanceof Error ? providerError.message : 'That authenticator code does not match.'));
+        const serverMessage = readLoginError(providerError) || (providerError instanceof Error ? providerError.message : 'That authenticator code does not match.');
+        presentFailure(serverMessage);
       } finally {
         setLoading(false);
       }
@@ -246,6 +308,7 @@ export default function LoginScreen() {
 
     const storedAgreement = await readLegalAgreement();
     const agreementReady = await isLegalReadyForSignIn();
+    const finished = agreementFromUnknown(storedAgreement);
     const agreement = chooseLegalForm({
       signedIn: false,
       createdAt: null,
@@ -256,15 +319,9 @@ export default function LoginScreen() {
     }) === 'device'
       ? toCompletedLegalAgreement(storedAgreement)
       : null;
-    if (agreement) {
-      setAgreementOnFile(true);
-      setLegalChecked(true);
-      setLoginLegalBoxChecked(true);
-      setLegalNotice(null);
-    } else if (toCompletedLegalAgreement(storedAgreement)) {
+    if (!finished && !agreement && toCompletedLegalAgreement(storedAgreement)) {
       await clearLegalAgreement();
       await clearLegalReadyForSignIn();
-      setAgreementOnFile(false);
     }
 
     if (retryCount >= 3 && !isRetry) {
@@ -315,56 +372,19 @@ export default function LoginScreen() {
 
       const serverMessage = readLoginError(loginError);
       const loginCode = typeof loginError?.data?.code === 'string' ? loginError.data.code : '';
-      const confirmationExpiredNow = /expired after 24 hours/i.test(serverMessage);
-      const confirmationNeeded = confirmationExpiredNow || /confirm your email|email not confirmed/i.test(serverMessage);
-      const legalNeeded = serverMessage.includes('Complete the Legal & Safety page');
-      const legalSaveFailed = serverMessage.includes('could not be saved');
+      const failure = classifySignInFailure(
+        serverMessage.includes('invalid_format') || loginError.data?.zodError ? 'invalid_format' : serverMessage,
+        loginCode,
+      );
 
-      const isValidationError = serverMessage.includes('invalid_format') ||
-        loginError.data?.zodError?.issues?.some((issue: any) => issue.path?.includes('email'));
-
-      const isNetworkError = serverMessage.includes('fetch') ||
-        serverMessage.includes('network') ||
-        serverMessage.includes('timeout') ||
-        serverMessage.includes('Failed to fetch');
-
-      if (!isRetry && !confirmationNeeded && !legalNeeded && !legalSaveFailed) {
+      if (!isRetry && failure.kind !== 'confirmation' && failure.kind !== 'legal' && failure.kind !== 'save') {
         setRetryCount((prev) => prev + 1);
       }
 
-      if (legalNeeded) {
-        setNeedsConfirmation(false);
-        setConfirmationExpired(false);
-        reveal(LEGAL_SIGN_IN_MESSAGE, true);
-      } else if (isIneligibleAccountMessage(serverMessage)) {
-        setNeedsConfirmation(false);
-        setConfirmationExpired(false);
-        reveal(MEMBERSHIP_INELIGIBLE_MESSAGE);
-      } else if (isMissingAccountMessage(serverMessage) || loginCode === 'NOT_FOUND') {
-        setNeedsConfirmation(false);
-        setConfirmationExpired(false);
-        reveal(`${NO_ACCOUNT_MESSAGE} Tap Create an Account.`);
-      } else if (isValidationError) {
-        setNeedsConfirmation(false);
-        setConfirmationExpired(false);
-        reveal('Check the email address, then try again.');
-      } else if (isNetworkError) {
-        setNeedsConfirmation(false);
-        setConfirmationExpired(false);
-        reveal('Network error. Check your connection and try again.');
-      } else if (confirmationNeeded) {
-        setNeedsConfirmation(true);
-        setConfirmationExpired(confirmationExpiredNow);
-        setLegalPrompt(false);
-        setError(null);
-        Keyboard.dismiss();
-        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
-      } else {
-        setNeedsConfirmation(false);
-        setConfirmationExpired(false);
-        const passwordMismatch = /password does not match|invalid login credentials|invalid credentials/i.test(serverMessage);
-        reveal(passwordMismatch || !serverMessage.trim() ? WRONG_SIGN_IN_MESSAGE : serverMessage);
-      }
+      presentFailure(
+        failure.kind === 'validation' ? 'invalid_format' : serverMessage,
+        loginCode,
+      );
     } finally {
       clearTimeout(timeoutId);
       if (!timedOut) {
@@ -391,46 +411,25 @@ export default function LoginScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
+            {fromLanding ? (
+              <BackCircle tone="honey" onPress={backToLanding} testID="login-back" />
+            ) : null}
             <View style={styles.brandSlot}>
               <AuthBrand toSignIn={false} />
             </View>
 
             <View style={styles.doors}>
-              <GlassPressable
-                style={styles.door}
-                activeOpacity={0.9}
-                onPress={() => openSignup('platetaker')}
-                accessibilityRole="button"
-                accessibilityLabel="Order a plate"
-              >
+              <View style={styles.door} testID="landing-order-plate">
                 <View style={styles.doorClip}>
-                <Image source={ORDER_PHOTO} style={styles.doorImage} resizeMode="cover" />
-                <LinearGradient
-                  colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0)', 'rgba(8,20,16,0.82)']}
-                  locations={[0, 0.62, 1]}
-                  style={styles.doorShade}
-                />
-                <Text style={styles.doorLabel}>Order a Plate</Text>
+                  <Image source={ORDER_PHOTO} style={styles.doorImage} resizeMode="cover" accessible={false} />
                 </View>
-              </GlassPressable>
+              </View>
 
-              <GlassPressable
-                style={styles.door}
-                activeOpacity={0.9}
-                onPress={() => openSignup('platemaker')}
-                accessibilityRole="button"
-                accessibilityLabel="Start cooking"
-              >
+              <View style={styles.door} testID="landing-start-cooking">
                 <View style={styles.doorClip}>
-                <Image source={COOK_PHOTO} style={styles.doorImageCook} resizeMode="cover" />
-                <LinearGradient
-                  colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0)', 'rgba(8,20,16,0.82)']}
-                  locations={[0, 0.62, 1]}
-                  style={styles.doorShade}
-                />
-                <Text style={styles.doorLabel}>Start Cooking</Text>
+                  <Image source={COOK_PHOTO} style={styles.doorImageCook} resizeMode="cover" accessible={false} />
                 </View>
-              </GlassPressable>
+              </View>
             </View>
             <OrderHoursSlogan style={styles.slogan} />
 
@@ -544,16 +543,6 @@ export default function LoginScreen() {
                 {error ? (
                   <View style={styles.entryNotice} testID="login-entry-notice">
                     <Text style={styles.entryNoticeText}>{error}</Text>
-                    {legalPrompt ? (
-                      <GlassPressable
-                        onPress={() => router.push('/legal')}
-                        accessibilityRole="button"
-                        accessibilityLabel="Open Legal and Safety"
-                        testID="login-open-legal"
-                      >
-                        <Text style={styles.entryNoticeAction}>Open Legal & Safety</Text>
-                      </GlassPressable>
-                    ) : null}
                     {retryCount > 0 && retryCount < 3 && !needsConfirmation && !legalPrompt ? (
                       <GlassPressable
                         onPress={() => handleLogin(true)}
@@ -611,7 +600,12 @@ export default function LoginScreen() {
 
                 <View style={styles.switchRow}>
                   <Text style={styles.switchMuted}>New here? </Text>
-                  <GlassPressable onPress={() => openSignup()} accessibilityRole="button">
+                  <GlassPressable
+                    onPress={openAccountSignup}
+                    accessibilityRole="button"
+                    accessibilityLabel="Create an account"
+                    testID="login-create-account"
+                  >
                     <Text style={styles.switchLink}>Create an Account</Text>
                   </GlassPressable>
                 </View>
@@ -620,13 +614,13 @@ export default function LoginScreen() {
               <View style={styles.legalRow}>
                 <Pressable
                   onPress={() => {
-                    if (agreementOnFile) return;
                     setLegalChecked((current) => {
                       const next = !current;
                       setLoginLegalBoxChecked(next);
                       return next;
                     });
                     setLegalNotice(null);
+                    setError(null);
                   }}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: legalChecked }}
@@ -640,11 +634,7 @@ export default function LoginScreen() {
                 </Pressable>
                 <Text style={styles.legalAgreement}>
                   {legalNotice ? <Text style={styles.legalStar}>* </Text> : null}
-                  I agree to the{' '}
-                  <Text style={styles.legalText} onPress={() => router.push('/legal')}>
-                    Legal & Safety
-                  </Text>
-                  {' '}page
+                  I agree to the Legal & Safety page
                 </Text>
               </View>
               {legalNotice ? <Text style={styles.legalNotice}>{legalNotice}</Text> : null}
@@ -711,7 +701,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
+    bottom: '-5%',
     width: '100%',
     height: '128%',
   },
@@ -869,12 +859,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 21,
   },
-  entryNoticeAction: {
-    ...preAppFont,
-    color: AuthColors.maroon,
-    fontSize: 15,
-    fontWeight: '700',
-  },
   errorText: {
     ...preAppFont,
     color: AuthColors.error,
@@ -1007,13 +991,6 @@ const styles = StyleSheet.create({
     ...preAppFont,
     color: AuthColors.ink,
     fontWeight: '600',
-  },
-  legalText: {
-    ...preAppFont,
-    color: AuthColors.ink,
-    fontSize: 14,
-    fontWeight: '600',
-    textDecorationLine: 'underline',
   },
   legalNotice: {
     ...preAppFont,

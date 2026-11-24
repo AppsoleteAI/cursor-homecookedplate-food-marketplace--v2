@@ -115,6 +115,8 @@ describe.each([1, 2, 3])("legal and safety, run %s", () => {
 
     for (const role of ["platemaker", "platetaker"] as const) {
       expect(sellerScreenEntry({ loading: false, signedIn: false, role })).toBe("sign-in");
+      expect(sellerScreenEntry({ loading: false, signedIn: false, role, browsing: "platemaker" })).toBe("open");
+      expect(sellerScreenEntry({ loading: false, signedIn: false, role, browsing: "platetaker" })).toBe("home");
       expect(legalSurface(false)).toEqual({ kind: "public-terms", url: TERMS_OF_SERVICE_URL });
     }
     expect(sellerScreenEntry({ loading: true, signedIn: true, role: "platemaker" })).toBe("wait");
@@ -132,12 +134,11 @@ describe.each([1, 2, 3])("legal and safety, run %s", () => {
     const db = memoryAdmin(tables);
     const cook = caller(PLATE_MAKER_ID, db, true);
     const buyer = caller(PLATE_TAKER_ID, db, true);
-    await expect(cook.meals.saveKitchenPermit(agreement)).rejects.toMatchObject({
-      message: expect.stringContaining("Legal & Safety"),
-    });
-    await expect(buyer.meals.saveKitchenPermit(agreement)).rejects.toMatchObject({
-      message: expect.stringContaining("Legal & Safety"),
-    });
+    const opened = await cook.meals.saveKitchenPermit(agreement);
+    expect(opened.saved).toBe(true);
+    expect(tables.profiles[0].kitchen_permit).toMatchObject(agreement);
+    await expect(buyer.meals.saveKitchenPermit(agreement)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(tables.profiles[1].kitchen_permit).toBeNull();
 
     await cook.auth.updateProfile({ legalSafetyAgreement: legal });
     await buyer.auth.updateProfile({ legalSafetyAgreement: legal });

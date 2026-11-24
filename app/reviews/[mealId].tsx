@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Image, TextInput, Alert, ActivityIn
 import { FoodImage } from '@/components/FoodImage';
 import { firstPlatePhoto } from '@/lib/food-review-clips';
 import { titleCase } from '@/lib/title-case';
-import { Redirect, Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { Colors, monoGradients } from '@/constants/colors';
 import StarRating from '@/components/StarRating';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,6 +15,7 @@ import { useLeaveScreen } from '@/hooks/use-leave-screen';
 import { trpc } from '@/lib/trpc';
 import { ReviewCommentActions } from '@/components/ReviewCommentActions';
 import { chosenReviewOrder, ordersLeftToReview } from '@/lib/review-order';
+import { GuestLimit } from '@/components/GuestLimit';
 
 export default function ReviewsScreen() {
   const params = useLocalSearchParams<{ mealId: string; next?: string; initialRating?: string }>();
@@ -112,12 +113,7 @@ export default function ReviewsScreen() {
   }
 
   if (!isAuthenticated) {
-    return (
-      <>
-        <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
-        <Redirect href="/(auth)/login" />
-      </>
-    );
+    return <GuestLimit screen="meal-reviews" />;
   }
 
   return (

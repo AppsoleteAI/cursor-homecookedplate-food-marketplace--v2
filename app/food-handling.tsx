@@ -38,7 +38,7 @@ export default function FoodHandlingScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          <AuthBrand toSignIn={false} />
+          <AuthBrand toLanding />
           <Text style={styles.brand}>Food Handling</Text>
           <Text style={styles.audience}>Temperatures and hygiene for PlateMakers and PlateTakers</Text>
 

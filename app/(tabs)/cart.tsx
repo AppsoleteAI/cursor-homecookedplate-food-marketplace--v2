@@ -20,13 +20,14 @@ import { useCombinedBill } from '@/hooks/use-combined-bill';
 import { buyerFoodCharge } from '@/backend/lib/fees';
 import { chargedPlateBase, checkoutQuantity, DELIVERY_PLATFORM_RATE } from '@/lib/fees';
 import { useAuth } from '@/hooks/auth-context';
+import { GuestLimit } from '@/components/GuestLimit';
 import { ScrollJumps } from '@/components/ScrollJumps';
 import { FoodImage } from '@/components/FoodImage';
 import { firstPlatePhoto } from '@/lib/food-review-clips';
 
 export default function CartScreen() {
   const { items, totalPrice, updateQuantity, removeFromCart } = useCart();
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { payInMainCart, preview, gathered } = useCombinedBill();
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
@@ -34,6 +35,9 @@ export default function CartScreen() {
   const split = buyerFoodCharge({ role: user?.role, membershipTier: user?.membershipTier, baseAmount: totalPrice });
   const serviceFee = split.totalCaptured - totalPrice;
   const finalTotal = split.totalCaptured;
+
+  if (authLoading) return null;
+  if (!isAuthenticated) return <GuestLimit screen="cart" />;
 
   if (items.length === 0 && !payInMainCart) {
     return (
@@ -197,7 +201,7 @@ export default function CartScreen() {
           {payInMainCart ? (
             <GradientButton
               title={`Pay this bill • ${preview.combinedBuyerPays.toFixed(2)}`}
-              onPress={() => router.push('/combined-checkout' as Href)}
+              onPress={() => router.push((user ? '/combined-checkout' : '/(tabs)/profile') as Href)}
               baseColor="green"
               testID="pay-together"
             />
@@ -206,7 +210,7 @@ export default function CartScreen() {
               title={`Checkout • ${finalTotal.toFixed(2)}`}
               onPress={() => {
                 try {
-                  router.push('/checkout');
+                  router.push(user ? '/checkout' : '/(tabs)/profile');
                 } catch (error) {
                   console.error('[cart] Error navigating to checkout:', error);
                 }

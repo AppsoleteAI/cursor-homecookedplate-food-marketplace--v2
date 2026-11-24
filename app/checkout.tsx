@@ -356,7 +356,7 @@ export default function CheckoutScreen() {
         return;
       }
       if (!user) {
-        Alert.alert('Not signed in', 'Please login first.');
+        router.push('/(tabs)/profile');
         return;
       }
       if (items.length === 0) {

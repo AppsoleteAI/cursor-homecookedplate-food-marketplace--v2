@@ -16,6 +16,7 @@ import { FoodImage } from '@/components/FoodImage';
 import { Ionicons } from '@expo/vector-icons';
 import { trpc, trpcProxyClient } from '@/lib/trpc';
 import { useAuth } from '@/hooks/auth-context';
+import { GuestLimit } from '@/components/GuestLimit';
 import { useCart } from '@/hooks/cart-context';
 import { useFavorites } from '@/hooks/favorites-context';
 import { formatPickupTime, reorderPickup } from '@/lib/pickup-time';
@@ -49,7 +50,7 @@ function mealForCart(meal: Awaited<ReturnType<typeof trpcProxyClient.meals.get.q
 
 export default function OrdersScreen() {
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { addToCart } = useCart();
   const { isFavorite, toggleFavorite } = useFavorites();
   const router = useRouter();
@@ -141,6 +142,16 @@ export default function OrdersScreen() {
   const getStatusText = (status: string) => {
     return status.charAt(0).toUpperCase() + status.slice(1);
   };
+
+  if (authLoading) {
+    return (
+      <View style={styles.container}>
+        <SkeletonOrdersList />
+      </View>
+    );
+  }
+
+  if (!isAuthenticated) return <GuestLimit screen="orders" />;
 
   if (user?.role === 'platemaker') {
     return <BuyerOnly />;

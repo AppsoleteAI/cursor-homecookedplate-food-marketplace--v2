@@ -1,17 +1,32 @@
 import { Tabs, Redirect } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Platform, View, Text, StyleSheet } from "react-native";
 import { GlassBadge } from "@/components/glass-surface";
 import { Colors } from "@/constants/colors";
 import { userNeedsMembership } from "@/backend/lib/trial-access";
 import { useAuth } from "@/hooks/auth-context";
+import { useGuestRole } from "@/hooks/use-guest-role";
+import { readHasAccount } from "@/lib/guest-role";
 import { useCart } from "@/hooks/cart-context";
 import { navLogger } from "@/lib/nav-logger";
 
 export default function TabLayout() {
   const { user, isAuthenticated, isLoading } = useAuth();
+  const guestRole = useGuestRole();
+  const [hasAccount, setHasAccount] = useState<boolean | undefined>(undefined);
   const { totalItems } = useCart();
-  const isPlatemaker = user?.role === 'platemaker';
+
+  useEffect(() => {
+    if (isLoading || isAuthenticated) return;
+    let live = true;
+    readHasAccount().then((value) => {
+      if (live) setHasAccount(value);
+    });
+    return () => {
+      live = false;
+    };
+  }, [isLoading, isAuthenticated]);
+  const isPlatemaker = isAuthenticated ? user?.role === 'platemaker' : guestRole === 'platemaker';
 
   // 1. Prevent logic execution while auth is still loading
   if (isLoading) {
@@ -23,10 +38,17 @@ export default function TabLayout() {
   // Instead of returning null (blank screen), we declaratively redirect.
   // This ensures that if a session expires, the user is kicked to login.
   if (!isAuthenticated) {
-    navLogger.authDecision('app/(tabs)/_layout.tsx:REDIRECT', false, undefined, '/(auth)/login', {
-      reason: 'session_expired_or_missing',
-    });
-    return <Redirect href="/(auth)/login" />;
+    if (guestRole === undefined || hasAccount === undefined) {
+      if (Platform.OS === 'web') return null;
+      return <View style={styles.launch} />;
+    }
+    if (!guestRole) {
+      const next = hasAccount ? '/(auth)/login' : '/(auth)/limited-browsing';
+      navLogger.authDecision('app/(tabs)/_layout.tsx:REDIRECT', false, undefined, next, {
+        reason: 'session_expired_or_missing',
+      });
+      return <Redirect href={next} />;
+    }
   }
 
   if (userNeedsMembership(user)) {

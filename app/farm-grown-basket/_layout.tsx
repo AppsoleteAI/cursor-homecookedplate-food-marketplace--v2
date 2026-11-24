@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { hydrateFarmBasket } from '@/hooks/farm-basket-store';
+import { SectionGuestGate } from '@/components/GuestLimit';
 
 export default function FarmGrownBasketLayout() {
   useEffect(() => {
@@ -8,6 +9,7 @@ export default function FarmGrownBasketLayout() {
   }, []);
 
   return (
+    <SectionGuestGate root="/farm-grown-basket">
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="market" />
@@ -24,5 +26,6 @@ export default function FarmGrownBasketLayout() {
       <Stack.Screen name="cottage-law" />
       <Stack.Screen name="directory" />
     </Stack>
+    </SectionGuestGate>
   );
 }

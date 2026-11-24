@@ -16,6 +16,7 @@ import { openFoodHandling } from '@/components/FoodHandlingLink';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { screenName } from '@/lib/title-case';
 import { useAuth } from '@/hooks/auth-context';
+import { GuestLimit } from '@/components/GuestLimit';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ProfilePhotoCapture, type CapturedPhoto } from '@/components/ProfilePhotoCapture';
 import * as WebBrowser from 'expo-web-browser';
@@ -47,7 +48,7 @@ function tell(message: string) {
 }
 
 export default function ProfileScreen() {
-  const { user, logout, updateProfile, setOrderingAsBuyer } = useAuth();
+  const { user, isAuthenticated, logout, updateProfile, setOrderingAsBuyer } = useAuth();
   const accountRole = user?.accountRole ?? user?.role;
   const orderingAsBuyer = user?.orderingAsBuyer === true;
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -260,6 +261,10 @@ export default function ProfileScreen() {
       setSavingPhoto(false);
     }
   };
+
+  if (!isAuthenticated) {
+    return <GuestLimit screen="profile" />;
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -491,6 +496,38 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.gradient.green,
     borderWidth: 2,
     borderColor: Colors.white,
+  },
+  guestCard: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  guestCopy: {
+    fontSize: 16,
+    lineHeight: 22,
+    color: Colors.gray[700],
+    marginBottom: 8,
+  },
+  guestButton: {
+    backgroundColor: Colors.gray[900],
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  guestButtonText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  guestQuiet: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  guestQuietText: {
+    color: Colors.gray[800],
+    fontSize: 16,
+    fontWeight: '600',
   },
   name: {
     fontSize: 24,

@@ -21,6 +21,7 @@ import { Redirect, router, type Href } from 'expo-router';
 import { openFoodHandling } from '@/components/FoodHandlingLink';
 import { useOrders } from '@/hooks/orders-context';
 import { useAuth } from '@/hooks/auth-context';
+import { useGuestRole } from '@/hooks/use-guest-role';
 import * as WebBrowser from 'expo-web-browser';
 import { trpc } from '@/lib/trpc';
 import { TrialCountdownNotice } from '@/components/TrialCountdownNotice';
@@ -29,6 +30,7 @@ import { DeliveryFeeCard } from '@/components/DeliveryFeeCard';
 import { GetGpsCard } from '@/components/GetGpsCard';
 import { ScrollJumps } from '@/components/ScrollJumps';
 import { FoodImage } from '@/components/FoodImage';
+import { GuestLimit } from '@/components/GuestLimit';
 
 const DASHBOARD_RETURN = '/(tabs)/dashboard';
 
@@ -45,7 +47,8 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   const { activeOrdersCount, todayEarnings, weekEarnings, totalReviews, orders, refresh, loadError } = useOrders();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const guestRole = useGuestRole();
 
   // CRITICAL SECURITY: Only call backend procedure if user is platemaker
   // This prevents API calls from platetakers and ensures frontend never attempts to fetch data for non-platemakers
@@ -116,9 +119,11 @@ export default function DashboardScreen() {
   }, [todayEarnings, weekEarnings, activeOrdersCount, totalReviews, dashboardStats.data]);
 
   // Security: Never render earnings data if user role is not platemaker (guard should prevent this, but add defensive check)
-  if (user?.role !== 'platemaker') {
+  if (!isAuthenticated && guestRole === undefined) return null;
+  if (isAuthenticated ? user?.role !== 'platemaker' : guestRole !== 'platemaker') {
     return <Redirect href="/(tabs)/(home)/home" />;
   }
+  if (!isAuthenticated) return <GuestLimit screen="dashboard" />;
 
   const availabilityKnown = availabilityStatus.isSuccess && typeof availabilityStatus.data?.available === 'boolean';
   const acceptingOrders = availabilityKnown ? availabilityStatus.data.available === true : false;
