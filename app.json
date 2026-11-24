@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "15",
+      "buildNumber": "16",
       "bundleIdentifier": "app.rork.homecookedplate-dynamic-gradient-food-marketplace-v1-1",
       "usesAppleSignIn": true,
       "infoPlist": {
@@ -36,7 +36,7 @@
         "backgroundColor": "#D89429"
       },
       "package": "com.rork.homecookedplate",
-      "versionCode": 15,
+      "versionCode": 16,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
