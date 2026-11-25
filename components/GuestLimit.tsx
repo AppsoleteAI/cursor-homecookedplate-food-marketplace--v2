@@ -24,10 +24,9 @@ export function GuestLimit({ screen = 'guest' }: { screen?: string }) {
           <GlassPressable
             style={styles.button}
             onPress={() => router.push({
-              pathname: '/(auth)/welcome',
+              pathname: '/(auth)/onboarding',
               params: {
-                step: guestRole ? '3' : '1',
-                entry: 'signup',
+                step: '1',
                 ...(guestRole ? { role: guestRole } : {}),
               },
             })}

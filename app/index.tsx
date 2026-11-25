@@ -4,19 +4,23 @@ import { Redirect } from 'expo-router';
 import { userNeedsMembership } from '@/backend/lib/trial-access';
 import { useAuth } from '@/hooks/auth-context';
 import { useGuestRole } from '@/hooks/use-guest-role';
-import { readHasAccount } from '@/lib/guest-role';
+import { readHasAccount, readProviderRole, signedOutDestination } from '@/lib/guest-role';
+import type { AccountRole } from '@/backend/lib/provider-profile';
 import { navLogger } from '@/lib/nav-logger';
 
 export default function Index() {
   const { isAuthenticated, isLoading, user, session } = useAuth();
   const guestRole = useGuestRole();
   const [hasAccount, setHasAccount] = useState<boolean | undefined>(undefined);
+  const [providerRole, setProviderRole] = useState<AccountRole | null | undefined>(undefined);
 
   useEffect(() => {
     if (isLoading || isAuthenticated) return;
     let live = true;
-    readHasAccount().then((value) => {
-      if (live) setHasAccount(value);
+    Promise.all([readHasAccount(), readProviderRole()]).then(([account, storedRole]) => {
+      if (!live) return;
+      setHasAccount(account);
+      setProviderRole(storedRole);
     });
     return () => {
       live = false;
@@ -43,20 +47,13 @@ export default function Index() {
   // Phase 5: Index Redirect Decision - Only renders AFTER Phase 3 (Auth) and Phase 4 (Navigation) are complete
   // The <Redirect /> component is "safe" because it only renders AFTER the RootLayout's appIsReady check has passed
   if (!isAuthenticated) {
-    if (guestRole === undefined || hasAccount === undefined) {
+    if (guestRole === undefined || hasAccount === undefined || providerRole === undefined) {
       if (Platform.OS === 'web') return null;
       return <View style={styles.launch} />;
     }
-    if (guestRole) {
-      navLogger.authDecision('app/index.tsx:REDIRECT_CHECK', false, guestRole, '/(tabs)/(home)/home');
-      return <Redirect href="/(tabs)/(home)/home" />;
-    }
-    if (hasAccount) {
-      navLogger.authDecision('app/index.tsx:REDIRECT_CHECK', false, undefined, '/(auth)/login');
-      return <Redirect href="/(auth)/login" />;
-    }
-    navLogger.authDecision('app/index.tsx:REDIRECT_CHECK', false, undefined, '/(auth)/limited-browsing');
-    return <Redirect href="/(auth)/limited-browsing" />;
+    const next = signedOutDestination(hasAccount, guestRole, providerRole);
+    navLogger.authDecision('app/index.tsx:REDIRECT_CHECK', false, guestRole ?? providerRole ?? undefined, next);
+    return <Redirect href={next} />;
   }
 
   // 4. Null check for user before accessing role

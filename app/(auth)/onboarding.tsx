@@ -14,10 +14,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { readDeviceCoordinates } from '@/lib/device-coordinates';
 import { nearestMetro } from '@/backend/lib/metro-radius';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useAuth } from '@/hooks/auth-context';
 import { AuthColors, preAppFont } from '@/constants/auth-palette';
 import { AuthBackground, AuthBrand, AuthGoldButton, MaroonButtonFill } from '@/components/auth/AuthChrome';
 import { BackCircle } from '@/components/BackCircle';
-import { useWizardBack } from '@/hooks/use-leave-screen';
+import { useReplaceBack, useWizardBack } from '@/hooks/use-leave-screen';
+import {
+  firstActionDestination,
+  firstStepHref,
+  readBriefReady,
+  type FirstAction,
+} from '@/lib/first-action';
 import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 import { useSignupForm } from '@/hooks/useSignupForm';
@@ -38,9 +45,14 @@ function isRole(value: string | undefined): value is Role {
 }
 
 export default function OnboardingScreen() {
-  const params = useLocalSearchParams<{ role?: string | string[]; step?: string | string[] }>();
+  const params = useLocalSearchParams<{ role?: string | string[]; step?: string | string[]; entry?: string | string[]; action?: string | string[] }>();
   const roleParam = typeof params.role === 'string' ? params.role : undefined;
+  const entry = Array.isArray(params.entry) ? params.entry[0] : params.entry;
+  const actionParam = Array.isArray(params.action) ? params.action[0] : params.action;
+  const firstAction: FirstAction = actionParam === 'publish' ? 'publish' : 'order';
+  const isFirstAction = entry === 'first-action';
   const requestedStep = params.step === '1' || params.step === '2' ? Number(params.step) : 0;
+  const openedOnAccount = requestedStep === 1 && !isFirstAction;
   const [step, setStep] = useState(requestedStep);
   const [askRole, setAskRole] = useState(!isRole(roleParam));
   const [metroStatus, setMetroStatus] = useState<MetroStatus>('idle');
@@ -70,9 +82,21 @@ export default function OnboardingScreen() {
   } = useSignupForm({
     initialRole: isRole(roleParam) ? roleParam : undefined,
   });
-  const stepBack = useWizardBack(step, setStep, isSigningUp || isLoading);
+  const { user } = useAuth();
+  const utils = trpc.useUtils();
+  const locateMembership = trpc.membership.locate.useMutation();
+  const accountBack = useReplaceBack('/(auth)/login', openedOnAccount && step === 1);
+  const stepBack = useWizardBack(step, setStep, isSigningUp || isLoading || isFirstAction || (openedOnAccount && step === 1));
   const leaveStep = () => {
     if (isSigningUp || isLoading) return;
+    if (isFirstAction) {
+      router.replace(firstAction === 'publish' ? '/(tabs)/create-meal' : '/(tabs)/cart');
+      return;
+    }
+    if (openedOnAccount && step === 1) {
+      accountBack();
+      return;
+    }
     if (step === 0 && !askRole) {
       setAskRole(true);
       setPageError(null);
@@ -154,6 +178,23 @@ export default function OnboardingScreen() {
   };
 
   const continueFromMetro = () => {
+    if (isFirstAction) {
+      if (!userLocation || !user) {
+        setPageError('Find My Location so the 20-mile order circle and the 50-mile metro can be saved.');
+        return;
+      }
+      setPageError(null);
+      locateMembership.mutate({ lat: userLocation.lat, lng: userLocation.lng, mode: 'commit' }, {
+        onSuccess: (saved) => {
+          utils.auth.me.setData(undefined, (current) => current ? { ...current, metroArea: saved.metroArea } : current);
+          readBriefReady(user.id, firstAction).then((seen) => {
+            router.replace(seen ? firstActionDestination(firstAction) : firstStepHref('brief', firstAction));
+          }).catch(() => router.replace(firstStepHref('brief', firstAction)));
+        },
+        onError: () => setPageError('The location could not be saved. Try Find My Location again.'),
+      });
+      return;
+    }
     if (askRole) {
       setPageError('Choose how you will use HomeCookedPlate.');
       return;
@@ -253,6 +294,7 @@ export default function OnboardingScreen() {
             ) : null}
 
             <AuthBrand />
+            {isFirstAction ? null : (
             <View style={styles.steps}>
               {STEPS.map((label, index) => (
                 <View key={label} style={styles.stepItem}>
@@ -261,6 +303,7 @@ export default function OnboardingScreen() {
                 </View>
               ))}
             </View>
+            )}
 
             <View style={styles.sheet}>
               <View style={styles.panel}>

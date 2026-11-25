@@ -19,6 +19,7 @@ import { getPrepItem } from '@/constants/meal-prep-go';
 import { getPackage } from '@/constants/cater-event-deliver';
 import { getSitItem } from '@/constants/sit-down-delicious';
 import { useAuth } from '@/hooks/auth-context';
+import { useFirstActionRedirect } from '@/components/FirstActionRedirect';
 import { useCart } from '@/hooks/cart-context';
 import { plateCheckoutBlock } from '@/lib/plate-checkout-block';
 import type { CartItem } from '@/types';
@@ -135,6 +136,7 @@ function HomePlateSection({
 }
 
 export default function CombinedCheckoutScreen() {
+  useFirstActionRedirect('order');
   const { user, isAuthenticated, isLoading } = useAuth();
   const cart = useCart();
   const farm = useFarmBasket();

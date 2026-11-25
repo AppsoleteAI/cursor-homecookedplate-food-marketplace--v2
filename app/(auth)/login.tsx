@@ -28,7 +28,7 @@ import {
   REVOKED_SESSION_NOTICE_KEY,
   WRONG_SIGN_IN_MESSAGE,
 } from '@/backend/lib/sign-in-messages';
-import { agreementFromUnknown, chooseLegalForm, clearLegalAgreement, clearLegalReadyForSignIn, isLegalReadyForSignIn, isLoginLegalBoxChecked, LEGAL_BOX_MESSAGE, LEGAL_SIGN_IN_MESSAGE, readLegalAgreement, setLoginLegalBoxChecked, todayStamp, toCompletedLegalAgreement } from '@/lib/legal-agreement';
+import { agreementFromUnknown, chooseLegalForm, clearLegalAgreement, clearLegalReadyForSignIn, isLegalReadyForSignIn, isLoginLegalBoxChecked, LEGAL_SIGN_IN_MESSAGE, readLegalAgreement, setLoginLegalBoxChecked, todayStamp, toCompletedLegalAgreement } from '@/lib/legal-agreement';
 import { AuthColors, preAppFont } from '@/constants/auth-palette';
 import { AuthBackground, AuthBrand, MaroonButtonFill } from '@/components/auth/AuthChrome';
 import { BackCircle } from '@/components/BackCircle';
@@ -138,14 +138,6 @@ export default function LoginScreen() {
     router.replace('/');
   };
 
-  const directToBox = () => {
-    setLegalPrompt(false);
-    setError(LEGAL_BOX_MESSAGE);
-    setLegalNotice(LEGAL_BOX_MESSAGE);
-    Keyboard.dismiss();
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
-  };
-
   const openAccountSignup = () => {
     AsyncStorage.getItem(PROVIDER_ROLE_STORAGE_KEY).then((stored) => {
       router.push({
@@ -169,10 +161,6 @@ export default function LoginScreen() {
   };
 
   const handleProvider = async (provider: 'Apple' | 'Google') => {
-    if (!legalChecked) {
-      directToBox();
-      return;
-    }
     setProviderNotice(null);
     setError(null);
     setLegalPrompt(false);
@@ -270,11 +258,6 @@ export default function LoginScreen() {
 
   const handleLogin = async (isRetry = false) => {
     console.log('Sign-in triggered', { isRetry, retryCount });
-
-    if (!legalChecked) {
-      directToBox();
-      return;
-    }
 
     if (providerPending === 'code') {
       if (signInCode.length !== 6) {
@@ -645,6 +628,15 @@ export default function LoginScreen() {
                 </Text>
               </View>
               {legalNotice ? <Text style={styles.legalNotice}>{legalNotice}</Text> : null}
+              <GlassPressable
+                onPress={() => router.replace('/(auth)/limited-browsing')}
+                style={styles.notMemberLink}
+                accessibilityRole="link"
+                accessibilityLabel="Not a member yet?"
+                testID="login-not-a-member"
+              >
+                <Text style={styles.notMemberLinkText}>Not a member yet?</Text>
+              </GlassPressable>
             </View>
 
             <View style={styles.credit}>
@@ -1006,6 +998,18 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     lineHeight: 18,
     paddingHorizontal: 8,
+  },
+  notMemberLink: {
+    marginTop: 16,
+    alignItems: 'center',
+    alignSelf: 'center',
+  },
+  notMemberLinkText: {
+    ...preAppFont,
+    color: AuthColors.maroon,
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   credit: {
     alignItems: 'center',

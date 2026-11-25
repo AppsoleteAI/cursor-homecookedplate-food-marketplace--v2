@@ -28,6 +28,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/hooks/auth-context';
+import { useFirstActionRedirect } from '@/components/FirstActionRedirect';
 import { Colors, monoGradients, pagePastel } from '@/constants/colors';
 import { trpc, trpcProxyClient } from '@/lib/trpc';
 import { useCart } from '@/hooks/cart-context';
@@ -272,6 +273,7 @@ function CongratsFlash({ visible, footerOffset, onEnd }: CongratsFlashProps) {
 }
 
 export default function CheckoutScreen() {
+  useFirstActionRedirect('order');
   const params = useLocalSearchParams<{ webpay?: string; session_id?: string }>();
   const { items, clearCart, removeFromCart, totalPrice, updatePickupTime, updateSpecialInstructions, updateAllergies, updateCookingTemperature } = useCart();
   const { payInMainCart } = useCombinedBill();

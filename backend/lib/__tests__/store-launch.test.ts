@@ -82,8 +82,8 @@ describe.each([1, 2, 3, 4, 5])('store launch still open, pass %s', () => {
     expect(order).toContain('cookPermitIsSaved');
     expect(order).not.toMatch(/apple|google/i);
     expect(login).toContain('await login(cleanEmail, password, needsCode ? signInCode : undefined)');
-    expect(app.expo.ios.buildNumber).toBe('16');
-    expect(app.expo.android.versionCode).toBe(16);
+    expect(app.expo.ios.buildNumber).toBe('17');
+    expect(app.expo.android.versionCode).toBe(17);
     expect(agreement.length).toBeGreaterThan(0);
     expect(license).toContain('apple_eula');
     expect(profilePayeeName({ business_name: 'Ada Kitchen', username: 'ada' })).toBe('Ada Kitchen');

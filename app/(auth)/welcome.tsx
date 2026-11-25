@@ -13,7 +13,7 @@ import { AuthColors, goldButtonColors, maroonButtonColors, preAppFont } from '@/
 import { LinearGradient } from 'expo-linear-gradient';
 import { AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
 import { BackCircle } from '@/components/BackCircle';
-import { useWizardBack } from '@/hooks/use-leave-screen';
+import { useReplaceBack, useWizardBack } from '@/hooks/use-leave-screen';
 import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
 import { useAuth } from '@/hooks/auth-context';
 import { SUBSCRIPTION_PRICES } from '@/backend/lib/fees';
@@ -23,6 +23,7 @@ import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { PROVIDER_ROLE_STORAGE_KEY } from '@/backend/lib/provider-profile';
 import { writeGuestRole } from '@/lib/guest-role';
 import { classifySignInFailure, MEMBERSHIP_INELIGIBLE_MESSAGE, NO_ACCOUNT_MESSAGE, WRONG_SIGN_IN_MESSAGE } from '@/backend/lib/sign-in-messages';
+import { firstActionDestination, firstStepHref, markBriefReady, type FirstAction } from '@/lib/first-action';
 import { LEGAL_SIGN_IN_MESSAGE } from '@/lib/legal-agreement';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, GlassTop, glassSurface } from '@/components/glass-surface';
@@ -113,7 +114,7 @@ function markWelcomeSeen() {
 
 export default function WelcomeScreen() {
   const { user, finishProviderAccount } = useAuth();
-  const params = useLocalSearchParams<{ role?: string | string[]; entry?: string | string[]; step?: string | string[]; pending?: string | string[] }>();
+  const params = useLocalSearchParams<{ role?: string | string[]; entry?: string | string[]; step?: string | string[]; pending?: string | string[]; action?: string | string[] }>();
   const role = roleParam(params.role);
   const openedStep = stepParam(params.step);
   const [pickedRole, setPickedRole] = useState<Role | undefined>(openedStep >= 2 ? role : undefined);
@@ -121,6 +122,8 @@ export default function WelcomeScreen() {
   const isGate = firstParam(params.entry) === 'gate';
   const isSignup = firstParam(params.entry) === 'signup';
   const fromLanding = firstParam(params.entry) === 'landing';
+  const isFirst = firstParam(params.entry) === 'first-action';
+  const firstAction: FirstAction = firstParam(params.action) === 'publish' ? 'publish' : 'order';
   const isMaker = chosenRole === 'platemaker';
   const stepLabels = ['Benefits', 'Membership', isMaker ? 'Cottage food' : 'Safety'];
   const [step, setStep] = useState(openedStep);
@@ -142,7 +145,8 @@ export default function WelcomeScreen() {
   }, []);
   const backToNearYou = fromLanding && step === 1;
   const backToLanding = fromLanding && step === 0;
-  const stepBack = useWizardBack(step, setWizardStep, backToNearYou || backToLanding || isSignup);
+  const stepBack = useWizardBack(step, setWizardStep, backToNearYou || backToLanding || isSignup || isFirst);
+  const backToLocation = useReplaceBack(firstStepHref('location', firstAction), isFirst);
   const [gate, setGate] = useState<'show' | 'login'>('show');
   const [finishNotice, setFinishNotice] = useState<string | null>(null);
 
@@ -228,6 +232,13 @@ export default function WelcomeScreen() {
   };
 
   const continueForward = () => {
+    if (isFirst && step === 3) {
+      const finish = user
+        ? markBriefReady(user.id, firstAction).catch(() => undefined)
+        : Promise.resolve();
+      finish.then(() => router.replace(firstActionDestination(firstAction)));
+      return;
+    }
     if (step === 0) {
       if (fromLanding) {
         router.replace({ pathname: '/(auth)/welcome', params: { step: '1', entry: 'landing' } });
@@ -272,7 +283,9 @@ export default function WelcomeScreen() {
             <BackCircle
               tone="honey"
               onPress={
-                backToLanding
+                isFirst
+                  ? backToLocation
+                  : backToLanding
                   ? () => router.replace('/(auth)/limited-browsing')
                   : backToNearYou
                     ? () => router.replace({ pathname: '/(auth)/welcome', params: { step: '0', entry: 'landing' } })
@@ -287,7 +300,7 @@ export default function WelcomeScreen() {
           ) : null}
 
           <AuthBrand toLanding={step === 0 || step === 1} toSignIn={step !== 0 && step !== 1} />
-          {step === 1 ? null : <View style={styles.steps}>
+          {step === 1 || isFirst ? null : <View style={styles.steps}>
             {stepLabels.map((label, index) => (
               <View key={label} style={styles.stepItem}>
                 <View style={[styles.stepDot, index <= shownStep && styles.stepDotOn]} />
@@ -488,7 +501,7 @@ export default function WelcomeScreen() {
 
               {step === 1 ? null : (
               <AuthGoldButton
-                title={step === 3 ? 'Continue to your account' : 'Continue'}
+                title={isFirst ? 'Continue' : step === 3 ? 'Continue to your account' : 'Continue'}
                 onPress={continueForward}
                 testID={step === 3 ? 'welcome-continue-account' : 'welcome-continue'}
                 style={styles.action}

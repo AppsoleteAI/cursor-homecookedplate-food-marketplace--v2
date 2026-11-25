@@ -1,7 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { applySignInLegal, chooseLegalForm, clearLegalAgreement, clearLegalReadyForSignIn, clearLoginLegalBox, isLegalReadyForSignIn, LEGAL_SIGN_IN_MESSAGE, readLegalAgreement, todayStamp, toCompletedLegalAgreement, writeLegalAgreement } from '@/lib/legal-agreement';
+import { applySignInLegal, chooseLegalForm, clearLegalAgreement, clearLegalReadyForSignIn, clearLoginLegalBox, isLegalReadyForSignIn, readLegalAgreement, todayStamp, toCompletedLegalAgreement, writeLegalAgreement } from '@/lib/legal-agreement';
 import { accountAllowsSignIn, LEGAL_SAVE_FAILED_MESSAGE } from '@/backend/lib/legal-gate';
 import { requestProviderSession } from '@/lib/provider-sign-in';
 import { providerAccountBlock } from '@/backend/lib/provider-account';
@@ -22,6 +22,7 @@ import { Alert, Platform } from 'react-native';
 import { navLogger } from '@/lib/nav-logger';
 import { recoveryScreenIsOpen } from '@/lib/verification-link';
 import { rememberAccessToken } from '@/lib/access-token';
+import { markHasAccount } from '@/lib/guest-role';
 import { LEGACY_SESSION_KEY, refreshTokenWasRevoked, SESSION_STORAGE_KEY, chunkedSecureStorage } from '@/lib/session-store';
 import { SESSION_RESTORE_MS, settleWithin } from '@/lib/settle-within';
 
@@ -263,13 +264,15 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
             role: hydrated.role,
           });
         } catch (parseError) {
-          // Corrupted user data - clean up
+          // Corrupted user data - clean up. The profile was on this device.
+          await markHasAccount();
           await AsyncStorage.removeItem(STORAGE_KEY);
           navLogger.error('hooks/auth-context.tsx:LOAD_USER', 'Failed to parse user data', undefined, {
             error: parseError instanceof Error ? parseError.message : String(parseError),
           });
         }
       } else if (userStr) {
+        await markHasAccount();
         await AsyncStorage.removeItem(STORAGE_KEY);
         navLogger.stateChange('hooks/auth-context.tsx:LOAD_USER', 'profile_without_token_cleared', undefined, {});
       }
@@ -501,10 +504,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         return { needsTwoFactor: true as const };
       }
       const createdAt = new Date(result.user.createdAt);
-      if (await applySignInLegal(createdAt, result.legalSafetyAgreement) === 'block') {
-        await settleWithin(supabase.auth.signOut({ scope: 'local' }), 2000).catch(() => undefined);
-        throw new Error(LEGAL_SIGN_IN_MESSAGE);
-      }
+      await applySignInLegal(createdAt, result.legalSafetyAgreement);
       await keepDeviceCopy(stamped);
 
       rememberAccessToken(result.session.access_token);
@@ -599,27 +599,17 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       twoFactorEnabled: profile.two_factor_enabled,
     };
     const accountAccepted = accountAllowsSignIn(profile.legal_safety_agreement, signedInUser.createdAt);
-    if (!accountAccepted && await applySignInLegal(signedInUser.createdAt, profile.legal_safety_agreement) === 'block') {
-      await settleWithin(supabase.auth.signOut({ scope: 'local' }), 2000).catch(() => undefined);
-      throw new Error(LEGAL_SIGN_IN_MESSAGE);
-    }
+    if (!accountAccepted) await applySignInLegal(signedInUser.createdAt, profile.legal_safety_agreement);
     const stamped = accountAccepted ? undefined : await pendingLegalAgreement();
-    let gateRecord: unknown = profile.legal_safety_agreement;
     if (stamped) {
       try {
         await updateProfileMutation.mutateAsync({ legalSafetyAgreement: stamped });
-        gateRecord = stamped;
         await keepDeviceCopy(stamped);
       } catch {
         rememberAccessToken(null);
         await settleWithin(supabase.auth.signOut({ scope: 'local' }), 2000).catch(() => undefined);
         throw new Error(LEGAL_SAVE_FAILED_MESSAGE);
       }
-    }
-    if (!accountAllowsSignIn(gateRecord, signedInUser.createdAt)) {
-      rememberAccessToken(null);
-      await settleWithin(supabase.auth.signOut({ scope: 'local' }), 2000).catch(() => undefined);
-      throw new Error(LEGAL_SIGN_IN_MESSAGE);
     }
     const latest = await supabase.auth.getSession();
     const committed = latest.data.session ?? nextSession;

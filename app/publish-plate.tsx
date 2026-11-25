@@ -18,6 +18,7 @@ import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { GradientButton } from '@/components/GradientButton';
 import { useReplaceBack } from '@/hooks/use-leave-screen';
 import { useAuth } from '@/hooks/auth-context';
+import { useFirstActionRedirect } from '@/components/FirstActionRedirect';
 import { GuestLimit } from '@/components/GuestLimit';
 import { useMeals } from '@/hooks/meals-context';
 import { trpc } from '@/lib/trpc';
@@ -32,6 +33,7 @@ import { ScrollJumps } from '@/components/ScrollJumps';
 const EMPTY: PlateDraft = { name: '', price: '', preparationMinutes: '', media: [], availabilityWindows: [], portions: '1', postVideoToTimeline: false };
 
 export default function PublishPlateScreen() {
+  useFirstActionRedirect('publish');
   const leave = useReplaceBack('/(tabs)/create-meal');
   const scrollRef = useRef<ScrollView>(null);
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();

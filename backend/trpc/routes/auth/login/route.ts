@@ -3,7 +3,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { readAdminRole } from "../../../../lib/admin-role";
 import { assertEmailConfirmed, CONFIRMATION_EXPIRED_MESSAGE, confirmationWindowClosed } from "../../../../lib/email-confirmation";
-import { accountAllowsSignIn, LEGAL_SAVE_FAILED_MESSAGE, LEGAL_SIGN_IN_MESSAGE, legalSafetyAgreementSchema, legalSignInDecision } from "../../../../lib/legal-gate";
+import { accountAllowsSignIn, LEGAL_SAVE_FAILED_MESSAGE, legalSafetyAgreementSchema, legalSignInDecision } from "../../../../lib/legal-gate";
 import { MEMBERSHIP_INELIGIBLE_MESSAGE, NO_ACCOUNT_MESSAGE } from "../../../../lib/sign-in-messages";
 import { readAuthIdentityKind, readProviderButtonMessage, signInWithoutProfileMessage } from "../../../../lib/provider-profile";
 import { readProfileRow, SIGN_IN_PROFILE_COLUMNS } from "../../../../lib/profile-columns";
@@ -145,10 +145,6 @@ export const loginProcedure = publicProcedure
       submitted: input.legalSafetyAgreement,
       createdAt,
     });
-    if (legalDecision === 'refuse') {
-      await ctx.supabase.auth.signOut({ scope: 'local' });
-      throw new TRPCError({ code: 'FORBIDDEN', message: LEGAL_SIGN_IN_MESSAGE });
-    }
     if (legalDecision === 'save') {
       const saved = await ctx.supabaseAdmin
         .from('profiles')

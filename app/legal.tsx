@@ -9,9 +9,10 @@ import {
   Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthColors } from '@/constants/auth-palette';
+import { appleLicenseParagraphs } from '@/lib/apple-eula';
 import { calculateDeliveryLevy, calculateOrderSplit, DELIVERY_PLATFORM_RATE } from '@/lib/fees';
 import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { BUYER_AFTER_NOTE } from '@/lib/buyer-safety';
@@ -22,7 +23,13 @@ import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
 import { GlassTop } from '@/components/glass-surface';
 import { ScrollJumps } from '@/components/ScrollJumps';
-import { appleLicenseParagraphs } from '@/lib/apple-eula';
+import {
+  firstActionDestination,
+  firstLocationReady,
+  firstStepHref,
+  readBriefReady,
+  type FirstAction,
+} from '@/lib/first-action';
 import {
   agreementFromUnknown,
   appleLicenseCoversRevision,
@@ -53,8 +60,14 @@ const FINAL_AGREEMENT =
   'By entering today\'s date below, I acknowledge that I have read this Legal & Safety page in full. I confirm that I have checked each section above as my separate agreement to that section. I agree to be bound by the jurisdictional notices, delivery and safety rules, liability waivers, personal-information terms, allergy and food-safety disclaimers, fee terms, account-termination rules, uploaded-content terms, and the Apple app license stated on this page. I understand that the date I enter is my signed record of this agreement with HomeCookedPlate and its Appsolete affiliates, and that I may not use the app until this acknowledgment is complete.';
 
 export default function LegalScreen() {
+  const params = useLocalSearchParams<{ entry?: string | string[]; action?: string | string[] }>();
+  const entry = Array.isArray(params.entry) ? params.entry[0] : params.entry;
+  const actionParam = Array.isArray(params.action) ? params.action[0] : params.action;
+  const firstAction: FirstAction = actionParam === 'publish' ? 'publish' : 'order';
+  const fromFirstAction = entry === 'first-action';
   const leave = useLeaveScreen('/(auth)/login');
   const { session, user, isLoading } = useAuth();
+  const utils = trpc.useUtils();
   const saveAgreement = trpc.auth.updateProfile.useMutation();
   const saveAgreementRef = useRef(saveAgreement);
   saveAgreementRef.current = saveAgreement;
@@ -192,17 +205,35 @@ export default function LegalScreen() {
     if (session) {
       try {
         await saveAgreement.mutateAsync({ legalSafetyAgreement: record });
+        utils.auth.me.setData(undefined, (current) => current ? { ...current, legalSafetyAgreement: record } : current);
         setNotice('Your acknowledgment is recorded on your account.');
       } catch (error) {
         console.error('[Legal] Failed to store agreement', error);
         setNotice('Your acknowledgment is saved on this device. It was not stored on the account.');
       }
     } else {
-      setNotice('Your acknowledgment is saved on this device. Returning to sign in.');
+      setNotice(fromFirstAction
+        ? 'Your acknowledgment is saved on this device.'
+        : 'Your acknowledgment is saved on this device. Returning to sign in.');
     }
     if (leaveTimer.current) clearTimeout(leaveTimer.current);
     leaveTimer.current = setTimeout(() => {
-      leave();
+      if (!fromFirstAction || !user) {
+        leave();
+        return;
+      }
+      const placeSaved = firstLocationReady(user.metroArea);
+      readBriefReady(user.id, firstAction).then((seen) => {
+        if (!placeSaved) {
+          router.replace(firstStepHref('location', firstAction));
+          return;
+        }
+        if (!seen) {
+          router.replace(firstStepHref('brief', firstAction));
+          return;
+        }
+        router.replace(firstActionDestination(firstAction));
+      }).catch(() => router.replace(firstActionDestination(firstAction)));
     }, 2000);
   };
 

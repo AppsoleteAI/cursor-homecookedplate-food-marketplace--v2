@@ -6,7 +6,8 @@ import { Colors } from "@/constants/colors";
 import { userNeedsMembership } from "@/backend/lib/trial-access";
 import { useAuth } from "@/hooks/auth-context";
 import { useGuestRole } from "@/hooks/use-guest-role";
-import { readHasAccount } from "@/lib/guest-role";
+import { readHasAccount, readProviderRole, signedOutDestination } from "@/lib/guest-role";
+import type { AccountRole } from "@/backend/lib/provider-profile";
 import { useCart } from "@/hooks/cart-context";
 import { navLogger } from "@/lib/nav-logger";
 
@@ -14,13 +15,16 @@ export default function TabLayout() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const guestRole = useGuestRole();
   const [hasAccount, setHasAccount] = useState<boolean | undefined>(undefined);
+  const [providerRole, setProviderRole] = useState<AccountRole | null | undefined>(undefined);
   const { totalItems } = useCart();
 
   useEffect(() => {
     if (isLoading || isAuthenticated) return;
     let live = true;
-    readHasAccount().then((value) => {
-      if (live) setHasAccount(value);
+    Promise.all([readHasAccount(), readProviderRole()]).then(([account, storedRole]) => {
+      if (!live) return;
+      setHasAccount(account);
+      setProviderRole(storedRole);
     });
     return () => {
       live = false;
@@ -38,13 +42,13 @@ export default function TabLayout() {
   // Instead of returning null (blank screen), we declaratively redirect.
   // This ensures that if a session expires, the user is kicked to login.
   if (!isAuthenticated) {
-    if (guestRole === undefined || hasAccount === undefined) {
+    if (guestRole === undefined || hasAccount === undefined || providerRole === undefined) {
       if (Platform.OS === 'web') return null;
       return <View style={styles.launch} />;
     }
-    if (!guestRole) {
-      const next = hasAccount ? '/(auth)/login' : '/(auth)/limited-browsing';
-      navLogger.authDecision('app/(tabs)/_layout.tsx:REDIRECT', false, undefined, next, {
+    const next = signedOutDestination(hasAccount, guestRole, providerRole);
+    if (next !== '/(tabs)/(home)/home') {
+      navLogger.authDecision('app/(tabs)/_layout.tsx:REDIRECT', false, guestRole ?? providerRole ?? undefined, next, {
         reason: 'session_expired_or_missing',
       });
       return <Redirect href={next} />;
