@@ -219,6 +219,7 @@ export const loginProcedure = publicProcedure
         createdAt: new Date(profile.created_at),
         isPaused: profile.is_paused,
         twoFactorEnabled: Boolean(factorId),
+        metroArea: typeof profile.metro_area === 'string' && profile.metro_area.trim() ? profile.metro_area : null,
       },
       session,
       legalSafetyAgreement: profile.legal_safety_agreement ?? null,

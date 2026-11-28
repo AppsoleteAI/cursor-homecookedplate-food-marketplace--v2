@@ -36,6 +36,13 @@ export default function AuthLayout() {
           gestureEnabled: true,
         }}
       />
+      <Stack.Screen
+        name="account-name"
+        options={{
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
       <Stack.Screen 
         name="recover" 
         options={{ 

@@ -16,6 +16,7 @@ export const SIGN_IN_PROFILE_COLUMNS = [
   'legal_safety_agreement',
   'ordering_removed',
   'account_code',
+  'metro_area',
 ].join(', ');
 
 /** Columns the signed-in account screen and membership refresh read. */

@@ -31,10 +31,11 @@ interface AuthState {
   session: Session | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (username: string, password: string, code?: string) => Promise<{ needsTwoFactor: true } | { needsTwoFactor: false }>;
-  loginWithProvider: (provider: 'apple' | 'google', role?: AccountRole | null) => Promise<{ needsTwoFactor: true } | { needsRole: true } | { done: true }>;
-  verifyProviderCode: (code: string) => Promise<{ needsRole: true } | { done: true }>;
+  login: (username: string, password: string, code?: string) => Promise<{ needsTwoFactor: true } | { needsTwoFactor: false; metroArea: string | null }>;
+  loginWithProvider: (provider: 'apple' | 'google', role?: AccountRole | null) => Promise<{ needsTwoFactor: true } | { needsRole: true } | { needsIdentity: true } | { done: true; metroArea: string | null }>;
+  verifyProviderCode: (code: string) => Promise<{ needsRole: true } | { needsIdentity: true } | { done: true; metroArea: string | null }>;
   finishProviderAccount: (role: AccountRole) => Promise<void>;
+  saveProviderIdentity: (role: AccountRole, username: string, email: string) => Promise<{ metroArea: string | null }>;
   beginTwoFactor: () => Promise<{ secret: string }>;
   confirmTwoFactor: (code: string) => Promise<void>;
   signup: (username: string, email: string, password: string, role: 'platemaker' | 'platetaker', location?: { lat: number; lng: number }, foodSafetyAcknowledged?: boolean) => Promise<{ success: boolean; requiresLogin: boolean; requiresCheckout?: boolean; chooseMembership?: boolean; needsEmailConfirmation?: boolean; confirmationEmailSent?: boolean; metro?: string }>;
@@ -522,7 +523,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       }), 2000).catch(() => undefined);
       setSentryUser(result.user);
       addBreadcrumb('User logged in', 'auth', { userId: result.user.id, role: result.user.role });
-      return { needsTwoFactor: false as const };
+      return { needsTwoFactor: false as const, metroArea: result.user.metroArea ?? null };
     } catch (error) {
       if (error instanceof Error && (error.message.includes('Complete the Legal & Safety page') || error.message.includes('could not be saved'))) {
         throw error;
@@ -558,7 +559,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     const readProfile = async () => {
       const loaded = await supabase
         .from('profiles')
-        .select('id, username, business_name, email, role, is_admin, phone, bio, profile_image, created_at, is_paused, two_factor_enabled, ordering_removed, legal_safety_agreement')
+        .select('id, username, business_name, email, role, is_admin, phone, bio, profile_image, created_at, is_paused, two_factor_enabled, ordering_removed, legal_safety_agreement, metro_area')
         .eq('id', nextSession.user.id)
         .maybeSingle();
       if (loaded.error) throw new Error('That sign-in could not be checked.');
@@ -567,9 +568,10 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
 
     let profile = await readProfile();
     if (!profile) {
-      if (!role) return { needsRole: true as const };
-      await finishProviderMutation.mutateAsync({ role });
-      profile = await readProfile();
+      if (mountedRef.current) setSession(nextSession);
+      await persistSession(nextSession);
+      await markHasAccount();
+      return { needsIdentity: true as const };
     } else if (role === 'platemaker' && profile.role === 'platetaker') {
       await finishProviderMutation.mutateAsync({ role });
       profile = await readProfile();
@@ -623,7 +625,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     setSentryUser(signedInUser);
     addBreadcrumb('User logged in', 'auth', { userId: signedInUser.id, role: signedInUser.role, provider });
     holdProviderRef.current = false;
-    return { done: true as const };
+    const metroArea = typeof profile.metro_area === 'string' && profile.metro_area.trim() ? profile.metro_area : null;
+    return { done: true as const, metroArea };
   }, [finishProviderMutation, persistSession, persistUser, updateProfileMutation]);
 
   const loginWithProvider = useCallback(async (provider: 'apple' | 'google', role?: AccountRole | null) => {
@@ -665,7 +668,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
         throw new Error('That authenticator code does not match.');
       }
       if ('needsRole' in result) return { needsRole: true as const };
-      return { done: true as const };
+      if ('needsIdentity' in result) return { needsIdentity: true as const };
+      return { done: true as const, metroArea: result.metroArea };
     } catch (error) {
       if (error instanceof Error && (error.message.includes('Complete the Legal & Safety page') || error.message.includes('could not be saved'))) {
         throw error;
@@ -683,13 +687,32 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       if ('done' in result) return;
       throw new Error('needsTwoFactor' in result
         ? 'Enter the code from your authenticator app to finish signing in.'
-        : 'Choose Order a Plate or Start Cooking to finish this account.');
+        : 'needsIdentity' in result
+          ? 'Enter the username and an email you can open.'
+          : 'Choose Order a Plate or Start Cooking to finish this account.');
     } catch (error) {
       holdProviderRef.current = false;
       captureException(error as Error, { context: 'finish-provider-account', role });
       throw error;
     }
   }, [acceptProviderSession]);
+
+  const saveProviderIdentity = useCallback(async (role: AccountRole, username: string, email: string) => {
+    holdProviderRef.current = true;
+    await AsyncStorage.setItem(PROVIDER_ROLE_STORAGE_KEY, role).catch(() => undefined);
+    try {
+      await finishProviderMutation.mutateAsync({ role, username, email });
+      const result = await acceptProviderSession(role, 'saved');
+      if ('done' in result) return { metroArea: result.metroArea ?? null };
+      throw new Error('needsTwoFactor' in result
+        ? 'Enter the code from your authenticator app to finish signing in.'
+        : 'Enter the username and an email you can open.');
+    } catch (error) {
+      holdProviderRef.current = false;
+      captureException(error as Error, { context: 'save-provider-identity', role });
+      throw error;
+    }
+  }, [acceptProviderSession, finishProviderMutation]);
 
   const beginTwoFactor = useCallback(async () => {
     if (!user) throw new Error('Sign in to update two-factor.');
@@ -1000,6 +1023,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     loginWithProvider,
     verifyProviderCode,
     finishProviderAccount,
+    saveProviderIdentity,
     beginTwoFactor,
     confirmTwoFactor,
     signup,
@@ -1016,7 +1040,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     reactivateAccount,
     openKitchen,
     setOrderingAsBuyer,
-  }), [visibleUser, session, isLoading, login, loginWithProvider, verifyProviderCode, finishProviderAccount, beginTwoFactor, confirmTwoFactor, signup, logout, updateProfile, requestPlatemakerRole, pauseAccount, unpauseAccount, deleteAccount, setTwoFactorEnabled, changePassword, requestDataExport, resetPassword, reactivateAccount, openKitchen, setOrderingAsBuyer]);
+  }), [visibleUser, session, isLoading, login, loginWithProvider, verifyProviderCode, finishProviderAccount, saveProviderIdentity, beginTwoFactor, confirmTwoFactor, signup, logout, updateProfile, requestPlatemakerRole, pauseAccount, unpauseAccount, deleteAccount, setTwoFactorEnabled, changePassword, requestDataExport, resetPassword, reactivateAccount, openKitchen, setOrderingAsBuyer]);
 
 
   return authState;

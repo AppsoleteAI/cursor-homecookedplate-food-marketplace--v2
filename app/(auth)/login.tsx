@@ -33,6 +33,7 @@ import { AuthColors, preAppFont } from '@/constants/auth-palette';
 import { AuthBackground, AuthBrand, MaroonButtonFill } from '@/components/auth/AuthChrome';
 import { BackCircle } from '@/components/BackCircle';
 import { useReplaceBack } from '@/hooks/use-leave-screen';
+import { accountEntryDestination, readGuestLocationPassed } from '@/lib/guest-role';
 import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
 import { GlassPressable, glassSurface } from '@/components/glass-surface';
 import { ResendConfirmation } from '@/components/auth/ResendConfirmation';
@@ -133,9 +134,18 @@ export default function LoginScreen() {
     }, []),
   );
 
-  const enterApp = async () => {
+  const enterApp = (metroArea?: string | null) => {
     AsyncStorage.setItem('hcp_has_account', '1').catch(() => undefined);
-    router.replace('/');
+    const saved = typeof metroArea === 'string' && metroArea.trim().length > 0;
+    readGuestLocationPassed().then((passed) => {
+      if (accountEntryDestination(saved, passed) === 'location') {
+        router.replace({ pathname: '/(auth)/onboarding', params: { entry: 'enter', step: '0', back: 'login' } });
+        return;
+      }
+      router.replace('/');
+    }).catch(() => {
+      router.replace(saved ? '/' : { pathname: '/(auth)/onboarding', params: { entry: 'enter', step: '0', back: 'login' } });
+    });
   };
 
   const openAccountSignup = () => {
@@ -149,14 +159,6 @@ export default function LoginScreen() {
       });
     }).catch(() => {
       router.push({ pathname: '/(auth)/onboarding', params: { step: '1' } });
-    });
-  };
-
-  const openProviderRole = () => {
-    setProviderPending('role');
-    router.push({
-      pathname: '/(auth)/welcome',
-      params: { step: '1', pending: 'provider' },
     });
   };
 
@@ -175,12 +177,15 @@ export default function LoginScreen() {
         setError('Enter the 6-digit code from your authenticator app.');
         return;
       }
-      if ('needsRole' in result) {
-        openProviderRole();
+      if ('needsIdentity' in result || 'needsRole' in result) {
+        router.replace({
+          pathname: '/(auth)/account-name',
+          params: role ? { role } : {},
+        });
         return;
       }
       setProviderPending(null);
-      await enterApp();
+      enterApp('metroArea' in result ? result.metroArea : null);
     } catch (providerError: unknown) {
       const serverMessage = readLoginError(providerError) || (providerError instanceof Error ? providerError.message : '');
       const loginCode = providerError && typeof providerError === 'object' && 'data' in providerError
@@ -268,13 +273,18 @@ export default function LoginScreen() {
       setError(null);
       try {
         const verified = await verifyProviderCode(signInCode);
-        if ('needsRole' in verified) {
+        if ('needsIdentity' in verified || 'needsRole' in verified) {
           setNeedsCode(false);
-          openProviderRole();
+          const storedRole = await AsyncStorage.getItem(PROVIDER_ROLE_STORAGE_KEY);
+          const role = isAccountRole(storedRole) ? storedRole : null;
+          router.replace({
+            pathname: '/(auth)/account-name',
+            params: role ? { role } : {},
+          });
           return;
         }
         setProviderPending(null);
-        await enterApp();
+        enterApp(verified.metroArea);
       } catch (providerError: unknown) {
         const serverMessage = readLoginError(providerError) || (providerError instanceof Error ? providerError.message : 'That authenticator code does not match.');
         presentFailure(serverMessage);
@@ -351,11 +361,10 @@ export default function LoginScreen() {
         clearTimeout(timeoutId);
         return;
       }
-      AsyncStorage.setItem('hcp_has_account', '1').catch(() => undefined);
       if (timedOut) return;
       setRetryCount(0);
       setError(null);
-      router.replace('/');
+      enterApp(signedIn.metroArea);
     } catch (loginError: any) {
       console.error('[Login Error]', loginError);
       if (timedOut) return;

@@ -259,12 +259,26 @@ export function useReplaceBack(href: Href, enabled = true) {
   const params = useLocalSearchParams<{ returnTo?: string | string[] }>();
   const returnTo = safePath(params.returnTo);
   const destination = (returnTo ?? href) as Href;
+  const navigation = useNavigation();
   const go = useCallback(() => {
     if (!enabled) return false;
     router.replace(destination);
     return true;
   }, [enabled, destination]);
   useHardware(go, enabled);
+  useEffect(() => {
+    if (!enabled) return;
+    const navigationWithEvents = navigation as unknown as {
+      addListener?: (event: string, handler: (event: { data?: { action?: { type?: string } }; preventDefault: () => void }) => void) => () => void;
+    };
+    if (!navigationWithEvents.addListener) return;
+    return navigationWithEvents.addListener('beforeRemove', (event) => {
+      const type = event.data?.action?.type;
+      if (type !== 'GO_BACK' && type !== 'POP') return;
+      event.preventDefault();
+      router.replace(destination);
+    });
+  }, [enabled, destination, navigation]);
   useEffect(() => {
     if (Platform.OS !== 'web' || !enabled) return;
     armTrap('replace');

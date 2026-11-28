@@ -48,14 +48,14 @@ describe('updates since iOS 15', () => {
     });
   });
 
-  it('opens Sign in after an account, home after limited browsing, and the landing otherwise', () => {
+  it('opens Sign in after an account and limited browsing when no Supabase marker is stored', () => {
     five(() => {
       expect(signedOutDestination(true, 'platemaker', 'platemaker')).toBe('/(auth)/login');
       expect(signedOutDestination(true, 'platetaker', null)).toBe('/(auth)/login');
-      expect(signedOutDestination(false, 'platemaker', null)).toBe('/(tabs)/(home)/home');
-      expect(signedOutDestination(false, 'platetaker', 'platetaker')).toBe('/(tabs)/(home)/home');
-      expect(signedOutDestination(false, null, 'platemaker')).toBe('/(auth)/login');
-      expect(signedOutDestination(false, null, 'platetaker')).toBe('/(auth)/login');
+      expect(signedOutDestination(false, 'platemaker', null)).toBe('/(auth)/limited-browsing');
+      expect(signedOutDestination(false, 'platetaker', 'platetaker')).toBe('/(auth)/limited-browsing');
+      expect(signedOutDestination(false, null, 'platemaker')).toBe('/(auth)/limited-browsing');
+      expect(signedOutDestination(false, null, 'platetaker')).toBe('/(auth)/limited-browsing');
       expect(signedOutDestination(false, null, null)).toBe('/(auth)/limited-browsing');
     });
   });

@@ -21,10 +21,8 @@ import { PLATEMAKER_LOST_DISPUTE_SIGNUP, PLATETAKER_LOST_DISPUTE_SIGNUP } from '
 import { BUYER_AFTER_NOTE, BUYER_FOOD_NOTE, BUYER_MEETING_NOTE } from '@/lib/buyer-safety';
 import { FoodHandlingLink } from '@/components/FoodHandlingLink';
 import { PROVIDER_ROLE_STORAGE_KEY } from '@/backend/lib/provider-profile';
-import { writeGuestRole } from '@/lib/guest-role';
-import { classifySignInFailure, MEMBERSHIP_INELIGIBLE_MESSAGE, NO_ACCOUNT_MESSAGE, WRONG_SIGN_IN_MESSAGE } from '@/backend/lib/sign-in-messages';
+import { readGuestRole, writeGuestRole } from '@/lib/guest-role';
 import { firstActionDestination, firstStepHref, markBriefReady, type FirstAction } from '@/lib/first-action';
-import { LEGAL_SIGN_IN_MESSAGE } from '@/lib/legal-agreement';
 import { titleCase } from '@/lib/title-case';
 import { GlassPressable, GlassTop, glassSurface } from '@/components/glass-surface';
 
@@ -113,7 +111,7 @@ function markWelcomeSeen() {
 }
 
 export default function WelcomeScreen() {
-  const { user, finishProviderAccount } = useAuth();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ role?: string | string[]; entry?: string | string[]; step?: string | string[]; pending?: string | string[]; action?: string | string[] }>();
   const role = roleParam(params.role);
   const openedStep = stepParam(params.step);
@@ -143,13 +141,26 @@ export default function WelcomeScreen() {
       return next;
     });
   }, []);
+  useEffect(() => {
+    if (!fromLanding || step !== 1) return;
+    let live = true;
+    readGuestRole().then((stored) => {
+      if (!live) return;
+      const nextRole = stored ?? role;
+      router.replace({
+        pathname: '/(auth)/onboarding',
+        params: { entry: 'enter', step: '0', back: 'near-you', ...(nextRole ? { role: nextRole } : {}) },
+      });
+    }).catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [fromLanding, step, role]);
   const backToNearYou = fromLanding && step === 1;
   const backToLanding = fromLanding && step === 0;
   const stepBack = useWizardBack(step, setWizardStep, backToNearYou || backToLanding || isSignup || isFirst);
   const backToLocation = useReplaceBack(firstStepHref('location', firstAction), isFirst);
   const [gate, setGate] = useState<'show' | 'login'>('show');
-  const [finishNotice, setFinishNotice] = useState<string | null>(null);
-
   useEffect(() => {
     if (!isGate) return;
     let cancelled = false;
@@ -201,30 +212,14 @@ export default function WelcomeScreen() {
         return;
       }
       if (finishSignIn) {
-        try {
-          await finishProviderAccount(next);
-          router.replace('/');
-        } catch (error) {
-          const message = error instanceof Error ? error.message : 'The account could not be finished.';
-          const failure = classifySignInFailure(message);
-          const notice = failure.kind === 'legal'
-            ? LEGAL_SIGN_IN_MESSAGE
-            : failure.kind === 'ineligible'
-              ? MEMBERSHIP_INELIGIBLE_MESSAGE
-              : failure.kind === 'missing'
-                ? NO_ACCOUNT_MESSAGE
-                : failure.kind === 'password'
-                  ? WRONG_SIGN_IN_MESSAGE
-                  : failure.kind === 'network'
-                    ? 'Network error. Check your connection and try again.'
-                    : failure.kind === 'validation'
-                      ? 'Check the email address, then try again.'
-                      : failure.kind === 'other'
-                        ? failure.message
-                        : message;
-          setFinishNotice(notice);
-          console.error('[Welcome] Role choice did not finish sign-in', message);
-        }
+        router.replace({ pathname: '/(auth)/account-name', params: { role: next } });
+        return;
+      }
+      if (fromLanding) {
+        router.replace({
+          pathname: '/(auth)/onboarding',
+          params: { entry: 'enter', step: '0', back: 'near-you', role: next },
+        });
         return;
       }
       router.push('/(tabs)/(home)/home');
@@ -241,7 +236,15 @@ export default function WelcomeScreen() {
     }
     if (step === 0) {
       if (fromLanding) {
-        router.replace({ pathname: '/(auth)/welcome', params: { step: '1', entry: 'landing' } });
+        const known = pickedRole ?? role;
+        if (!known) {
+          router.replace('/(auth)/limited-browsing');
+          return;
+        }
+        router.replace({
+          pathname: '/(auth)/onboarding',
+          params: { entry: 'enter', step: '0', back: 'near-you', role: known },
+        });
         return;
       }
       const known = pickedRole ?? role;
@@ -368,7 +371,6 @@ export default function WelcomeScreen() {
                           <Text style={styles.choiceRole}>PlateMaker</Text>
                         </GlassPressable>
                       </View>
-                      {finishNotice ? <Text style={styles.help}>{finishNotice}</Text> : null}
                     </>
                   ) : null}
                   {step === 2 && chosenRole ? MEMBERSHIP_PRICES.filter((plan) => plan.id.startsWith(isMaker ? 'platemaker' : 'platetaker')).map((plan) => {

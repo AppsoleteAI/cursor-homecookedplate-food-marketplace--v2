@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isAccountRole, PROVIDER_ROLE_STORAGE_KEY, type AccountRole } from '@/backend/lib/provider-profile';
 
 const ACCOUNT_SEEN_KEY = 'hcp_has_account';
+/** Set when this device continues past Your Location from limited browsing. */
+const GUEST_LOCATION_PASSED_KEY = 'hcp_guest_location_passed';
 /** Set only when this signed-out device chooses a role for limited browsing. */
 export const GUEST_ROLE_KEY = 'hcp_guest_role';
 
@@ -55,16 +57,51 @@ export async function clearGuestRole(): Promise<void> {
 }
 
 /**
- * A previous member opens Sign in. Limited browsing opens home only after
- * that choice, and only when this device has no account marker.
+ * A previous member opens Sign in. A leftover Apple or Google role, or a
+ * guest role with no Supabase user, opens limited browsing.
  */
 export function signedOutDestination(
+  hasAccount: boolean,
+  _guestRole: AccountRole | null,
+  _providerRole: AccountRole | null,
+): SignedOutDestination {
+  if (hasAccount) return '/(auth)/login';
+  return '/(auth)/limited-browsing';
+}
+
+/** This device already continued from Your Location on the limited-browsing path. */
+export async function markGuestLocationPassed(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(GUEST_LOCATION_PASSED_KEY, '1');
+  } catch {
+    // A later sign-in can still ask for Your Location once.
+  }
+}
+
+export async function readGuestLocationPassed(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(GUEST_LOCATION_PASSED_KEY)) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * After an account exists. A saved metro opens the app. A passed guest
+ * location opens the app. Sign in with no metro and no passed location
+ * opens Your Location once.
+ */
+export function accountEntryDestination(hasMetro: boolean, guestLocationPassed: boolean): '/' | 'location' {
+  if (hasMetro || guestLocationPassed) return '/';
+  return 'location';
+}
+
+/** Home stays open after Order a Plate or Start Cooking. The first screen does not use this. */
+export function homeEntryDestination(
   hasAccount: boolean,
   guestRole: AccountRole | null,
   providerRole: AccountRole | null,
 ): SignedOutDestination {
-  if (hasAccount) return '/(auth)/login';
   if (guestRole) return '/(tabs)/(home)/home';
-  if (providerRole) return '/(auth)/login';
-  return '/(auth)/limited-browsing';
+  return signedOutDestination(hasAccount, guestRole, providerRole);
 }

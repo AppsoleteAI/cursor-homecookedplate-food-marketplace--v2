@@ -19,6 +19,7 @@ import { AuthColors, preAppFont } from '@/constants/auth-palette';
 import { AuthBackground, AuthBrand, AuthGoldButton, MaroonButtonFill } from '@/components/auth/AuthChrome';
 import { BackCircle } from '@/components/BackCircle';
 import { useReplaceBack, useWizardBack } from '@/hooks/use-leave-screen';
+import { markGuestLocationPassed } from '@/lib/guest-role';
 import {
   firstActionDestination,
   firstStepHref,
@@ -45,16 +46,24 @@ function isRole(value: string | undefined): value is Role {
 }
 
 export default function OnboardingScreen() {
-  const params = useLocalSearchParams<{ role?: string | string[]; step?: string | string[]; entry?: string | string[]; action?: string | string[] }>();
+  const params = useLocalSearchParams<{ role?: string | string[]; step?: string | string[]; entry?: string | string[]; action?: string | string[]; back?: string | string[] }>();
   const roleParam = typeof params.role === 'string' ? params.role : undefined;
   const entry = Array.isArray(params.entry) ? params.entry[0] : params.entry;
+  const backParam = Array.isArray(params.back) ? params.back[0] : params.back;
   const actionParam = Array.isArray(params.action) ? params.action[0] : params.action;
   const firstAction: FirstAction = actionParam === 'publish' ? 'publish' : 'order';
   const isFirstAction = entry === 'first-action';
+  const isEnter = entry === 'enter';
+  const guestBrowse = backParam === 'near-you';
+  const enterBackHref = backParam === 'account-name'
+    ? '/(auth)/account-name'
+    : guestBrowse
+      ? { pathname: '/(auth)/welcome' as const, params: { step: '0', entry: 'landing', ...(roleParam ? { role: roleParam } : {}) } }
+      : '/(auth)/login';
   const requestedStep = params.step === '1' || params.step === '2' ? Number(params.step) : 0;
   const openedOnAccount = requestedStep === 1 && !isFirstAction;
   const [step, setStep] = useState(requestedStep);
-  const [askRole, setAskRole] = useState(!isRole(roleParam));
+  const [askRole, setAskRole] = useState(!isRole(roleParam) && !isEnter && !isFirstAction);
   const [metroStatus, setMetroStatus] = useState<MetroStatus>('idle');
   const [metroName, setMetroName] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -86,11 +95,16 @@ export default function OnboardingScreen() {
   const utils = trpc.useUtils();
   const locateMembership = trpc.membership.locate.useMutation();
   const accountBack = useReplaceBack('/(auth)/login', openedOnAccount && step === 1);
+  const enterBack = useReplaceBack(enterBackHref, isEnter);
   const stepBack = useWizardBack(step, setStep, isSigningUp || isLoading || isFirstAction || (openedOnAccount && step === 1));
   const leaveStep = () => {
     if (isSigningUp || isLoading) return;
     if (isFirstAction) {
       router.replace(firstAction === 'publish' ? '/(tabs)/create-meal' : '/(tabs)/cart');
+      return;
+    }
+    if (isEnter) {
+      enterBack();
       return;
     }
     if (openedOnAccount && step === 1) {
@@ -177,7 +191,29 @@ export default function OnboardingScreen() {
     }
   };
 
+  const openGuestHome = () => {
+    markGuestLocationPassed().catch(() => undefined).finally(() => {
+      router.replace('/(tabs)/(home)/home');
+    });
+  };
+
   const continueFromMetro = () => {
+    if (isEnter && guestBrowse) {
+      openGuestHome();
+      return;
+    }
+    if (isEnter) {
+      if (!userLocation || !user) {
+        setPageError('Find My Location so the 20-mile order circle and the 50-mile metro can be saved.');
+        return;
+      }
+      setPageError(null);
+      locateMembership.mutate({ lat: userLocation.lat, lng: userLocation.lng, mode: 'commit' }, {
+        onSuccess: () => router.replace('/'),
+        onError: () => setPageError('The location could not be saved. Try Find My Location again.'),
+      });
+      return;
+    }
     if (isFirstAction) {
       if (!userLocation || !user) {
         setPageError('Find My Location so the 20-mile order circle and the 50-mile metro can be saved.');
@@ -245,6 +281,7 @@ export default function OnboardingScreen() {
             <Ionicons name="checkmark-circle" size={72} color={AuthColors.maroon} />
             <Text style={styles.successTitle}>Account created</Text>
             <Text style={styles.successText}>{mailLine}</Text>
+            <Text style={styles.successText}>After you sign in, Your Location is saved before the kitchen or the plate list opens.</Text>
             <Text style={styles.successText}>
               {maker
                 ? signupMetro && signupMetro !== 'Remote/Other'
@@ -293,8 +330,27 @@ export default function OnboardingScreen() {
               />
             ) : null}
 
-            <AuthBrand />
-            {isFirstAction ? null : (
+            <AuthBrand
+              onPress={
+                isEnter && guestBrowse
+                  ? () => router.replace('/(auth)/limited-browsing')
+                  : isEnter || isFirstAction
+                    ? leaveStep
+                    : undefined
+              }
+              backLabel={
+                isEnter && guestBrowse
+                  ? 'HomeCookedPlate, back to limited browsing'
+                  : isEnter && backParam === 'account-name'
+                    ? 'HomeCookedPlate, back to username and email'
+                    : isFirstAction
+                      ? firstAction === 'publish'
+                        ? 'HomeCookedPlate, back to the plate'
+                        : 'HomeCookedPlate, back to the cart'
+                      : 'HomeCookedPlate, back to sign in'
+              }
+            />
+            {isFirstAction || isEnter ? null : (
             <View style={styles.steps}>
               {STEPS.map((label, index) => (
                 <View key={label} style={styles.stepItem}>
@@ -338,6 +394,7 @@ export default function OnboardingScreen() {
                       </>
                     ) : (
                       <>
+                        {isEnter ? null : (
                         <GlassPressable
                           onPress={() => setAskRole(true)}
                           style={styles.roleLine}
@@ -347,6 +404,7 @@ export default function OnboardingScreen() {
                           <Text style={styles.roleLineText}>{roleLine}</Text>
                           <Text style={styles.roleChange}>Change</Text>
                         </GlassPressable>
+                        )}
                         <Text style={[styles.question, styles.locationQuestion]}>{metroQuestion}</Text>
                         <Text style={[styles.help, styles.locationHelp]}>
                           Your location determines your options. Sign up today.
@@ -395,7 +453,14 @@ export default function OnboardingScreen() {
                             <Text style={styles.continueText}>Check Again</Text>
                           </GlassPressable>
                         ) : (
-                          <GlassPressable onPress={continueFromMetro} testID="onboarding-metro-continue">
+                          <GlassPressable
+                            onPress={isEnter && guestBrowse
+                              ? openGuestHome
+                              : isEnter
+                                ? () => setPageError('Find My Location before the kitchen or the plate list opens.')
+                                : continueFromMetro}
+                            testID="onboarding-metro-continue"
+                          >
                             <Text style={styles.continueText}>Continue Without a Location</Text>
                           </GlassPressable>
                         )}

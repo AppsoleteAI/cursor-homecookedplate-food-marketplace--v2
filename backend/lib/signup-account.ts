@@ -22,9 +22,7 @@ export function isDuplicateAuthError(error: AuthError): boolean {
     message.includes('email address has already') ||
     code === 'email_exists' ||
     code === 'user_already_exists' ||
-    error.status === 422 ||
-    error.code === '23505' ||
-    error.code === 422
+    error.code === '23505'
   );
 }
 

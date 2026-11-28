@@ -1,13 +1,15 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { sessionProcedure } from '../../../create-context';
-import { providerProfileAction, usernameCandidates, type AccountRole } from '../../../../lib/provider-profile';
+import { providerProfileAction, type AccountRole } from '../../../../lib/provider-profile';
 import { ensureAccountIdentifier } from '../../../../lib/account-identifier';
 import { missingOrderColumn } from '../../../../lib/order-row';
 
 export const finishProviderAccountProcedure = sessionProcedure
   .input(z.object({
     role: z.enum(['platemaker', 'platetaker']),
+    username: z.string().min(3).max(40).optional(),
+    email: z.string().email().max(160).optional(),
   }))
   .mutation(async ({ input, ctx }) => {
     const authUser = await ctx.supabaseAdmin.auth.admin.getUserById(ctx.userId);
@@ -68,9 +70,30 @@ export const finishProviderAccountProcedure = sessionProcedure
       return { role: 'platemaker' as const, username: updated.data.username as string };
     }
 
-    const email = account.email || `${ctx.userId}@users.local`;
-    const metadataName = typeof account.user_metadata?.username === 'string' ? account.user_metadata.username : null;
-    const names = usernameCandidates(account.email, ctx.userId, metadataName);
+    const typedName = input.username?.trim() ?? '';
+    const typedEmail = input.email?.trim().toLowerCase() ?? '';
+    if (!typedName) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Enter the username you want on HomeCookedPlate.' });
+    }
+    if (!typedEmail) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Enter an email you can open.' });
+    }
+    const cleanedName = typedName.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 24);
+    if (cleanedName.length < 3) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Use at least 3 letters or numbers in the username.' });
+    }
+    const emailChanged = await ctx.supabaseAdmin.auth.admin.updateUserById(ctx.userId, {
+      email: typedEmail,
+      email_confirm: true,
+    });
+    if (emailChanged.error) {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: 'This email already has an account. Sign in with that email, or use another email you can open.',
+      });
+    }
+    const email = typedEmail;
+    const names = [cleanedName];
     let saved: { role: string; username: string } | null = null;
     let lastMessage = '';
     for (const username of names) {
@@ -139,7 +162,13 @@ export const finishProviderAccountProcedure = sessionProcedure
     }
 
     await ctx.supabaseAdmin.auth.admin.updateUserById(ctx.userId, {
-      user_metadata: { ...(account.user_metadata ?? {}), role: saved.role, username: saved.username },
+      user_metadata: {
+        ...(account.user_metadata ?? {}),
+        role: saved.role,
+        username: saved.username,
+        action_email_pending: true,
+        action_email_sent: false,
+      },
     });
     await ensureAccountIdentifier(
       ctx.supabaseAdmin,

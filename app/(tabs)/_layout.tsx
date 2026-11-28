@@ -6,7 +6,7 @@ import { Colors } from "@/constants/colors";
 import { userNeedsMembership } from "@/backend/lib/trial-access";
 import { useAuth } from "@/hooks/auth-context";
 import { useGuestRole } from "@/hooks/use-guest-role";
-import { readHasAccount, readProviderRole, signedOutDestination } from "@/lib/guest-role";
+import { readHasAccount, readProviderRole, homeEntryDestination } from "@/lib/guest-role";
 import type { AccountRole } from "@/backend/lib/provider-profile";
 import { useCart } from "@/hooks/cart-context";
 import { navLogger } from "@/lib/nav-logger";
@@ -46,7 +46,7 @@ export default function TabLayout() {
       if (Platform.OS === 'web') return null;
       return <View style={styles.launch} />;
     }
-    const next = signedOutDestination(hasAccount, guestRole, providerRole);
+    const next = homeEntryDestination(hasAccount, guestRole, providerRole);
     if (next !== '/(tabs)/(home)/home') {
       navLogger.authDecision('app/(tabs)/_layout.tsx:REDIRECT', false, guestRole ?? providerRole ?? undefined, next, {
         reason: 'session_expired_or_missing',

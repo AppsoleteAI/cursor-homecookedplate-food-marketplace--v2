@@ -60,7 +60,17 @@ export function AuthBackButton({ onPress, hitSlop }: { onPress: () => void; hitS
   );
 }
 
-export function AuthBrand({ toSignIn = true, toLanding = false }: { toSignIn?: boolean; toLanding?: boolean }) {
+export function AuthBrand({
+  toSignIn = true,
+  toLanding = false,
+  onPress,
+  backLabel,
+}: {
+  toSignIn?: boolean;
+  toLanding?: boolean;
+  onPress?: () => void;
+  backLabel?: string;
+}) {
   const mark = (
     <View style={styles.brandRow}>
       <View style={styles.brandMarkWrap}>
@@ -85,6 +95,19 @@ export function AuthBrand({ toSignIn = true, toLanding = false }: { toSignIn?: b
       <Text style={[styles.brandWord, brandDepth as TextStyle]}>HomeCookedPlate</Text>
     </View>
   );
+  if (onPress) {
+    return (
+      <Pressable
+        style={styles.brandHit}
+        onPress={onPress}
+        accessibilityRole="link"
+        accessibilityLabel={backLabel ?? 'HomeCookedPlate, back'}
+        testID="brand-back"
+      >
+        {mark}
+      </Pressable>
+    );
+  }
   if (toLanding) {
     return (
       <Pressable

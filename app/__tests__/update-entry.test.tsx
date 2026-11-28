@@ -268,16 +268,16 @@ describe.each(['ios', 'android'] as const)('update open on %s', (os) => {
     expectEntry('unauthenticated', '/(auth)/login');
   });
 
-  it('a previous PlateMaker whose only leftover is the role key opens Sign in', async () => {
+  it('a previous PlateMaker whose only leftover is the role key opens limited browsing', async () => {
     mockPhone.memory.set('hcp_provider_role', 'platemaker');
     await openPhone();
-    expectEntry('unauthenticated', '/(auth)/login');
+    expectEntry('unauthenticated', '/(auth)/limited-browsing');
   });
 
-  it('a previous PlateTaker whose only leftover is the role key opens Sign in', async () => {
+  it('a previous PlateTaker whose only leftover is the role key opens limited browsing', async () => {
     mockPhone.memory.set('hcp_provider_role', 'platetaker');
     await openPhone();
-    expectEntry('unauthenticated', '/(auth)/login');
+    expectEntry('unauthenticated', '/(auth)/limited-browsing');
   });
 
   it('a previous PlateMaker whose profile is still stored and whose session is gone opens Sign in', async () => {
@@ -312,20 +312,20 @@ describe.each(['ios', 'android'] as const)('update open on %s', (os) => {
     expectEntry('unauthenticated', '/(auth)/login');
   });
 
-  it('a revoked token with only a PlateMaker role key opens Sign in', async () => {
+  it('a revoked token with only a PlateMaker role key opens limited browsing', async () => {
     mockPhone.secure.set('hcp-auth-session', JSON.stringify(liveSession('platemaker')));
     mockPhone.setSession = async () => ({ data: { session: null }, error: { message: 'invalid_grant' } });
     mockPhone.memory.set('hcp_provider_role', 'platemaker');
     await openPhone();
-    expectEntry('unauthenticated', '/(auth)/login');
+    expectEntry('unauthenticated', '/(auth)/limited-browsing');
   });
 
-  it('a revoked token with only a PlateTaker role key opens Sign in', async () => {
+  it('a revoked token with only a PlateTaker role key opens limited browsing', async () => {
     mockPhone.secure.set('hcp-auth-session', JSON.stringify(liveSession('platetaker')));
     mockPhone.setSession = async () => ({ data: { session: null }, error: { message: 'invalid_grant' } });
     mockPhone.memory.set('hcp_provider_role', 'platetaker');
     await openPhone();
-    expectEntry('unauthenticated', '/(auth)/login');
+    expectEntry('unauthenticated', '/(auth)/limited-browsing');
   });
 
   it('an unfinished PlateMaker authenticator opens Sign in', async () => {
@@ -348,16 +348,16 @@ describe.each(['ios', 'android'] as const)('update open on %s', (os) => {
     expectEntry('unauthenticated', '/(auth)/login');
   });
 
-  it('a PlateMaker who chose limited browsing, with no account, opens home', async () => {
+  it('a PlateMaker who chose limited browsing, with no account, opens limited browsing', async () => {
     mockPhone.memory.set('hcp_guest_role', 'platemaker');
     await openPhone();
-    expectEntry('unauthenticated', '/(tabs)/(home)/home');
+    expectEntry('unauthenticated', '/(auth)/limited-browsing');
   });
 
-  it('a PlateTaker who chose limited browsing, with no account, opens home', async () => {
+  it('a PlateTaker who chose limited browsing, with no account, opens limited browsing', async () => {
     mockPhone.memory.set('hcp_guest_role', 'platetaker');
     await openPhone();
-    expectEntry('unauthenticated', '/(tabs)/(home)/home');
+    expectEntry('unauthenticated', '/(auth)/limited-browsing');
   });
 
   it('a previous PlateMaker with the account flag and a guest role opens Sign in', async () => {

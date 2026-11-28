@@ -23,6 +23,7 @@ import {
   type QuotedLine,
 } from '../../../../lib/combined-checkout';
 import { confirmCookPayouts } from '../../../../lib/connect-account';
+import { sendActionEmailIfDue } from '../../../../lib/action-email';
 import { assertBuyerCanOrder } from '../../../../lib/buyer-order-access';
 import { pickupGate } from '../../../../lib/kitchen-pin';
 import { buyerMetroCanOrder } from '../../../../lib/metro-menu';
@@ -922,6 +923,7 @@ export const confirmCombinedCheckoutProcedure = protectedProcedure
       if (orderId) await notifyCookOfPayment(ctx.supabaseAdmin, checkout.sellerId, checkout.buyerPays);
     }
 
+    await sendActionEmailIfDue(ctx.supabaseAdmin, ctx.userId, ctx.webUrl);
     return { paymentIntentId: input.paymentIntentId, receipt, alreadyRecorded: false, refundedSellerIds };
   });
 

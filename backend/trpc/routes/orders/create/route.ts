@@ -5,6 +5,7 @@ import { plateTotalsMatch } from "@/backend/lib/fees";
 import { holdChargedBase, prepareHomePlate, thisOrderExceedsPortions } from "@/backend/lib/plate-order-rules";
 import { missingColumn, noteForViewer } from "../../../../lib/content-moderation";
 import { orderInsertShapeAfterError, plateInsertRow, writeOrderPatch, type OrderInsertShape } from "../../../../lib/order-row";
+import { sendActionEmailIfDue } from "../../../../lib/action-email";
 
 /**
  * Create Order Procedure
@@ -136,6 +137,7 @@ export const createOrderProcedure = protectedProcedure
       });
     }
 
+    await sendActionEmailIfDue(ctx.supabaseAdmin, ctx.userId, ctx.webUrl);
     return {
       id: order.id,
       mealId: input.mealId,

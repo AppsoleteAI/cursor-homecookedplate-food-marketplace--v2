@@ -111,7 +111,7 @@ describe('provider profile repair', () => {
       profileExists: false,
       passwordAccepted: false,
       identity: 'unknown',
-    })).toBe(PROVIDER_CONTINUE_MESSAGE);
+    })).toBe(EMAIL_ALREADY_REGISTERED_MESSAGE);
     expect(signupAlreadyRegisteredMessage({
       profileExists: true,
       passwordAccepted: false,

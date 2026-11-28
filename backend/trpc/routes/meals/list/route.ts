@@ -59,12 +59,12 @@ export const listMealsProcedure = publicProcedure
         .eq('role', 'platemaker')
         .in('metro_area', travelMetros);
       travelCookIds = (cooksInPlace.data || []).map((row: { id: string }) => row.id);
-      if (travelCookIds.length === 0) return [];
     }
     const nearby = !input?.userId && ctx.userId
       ? await nearbyCookIds(ctx.supabaseAdmin, ctx.userId)
       : { available: false, ids: [] as string[] };
-    if (!traveling && nearby.available && nearby.ids.length === 0) return [];
+    const nearbyEmpty = !traveling && nearby.available && nearby.ids.length === 0;
+    const travelEmpty = Boolean(traveling && travelCookIds && travelCookIds.length === 0);
     const area = nearby.available ? undefined : viewerMetro;
     const base = () => {
       const select = mealListSelect(Boolean(area));
@@ -92,7 +92,9 @@ export const listMealsProcedure = publicProcedure
     };
 
     let joinFailed = false;
-    let { data, error } = await timePublicRead("listMeals", ctx, async () => {
+    let { data, error } = nearbyEmpty || travelEmpty
+      ? { data: [] as { id: string; user_id: string }[], error: null }
+      : await timePublicRead("listMeals", ctx, async () => {
       const first = await base() as {
         data: { id: string; user_id: string }[] | null;
         error: { message: string } | null;
@@ -168,7 +170,7 @@ export const listMealsProcedure = publicProcedure
       promotionalOffer: offers.get(meal.id) ?? undefined,
     }));
 
-    if (input?.userId || nearby.available || traveling) return realMeals;
+    if (input?.userId) return realMeals;
 
     const realWithMedia = await countPermittedMealsWithMedia(ctx.supabaseAdmin, input?.metroArea);
     const realIds = new Set(realMeals.map((meal) => meal.id));

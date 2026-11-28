@@ -7,6 +7,7 @@ import { AuthColors, maroonButtonColors, preAppFont } from '@/constants/auth-pal
 import { AuthBackground, AuthBrand } from '@/components/auth/AuthChrome';
 import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
 import { GlassPressable, GlassTop, glassSurface } from '@/components/glass-surface';
+import { writeGuestRole } from '@/lib/guest-role';
 
 const ORDER_PHOTO = require('../../assets/order-a-plate.png');
 const COOK_PHOTO = require('../../assets/start-cooking.png');
@@ -20,8 +21,10 @@ const CHOICES: { role: Role; label: string; roleName: string; photo: number; ima
 ];
 
 export default function LimitedBrowsingScreen() {
-  const openNearYou = () => {
-    router.push({ pathname: '/(auth)/welcome', params: { step: '0', entry: 'landing' } });
+  const openNearYou = (next: Role) => {
+    writeGuestRole(next).then(() => {
+      router.push({ pathname: '/(auth)/welcome', params: { step: '0', entry: 'landing', role: next } });
+    }).catch(() => undefined);
   };
 
   return (
@@ -37,9 +40,9 @@ export default function LimitedBrowsingScreen() {
               <GlassPressable
                 key={choice.role}
                 style={styles.door}
-                onPress={openNearYou}
+                onPress={() => openNearYou(choice.role)}
                 accessibilityRole="button"
-                accessibilityLabel="Role selection"
+                accessibilityLabel={`${choice.label}, ${choice.roleName}`}
                 testID={`limited-photo-${choice.role}`}
               >
                 <View style={styles.doorClip}>
@@ -68,7 +71,7 @@ export default function LimitedBrowsingScreen() {
                   <GlassPressable
                     key={choice.role}
                     style={styles.choiceButton}
-                    onPress={openNearYou}
+                    onPress={() => openNearYou(choice.role)}
                     accessibilityRole="button"
                     accessibilityLabel={`${choice.label}, ${choice.roleName}`}
                     testID={`limited-role-${choice.role}`}

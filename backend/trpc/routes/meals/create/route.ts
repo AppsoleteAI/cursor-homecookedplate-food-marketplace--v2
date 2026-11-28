@@ -10,6 +10,7 @@ import { portionTag, timeZoneTag } from "@/lib/meal-publish";
 import { cookPermitIsSaved } from "../../../../lib/kitchen-permit";
 import { cookMayList, cottageFoodGuidance } from "../../../../lib/state-meal-plan";
 import { confirmCookPayouts } from "../../../../lib/connect-account";
+import { sendActionEmailIfDue } from "../../../../lib/action-email";
 
 export const createMealProcedure = protectedProcedure
   .input(
@@ -184,6 +185,7 @@ export const createMealProcedure = protectedProcedure
     const buyerBreakdown = calculateOrderBreakdown(input.price, 1);
     const sellerSplit = calculateOrderSplit(input.price);
 
+    await sendActionEmailIfDue(ctx.supabaseAdmin, ctx.userId, ctx.webUrl);
     return {
       id: data.id,
       userId: data.user_id,

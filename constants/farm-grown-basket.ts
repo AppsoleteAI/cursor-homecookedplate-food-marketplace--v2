@@ -184,7 +184,7 @@ export const FARM_PRODUCTS: FarmProduct[] = [
     unit: '6 cookies',
     track: 'cottage_non_tcs',
     summary: 'Shelf-stable cookies from the same home kitchen as the bread.',
-    image: 'https://images.unsplash.com/photo-1499636136210-6f4ee915583a?w=800',
+    image: 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=800',
     ingredients: 'Oats, wheat flour, butter, sugar, egg',
     allergens: 'Wheat, milk, eggs',
     kind: 'good',

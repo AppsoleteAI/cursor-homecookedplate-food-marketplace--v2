@@ -93,7 +93,12 @@ export function signupAlreadyRegisteredMessage(input: {
   identity: AuthIdentityKind;
 }): string | null {
   if (input.passwordAccepted) return null;
-  if (input.identity === 'provider' || !input.profileExists) return PROVIDER_CONTINUE_MESSAGE;
+  if (
+    input.identity === 'provider'
+    || input.identity === 'apple'
+    || input.identity === 'google'
+    || input.identity === 'apple_google'
+  ) return PROVIDER_CONTINUE_MESSAGE;
   return EMAIL_ALREADY_REGISTERED_MESSAGE;
 }
 
