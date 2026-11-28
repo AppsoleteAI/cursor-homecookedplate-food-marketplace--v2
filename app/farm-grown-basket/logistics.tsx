@@ -34,7 +34,7 @@ export default function LogisticsScreen() {
 
 const styles = StyleSheet.create({
   lead: { color: Colors.gray[700], lineHeight: 20 },
-  card: { ...glassSurface, marginTop: 14, backgroundColor: Colors.white, borderRadius: 16, padding: 14  },
+  card: { ...glassSurface, marginTop: 14, backgroundColor: Colors.white, borderRadius: 16, padding: 14, paddingLeft: 48  },
   title: { fontSize: 17, fontWeight: '700', color: Colors.gray[900] },
   body: { marginTop: 6, color: Colors.gray[700], lineHeight: 20 },
   channel: { marginTop: 6, color: '#166534', fontWeight: '600' },

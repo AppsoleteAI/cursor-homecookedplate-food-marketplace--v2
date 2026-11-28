@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/hooks/auth-context';
 import { trpc } from '@/lib/trpc';
-import { AuthColors, preAppFont } from '@/constants/auth-palette';
+import { AuthColors, authFieldInput, preAppFont } from '@/constants/auth-palette';
 import { AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
 import { BackCircle } from '@/components/BackCircle';
 import { useReplaceBack } from '@/hooks/use-leave-screen';
@@ -310,6 +310,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '400',
     paddingVertical: 0,
+    ...authFieldInput,
   },
   notice: {
     ...preAppFont,

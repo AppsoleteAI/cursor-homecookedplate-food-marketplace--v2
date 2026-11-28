@@ -40,6 +40,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderRadius: 16,
     padding: 14,
+    paddingLeft: 48,
     marginBottom: 10,
     overflow: 'hidden',
   },

@@ -94,7 +94,7 @@ export default function CaterSellerScreen() {
 }
 
 const styles = StyleSheet.create({
-  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 14, padding: 14, marginBottom: 10  },
+  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 14, padding: 14, paddingLeft: 48, marginBottom: 10  },
   label: { color: Colors.gray[500], fontSize: 13 },
   activeLabel: { color: Colors.gray[800], fontSize: 15, fontWeight: '700', flex: 1 },
   value: { fontSize: 28, fontWeight: '700', color: Colors.gray[900], marginTop: 4 },

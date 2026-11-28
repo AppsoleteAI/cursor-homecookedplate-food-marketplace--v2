@@ -7,7 +7,7 @@ import { isAccountRole, PROVIDER_ROLE_STORAGE_KEY, type AccountRole } from '@/ba
 import { AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
 import { BackCircle } from '@/components/BackCircle';
 import { GlassPressable, GlassTop } from '@/components/glass-surface';
-import { AuthColors } from '@/constants/auth-palette';
+import { AuthColors, authFieldInput } from '@/constants/auth-palette';
 import { useAuth } from '@/hooks/auth-context';
 import { useReplaceBack } from '@/hooks/use-leave-screen';
 import { accountEntryDestination, readGuestLocationPassed } from '@/lib/guest-role';
@@ -140,9 +140,10 @@ const styles = StyleSheet.create({
   roleChoiceText: { fontSize: 15, color: AuthColors.ink },
   roleHint: { fontSize: 13, color: AuthColors.maroon, marginTop: 4 },
   input: {
+    ...authFieldInput,
     fontSize: 16,
     color: AuthColors.ink,
-    backgroundColor: '#fff',
+    backgroundColor: AuthColors.field,
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,

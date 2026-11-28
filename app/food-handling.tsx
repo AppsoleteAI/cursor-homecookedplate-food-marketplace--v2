@@ -75,8 +75,10 @@ export default function FoodHandlingScreen() {
               <GlassPressable
                 key={source.url}
                 style={styles.source}
+                stableWords
                 onPress={() => openSource(source.url)}
                 accessibilityRole="link"
+                testID="food-handling-source"
               >
                 <Text style={styles.sourceName}>{source.name}</Text>
                 <Text style={styles.sourceDetail}>{source.detail}</Text>
@@ -149,7 +151,7 @@ const styles = StyleSheet.create({
   sectionTitle: { color: AuthColors.ink, fontSize: 18, fontWeight: '700', marginBottom: 8 },
   body: { color: AuthColors.ink, lineHeight: 21, marginTop: 8 },
   rule: {
-    backgroundColor: AuthColors.field,
+    backgroundColor: '#FFFBF5',
     borderRadius: 12,
     padding: 12,
     marginTop: 10,
@@ -159,10 +161,12 @@ const styles = StyleSheet.create({
   bulletMark: { color: AuthColors.ink, lineHeight: 21 },
   bulletText: { flex: 1, color: AuthColors.ink, lineHeight: 21 },
   source: {
+    backgroundColor: '#FFFBF5',
     borderWidth: 1,
     borderColor: '#E0D3BE',
     borderRadius: 12,
     padding: 12,
+    paddingLeft: 22,
     marginTop: 10,
   },
   sourceName: { color: AuthColors.ink, fontWeight: '700' },

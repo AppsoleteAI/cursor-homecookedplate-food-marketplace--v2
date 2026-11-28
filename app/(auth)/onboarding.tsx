@@ -15,11 +15,11 @@ import { readDeviceCoordinates } from '@/lib/device-coordinates';
 import { nearestMetro } from '@/backend/lib/metro-radius';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/hooks/auth-context';
-import { AuthColors, preAppFont } from '@/constants/auth-palette';
+import { AuthColors, authFieldInput, preAppFont } from '@/constants/auth-palette';
 import { AuthBackground, AuthBrand, AuthGoldButton, MaroonButtonFill } from '@/components/auth/AuthChrome';
 import { BackCircle } from '@/components/BackCircle';
 import { useReplaceBack, useWizardBack } from '@/hooks/use-leave-screen';
-import { markGuestLocationPassed } from '@/lib/guest-role';
+import { clearGuestCity, markGuestLocationPassed, writeGuestCity } from '@/lib/guest-role';
 import {
   firstActionDestination,
   firstStepHref,
@@ -192,8 +192,11 @@ export default function OnboardingScreen() {
   };
 
   const openGuestHome = () => {
-    markGuestLocationPassed().catch(() => undefined).finally(() => {
-      router.replace('/(tabs)/(home)/home');
+    const remember = metroName ? writeGuestCity(metroName) : clearGuestCity();
+    remember.catch(() => undefined).finally(() => {
+      markGuestLocationPassed().catch(() => undefined).finally(() => {
+        router.replace('/(tabs)/(home)/home');
+      });
     });
   };
 
@@ -847,6 +850,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '400',
     paddingVertical: 0,
+    ...authFieldInput,
   },
   hint: {
     ...preAppFont,

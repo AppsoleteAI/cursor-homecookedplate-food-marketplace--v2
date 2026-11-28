@@ -29,7 +29,7 @@ import {
   WRONG_SIGN_IN_MESSAGE,
 } from '@/backend/lib/sign-in-messages';
 import { agreementFromUnknown, chooseLegalForm, clearLegalAgreement, clearLegalReadyForSignIn, isLegalReadyForSignIn, isLoginLegalBoxChecked, LEGAL_SIGN_IN_MESSAGE, readLegalAgreement, setLoginLegalBoxChecked, todayStamp, toCompletedLegalAgreement } from '@/lib/legal-agreement';
-import { AuthColors, preAppFont } from '@/constants/auth-palette';
+import { AuthColors, authFieldInput, preAppFont } from '@/constants/auth-palette';
 import { AuthBackground, AuthBrand, MaroonButtonFill } from '@/components/auth/AuthChrome';
 import { BackCircle } from '@/components/BackCircle';
 import { useReplaceBack } from '@/hooks/use-leave-screen';
@@ -410,25 +410,37 @@ export default function LoginScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {fromLanding ? (
-              <BackCircle tone="honey" onPress={backToLanding} testID="login-back" />
-            ) : null}
-            <View style={styles.brandSlot}>
+            <View style={styles.header}>
+              {fromLanding ? (
+                <BackCircle tone="honey" onPress={backToLanding} testID="login-back" />
+              ) : null}
               <AuthBrand toSignIn={false} />
             </View>
 
             <View style={styles.doors}>
-              <View style={styles.door} testID="landing-order-plate">
+              <GlassPressable
+                style={styles.door}
+                onPress={() => undefined}
+                accessibilityRole="button"
+                accessibilityLabel="Order a Plate"
+                testID="landing-order-plate"
+              >
                 <View style={styles.doorClip}>
                   <Image source={ORDER_PHOTO} style={styles.doorImage} resizeMode="cover" accessible={false} />
                 </View>
-              </View>
+              </GlassPressable>
 
-              <View style={styles.door} testID="landing-start-cooking">
+              <GlassPressable
+                style={styles.door}
+                onPress={() => undefined}
+                accessibilityRole="button"
+                accessibilityLabel="Start Cooking"
+                testID="landing-start-cooking"
+              >
                 <View style={styles.doorClip}>
                   <Image source={COOK_PHOTO} style={styles.doorImageCook} resizeMode="cover" accessible={false} />
                 </View>
-              </View>
+              </GlassPressable>
             </View>
             <OrderHoursSlogan style={styles.slogan} />
 
@@ -440,8 +452,10 @@ export default function LoginScreen() {
                 accessibilityLabel="Sign in with Apple"
               >
                 <MaroonButtonFill />
-                <Image source={APPLE_LOGO} style={styles.providerLogo} resizeMode="contain" accessibilityIgnoresInvertColors />
-                <Text style={styles.appleText}>Sign in with Apple</Text>
+                <View style={styles.providerRow}>
+                  <Image source={APPLE_LOGO} style={styles.providerLogo} resizeMode="contain" accessibilityIgnoresInvertColors />
+                  <Text style={styles.appleText}>Sign in with Apple</Text>
+                </View>
               </GlassPressable>
 
               <GlassPressable
@@ -451,8 +465,10 @@ export default function LoginScreen() {
                 accessibilityLabel="Sign in with Google"
               >
                 <MaroonButtonFill />
-                <Image source={GOOGLE_LOGO} style={styles.providerLogo} resizeMode="contain" accessibilityIgnoresInvertColors />
-                <Text style={styles.googleText}>Sign in with Google</Text>
+                <View style={styles.providerRow}>
+                  <Image source={GOOGLE_LOGO} style={styles.providerLogo} resizeMode="contain" accessibilityIgnoresInvertColors />
+                  <Text style={styles.googleText}>Sign in with Google</Text>
+                </View>
               </GlassPressable>
 
               {providerNotice ? (
@@ -598,7 +614,7 @@ export default function LoginScreen() {
                 </GlassPressable>
 
                 <View style={styles.switchRow}>
-                  <Text style={styles.switchMuted}>New here? </Text>
+                  <Text style={styles.switchMuted}>New here?</Text>
                   <GlassPressable
                     onPress={openAccountSignup}
                     accessibilityRole="button"
@@ -637,15 +653,17 @@ export default function LoginScreen() {
                 </Text>
               </View>
               {legalNotice ? <Text style={styles.legalNotice}>{legalNotice}</Text> : null}
-              <GlassPressable
-                onPress={() => router.replace('/(auth)/limited-browsing')}
-                style={styles.notMemberLink}
-                accessibilityRole="link"
-                accessibilityLabel="Not a member yet?"
-                testID="login-not-a-member"
-              >
-                <Text style={styles.notMemberLinkText}>Not a member yet?</Text>
-              </GlassPressable>
+              {fromLanding ? (
+                <GlassPressable
+                  onPress={() => router.replace('/(auth)/limited-browsing')}
+                  style={styles.notMemberLink}
+                  accessibilityRole="link"
+                  accessibilityLabel="Not a member yet?"
+                  testID="login-not-a-member"
+                >
+                  <Text style={styles.notMemberLinkText}>Not a member yet?</Text>
+                </GlassPressable>
+              ) : null}
             </View>
 
             <View style={styles.credit}>
@@ -670,11 +688,11 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingTop: 12,
+    paddingTop: 16,
     paddingBottom: 28,
   },
-  brandSlot: {
-    paddingHorizontal: 20,
+  header: {
+    paddingHorizontal: 16,
   },
   doors: {
     flexDirection: 'row',
@@ -735,7 +753,7 @@ const styles = StyleSheet.create({
   appleButton: {
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'transparent',
+    backgroundColor: AuthColors.maroonDeep,
     overflow: 'hidden',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.28)',
@@ -744,9 +762,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.22,
     shadowRadius: 12,
     elevation: 4,
+    alignSelf: 'stretch',
+  },
+  providerRow: {
+    height: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'stretch',
     gap: 8,
   },
   providerLogo: {
@@ -762,7 +785,7 @@ const styles = StyleSheet.create({
   googleButton: {
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'transparent',
+    backgroundColor: AuthColors.maroonDeep,
     overflow: 'hidden',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.28)',
@@ -771,10 +794,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.22,
     shadowRadius: 12,
     elevation: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+    alignSelf: 'stretch',
   },
   googleText: {
     ...preAppFont,
@@ -836,6 +856,7 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     color: AuthColors.ink,
     paddingVertical: 0,
+    ...authFieldInput,
   },
   eyeIconButton: {
     padding: 6,
@@ -947,6 +968,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 14,
+    gap: 10,
   },
   switchMuted: {
     ...preAppFont,

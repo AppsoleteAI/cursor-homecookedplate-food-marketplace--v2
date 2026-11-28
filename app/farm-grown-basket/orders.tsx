@@ -45,7 +45,7 @@ export default function FarmOrdersScreen() {
 
 const styles = StyleSheet.create({
   empty: { color: Colors.gray[700] },
-  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 14, padding: 14, marginBottom: 10  },
+  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 14, padding: 14, paddingLeft: 48, marginBottom: 10  },
   name: { fontWeight: '700', color: Colors.gray[900] },
   meta: { color: Colors.gray[500], marginTop: 4, marginBottom: 6 },
   line: { color: Colors.gray[700] },

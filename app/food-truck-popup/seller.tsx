@@ -108,7 +108,7 @@ export default function TruckSellerScreen() {
 }
 
 const styles = StyleSheet.create({
-  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 14, padding: 14, marginBottom: 10  },
+  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 14, padding: 14, paddingLeft: 48, marginBottom: 10  },
   label: { color: Colors.gray[500], fontSize: 13 },
   value: { fontSize: 28, fontWeight: '700', color: Colors.gray[900], marginTop: 4 },
   itemName: { fontWeight: '700', color: Colors.gray[900] },

@@ -54,10 +54,10 @@ export default function CsaScreen() {
 
 const styles = StyleSheet.create({
   lead: { color: Colors.gray[700], lineHeight: 20 },
-  card: { ...glassSurface, marginTop: 14, backgroundColor: Colors.white, borderRadius: 16, padding: 10  },
+  card: { ...glassSurface, marginTop: 14, backgroundColor: Colors.white, borderRadius: 16, padding: 10, paddingLeft: 48  },
   row: { flexDirection: 'row', gap: 12 },
   image: { ...glassSurface, width: 84, height: 84, borderRadius: 12, backgroundColor: Colors.gray[200] },
-  copy: { flex: 1, justifyContent: 'center' },
+  copy: { flex: 1, minWidth: 0, justifyContent: 'center' },
   name: { fontSize: 16, fontWeight: '700', color: Colors.gray[900] },
   meta: { color: Colors.gray[500], marginTop: 4 },
   body: { color: Colors.gray[700], marginTop: 8, lineHeight: 20 },

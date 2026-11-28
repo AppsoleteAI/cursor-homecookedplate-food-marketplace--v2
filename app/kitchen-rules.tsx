@@ -244,7 +244,7 @@ function RuleCard({ title, body }: { title: string; body: string }) {
 
 function SourceCard({ source }: { source: ExternalSource }) {
   return (
-    <GlassPressable style={styles.source} onPress={() => openSource(source.url)} accessibilityRole="link">
+    <GlassPressable style={styles.source} stableWords onPress={() => openSource(source.url)} accessibilityRole="link">
       <Text style={styles.sourceName}>{source.name}</Text>
       <Text style={styles.sourceDetail}>{source.detail}</Text>
       <Text style={styles.sourceUrl}>{source.url}</Text>
@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
   bulletMark: { color: AuthColors.ink, lineHeight: 21 },
   bulletText: { flex: 1, color: AuthColors.ink, lineHeight: 21 },
   rule: {
-    backgroundColor: AuthColors.field,
+    backgroundColor: '#FFFBF5',
     borderRadius: 12,
     padding: 12,
     marginTop: 10,
@@ -295,6 +295,7 @@ const styles = StyleSheet.create({
   ruleTitle: { color: AuthColors.ink, fontWeight: '700' },
   states: { color: AuthColors.ink, lineHeight: 21, marginTop: 10 },
   source: {
+    backgroundColor: '#FFFBF5',
     borderWidth: 1,
     borderColor: '#E0D3BE',
     borderRadius: 12,

@@ -37,7 +37,7 @@ function stopLot(lot: string | undefined) {
 
 const styles = StyleSheet.create({
   lead: { color: Colors.gray[700], lineHeight: 20 },
-  card: { ...glassSurface, marginTop: 12, backgroundColor: Colors.white, borderRadius: 16, padding: 14  },
+  card: { ...glassSurface, marginTop: 12, backgroundColor: Colors.white, borderRadius: 16, padding: 14, paddingLeft: 48  },
   name: { fontSize: 17, fontWeight: '700', color: Colors.gray[900] },
   meta: { color: Colors.gray[500], marginTop: 4 },
   stop: { color: Colors.gray[700], marginTop: 6 },

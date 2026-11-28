@@ -103,12 +103,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   button: {
+    alignSelf: 'stretch',
+    height: 50,
     borderRadius: 25,
-    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    backgroundColor: 'transparent',
+    backgroundColor: AuthColors.maroonDeep,
   },
   buttonText: {
     color: AuthColors.white,

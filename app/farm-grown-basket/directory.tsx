@@ -99,7 +99,7 @@ export default function CottageDirectoryScreen() {
       <Text style={styles.section}>Outside pages</Text>
       <Text style={styles.notice}>These pages are not written or checked by HomeCookedPlate.</Text>
       {COTTAGE_RESOURCES.map((resource) => (
-        <GlassPressable key={resource.url} style={styles.card} onPress={() => WebBrowser.openBrowserAsync(resource.url)} testID={`cottage-resource-${resource.name}`}>
+        <GlassPressable key={resource.url} style={styles.resource} stableWords onPress={() => WebBrowser.openBrowserAsync(resource.url)} testID={`cottage-resource-${resource.name}`}>
           <Text style={styles.name}>{resource.name}</Text>
           <Text style={styles.note}>{resource.detail}</Text>
         </GlassPressable>
@@ -125,7 +125,8 @@ const styles = StyleSheet.create({
   chipText: { color: Colors.gray[700], fontWeight: '600' },
   chipTextOn: { color: Colors.white },
   empty: { marginTop: 12, color: Colors.gray[600] },
-  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 14, padding: 14, marginTop: 10 },
+  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 14, padding: 14, paddingLeft: 48, marginTop: 10 },
+  resource: { ...glassSurface, backgroundColor: '#FFFBF5', borderWidth: 1, borderColor: '#E0D3BE', borderRadius: 14, padding: 14, marginTop: 10 },
   name: { fontWeight: '700', color: Colors.gray[900] },
   band: { color: '#166534', marginTop: 4, fontWeight: '600' },
   cap: { color: Colors.gray[900], lineHeight: 20, marginTop: 8, fontWeight: '600' },

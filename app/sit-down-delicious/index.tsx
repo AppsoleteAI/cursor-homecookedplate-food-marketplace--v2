@@ -80,16 +80,16 @@ export default function SitDownDeliciousHome() {
           </GlassPressable>
         ))}
 
-        <GlassPressable onPress={() => router.push('/(tabs)/(home)/home')} testID="sit-back-to-plates">
+        <GlassPressable style={styles.linkHit} onPress={() => router.push('/(tabs)/(home)/home')} testID="sit-back-to-plates">
           <Text style={styles.link}>Cooked plates stay on Home.</Text>
         </GlassPressable>
-        <GlassPressable onPress={() => router.push('/farm-grown-basket' as Href)}>
+        <GlassPressable style={styles.linkHit} onPress={() => router.push('/farm-grown-basket' as Href)}>
           <Text style={styles.link}>Farm goods stay in FarmGrownBasket.</Text>
         </GlassPressable>
-        <GlassPressable onPress={() => router.push('/food-truck-popup' as Href)}>
+        <GlassPressable style={styles.linkHit} onPress={() => router.push('/food-truck-popup' as Href)}>
           <Text style={styles.link}>Food trucks stay in FoodTruckPopup.</Text>
         </GlassPressable>
-        <GlassPressable onPress={() => router.push('/cater-event-deliver' as Href)}>
+        <GlassPressable style={styles.linkHit} onPress={() => router.push('/cater-event-deliver' as Href)}>
           <Text style={styles.link}>Group catering stays in CaterEventDeliver.</Text>
         </GlassPressable>
         {isMaker ? <Text style={styles.rule}>{SIT_DOWN_RULE}</Text> : null}
@@ -117,22 +117,26 @@ const styles = StyleSheet.create({
   },
   zipButton: { ...glassSurface, backgroundColor: '#78350F', borderRadius: 12, paddingHorizontal: 16, justifyContent: 'center'  },
   zipButtonText: { color: Colors.white, fontWeight: '700' },
-  models: { paddingHorizontal: 16, paddingTop: 16, gap: 6 },
+  models: { paddingHorizontal: 16, paddingLeft: 26, paddingTop: 16, gap: 6 },
   model: { color: Colors.gray[700], fontSize: 14 },
   card: {
     ...glassSurface,
     marginHorizontal: 16,
     marginTop: 12,
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFBF5',
+    borderWidth: 1,
+    borderColor: '#E0D3BE',
     borderRadius: 16,
     padding: 14,
+    paddingLeft: 48,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
-  cardText: { flex: 1 },
+  cardText: { flex: 1, minWidth: 0 },
   cardTitle: { fontSize: 16, fontWeight: '700', color: Colors.gray[900] },
   cardDetail: { fontSize: 13, color: Colors.gray[600], marginTop: 2 },
-  link: { marginHorizontal: 16, marginTop: 14, color: '#92400E', fontWeight: '700' },
+  linkHit: { paddingLeft: 40, paddingRight: 16 },
+  link: { marginTop: 14, color: '#92400E', fontWeight: '700' },
   rule: { marginHorizontal: 16, marginTop: 12, fontSize: 12, lineHeight: 18, color: Colors.gray[500] },
 });

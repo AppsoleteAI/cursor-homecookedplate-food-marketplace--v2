@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
   sizeText: { fontWeight: '700', color: Colors.gray[800] },
   sizeTextOn: { color: Colors.white },
   hint: { color: Colors.gray[600], marginTop: 8, lineHeight: 20 },
-  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 16, padding: 14, marginTop: 10  },
+  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 16, padding: 14, paddingLeft: 48, marginTop: 10  },
   lane: { color: '#0E7490', fontSize: 12, fontWeight: '700' },
   name: { fontSize: 16, fontWeight: '700', color: Colors.gray[900], marginTop: 4 },
   row: { marginTop: 8 },

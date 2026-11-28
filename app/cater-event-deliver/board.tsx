@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
   },
   note: { color: Colors.gray[600], marginTop: 10, lineHeight: 20 },
   section: { marginTop: 16, marginBottom: 8, fontWeight: '700', color: Colors.gray[900] },
-  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 16, padding: 14, marginBottom: 10  },
+  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 16, padding: 14, paddingLeft: 48, marginBottom: 10  },
   name: { fontSize: 17, fontWeight: '700', color: Colors.gray[900] },
   status: { marginTop: 6, fontWeight: '700' },
   open: { color: '#166534' },

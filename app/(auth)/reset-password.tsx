@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { supabase } from '@/lib/supabase';
-import { AuthColors } from '@/constants/auth-palette';
+import { AuthColors, authFieldInput } from '@/constants/auth-palette';
 import { AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
 import { BackCircle } from '@/components/BackCircle';
 import { useReplaceBack } from '@/hooks/use-leave-screen';
@@ -401,6 +401,7 @@ const styles = StyleSheet.create({
     color: AuthColors.ink,
     fontSize: 16,
     paddingVertical: 0,
+    ...authFieldInput,
   },
   loginLink: {
     alignItems: 'center',

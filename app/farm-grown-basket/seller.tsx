@@ -95,7 +95,7 @@ export default function FarmSellerScreen() {
 
 const styles = StyleSheet.create({
   activeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
-  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 14, padding: 14, marginBottom: 10  },
+  card: { ...glassSurface, backgroundColor: Colors.white, borderRadius: 14, padding: 14, paddingLeft: 48, marginBottom: 10  },
   label: { color: Colors.gray[500], fontSize: 13 },
   value: { fontSize: 28, fontWeight: '700', color: Colors.gray[900], marginTop: 4 },
   valueSmall: { fontWeight: '700', color: Colors.gray[900] },

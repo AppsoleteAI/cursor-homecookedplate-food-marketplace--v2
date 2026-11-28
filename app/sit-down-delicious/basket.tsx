@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
   empty: { color: Colors.gray[700], fontSize: 16 },
   place: { fontWeight: '700', color: Colors.gray[900], marginBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, borderRadius: 14, padding: 12, marginBottom: 8 },
-  copy: { flex: 1 },
+  copy: { flex: 1, minWidth: 0 },
   name: { fontWeight: '700', color: Colors.gray[900] },
   meta: { color: Colors.gray[600], marginTop: 4 },
   qty: { flexDirection: 'row', alignItems: 'center', gap: 12 },

@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { router, useLocalSearchParams } from 'expo-router';
-import { AuthColors } from '@/constants/auth-palette';
+import { AuthColors, authFieldInput } from '@/constants/auth-palette';
 import { AuthBackground, AuthBrand, AuthGoldButton } from '@/components/auth/AuthChrome';
 import { OrderHoursSlogan } from '@/components/OrderHoursSlogan';
 import { MetroProgressBar } from '@/components/Registration/MetroProgressBar';
@@ -553,6 +553,7 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     fontSize: 16,
     color: AuthColors.ink,
+    ...authFieldInput,
   },
   eyeIconButton: {
     position: 'absolute',

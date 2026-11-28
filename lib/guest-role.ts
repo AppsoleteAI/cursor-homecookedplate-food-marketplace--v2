@@ -4,6 +4,7 @@ import { isAccountRole, PROVIDER_ROLE_STORAGE_KEY, type AccountRole } from '@/ba
 const ACCOUNT_SEEN_KEY = 'hcp_has_account';
 /** Set when this device continues past Your Location from limited browsing. */
 const GUEST_LOCATION_PASSED_KEY = 'hcp_guest_location_passed';
+const GUEST_CITY_KEY = 'hcp_guest_city';
 /** Set only when this signed-out device chooses a role for limited browsing. */
 export const GUEST_ROLE_KEY = 'hcp_guest_role';
 
@@ -75,6 +76,31 @@ export async function markGuestLocationPassed(): Promise<void> {
     await AsyncStorage.setItem(GUEST_LOCATION_PASSED_KEY, '1');
   } catch {
     // A later sign-in can still ask for Your Location once.
+  }
+}
+
+export async function writeGuestCity(city: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(GUEST_CITY_KEY, city);
+  } catch {
+    // The pin can still say Pickup near you.
+  }
+}
+
+export async function clearGuestCity(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(GUEST_CITY_KEY);
+  } catch {
+    // The pin can still say Pickup near you.
+  }
+}
+
+export async function readGuestCity(): Promise<string | null> {
+  try {
+    const city = (await AsyncStorage.getItem(GUEST_CITY_KEY))?.trim();
+    return city ? city : null;
+  } catch {
+    return null;
   }
 }
 

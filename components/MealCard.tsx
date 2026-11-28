@@ -224,6 +224,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
+    paddingLeft: 26,
     backgroundColor: Colors.white,
   },
   dietRow: {

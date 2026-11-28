@@ -44,6 +44,17 @@ export const AuthColors = {
   white: '#FFFFFF',
 } as const;
 
+/** Keeps a typed field one color. A browser autofill bar uses the same white. */
+export const authFieldInput: TextStyle = {
+  backgroundColor: 'transparent',
+  ...(Platform.OS === 'web'
+    ? ({
+        outlineStyle: 'none',
+        boxShadow: `0 0 0 1000px ${AuthColors.field} inset`,
+      } as unknown as TextStyle)
+    : null),
+};
+
 /**
  * Honey Fade.
  * Top 20% is a darker honey gold. From there the screen keeps the honey fade,

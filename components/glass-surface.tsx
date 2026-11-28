@@ -1,5 +1,5 @@
 import React, { createContext, useContext } from 'react';
-import { Pressable, PressableProps, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
+import { Image, Pressable, PressableProps, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { goldButtonColors, maroonButtonColors } from '@/constants/auth-palette';
 import Animated, {
@@ -44,8 +44,15 @@ export const glassSurface = {
 
 const BounceContext = createContext<SharedValue<number> | null>(null);
 
-function useGlassBounce() {
-  const scale = useSharedValue(1);
+/** Extra paint past every edge so a 4-pixel shift stays inside the clip. */
+const FACE_BLEED = 8;
+const FACE_REST = 1.07;
+const FACE_PRESS = 1;
+const FACE_HOVER = 1.1;
+const FACE_LIFT = 4;
+
+function useGlassBounce(contained = false) {
+  const scale = useSharedValue(contained || PRESS_SCALE_ON_BUTTON ? 1 : FACE_REST);
   const lift = useSharedValue(0);
   const shade = useSharedValue(0);
   const pressed = useSharedValue(0);
@@ -53,41 +60,70 @@ function useGlassBounce() {
 
   const pressIn = () => {
     pressed.value = 1;
-    if (PRESS_SCALE_ON_BUTTON) {
-      scale.value = withSpring(0.94, springIn);
-      lift.value = withSpring(4, springIn);
+    if (contained) {
+      scale.value = withSpring(0.97, springIn);
+      lift.value = withSpring(3, springIn);
       return;
     }
     shade.value = withTiming(1, { duration: 90 });
+    if (PRESS_SCALE_ON_BUTTON) {
+      scale.value = withSpring(0.94, springIn);
+      lift.value = withSpring(FACE_LIFT, springIn);
+      return;
+    }
+    scale.value = withSpring(FACE_PRESS, springIn);
+    lift.value = withSpring(FACE_LIFT, springIn);
   };
   const pressOut = () => {
     pressed.value = 0;
+    if (contained) {
+      scale.value = withSpring(hovered.value ? 1.02 : 1, springOut);
+      lift.value = withSpring(hovered.value ? -3 : 0, springOut);
+      return;
+    }
     if (PRESS_SCALE_ON_BUTTON) {
+      shade.value = withTiming(0, { duration: 120 });
       scale.value = withSpring(hovered.value ? 1.03 : 1, springOut);
-      lift.value = withSpring(hovered.value ? -4 : 0, springOut);
+      lift.value = withSpring(hovered.value ? -FACE_LIFT : 0, springOut);
       return;
     }
     shade.value = withTiming(hovered.value ? 0.45 : 0, { duration: 120 });
+    scale.value = withSpring(hovered.value ? FACE_HOVER : FACE_REST, springOut);
+    lift.value = withSpring(hovered.value ? -FACE_LIFT : 0, springOut);
   };
   const hoverIn = () => {
     hovered.value = 1;
     if (pressed.value !== 0) return;
-    if (PRESS_SCALE_ON_BUTTON) {
-      scale.value = withSpring(1.03, springOut);
-      lift.value = withSpring(-4, springOut);
+    if (contained) {
+      scale.value = withSpring(1.02, springOut);
+      lift.value = withSpring(-3, springOut);
       return;
     }
     shade.value = withTiming(0.45, { duration: 90 });
+    if (PRESS_SCALE_ON_BUTTON) {
+      scale.value = withSpring(1.03, springOut);
+      lift.value = withSpring(-FACE_LIFT, springOut);
+      return;
+    }
+    scale.value = withSpring(FACE_HOVER, springOut);
+    lift.value = withSpring(-FACE_LIFT, springOut);
   };
   const hoverOut = () => {
     hovered.value = 0;
     if (pressed.value !== 0) return;
-    if (PRESS_SCALE_ON_BUTTON) {
+    if (contained) {
       scale.value = withSpring(1, springOut);
       lift.value = withSpring(0, springOut);
       return;
     }
     shade.value = withTiming(0, { duration: 120 });
+    if (PRESS_SCALE_ON_BUTTON) {
+      scale.value = withSpring(1, springOut);
+      lift.value = withSpring(0, springOut);
+      return;
+    }
+    scale.value = withSpring(FACE_REST, springOut);
+    lift.value = withSpring(0, springOut);
   };
   const animStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: lift.value }, { scale: scale.value }],
@@ -110,13 +146,54 @@ export function glassLift(state: PressState): ViewStyle {
   };
 }
 
-type GlassPressableProps = PressableProps & { activeOpacity?: number };
+type GlassPressableProps = PressableProps & {
+  activeOpacity?: number;
+  /** Words stay full size inside the card. The fill still springs behind them. */
+  stableWords?: boolean;
+};
 
 /**
- * false: the painted face stays full size and darkens. The hit box stays still.
+ * false: the tap box stays still. The fill and the photo spring inside an 8-pixel bleed.
  * true: the earlier press, with the scale on the button itself.
  */
 const PRESS_SCALE_ON_BUTTON = false;
+
+function isFaceElement(node: React.ReactNode): node is React.ReactElement<{ style?: StyleProp<ViewStyle>; children?: React.ReactNode; pointerEvents?: 'none' | 'auto' | 'box-none' | 'box-only' }> {
+  if (!React.isValidElement<{ style?: StyleProp<ViewStyle>; children?: React.ReactNode; pointerEvents?: 'none' | 'auto' | 'box-none' | 'box-only' }>(node)) return false;
+  if (node.type === Image) {
+    const flat = StyleSheet.flatten(node.props.style) ?? {};
+    const width = flat.width;
+    const height = flat.height;
+    if (typeof width === 'number' && typeof height === 'number' && width <= 64 && height <= 64) return false;
+    return true;
+  }
+  if (node.type === LinearGradient) return true;
+  if (node.type === View) {
+    const kids = React.Children.toArray(node.props.children);
+    return kids.length > 0 && kids.every(isFaceElement);
+  }
+  return false;
+}
+
+function stretchFace(node: React.ReactElement<{ style?: StyleProp<ViewStyle>; pointerEvents?: 'none' | 'auto' | 'box-none' | 'box-only' }>) {
+  return React.cloneElement(node, {
+    style: [styles.faceCover, node.props.style],
+    pointerEvents: 'none',
+  });
+}
+
+function paintedFill(color: unknown): boolean {
+  if (typeof color !== 'string') return false;
+  const value = color.replace(/\s/g, '').toLowerCase();
+  return value !== 'transparent' && value !== 'rgba(0,0,0,0)';
+}
+
+function framedControl(style: StyleProp<ViewStyle> | undefined): boolean {
+  const flat = StyleSheet.flatten(style) ?? {};
+  const border = typeof flat.borderWidth === 'number' ? flat.borderWidth : 0;
+  const padding = typeof flat.padding === 'number' ? flat.padding : 0;
+  return border > 0 || padding > 0;
+}
 
 function pressFaceLayout(style: StyleProp<ViewStyle> | undefined): ViewStyle {
   const flat = StyleSheet.flatten(style) ?? {};
@@ -154,11 +231,18 @@ export function GlassPressable({
   onHoverIn,
   onHoverOut,
   activeOpacity: _activeOpacity,
+  stableWords = false,
   children,
   ...rest
 }: GlassPressableProps) {
-  const bounce = useGlassBounce();
   const flatStyle = typeof style === 'function' ? style({ pressed: false, hovered: false }) : style;
+  const rendered = typeof children === 'function' ? children({ pressed: false, hovered: false }) : children;
+  const faces = typeof children === 'function' ? [] : React.Children.toArray(children).filter(isFaceElement);
+  const still = typeof children === 'function' ? rendered : React.Children.toArray(children).filter((node) => !isFaceElement(node));
+  const faceColor = StyleSheet.flatten(flatStyle)?.backgroundColor;
+  const painted = paintedFill(faceColor) || faces.length > 0;
+  const framed = framedControl(flatStyle);
+  const bounce = useGlassBounce(!stableWords && !painted && !framed);
 
   return (
     <BounceContext.Provider value={bounce.pressed}>
@@ -181,13 +265,37 @@ export function GlassPressable({
           bounce.hoverOut();
           onHoverOut?.(event);
         }}
-        style={PRESS_SCALE_ON_BUTTON ? [flatStyle, bounce.animStyle] : [flatStyle, styles.pressBox]}
+        style={PRESS_SCALE_ON_BUTTON ? [flatStyle, bounce.animStyle] : painted ? [flatStyle, styles.pressBox, styles.pressShell] : flatStyle}
       >
-        {PRESS_SCALE_ON_BUTTON ? children : (
-          <View pointerEvents="box-none" style={pressFaceLayout(flatStyle)}>
-            {typeof children === 'function' ? children({ pressed: false, hovered: false }) : children}
-            <Animated.View pointerEvents="none" style={[styles.pressShade, bounce.shadeStyle]} />
-          </View>
+        {PRESS_SCALE_ON_BUTTON ? children : painted ? (
+          stableWords ? (
+            <>
+              <Animated.View pointerEvents="none" style={[styles.faceHost, styles.faceAbs, bounce.animStyle]}>
+                <View pointerEvents="none" style={[styles.faceBleed, paintedFill(faceColor) ? { backgroundColor: faceColor as string } : null]}>
+                  {faces.map((face) => stretchFace(face))}
+                </View>
+              </Animated.View>
+              <View pointerEvents="none" style={[styles.containedWords, pressFaceLayout(flatStyle), styles.stableWords]}>
+                {still}
+              </View>
+            </>
+          ) : (
+            <>
+              <Animated.View pointerEvents="box-none" style={[styles.faceHost, bounce.animStyle]}>
+                <View pointerEvents="none" style={[styles.faceBleed, paintedFill(faceColor) ? { backgroundColor: faceColor } : null]}>
+                  {faces.map((face) => stretchFace(face))}
+                </View>
+                <View pointerEvents="box-none" style={pressFaceLayout(flatStyle)}>
+                  {still}
+                </View>
+              </Animated.View>
+              <Animated.View pointerEvents="none" style={[styles.pressShade, bounce.shadeStyle]} />
+            </>
+          )
+        ) : framed ? rendered : (
+          <Animated.View pointerEvents="box-none" style={bounce.animStyle}>
+            {rendered}
+          </Animated.View>
         )}
       </AnimatedPressable>
     </BounceContext.Provider>
@@ -295,6 +403,44 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     backgroundColor: 'rgba(70, 28, 6, 0.28)',
+    opacity: 0,
+  },
+  pressShell: {
+    overflow: 'hidden',
+  },
+  faceHost: {
+    flexGrow: 1,
+    alignSelf: 'stretch',
+    minHeight: '100%',
+  },
+  faceAbs: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    flexGrow: 0,
+    minHeight: 0,
+  },
+  containedWords: {
+    zIndex: 1,
+  },
+  stableWords: {
+    overflow: 'visible',
+  },
+  faceBleed: {
+    position: 'absolute',
+    top: -FACE_BLEED,
+    right: -FACE_BLEED,
+    bottom: -FACE_BLEED,
+    left: -FACE_BLEED,
+  },
+  faceCover: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
   },
   pressBox: {
     padding: 0,

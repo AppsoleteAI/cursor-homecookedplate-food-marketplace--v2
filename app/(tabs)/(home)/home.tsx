@@ -40,12 +40,18 @@ import { BackCircle } from '@/components/BackCircle';
 import { useLeaveScreen, useRefreshBack } from '@/hooks/use-leave-screen';
 import { BAKED_COTTAGE_LINK, BAKED_COTTAGE_NOTE, isCottageSearch } from '@/lib/baked-cottage';
 import { isVegetableLeatherSearch, VEGETABLE_LEATHER_ALSO, VEGETABLE_LEATHER_PARAGRAPHS, VEGETABLE_LEATHER_TITLE } from '@/lib/cottage-directory';
+import { readGuestCity } from '@/lib/guest-role';
 export default function HomeScreen() {
   const { user } = useAuth();
   const openedFrom = useLocalSearchParams<{ returnTo?: string | string[] }>();
   const returnTo = Array.isArray(openedFrom.returnTo) ? openedFrom.returnTo[0] : openedFrom.returnTo;
   const fromProfile = typeof returnTo === 'string' && returnTo.startsWith('/') && !returnTo.startsWith('//');
   const signedIn = Boolean(user);
+  const [guestCity, setGuestCity] = useState<string | null>(null);
+  useEffect(() => {
+    if (user?.metroArea) return;
+    readGuestCity().then(setGuestCity).catch(() => undefined);
+  }, [user?.metroArea]);
   const leaveProfile = useLeaveScreen('/(tabs)/profile', fromProfile && !signedIn);
   const insets = useSafeAreaInsets();
   const { bellCount, markBellSeen, refresh } = useOrders();
@@ -181,7 +187,7 @@ export default function HomeScreen() {
               <Text style={styles.greeting}>Hello, {screenName(user?.username)}!</Text>
               <View style={styles.location}>
                 <Ionicons name="location-outline" size={16} color={Colors.white} />
-                <Text style={styles.locationText}>{user?.metroArea || 'Pickup near you'}</Text>
+                <Text style={styles.locationText}>{user?.metroArea || guestCity || 'Pickup near you'}</Text>
               </View>
             </View>
             <GlassPressable style={styles.notificationButton} onPress={() => { markBellSeen().catch(()=>{}); router.push('/notifications-bell'); }} testID="open-notifications-bell">
@@ -738,11 +744,12 @@ const styles = StyleSheet.create({
   },
   farmEntry: {
     marginHorizontal: 24,
-    marginTop: 16,
+    marginTop: -30,
     marginBottom: 8,
     backgroundColor: '#F0FDF4',
     borderRadius: 16,
     padding: 16,
+    paddingLeft: 72,
     borderWidth: 1,
     borderColor: '#BBF7D0',
     ...glassSurface,
@@ -770,6 +777,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF7ED',
     borderRadius: 16,
     padding: 16,
+    paddingLeft: 72,
     borderWidth: 1,
     borderColor: '#FDBA74',
     ...glassSurface,
@@ -785,6 +793,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F3FF',
     borderRadius: 16,
     padding: 16,
+    paddingLeft: 72,
     borderWidth: 1,
     borderColor: '#DDD6FE',
     ...glassSurface,
@@ -800,6 +809,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFBEB',
     borderRadius: 16,
     padding: 16,
+    paddingLeft: 72,
     borderWidth: 1,
     borderColor: '#FDE68A',
     ...glassSurface,
@@ -815,6 +825,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ECFEFF',
     borderRadius: 16,
     padding: 16,
+    paddingLeft: 72,
     borderWidth: 1,
     borderColor: '#A5F3FC',
     ...glassSurface,

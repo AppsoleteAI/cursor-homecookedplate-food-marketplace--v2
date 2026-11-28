@@ -236,15 +236,22 @@ export default function WelcomeScreen() {
     }
     if (step === 0) {
       if (fromLanding) {
+        const openLocation = (known: Role | null | undefined) => {
+          if (!known) {
+            router.replace('/(auth)/limited-browsing');
+            return;
+          }
+          router.replace({
+            pathname: '/(auth)/onboarding',
+            params: { entry: 'enter', step: '0', back: 'near-you', role: known },
+          });
+        };
         const known = pickedRole ?? role;
-        if (!known) {
-          router.replace('/(auth)/limited-browsing');
+        if (known) {
+          openLocation(known);
           return;
         }
-        router.replace({
-          pathname: '/(auth)/onboarding',
-          params: { entry: 'enter', step: '0', back: 'near-you', role: known },
-        });
+        readGuestRole().then(openLocation).catch(() => openLocation(undefined));
         return;
       }
       const known = pickedRole ?? role;
@@ -331,7 +338,7 @@ export default function WelcomeScreen() {
                       </View>
                     </View>
                   ))}
-                  <FoodHandlingLink color="#3D7EBE" returnTo={welcomeReturn(undefined, 0, 'landing')} />
+                  <FoodHandlingLink color="#3D7EBE" returnTo={welcomeReturn(role, 0, 'landing')} />
                 </>
               ) : null}
 

@@ -680,9 +680,8 @@ export default function FoodReviewClips() {
             accessibilityLabel="Scroll to top"
             style={styles.jump}
           >
-            <LinearGradient colors={[...maroonButtonColors]} locations={[0, 0.42, 1]} style={styles.jumpFill}>
-              <Ionicons name="chevron-up" size={CHROME_ICON_SIZE} color={AuthColors.gold} />
-            </LinearGradient>
+            <LinearGradient pointerEvents="none" colors={[...maroonButtonColors]} locations={[0, 0.42, 1]} style={StyleSheet.absoluteFill} />
+            <Ionicons name="chevron-up" size={CHROME_ICON_SIZE} color={AuthColors.gold} />
           </GlassPressable>
           <GlassPressable
             onPress={() => scrollRef.current?.scrollToEnd({ animated: true })}
@@ -691,9 +690,8 @@ export default function FoodReviewClips() {
             accessibilityLabel="Scroll to bottom"
             style={styles.jump}
           >
-            <LinearGradient colors={[...maroonButtonColors]} locations={[0, 0.42, 1]} style={styles.jumpFill}>
-              <Ionicons name="chevron-down" size={CHROME_ICON_SIZE} color={AuthColors.gold} />
-            </LinearGradient>
+            <LinearGradient pointerEvents="none" colors={[...maroonButtonColors]} locations={[0, 0.42, 1]} style={StyleSheet.absoluteFill} />
+            <Ionicons name="chevron-down" size={CHROME_ICON_SIZE} color={AuthColors.gold} />
           </GlassPressable>
         </View>
       </IdleChrome>
@@ -936,10 +934,6 @@ const styles = StyleSheet.create({
     height: CHROME_CHIP_SIZE,
     borderRadius: CHROME_CHIP_SIZE / 2,
     overflow: 'hidden',
-  },
-  jumpFill: {
-    width: CHROME_CHIP_SIZE,
-    height: CHROME_CHIP_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },
